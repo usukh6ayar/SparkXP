@@ -25,14 +25,14 @@ Over-engineering хийхгүй.
 Зорилго: оюутан бүртгүүлж нэвтрэх, үг/дүрэм/сонсгол сурах, quiz өгөх,
 XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
 
-### 1. Auth module `[ ]`
-- [ ] `POST /api/auth/register` — имэйл, нууц үг, нэр (bcrypt hash)
-- [ ] `POST /api/auth/login` — JWT access token буцаах
-- [ ] JWT strategy + `@UseGuards(JwtAuthGuard)`
-- [ ] `GET /api/auth/me` — одоогийн хэрэглэгчийн мэдээлэл
+### 1. Auth module `[x]`
+- [x] `POST /api/auth/register` — имэйл, нууц үг, нэр (bcrypt hash)
+- [x] `POST /api/auth/login` — JWT access token буцаах
+- [x] JWT strategy + `@UseGuards(JwtAuthGuard)` + `@CurrentUser()` decorator
+- [x] `GET /api/auth/me` — одоогийн хэрэглэгчийн мэдээлэл
 - [ ] Role-based guard (`@Roles('teacher')` гэх мэт) — дараа нь хэрэгтэй
-- **DoD:** Шинэ хэрэглэгч бүртгүүлж, нэвтэрч, токеноор хамгаалагдсан
-  endpoint руу хандаж чадна.
+- **DoD:** ✅ Шинэ хэрэглэгч бүртгүүлж, нэвтэрч, токеноор хамгаалагдсан
+  endpoint руу хандаж чадна. (E2E тестээр баталгаажсан)
 
 ### 2. Users module `[ ]`
 - [ ] CRUD (admin-д зориулсан)
