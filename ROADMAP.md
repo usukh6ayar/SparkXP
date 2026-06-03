@@ -30,9 +30,10 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
 - [x] `POST /api/auth/login` — JWT access token буцаах
 - [x] JWT strategy + `@UseGuards(JwtAuthGuard)` + `@CurrentUser()` decorator
 - [x] `GET /api/auth/me` — одоогийн хэрэглэгчийн мэдээлэл
-- [ ] Role-based guard (`@Roles('teacher')` гэх мэт) — дараа нь хэрэгтэй
+- [x] Role-based guard — `@Roles(UserRole.ADMIN)` + `RolesGuard`
 - **DoD:** ✅ Шинэ хэрэглэгч бүртгүүлж, нэвтэрч, токеноор хамгаалагдсан
-  endpoint руу хандаж чадна. (E2E тестээр баталгаажсан)
+  endpoint руу хандаж чадна. Role-оор хамгаалалт ажиллаж байна (student→403,
+  admin→200). (E2E тестээр баталгаажсан)
 
 ### 2. Users module `[ ]`
 - [ ] CRUD (admin-д зориулсан)
