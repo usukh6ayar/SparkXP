@@ -67,14 +67,23 @@ npm run migration:generate -- src/migrations/InitSchema
 npm run migration:run
 ```
 
-# Холбогдох
+## Inspecting the database
 
+Connect with `psql`:
+
+```bash
 PGPASSWORD=postgres psql -h localhost -U postgres -d englishxp
+```
 
-# Дотор нь:
+Useful commands once connected:
 
-\dt -- бүх хүснэгт жагсаалт
-\d users -- нэг хүснэгтийн бүтэц (багана, төрөл)
-\d+ words -- дэлгэрэнгүй
-SELECT \* FROM users; -- өгөгдөл харах
-\q -- гарах
+```text
+\dt            list all tables
+\d users       show a table's structure (columns, types)
+\d+ words      detailed structure
+SELECT * FROM users;   view rows
+\q             quit
+```
+
+Or use a GUI (TablePlus / DBeaver) with: host `localhost`, port `5432`,
+database `englishxp`, user `postgres`, password `postgres`.
