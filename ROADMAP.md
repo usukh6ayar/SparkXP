@@ -74,11 +74,11 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
   endpoint руу хандаж чадна. Role-оор хамгаалалт ажиллаж байна (student→403,
   admin→200). (E2E тестээр баталгаажсан)
 
-### 2. Users module `[ ]` — 👥 хамт / дараа
+### 2. Users module `[x]` — 👤 Бишрэлт ✅
 
-- [ ] CRUD (admin-д зориулсан)
-- [ ] Профайл засах (`PATCH /api/users/me`)
-- [ ] XP/Sparks тэнцэл унших (`GET /api/users/me/stats`)
+- [x] CRUD (admin-д зориулсан) — `GET /api/users`, `DELETE /api/users/:id`
+- [x] Профайл засах (`PATCH /api/users/me`)
+- [x] XP/Sparks тэнцэл унших (`GET /api/users/me/stats`)
 
 ### 3. Content modules — DB-д суурилсан `[ ]`
 
@@ -119,10 +119,10 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
 - **DoD:** Оюутан AI buddy-тэй ярихад хариу авч, AiUsage-д бүртгэгдэж,
   хязгаар хэтрэхэд блоклогдоно.
 
-### 7. Basic Admin `[ ]` — 👥 хамт / дараа
+### 7. Basic Admin `[x]` — 👤 Бишрэлт ✅
 
-- [ ] Контент CRUD-ийг admin role-оор хамгаалах
-- [ ] Энгийн seed script (туршилтын үг/хичээл оруулах)
+- [x] Контент CRUD-ийг admin role-оор хамгаалах (Quizzes, Lessons, Words — admin guard)
+- [x] Seed script — `npm run seed` (admin user, words, lessons, quizzes) — `src/scripts/seed.ts`
 
 ### 8. Leaderboard module `[ ]` — 👤 Усухбаяр
 
@@ -157,13 +157,13 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
 - **DoD:** Оюутан хангалттай Spark-тай бол хичээл нээж, дараа нь үргэлж
   хандана. Spark дутвал блоклогдоно. Spark-г мөнгөөр худалдаж авч болно.
 
-### 10. Чанар, найдвартай байдал `[ ]` — 👥 хамт
+### 10. Чанар, найдвартай байдал `[x]` — 👤 Бишрэлт ✅
 
-- [ ] Global exception filter + стандарт алдааны формат
-- [ ] Request validation (DTO + class-validator) бүх endpoint дээр
-- [ ] `GET /api/health` — health check
-- [ ] Production-д `DB_SYNCHRONIZE=false` + migration ашиглах
-- [ ] Гол flow-уудад unit/e2e test (auth, XP, review, leaderboard, unlock)
+- [x] Global exception filter + стандарт алдааны формат (`src/common/filters/http-exception.filter.ts`)
+- [x] Request validation (DTO + class-validator) бүх endpoint дээр (`ValidationPipe` global)
+- [x] `GET /api/health` — health check (DB + Redis ping)
+- [ ] Production-д `DB_SYNCHRONIZE=false` + migration ашиглах (Phase 2-д шилжих үед)
+- [x] Гол flow-уудад e2e test (auth, XP/quiz submit, Sparks unlock, health) — `test/app.e2e-spec.ts`
 
 ---
 
@@ -203,14 +203,11 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
 
 ## 📌 Дараагийн алхам — хэн юунаас эхлэх
 
-✅ **Бишрэлтийн ажлууд (#3 Quizzes, #5 XP, #6 AI Gateway, #9 Sparks) `bishrelt` branch-д бэлэн.**
-✅ **Усухбаярын ажлууд (#3 Words/Lessons, #4 SRS, #8 Leaderboard) `usukhbayar` branch-д бэлэн.**
+✅ **Phase 1 бүрэн дууссан — `bishrelt` branch-д бэлэн.**
 
-Дараагийн үе шат:
+Бишрэлт хийсэн: #2 Users · #3 Quizzes · #5 XP · #6 AI Gateway · #7 Seed · #9 Sparks · #10 Quality
+Усухбаяр хийсэн: #3 Words/Lessons · #4 SRS · #8 Leaderboard
 
-| Dev          | Branch       | Дараагийн ажил                                          |
-| ------------ | ------------ | ------------------------------------------------------- |
-| **Усухбаяр** | `usukhbayar` | #2 Users CRUD (профайл засах, XP/Sparks stats)          |
-| **Бишрэлт**  | `bishrelt`   | #7 Admin seed script + #10 Health check + exception filter |
-
-Хоёулаа PR нээж `main` руу merge хийнэ. Дараа нь Phase 2 (teacher dashboard, payment) эхэлнэ.
+**Дараагийн алхам:**
+1. Хоёулаа `bishrelt` + `usukhbayar` branch-аа PR нээж `main` руу merge хийнэ.
+2. Phase 2 (teacher dashboard, organizations, payments) эхэлнэ.
