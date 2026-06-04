@@ -75,12 +75,38 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
 - [ ] Контент CRUD-ийг admin role-оор хамгаалах
 - [ ] Энгийн seed script (туршилтын үг/хичээл оруулах)
 
-### 8. Чанар, найдвартай байдал `[ ]`
+### 8. Leaderboard module `[ ]`
+> Рейтинг = **XP** (Spark-аар БИШ). XP-г устгаж reset хийхгүй — period нь зүгээр
+> `XpLog.created_at` дээрх хугацааны цонх.
+- [x] Schema: `User.province/district/country`, `Organization.province/district`
+- [x] Enum: `LeaderboardPeriod` (weekly/monthly/all_time), `LeaderboardScope`
+- [ ] `GET /api/leaderboard?period=weekly&scope=province` — топ N + миний байр
+- [ ] Postgres query: `XpLog`-г хугацаа+scope-оор SUM, эрэмбэлэх
+- [ ] Scope-ууд: global, province, district, class, organization
+- [ ] (Дараа нь) Redis ZSET-ээр хурдасгах — scale хэрэгтэй болоход
+- **DoD:** Оюутан өөрийн дүүрэг/аймаг/global-аар, долоо хоног/сар/бүх цагаар
+  рейтингээ харна.
+
+### 9. Sparks store — хичээл худалдах `[ ]`
+> Spark = зарцуулагддаг валют. Хичээл Spark-аар нээж болно.
+- [x] Schema: `Lesson.priceSparks`, `SparksLog` (ledger), `LessonUnlock`
+- [x] Enum: `SparksSource` (олох/зарах эх сурвалж)
+- [ ] **Sparks service** — Spark олгох/хасах, `SparksLog`-д бичих,
+      `User.sparks` cache шинэчлэх (XP service-ийн ихэр)
+- [ ] `POST /api/lessons/:id/unlock` — Spark хасч `LessonUnlock` үүсгэх
+      (нэг транзакц, balance шалгах, давхар худалдан авалтаас сэргийлэх)
+- [ ] Хичээл авах эрхийг шалгах (нээгдсэн эсэх) контент уншихад
+- [ ] **Spark-г мөнгөөр цэнэглэх** — `Payment` амжилттай → `SparksLog` (+,
+      source=`PURCHASE`). Payment module-той хамт (Phase 2).
+- **DoD:** Оюутан хангалттай Spark-тай бол хичээл нээж, дараа нь үргэлж
+  хандана. Spark дутвал блоклогдоно. Spark-г мөнгөөр худалдаж авч болно.
+
+### 10. Чанар, найдвартай байдал `[ ]`
 - [ ] Global exception filter + стандарт алдааны формат
 - [ ] Request validation (DTO + class-validator) бүх endpoint дээр
 - [ ] `GET /api/health` — health check
 - [ ] Production-д `DB_SYNCHRONIZE=false` + migration ашиглах
-- [ ] Гол flow-уудад unit/e2e test (auth, XP, review)
+- [ ] Гол flow-уудад unit/e2e test (auth, XP, review, leaderboard, unlock)
 
 ---
 
@@ -100,7 +126,8 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
 
 - [ ] Voice AI: STT/TTS — AI Gateway-аар дамжуулж (одоо UI "coming soon")
 - [ ] Voice минут хязгаарыг plan-аас тохируулах
-- [ ] **Sparks store** — Sparks-аар юм худалдаж авах
+- [ ] **Sparks store-ийг өргөтгөх** — хичээлээс гадна бусад зүйл (avatar, hint,
+      streak freeze г.м). Үндсэн механик нь Phase 1 #9-д бэлэн.
 - [ ] Sparks олгох/зарцуулах rate-ийг admin-аас тохируулах
 - [ ] Premium subscription tiers
 
@@ -119,5 +146,9 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
 
 ## 📌 Дараагийн нэн тэргүүний алхам
 
-**Auth module** (#1) — бусад бүх зүйл нэвтрэлт дээр тулгуурладаг тул эхэнд.
-Дараа нь Content (#3) → Vocabulary/Review (#4) → AI Gateway (#6).
+✅ **Auth module (#1) дууссан.** Leaderboard/Sparks-ийн schema (#8, #9) бэлэн.
+Дараа нь: **Content (#3)** → дараа нь Leaderboard (#8) ба Sparks store (#9)
+логик → Vocabulary/Review (#4) → AI Gateway (#6).
+
+> Content (#3) эхэнд хэрэгтэй: Leaderboard-д XP олгох эх сурвалж (quiz/lesson),
+> Sparks store-д худалдах хичээл — хоёулаа контент байхыг шаардана.

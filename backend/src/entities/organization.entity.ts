@@ -21,6 +21,14 @@ export class Organization extends BaseEntity {
   @Column()
   type: string;
 
+  // Location of the organization. When a student joins this org, these can be
+  // copied onto the student so they appear in the right local leaderboard.
+  @Column({ type: 'varchar', nullable: true })
+  province: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  district: string | null;
+
   /** Optional free-form settings (branding, plan limits overrides, etc.). */
   @Column({ type: 'jsonb', nullable: true })
   settings: Record<string, unknown> | null;
