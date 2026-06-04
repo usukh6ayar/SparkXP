@@ -85,17 +85,18 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
 > Бүх контент DB-д. Hardcode хийхгүй. Admin нэмж чадна.
 > **Хуваарь:** Words/Lessons = 👤 Өсөхбаяр · Quizzes = 👤 Бишрэлт (өөр файл тул зэрэг хийж болно)
 
-- [ ] **Words module** — CRUD, level/lesson-оор шүүх — 👤 Өсөхбаяр
-- [ ] **Lessons module** — CRUD, type (vocab/grammar/listening), publish — 👤 Усухбаяр
+- [x] **Words module** — CRUD, level/lesson-оор шүүх — 👤 Усухбаяр ✅
+- [x] **Lessons module** — CRUD, type/level/publish, jsonb content — 👤 Усухбаяр ✅
 - [ ] **Quizzes module** — CRUD, `questions` jsonb-ийг service-д validate — 👤 Бишрэлт
-- **DoD:** Admin үг/хичээл/quiz нэмж, оюутан түүнийг API-аар авч чадна.
+- **DoD:** Admin үг/хичээл нэмж, оюутан API-аар авч чадна (admin-only бичих, E2E тест).
 
-### 4. Vocabulary / Spaced Repetition `[ ]` — 👤 Усухбаяр
+### 4. Vocabulary / Spaced Repetition `[x]` — 👤 Усухбаяр ✅
 
-- [ ] `GET /api/reviews/due` — өнөөдөр давтах ёстой үгс (WordReview)
-- [ ] `POST /api/reviews/:wordId` — хариу илгээх (зөв/буруу)
-- [ ] SM-2 алгоритм service-д (easeFactor, interval, nextReviewAt шинэчлэх)
-- **DoD:** Оюутан үг давтахад дараагийн давталтын огноо зөв тооцогдоно.
+- [x] `GET /api/reviews/due` — өнөөдөр давтах ёстой үгс (WordReview)
+- [x] `POST /api/reviews/:wordId` — хариу илгээх (quality 0-5)
+- [x] SM-2 алгоритм service-д (easeFactor, interval, nextReviewAt шинэчлэх)
+- **DoD:** ✅ Оюутан үг давтахад дараагийн давталтын огноо зөв тооцогдоно
+  (1→6→16 өдөр, буруу хариунд reset). E2E тестээр баталгаажсан.
 
 ### 5. Quiz submission + XP `[ ]` — 👤 Бишрэлт
 
@@ -132,12 +133,13 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
 
 - [x] Schema: `User.province/district/country`, `Organization.province/district`
 - [x] Enum: `LeaderboardPeriod` (weekly/monthly/all_time), `LeaderboardScope`
-- [ ] `GET /api/leaderboard?period=weekly&scope=province` — топ N + миний байр
-- [ ] Postgres query: `XpLog`-г хугацаа+scope-оор SUM, эрэмбэлэх
-- [ ] Scope-ууд: global, province, district, class, organization
+- [x] `GET /api/leaderboard?period=weekly&scope=province` — топ N + миний байр
+- [x] Postgres query: `XpLog`-г хугацаа+scope-оор SUM, эрэмбэлэх
+- [x] Scope-ууд: global, province, district, class, organization
 - [ ] (Дараа нь) Redis ZSET-ээр хурдасгах — scale хэрэгтэй болоход
-- **DoD:** Оюутан өөрийн дүүрэг/аймаг/global-аар, долоо хоног/сар/бүх цагаар
-  рейтингээ харна.
+- **DoD:** ✅ Оюутан өөрийн дүүрэг/аймаг/global-аар, долоо хоног/сар/бүх цагаар
+  рейтингээ харна. E2E тестээр баталгаажсан (XpLog seed дататай).
+  > Тэмдэглэл: жинхэнэ XP нь #5 (XP service, Бишрэлт) бэлэн болоход орж ирнэ.
 
 ### 9. Sparks store — хичээл худалдах `[ ]` — 👤 Бишрэлт
 
