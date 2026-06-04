@@ -6,6 +6,7 @@ import { RedisModule } from './redis/redis.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { WordsModule } from './words/words.module';
+import { LessonsModule } from './lessons/lessons.module';
 
 /**
  * Root module. Wires up the three foundations:
@@ -27,6 +28,7 @@ import { WordsModule } from './words/words.module';
     UsersModule,
     AuthModule,
     WordsModule,
+    LessonsModule,
   ],
 })
 export class AppModule {}
