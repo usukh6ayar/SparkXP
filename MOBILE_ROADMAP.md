@@ -17,6 +17,42 @@ scale. Монгол хэл primary.
 
 ---
 
+## 👥 Ажлын хуваарь (хэн · аль branch)
+
+Бид 2 dev. **Mobile-ийн дэлгэцүүдийг өөрсдийн бичсэн backend-тэй нь тааруулж**
+хуваасан (Усухбаяр: Words/Lessons/SRS/Leaderboard · Бишрэлт: Quiz/AI/Sparks).
+
+| Үе шат / дэлгэц | Хэн | Backend (бэлэн) |
+| --- | --- | --- |
+| **M0 Foundation** (scaffold, API client, AuthContext, navigation) | 👤 **Усухбаяр** (эхэнд) | — |
+| M1 Auth (login/register) | 👤 Усухбаяр | `/auth/*` |
+| M2 Home/Dashboard | 👤 Усухбаяр | `/users/me/stats` |
+| M2 Vocabulary / Review (SRS) | 👤 Усухбаяр | `/reviews/*` |
+| M2 Lessons (list + detail) | 👤 Усухбаяр | `/lessons/*` |
+| M2 Quiz | 👤 **Бишрэлт** | `/quizzes/:id/submit` |
+| M2 AI buddy chat | 👤 **Бишрэлт** | `/ai/chat` |
+| M3 Leaderboard | 👤 Усухбаяр | `/leaderboard` |
+| M3 Profile (засах) | 👤 **Бишрэлт** | `/users/me` |
+| M3 Sparks store / хичээл нээх | 👤 **Бишрэлт** | `/lessons/:id/unlock` |
+| M4 Өнгөлгөө | 👥 хамт | — |
+
+### Branch урсгал (mobile)
+
+1. **M0 Foundation эхэнд** — Усухбаяр одоогийн **`mobile`** branch дээр барина →
+   дуусаад PR `mobile` → `main` → merge. (Бусад бүх дэлгэц үүн дээр суурилна.)
+2. **M0 main-д орсны дараа** — хүн бүр backend-тэй ижил урсгалаар, **өөрийн
+   branch** дээр өөрийн дэлгэцүүдээ барина:
+   - Усухбаяр → `usukhbayar` branch
+   - Бишрэлт → `bishrelt` branch
+3. Ажил эхлэхийн өмнө: `git checkout main && git pull origin main`, дараа нь
+   `git checkout <өөрийн-branch> && git merge main`.
+4. Дэлгэц/бүлэг дуусах бүрт PR → нөгөө dev review → `main`. `main` руу шууд push❌.
+
+> Зөвлөмж: эхлээд Усухбаяр M0-г дуусгаж merge хийтэл Бишрэлт хүлээнэ (foundation
+> хэрэгтэй). M0 орсны дараа хоёулаа **зэрэг** ажиллана (өөр өөр дэлгэц = өөр файл).
+
+---
+
 ## 🧰 Технологийн сонголт (MVP default)
 
 | Зүйл | Сонголт | Шалтгаан |
@@ -54,7 +90,7 @@ mobile/
 
 ---
 
-## 🎯 Phase M0 — Foundation `[ ]`
+## 🎯 Phase M0 — Foundation `[ ]` — 👤 Усухбаяр (эхэнд)
 
 - [ ] Expo + TypeScript төсөл (`/mobile`) үүсгэх
 - [ ] Folder бүтэц + theme/фонт (Cyrillic-safe) + i18n (mn/en)
@@ -64,7 +100,7 @@ mobile/
 - [ ] Expo Router navigation: auth stack ↔ tabs (нэвтэрсэн эсэхээр салгах)
 - **DoD:** Апп асаж, нэвтрээгүй бол login руу, токентой бол tabs руу чиглүүлнэ.
 
-## 🎯 Phase M1 — Auth дэлгэцүүд `[ ]`
+## 🎯 Phase M1 — Auth дэлгэцүүд `[ ]` — 👤 Усухбаяр
 
 - [ ] **Login** дэлгэц → `POST /api/auth/login` → token хадгалах
 - [ ] **Register** дэлгэц → `POST /api/auth/register`
@@ -72,7 +108,7 @@ mobile/
 - [ ] Алдаа/loading төлөв, validation (нууц үг ≥6)
 - **DoD:** Шинэ хэрэглэгч бүртгүүлж, нэвтэрч, апп руу орно.
 
-## 🎯 Phase M2 — Үндсэн суралцах дэлгэцүүд `[ ]`
+## 🎯 Phase M2 — Үндсэн суралцах дэлгэцүүд `[ ]` — 👤 Усухбаяр + Бишрэлт
 
 - [ ] **Home/Dashboard** — XP/Sparks (`GET /api/users/me/stats`), өнөөдрийн
       давтах үг тоо, товч цэс
@@ -85,7 +121,7 @@ mobile/
 - [ ] **AI buddy chat** — `POST /api/ai/chat` (текст), түүх харуулах
 - **DoD:** Оюутан үг давтаж, хичээл үзэж, quiz өгч, AI-тай ярина.
 
-## 🎯 Phase M3 — Gamification UI `[ ]`
+## 🎯 Phase M3 — Gamification UI `[ ]` — 👤 Усухбаяр + Бишрэлт
 
 - [ ] **Leaderboard** — `GET /api/leaderboard?period=&scope=`
       (weekly/monthly/all-time таб + global/аймаг/дүүрэг/класс scope), миний байр
@@ -94,7 +130,7 @@ mobile/
       (Spark хүрэлцэхгүй бол мессеж)
 - **DoD:** Оюутан рейтингээ, профайлаа харж, Spark-аар хичээл нээнэ.
 
-## 🎯 Phase M4 — Өнгөлгөө `[ ]`
+## 🎯 Phase M4 — Өнгөлгөө `[ ]` — 👥 хамт
 
 - [ ] Voice AI товч — "Тун удахгүй" (coming soon, CLAUDE.md)
 - [ ] Loading skeleton, empty/error state бүх дэлгэцэд
