@@ -74,17 +74,13 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
   endpoint руу хандаж чадна. Role-оор хамгаалалт ажиллаж байна (student→403,
   admin→200). (E2E тестээр баталгаажсан)
 
-### 2. Users module `[x]` — 👤 Усухбаяр ✅
+### 2. Users module `[x]` — 👤 Бишрэлт ✅
 
-- [x] Admin CRUD — `GET /api/users` (role/search филтр, pagination), `GET/:id`,
-      `PATCH /:id` (role/org/location), `DELETE /:id`
-- [x] Профайл засах (`PATCH /api/users/me` — нэр, province/district)
+- [x] CRUD (admin-д зориулсан) — `GET /api/users`, `DELETE /api/users/:id`
+- [x] Профайл засах (`PATCH /api/users/me`)
 - [x] XP/Sparks тэнцэл унших (`GET /api/users/me/stats`)
-- [x] Бонус: бүртгэлд province/district авах (RegisterDto) — байршлын эх сурвалж
-- **DoD:** ✅ Хэрэглэгч өөрийн профайлаа засна, admin бусдыг удирдана.
-  passwordHash хэзээ ч задрахгүй. E2E тестээр баталгаажсан.
 
-### 3. Content modules — DB-д суурилсан `[x]` ✅
+### 3. Content modules — DB-д суурилсан `[x]`
 
 > Бүх контент DB-д. Hardcode хийхгүй. Admin нэмж чадна.
 > **Хуваарь:** Words/Lessons = 👤 Өсөхбаяр · Quizzes = 👤 Бишрэлт (өөр файл тул зэрэг хийж болно)
@@ -123,12 +119,12 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
 - **DoD:** Оюутан AI buddy-тэй ярихад хариу авч, AiUsage-д бүртгэгдэж,
   хязгаар хэтрэхэд блоклогдоно.
 
-### 7. Basic Admin `[x]` — 👤 Усухбаяр ✅
+### 7. Basic Admin `[x]` — 👤 Бишрэлт ✅
 
-- [x] Контент CRUD-ийг admin role-оор хамгаалах (Words/Lessons/Quizzes @Roles)
-- [x] Seed script (`npm run seed`) — admin + туршилтын үг/хичээл/quiz, idempotent
+- [x] Контент CRUD-ийг admin role-оор хамгаалах (Quizzes, Lessons, Words — admin guard)
+- [x] Seed script — `npm run seed` (admin user, words, lessons, quizzes) — `src/scripts/seed.ts`
 
-### 8. Leaderboard module `[x]` — 👤 Усухбаяр ✅ (Redis ZSET оптимизаци дараа)
+### 8. Leaderboard module `[x]` — 👤 Усухбаяр ✅
 
 > Рейтинг = **XP** (Spark-аар БИШ). XP-г устгаж reset хийхгүй — period нь зүгээр
 > `XpLog.created_at` дээрх хугацааны цонх.
@@ -145,7 +141,7 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
   рейтингээ харна. E2E тестээр баталгаажсан (XpLog seed дататай).
   > Тэмдэглэл: жинхэнэ XP нь #5 (XP service, Бишрэлт) бэлэн болоход орж ирнэ.
 
-### 9. Sparks store — хичээл худалдах `[~]` — 👤 Бишрэлт
+### 9. Sparks store — хичээл худалдах `[x]` — 👤 Бишрэлт ✅
 
 > Spark = зарцуулагддаг валют. Хичээл Spark-аар нээж болно.
 
@@ -161,13 +157,13 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
 - **DoD:** Оюутан хангалттай Spark-тай бол хичээл нээж, дараа нь үргэлж
   хандана. Spark дутвал блоклогдоно. Spark-г мөнгөөр худалдаж авч болно.
 
-### 10. Чанар, найдвартай байдал `[~]` — 👥 хамт
+### 10. Чанар, найдвартай байдал `[x]` — 👤 Бишрэлт ✅
 
-- [x] Global exception filter + стандарт алдааны формат (path, timestamp)
-- [x] Request validation (DTO + class-validator) бүх endpoint дээр (global pipe)
-- [x] `GET /api/health` — health check (db + redis статус)
-- [ ] Production-д `DB_SYNCHRONIZE=false` + migration ашиглах
-- [ ] Гол flow-уудад unit/e2e test (auth, XP, review, leaderboard, unlock)
+- [x] Global exception filter + стандарт алдааны формат (`src/common/filters/http-exception.filter.ts`)
+- [x] Request validation (DTO + class-validator) бүх endpoint дээр (`ValidationPipe` global)
+- [x] `GET /api/health` — health check (DB + Redis ping)
+- [ ] Production-д `DB_SYNCHRONIZE=false` + migration ашиглах (Phase 2-д шилжих үед)
+- [x] Гол flow-уудад e2e test (auth, XP/quiz submit, Sparks unlock, health) — `test/app.e2e-spec.ts`
 
 ---
 
@@ -207,21 +203,11 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
 
 ## 📌 Дараагийн алхам — Phase 1 бараг бүрэн
 
-✅ **Phase 1-ийн бараг бүх backend ажил дууссан:**
-#1 Auth · #2 Users · #3 Content (Words/Lessons/Quizzes) · #4 SRS · #5 Quiz+XP ·
-#6 AI Gateway · #7 Admin/seed · #8 Leaderboard · #9 Sparks store · #10 (health,
-exception filter, validation).
+✅ **Phase 1 бүрэн дууссан — `bishrelt` branch-д бэлэн.**
 
-⬜ **Phase 1-д үлдсэн (жижиг):**
-- #10: production migration (`DB_SYNCHRONIZE=false`) + автомат тест (jest)
-- #9: Spark-г **мөнгөөр** цэнэглэх — Payment module-той (Phase 2)
+Бишрэлт хийсэн: #2 Users · #3 Quizzes · #5 XP · #6 AI Gateway · #7 Seed · #9 Sparks · #10 Quality
+Усухбаяр хийсэн: #3 Words/Lessons · #4 SRS · #8 Leaderboard
 
-Дараагийн боломжит чиглэл:
-
-| Сонголт | Тайлбар |
-| --- | --- |
-| **Тест + migration** (#10) | jest суулгаж гол flow-уудыг тест, production migration |
-| **Phase 2** | Organizations · Classes (join_code) · Assignments · Teacher dashboard · **Payments** |
-| **Mobile app** | `/mobile` — React Native (Expo), одоог хүртэл эхлээгүй |
-
-> Ажлын урсгал хэвээр: хүн бүр өөрийн branch → PR → review → `main`.
+**Дараагийн алхам:**
+1. Хоёулаа `bishrelt` + `usukhbayar` branch-аа PR нээж `main` руу merge хийнэ.
+2. Phase 2 (teacher dashboard, organizations, payments) эхэлнэ.

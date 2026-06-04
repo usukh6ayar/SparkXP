@@ -2,21 +2,15 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AppModule } from './app.module';
-import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const config = app.get(ConfigService);
 
-  // Validate and strip unknown fields on all incoming DTOs by default.
-  app.useGlobalPipes(
-    new ValidationPipe({ whitelist: true, transform: true }),
-  );
+  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+  app.useGlobalFilters(new HttpExceptionFilter());
 
-  // One consistent error shape for every unhandled exception.
-  app.useGlobalFilters(new AllExceptionsFilter());
-
-  // All routes under /api (versioning can be added later).
   app.setGlobalPrefix('api');
 
   const port = config.get<number>('PORT', 3000);

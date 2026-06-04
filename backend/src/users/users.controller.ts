@@ -3,79 +3,60 @@ import {
   Get,
   Patch,
   Delete,
-  Param,
   Body,
+  Param,
   Query,
-  UseGuards,
   ParseUUIDPipe,
+  UseGuards,
   HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
-import { UsersService } from './users.service';
-import { UpdateProfileDto } from './dto/update-profile.dto';
-import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
-import { QueryUsersDto } from './dto/query-users.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import { User } from '../entities/user.entity';
 import { UserRole } from '../common/enums';
+import { User } from '../entities/user.entity';
+import { UsersService } from './users.service';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 
-/**
- * User endpoints under /api/users.
- *
- * - `/me*` routes act on the caller themselves (any logged-in user).
- * - The rest are admin-only management endpoints.
- *
- * NOTE: `/me` routes are declared before `/:id` so "me" isn't parsed as an id.
- */
 @Controller('users')
 @UseGuards(JwtAuthGuard)
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
-  /** Edit my own profile (name, province, district). */
+  /** Current user: update their own profile. */
   @Patch('me')
-  updateProfile(@CurrentUser() user: User, @Body() dto: UpdateProfileDto) {
+  updateMe(@CurrentUser() user: User, @Body() dto: UpdateProfileDto) {
     return this.usersService.updateProfile(user.id, dto);
   }
 
-  /** My XP / Sparks balances. */
+  /** Current user: get XP and Sparks balance. */
   @Get('me/stats')
-  getMyStats(@CurrentUser() user: User) {
-    return this.usersService.getStats(user.id);
+  getStats(@CurrentUser() user: User) {
+    return this.usersService.getStats(user);
   }
 
-  // --- Admin management ---
-
+  /** Admin: list all users with pagination. */
   @Get()
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
-  findAll(@Query() query: QueryUsersDto) {
-    return this.usersService.findAll(query);
-  }
-
-  @Get(':id')
-  @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
-    return this.usersService.findOnePublic(id);
-  }
-
-  @Patch(':id')
-  @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
-  adminUpdate(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: AdminUpdateUserDto,
+  async findAll(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
-    return this.usersService.adminUpdate(id, dto);
+    const [items, total] = await this.usersService.findAll(
+      page ? parseInt(page, 10) : 1,
+      limit ? parseInt(limit, 10) : 20,
+    );
+    return { items, total };
   }
 
+  /** Admin: delete a user. */
   @Delete(':id')
-  @HttpCode(204)
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @HttpCode(HttpStatus.NO_CONTENT)
   remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.usersService.remove(id);
   }

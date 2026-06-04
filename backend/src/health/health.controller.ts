@@ -1,52 +1,29 @@
 import { Controller, Get, Inject } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
-import Redis from 'ioredis';
 import { REDIS_CLIENT } from '../redis/redis.module';
+import type Redis from 'ioredis';
 
-/**
- * GET /api/health — liveness/readiness probe. Public (no auth) so monitoring
- * tools and load balancers can call it. Reports whether Postgres and Redis are
- * reachable.
- */
 @Controller('health')
 export class HealthController {
   constructor(
-    @InjectDataSource() private readonly dataSource: DataSource,
+    @InjectDataSource() private readonly db: DataSource,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
 
   @Get()
   async check() {
-    const [db, redis] = await Promise.all([
-      this.pingDb(),
-      this.pingRedis(),
+    const [dbOk, redisOk] = await Promise.all([
+      this.db.query('SELECT 1').then(() => true).catch(() => false),
+      this.redis.ping().then((r) => r === 'PONG').catch(() => false),
     ]);
 
-    const ok = db === 'up' && redis === 'up';
+    const status = dbOk && redisOk ? 'ok' : 'degraded';
     return {
-      status: ok ? 'ok' : 'degraded',
-      db,
-      redis,
+      status,
+      db: dbOk ? 'ok' : 'error',
+      redis: redisOk ? 'ok' : 'error',
       timestamp: new Date().toISOString(),
     };
-  }
-
-  private async pingDb(): Promise<'up' | 'down'> {
-    try {
-      await this.dataSource.query('SELECT 1');
-      return 'up';
-    } catch {
-      return 'down';
-    }
-  }
-
-  private async pingRedis(): Promise<'up' | 'down'> {
-    try {
-      const pong = await this.redis.ping();
-      return pong === 'PONG' ? 'up' : 'down';
-    } catch {
-      return 'down';
-    }
   }
 }
