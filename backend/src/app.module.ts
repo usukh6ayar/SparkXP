@@ -7,6 +7,7 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { WordsModule } from './words/words.module';
 import { LessonsModule } from './lessons/lessons.module';
+import { ReviewsModule } from './reviews/reviews.module';
 
 /**
  * Root module. Wires up the three foundations:
@@ -29,6 +30,7 @@ import { LessonsModule } from './lessons/lessons.module';
     AuthModule,
     WordsModule,
     LessonsModule,
+    ReviewsModule,
   ],
 })
 export class AppModule {}
