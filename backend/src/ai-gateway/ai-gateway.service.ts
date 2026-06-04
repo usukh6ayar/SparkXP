@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   Logger,
   OnModuleInit,
+  Inject,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -12,9 +13,6 @@ import { randomUUID } from 'crypto';
 import { Message } from '../entities/message.entity';
 import { AiUsage } from '../entities/ai-usage.entity';
 import { MessageRole, AiUsageType } from '../common/enums';
-
-/** Inject this token to get the Redis client. */
-import { Inject } from '@nestjs/common';
 import { REDIS_CLIENT } from '../redis/redis.module';
 import type Redis from 'ioredis';
 
@@ -26,7 +24,7 @@ const DEFAULT_LIMITS = {
 };
 
 /** Model used for the AI buddy. Haiku is fast and cheap for chat. */
-const AI_MODEL = 'claude-haiku-4-5';
+const AI_MODEL = 'claude-haiku-4-5-20251001';
 
 export interface ChatResponse {
   conversationId: string;
@@ -103,12 +101,13 @@ export class AiGatewayService implements OnModuleInit {
       );
     }
 
-    // --- Load conversation history ---
+    // --- Load conversation history (newest N, then reverse for chronological order) ---
     const history = await this.messages.find({
       where: { userId, conversationId: convId },
-      order: { createdAt: 'ASC' },
+      order: { createdAt: 'DESC' },
       take: limits.maxContextMessages,
     });
+    history.reverse();
 
     const apiMessages: Anthropic.MessageParam[] = [
       ...history.map((m) => ({

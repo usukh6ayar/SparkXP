@@ -18,8 +18,6 @@ export class XpService {
   constructor(
     @InjectRepository(XpLog)
     private readonly xpLogs: Repository<XpLog>,
-    @InjectRepository(User)
-    private readonly users: Repository<User>,
     private readonly dataSource: DataSource,
   ) {}
 
