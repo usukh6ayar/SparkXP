@@ -39,13 +39,15 @@ organizations (e.g. law firms). Owner: Hustle Hive LLC.
 **Phase 1 — Foundation: DONE.** Built so far in `/backend`:
 
 - NestJS + TypeScript project, PostgreSQL (TypeORM) + Redis wired up.
-- All 12 entities created with UUID PKs, `created_at`/`updated_at`, jsonb where
+- All 14 entities created with UUID PKs, `created_at`/`updated_at`, jsonb where
   needed: User, Organization, Class, Lesson, Word, Quiz, Assignment, WordReview,
-  XpLog, AiUsage, Message, Payment.
+  XpLog, AiUsage, Message, Payment, SparksLog, LessonUnlock.
 - `DB_SYNCHRONIZE=true` in dev auto-creates the schema from entities on boot.
 
-**No feature endpoints yet** — only entities + infrastructure. `GET /api`
-returning 404 is expected. Next up: Auth module (see ROADMAP.md).
+**Auth module DONE:** register, login, JWT-protected `/me`, role-based guard
+(`@Roles()` + `RolesGuard`). See `src/auth/` and `src/users/`.
+
+Next up: Content modules + Leaderboard + Sparks store (see ROADMAP.md).
 
 ### Backend folder layout
 
@@ -117,18 +119,36 @@ host `localhost`, port `5432`, db `englishxp`, user `postgres`, pass `postgres`.
 
 ## Data Model
 
-Core entities: User, Organization, Class, Lesson, Word, Quiz, Assignment,
-WordReview, XpLog, AiUsage, Message, Payment.
+Core entities (14): User, Organization, Class, Lesson, Word, Quiz, Assignment,
+WordReview, XpLog, AiUsage, Message, Payment, SparksLog, LessonUnlock.
 
 - **Organization** covers schools, companies, law firms. Its `type` is an
   open-ended string (NOT a fixed enum) so new org types can be added from
   admin/DB without a code change. Suggested defaults live in
-  `ORG_TYPE_SUGGESTIONS`.
+  `ORG_TYPE_SUGGESTIONS`. Has `province`/`district` for local leaderboards.
 - **User** roles: student, teacher, admin, super_admin (single User table,
   `role` enum field). `xp` and `sparks` counters live here for fast reads.
+  Has `province`/`district`/`country` for local leaderboards (set at
+  registration or inherited from the user's school/org).
 - Students join a class via a `join_code`.
 - `WordReview` holds SM-2 spaced-repetition state per (user, word).
 - `XpLog` is the append-only source of truth for XP; `User.xp` is a cache.
+- `SparksLog` is the append-only ledger for Sparks (twin of XpLog; `amount`
+  can be negative for spending). `User.sparks` is a cache of the sum.
+- `LessonUnlock` records a lesson bought with Sparks (permanent access, unique
+  per user+lesson). `Lesson.priceSparks` = cost (0 = free).
+
+### Leaderboards
+
+- Ranked by **XP** (never Sparks — Sparks is spendable, so it would punish
+  spending). XP is never destructively reset.
+- "Resettable" periods are just **date windows over `XpLog.created_at`**:
+  `weekly`, `monthly`, `all_time` (see `LeaderboardPeriod`).
+- Scopes (`LeaderboardScope`): global, province, district, class, organization.
+- MVP: compute with Postgres queries over XpLog. Optimize with Redis sorted
+  sets (ZSET) only when scale needs it.
+- Mongolia locations: `MN_PROVINCES` (21 aimags + Ulaanbaatar) and
+  `UB_DISTRICTS` (9), kept as constant lists (not DB enums).
 
 ## Gamification
 

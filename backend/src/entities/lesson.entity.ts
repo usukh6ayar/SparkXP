@@ -38,6 +38,13 @@ export class Lesson extends BaseEntity {
   @Column({ name: 'is_published', type: 'boolean', default: false })
   isPublished: boolean;
 
+  /**
+   * Price in Sparks to unlock this lesson. 0 = free. Spending Sparks creates a
+   * SparksLog entry and a LessonUnlock record (see those entities).
+   */
+  @Column({ name: 'price_sparks', type: 'int', default: 0 })
+  priceSparks: number;
+
   /** Null = global content available to everyone; set = org-specific track. */
   @ManyToOne(() => Organization, { nullable: true, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'organization_id' })

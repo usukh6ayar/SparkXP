@@ -48,6 +48,20 @@ export class User extends BaseEntity {
   @Column({ type: 'int', default: 0 })
   sparks: number;
 
+  // --- Location (for local leaderboards: by province / district) ---
+  // Stored on the User so leaderboard queries stay simple. Populated either
+  // from registration (user picks) or inherited from their school/org.
+  @Index()
+  @Column({ type: 'varchar', nullable: true })
+  province: string | null;
+
+  @Index()
+  @Column({ type: 'varchar', nullable: true })
+  district: string | null;
+
+  @Column({ type: 'varchar', default: 'MN' })
+  country: string;
+
   // --- Org membership (null for individual learners) ---
   @ManyToOne(() => Organization, (org) => org.users, {
     nullable: true,

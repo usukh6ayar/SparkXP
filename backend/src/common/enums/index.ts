@@ -74,3 +74,80 @@ export enum PaymentStatus {
   FAILED = "failed",
   REFUNDED = "refunded",
 }
+
+/**
+ * Where a Sparks change came from. Positive amounts (earning) and negative
+ * amounts (spending) both flow through SparksLog with one of these sources,
+ * so we can audit anti-abuse just like XP.
+ */
+export enum SparksSource {
+  // Earning
+  QUIZ = "quiz",
+  LESSON = "lesson",
+  STREAK = "streak",
+  ADMIN_GRANT = "admin_grant",
+  PURCHASE = "purchase", // bought Sparks with real money (via a Payment)
+  // Spending
+  LESSON_UNLOCK = "lesson_unlock",
+  STORE_PURCHASE = "store_purchase",
+}
+
+/** Time windows for leaderboards. Computed from XpLog.created_at (no reset of
+ * actual XP — just a date filter over the ledger). */
+export enum LeaderboardPeriod {
+  WEEKLY = "weekly",
+  MONTHLY = "monthly",
+  ALL_TIME = "all_time",
+}
+
+/** Geographic scope a leaderboard is ranked within. */
+export enum LeaderboardScope {
+  GLOBAL = "global",
+  PROVINCE = "province",
+  DISTRICT = "district",
+  CLASS = "class",
+  ORGANIZATION = "organization",
+}
+
+/**
+ * Mongolia's 21 aimags + Ulaanbaatar (as a province-level entry). Kept as a
+ * constant list so the registration dropdown and validation share one source.
+ * Not a DB enum — locations are stored as plain strings on User/Organization.
+ */
+export const MN_PROVINCES = [
+  "Улаанбаатар",
+  "Архангай",
+  "Баян-Өлгий",
+  "Баянхонгор",
+  "Булган",
+  "Говь-Алтай",
+  "Говьсүмбэр",
+  "Дархан-Уул",
+  "Дорноговь",
+  "Дорнод",
+  "Дундговь",
+  "Завхан",
+  "Орхон",
+  "Өвөрхангай",
+  "Өмнөговь",
+  "Сүхбаатар",
+  "Сэлэнгэ",
+  "Төв",
+  "Увс",
+  "Ховд",
+  "Хөвсгөл",
+  "Хэнтий",
+] as const;
+
+/** Ulaanbaatar's 9 districts — used when province = "Улаанбаатар". */
+export const UB_DISTRICTS = [
+  "Багануур",
+  "Багахангай",
+  "Баянгол",
+  "Баянзүрх",
+  "Налайх",
+  "Сонгинохайрхан",
+  "Сүхбаатар",
+  "Хан-Уул",
+  "Чингэлтэй",
+] as const;

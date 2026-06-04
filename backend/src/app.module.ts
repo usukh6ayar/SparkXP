@@ -3,6 +3,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { buildTypeOrmOptions } from './config/typeorm.config';
 import { RedisModule } from './redis/redis.module';
+import { AuthModule } from './auth/auth.module';
+import { UsersModule } from './users/users.module';
 
 /**
  * Root module. Wires up the three foundations:
@@ -21,6 +23,8 @@ import { RedisModule } from './redis/redis.module';
       useFactory: buildTypeOrmOptions,
     }),
     RedisModule,
+    UsersModule,
+    AuthModule,
   ],
 })
 export class AppModule {}
