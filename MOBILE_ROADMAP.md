@@ -26,37 +26,46 @@ scale. Монгол хэл primary.
 
 ## 👥 Ажлын хуваарь (хэн · аль branch)
 
-Бид 2 dev. **Mobile-ийн дэлгэцүүдийг өөрсдийн бичсэн backend-тэй нь тааруулж**
-хуваасан (Усухбаяр: Words/Lessons/SRS/Leaderboard · Бишрэлт: Quiz/AI/Sparks).
+Бид 2 dev, тус бүр **нэг branch**-тай:
 
-| Үе шат / дэлгэц | Хэн | Backend (бэлэн) |
+| Dev | Branch | Хариуцах дэлгэцүүд |
 | --- | --- | --- |
-| **M0 Foundation** (scaffold, API client, AuthContext, navigation) | 👤 **Усухбаяр** (эхэнд) | — |
-| M1 Auth (login/register) | 👤 Усухбаяр | `/auth/*` |
-| M2 Home/Dashboard | 👤 Усухбаяр | `/users/me/stats` |
-| M2 Vocabulary / Review (SRS) | 👤 Усухбаяр | `/reviews/*` |
-| M2 Lessons (list + detail) | 👤 Усухбаяр | `/lessons/*` |
-| M2 Quiz | 👤 **Бишрэлт** | `/quizzes/:id/submit` |
-| M2 AI buddy chat | 👤 **Бишрэлт** | `/ai/chat` |
-| M3 Leaderboard | 👤 Усухбаяр | `/leaderboard` |
-| M3 Profile (засах) | 👤 **Бишрэлт** | `/users/me` |
-| M3 Sparks store / хичээл нээх | 👤 **Бишрэлт** | `/lessons/:id/unlock` |
-| M4 Өнгөлгөө | 👥 хамт | — |
+| **Усухбаяр** | **`usukhbayar`** | Auth · Home · Review(SRS) · Lessons · Leaderboard |
+| **Бишрэлт** | **`bishrelt`** | Quiz · AI chat · Profile · Sparks store |
 
-### Branch урсгал (mobile)
+Дэлгэцүүдийг **өөрсдийн бичсэн backend-тэй нь тааруулж** хуваасан.
+**Foundation (M0) бэлэн, `main`-д орсон тул хоёулаа ОДОО зэрэг эхэлж болно.**
 
-1. **M0 Foundation эхэнд** — Усухбаяр одоогийн **`mobile`** branch дээр барина →
-   дуусаад PR `mobile` → `main` → merge. (Бусад бүх дэлгэц үүн дээр суурилна.)
-2. **M0 main-д орсны дараа** — хүн бүр backend-тэй ижил урсгалаар, **өөрийн
-   branch** дээр өөрийн дэлгэцүүдээ барина:
-   - Усухбаяр → `usukhbayar` branch
-   - Бишрэлт → `bishrelt` branch
-3. Ажил эхлэхийн өмнө: `git checkout main && git pull origin main`, дараа нь
-   `git checkout <өөрийн-branch> && git merge main`.
-4. Дэлгэц/бүлэг дуусах бүрт PR → нөгөө dev review → `main`. `main` руу шууд push❌.
+| Дэлгэц | Хэн | Branch | Backend | Төлөв |
+| --- | --- | --- | --- | --- |
+| M0 Foundation | Усухбаяр | — | — | ✅ main-д |
+| M1 Login / Register | Усухбаяр | `usukhbayar` | `/auth/*` | ✅ main-д |
+| M2 Home/Dashboard | Усухбаяр | `usukhbayar` | `/users/me/stats` | ✅ main-д (XP/Sparks карт) |
+| M2 Review (SRS) | Усухбаяр | `usukhbayar` | `/reviews/*` | ⬜ дараагийнх |
+| M2 Lessons (list+detail) | Усухбаяр | `usukhbayar` | `/lessons/*` | ⬜ |
+| M3 Leaderboard | Усухбаяр | `usukhbayar` | `/leaderboard` | ⬜ |
+| M2 Quiz | Бишрэлт | `bishrelt` | `/quizzes/:id/submit` | ⬜ |
+| M2 AI buddy chat | Бишрэлт | `bishrelt` | `/ai/chat` | ⬜ |
+| M3 Profile (засах) | Бишрэлт | `bishrelt` | `/users/me` | ⬜ |
+| M3 Sparks store / нээх | Бишрэлт | `bishrelt` | `/lessons/:id/unlock` | ⬜ |
+| M4 Өнгөлгөө | 👥 хамт | — | — | ⬜ |
 
-> Зөвлөмж: эхлээд Усухбаяр M0-г дуусгаж merge хийтэл Бишрэлт хүлээнэ (foundation
-> хэрэгтэй). M0 орсны дараа хоёулаа **зэрэг** ажиллана (өөр өөр дэлгэц = өөр файл).
+### Branch урсгал
+
+1. **Ажил эхлэхийн өмнө** main-аас шинэчил:
+   ```bash
+   git checkout main && git pull origin main
+   git checkout <usukhbayar | bishrelt>
+   git merge main          # foundation + нөгөөгийн merge хийсэн ажлыг авна
+   ```
+2. Өөрийн branch дээр дэлгэцээ барина. **Дахин ашиглах UI → `src/components/`**
+   (CLAUDE.md DRY дүрэм). Өнгө/текст → `theme`/`i18n`-ээс.
+3. Дуусаад push → **PR** `<branch>` → `main` → нөгөө dev review → merge.
+4. `main` руу **шууд push хийхгүй**.
+
+> Хоёулаа өөр өөр дэлгэц (өөр файл) дээр ажиллах тул conflict бараг гарахгүй.
+> Дундын файл `app/(tabs)/_layout.tsx`-д таб нэмэхэд бага зэрэг тааралдвал хоёр
+> таб-ыг хоёуланг нь үлдээгээд шийднэ.
 
 ---
 
@@ -118,10 +127,10 @@ mobile/
 - **DoD:** ✅ Шинэ хэрэглэгч бүртгүүлж, нэвтэрч, апп руу орно. tsc цэвэр.
   > Home-г бас брэндээр шинэчилсэн (XP/Sparks карт, "Өнөөдрийн зорилго").
 
-## 🎯 Phase M2 — Үндсэн суралцах дэлгэцүүд `[ ]` — 👤 Усухбаяр + Бишрэлт
+## 🎯 Phase M2 — Үндсэн суралцах дэлгэцүүд `[~]` — 👤 Усухбаяр + Бишрэлт
 
-- [ ] **Home/Dashboard** — XP/Sparks (`GET /api/users/me/stats`), өнөөдрийн
-      давтах үг тоо, товч цэс
+- [x] **Home/Dashboard** (👤 Усухбаяр) — XP/Sparks карт, "Өнөөдрийн зорилго"
+      _(одоо session-ээс; M2-д `GET /api/users/me/stats`-аар live болгоно)_
 - [ ] **Vocabulary / Review** — `GET /api/reviews/due` → карт эргүүлэх →
       `POST /api/reviews/:wordId {quality 0-5}` (Again/Hard/Good/Easy товч)
 - [ ] **Lessons** жагсаалт — `GET /api/lessons` (type/level филтр)
@@ -159,13 +168,23 @@ mobile/
 
 ## 🌿 Git workflow (ROADMAP.md-тэй ижил)
 
-- `mobile` branch дээр ажиллаж, дуусах бүрт PR → review → `main`.
-- `main` руу шууд push хийхгүй.
+- Усухбаяр → `usukhbayar` branch · Бишрэлт → `bishrelt` branch.
+- Дуусах бүрт PR → нөгөө dev review → `main`. `main` руу шууд push хийхгүй.
 
 ---
 
 ## 📌 Дараагийн алхам
 
-1. **Дизайнаа надад үзүүл** (зам/зураг) → theme (өнгө/фонт) гаргана.
-2. **Phase M0** (Expo scaffold + foundation) барина.
+✅ **Дууссан (main-д):** M0 Foundation · M1 Auth (login/register) · Home ·
+SparkXP брэнд theme · дахин ашиглах компонентууд.
+
+**Одоо хоёулаа зэрэг эхэлнэ:**
+
+| Dev | Branch | Дараагийн дэлгэц |
+| --- | --- | --- |
+| **Усухбаяр** | `usukhbayar` | M2 **Review (SRS)** → Lessons → M3 Leaderboard |
+| **Бишрэлт** | `bishrelt` | M2 **Quiz** → AI chat → M3 Profile → Sparks store |
+
+> Сануулга: эхлэхийн өмнө `git checkout <branch> && git merge main` (foundation
+> + компонентуудыг авна). Шинэ дахин ашиглах UI бол `src/components/`-д нэм.
 3. Дараа нь M1 (auth дэлгэц) → M2 (суралцах) → M3 (gamification).
