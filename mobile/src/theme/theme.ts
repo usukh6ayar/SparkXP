@@ -1,21 +1,30 @@
 /**
- * App theme — colors, spacing, type scale.
- *
- * PLACEHOLDER values for now. Once the design mockup is provided, update the
- * palette/fonts here and the whole app follows.
+ * SparkXP brand theme — derived from the logo (running fox).
+ *   Orange = energy / XP / primary actions
+ *   Navy   = headings / text / stability
+ *   Cream  = warm surfaces / accents
  */
 export const colors = {
-  primary: '#4F46E5', // indigo — temporary, replace with design color
-  primaryDark: '#3730A3',
+  primary: '#F47B20', // brand orange (fox + "XP")
+  primaryDark: '#D9660F',
+  primarySoft: '#FDEBDA', // light orange tint (chips, highlights)
+
+  navy: '#182547', // brand navy ("Spark" + paws)
+  navySoft: '#33406A',
+
   background: '#FFFFFF',
-  surface: '#F3F4F6',
-  text: '#111827',
+  surface: '#F6F7FB', // cool light (inputs, cards)
+  cream: '#FBF4E6', // warm accent surface
+
+  text: '#182547', // navy as primary text
   textMuted: '#6B7280',
   border: '#E5E7EB',
+
   success: '#16A34A',
   danger: '#DC2626',
-  xp: '#F59E0B', // amber for XP
-  sparks: '#06B6D4', // cyan for Sparks
+
+  xp: '#F47B20', // XP in brand orange
+  sparks: '#FFB020', // Sparks in amber
   white: '#FFFFFF',
 };
 
@@ -25,16 +34,18 @@ export const spacing = {
   md: 16,
   lg: 24,
   xl: 32,
+  xxl: 48,
 };
 
 export const radius = {
-  sm: 6,
-  md: 12,
-  lg: 20,
+  sm: 8,
+  md: 14,
+  lg: 22,
   full: 999,
 };
 
 export const fontSize = {
+  xs: 11,
   sm: 13,
   md: 16,
   lg: 20,

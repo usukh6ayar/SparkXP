@@ -1,26 +1,38 @@
 /**
- * Minimal i18n. Mongolian is the primary language (CLAUDE.md); English is
- * secondary. For MVP we keep a flat dictionary and a tiny `t()` helper — swap
- * for a full i18n lib later if needed.
+ * Minimal i18n. Mongolian is primary (CLAUDE.md); English secondary.
  */
 const mn = {
-  appName: 'EnglishXP',
+  appName: 'SparkXP',
+  tagline: 'Суралц • Дадлага хий • Амжилтанд хүр',
   loading: 'Уншиж байна...',
+
   // Auth
   login: 'Нэвтрэх',
   register: 'Бүртгүүлэх',
   email: 'Имэйл',
   password: 'Нууц үг',
   fullName: 'Бүтэн нэр',
+  province: 'Аймаг / Хот',
+  district: 'Дүүрэг / Сум',
   logout: 'Гарах',
-  noAccount: 'Бүртгэлгүй юу? Бүртгүүлэх',
-  haveAccount: 'Бүртгэлтэй юу? Нэвтрэх',
+  noAccount: 'Шинэ хэрэглэгч үү?',
+  haveAccount: 'Бүртгэлтэй юу?',
+  selectProvince: 'Аймаг/хот сонгох',
+  selectDistrict: 'Дүүрэг сонгох',
+  optional: 'заавал биш',
+
   // Home
   home: 'Нүүр',
+  greeting: 'Сайн уу',
+  todayGoal: 'Өнөөдрийн зорилго',
+  reviewWords: 'Үг давтах',
+  startLearning: 'Суралцаж эхлэх',
   xp: 'XP',
   sparks: 'Очирхон',
-  welcome: 'Тавтай морил',
-  // Errors
+  streak: 'Дараалал',
+
+  // Common
+  continue: 'Үргэлжлүүлэх',
   errorGeneric: 'Алдаа гарлаа. Дахин оролдоно уу.',
   required: 'Заавал бөглөнө үү',
 };
@@ -28,15 +40,12 @@ const mn = {
 export type TranslationKey = keyof typeof mn;
 
 const dictionaries = { mn };
-
-/** Current language (MN for MVP; wire to a setting later). */
 let lang: keyof typeof dictionaries = 'mn';
 
 export function setLanguage(next: keyof typeof dictionaries) {
   lang = next;
 }
 
-/** Translate a key. Falls back to the key itself if missing. */
 export function t(key: TranslationKey): string {
   return dictionaries[lang][key] ?? key;
 }
