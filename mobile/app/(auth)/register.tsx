@@ -1,22 +1,17 @@
 import { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-} from 'react-native';
-import { Link } from 'expo-router';
+import { View, StyleSheet } from 'react-native';
 import { useAuth } from '../../src/auth/AuthContext';
 import { ApiError } from '../../src/api/client';
 import { t } from '../../src/i18n';
-import { colors, spacing, fontSize } from '../../src/theme/theme';
+import { spacing } from '../../src/theme/theme';
 import { MN_PROVINCES, UB_DISTRICTS } from '../../src/constants/locations';
+import { Screen } from '../../src/components/Screen';
 import { Logo } from '../../src/components/Logo';
 import { TextField } from '../../src/components/TextField';
 import { SelectField } from '../../src/components/SelectField';
 import { Button } from '../../src/components/Button';
+import { FormError } from '../../src/components/FormError';
+import { AuthFooter } from '../../src/components/AuthFooter';
 
 export default function RegisterScreen() {
   const { register } = useAuth();
@@ -28,8 +23,7 @@ export default function RegisterScreen() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // District picker only makes sense for Ulaanbaatar (only its districts are
-  // enumerated). Selecting a different province clears any chosen district.
+  // District applies only to Ulaanbaatar (only its districts are enumerated).
   const isUB = province === 'Улаанбаатар';
 
   function onProvinceChange(value: string) {
@@ -48,7 +42,6 @@ export default function RegisterScreen() {
         province,
         district: isUB ? district : undefined,
       });
-      // Auth gate redirects on success.
     } catch (e) {
       setError(e instanceof ApiError ? e.message : t('errorGeneric'));
     } finally {
@@ -57,82 +50,52 @@ export default function RegisterScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.flex}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <ScrollView
-        contentContainerStyle={styles.container}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View style={styles.logo}>
-          <Logo size="md" />
-        </View>
+    <Screen centered>
+      <View style={styles.logo}>
+        <Logo size="md" />
+      </View>
 
-        <TextField
-          label={t('fullName')}
-          placeholder="Бат Болд"
-          value={fullName}
-          onChangeText={setFullName}
-        />
-        <TextField
-          label={t('email')}
-          placeholder="name@email.com"
-          autoCapitalize="none"
-          keyboardType="email-address"
-          value={email}
-          onChangeText={setEmail}
-        />
-        <TextField
-          label={t('password')}
-          placeholder="дор хаяж 6 тэмдэгт"
-          secureTextEntry
-          value={password}
-          onChangeText={setPassword}
-        />
+      <TextField label={t('fullName')} placeholder="Бат Болд" value={fullName} onChangeText={setFullName} />
+      <TextField
+        label={t('email')}
+        placeholder="name@email.com"
+        autoCapitalize="none"
+        keyboardType="email-address"
+        value={email}
+        onChangeText={setEmail}
+      />
+      <TextField
+        label={t('password')}
+        placeholder="дор хаяж 6 тэмдэгт"
+        secureTextEntry
+        value={password}
+        onChangeText={setPassword}
+      />
+      <SelectField
+        label={`${t('province')} (${t('optional')})`}
+        placeholder={t('selectProvince')}
+        value={province}
+        options={MN_PROVINCES}
+        onSelect={onProvinceChange}
+      />
+      {isUB ? (
         <SelectField
-          label={`${t('province')} (${t('optional')})`}
-          placeholder={t('selectProvince')}
-          value={province}
-          options={MN_PROVINCES}
-          onSelect={onProvinceChange}
+          label={`${t('district')} (${t('optional')})`}
+          placeholder={t('selectDistrict')}
+          value={district}
+          options={UB_DISTRICTS}
+          onSelect={setDistrict}
         />
-        {isUB ? (
-          <SelectField
-            label={`${t('district')} (${t('optional')})`}
-            placeholder={t('selectDistrict')}
-            value={district}
-            options={UB_DISTRICTS}
-            onSelect={setDistrict}
-          />
-        ) : null}
+      ) : null}
 
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-
-        <Button label={t('register')} onPress={onSubmit} loading={busy} style={styles.button} />
-
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>{t('haveAccount')} </Text>
-          <Link href="/(auth)/login" style={styles.link}>
-            {t('login')}
-          </Link>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      <FormError message={error} />
+      <Button label={t('register')} onPress={onSubmit} loading={busy} style={styles.button} />
+      <AuthFooter prompt={t('haveAccount')} linkLabel={t('login')} href="/(auth)/login" />
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: colors.background },
-  container: { flexGrow: 1, justifyContent: 'center', padding: spacing.lg },
   logo: { alignItems: 'center', marginBottom: spacing.lg },
-  error: { color: colors.danger, marginBottom: spacing.sm },
   button: { marginTop: spacing.sm },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: spacing.lg,
-  },
-  footerText: { color: colors.textMuted, fontSize: fontSize.md },
-  link: { color: colors.primary, fontWeight: '700', fontSize: fontSize.md },
 });

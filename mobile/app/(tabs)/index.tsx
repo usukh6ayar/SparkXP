@@ -4,6 +4,7 @@ import { useAuth } from '../../src/auth/AuthContext';
 import { t } from '../../src/i18n';
 import { colors, spacing, radius, fontSize } from '../../src/theme/theme';
 import { Button } from '../../src/components/Button';
+import { StatCard } from '../../src/components/StatCard';
 
 /**
  * Home / Dashboard. XP + Sparks come from the auth session for now; M2 will
@@ -29,57 +30,19 @@ export default function HomeScreen() {
         </View>
 
         <View style={styles.statsRow}>
-          <StatCard
-            icon="⚡"
-            label={t('xp')}
-            value={user?.xp ?? 0}
-            color={colors.xp}
-            bg={colors.primarySoft}
-          />
-          <StatCard
-            icon="✨"
-            label={t('sparks')}
-            value={user?.sparks ?? 0}
-            color={colors.sparks}
-            bg={colors.cream}
-          />
+          <StatCard icon="⚡" label={t('xp')} value={user?.xp ?? 0} color={colors.xp} bg={colors.primarySoft} />
+          <StatCard icon="✨" label={t('sparks')} value={user?.sparks ?? 0} color={colors.sparks} bg={colors.cream} />
         </View>
 
         <View style={styles.goalCard}>
           <Text style={styles.goalTitle}>{t('todayGoal')}</Text>
           <Text style={styles.goalSub}>Үгсээ давтаж XP цуглуул! 🦊</Text>
-          <Button
-            label={t('reviewWords')}
-            onPress={comingSoon}
-            style={{ marginTop: spacing.md }}
-          />
+          <Button label={t('reviewWords')} onPress={comingSoon} style={{ marginTop: spacing.md }} />
         </View>
 
         <Button label={t('startLearning')} variant="secondary" onPress={comingSoon} />
       </ScrollView>
     </SafeAreaView>
-  );
-}
-
-function StatCard({
-  icon,
-  label,
-  value,
-  color,
-  bg,
-}: {
-  icon: string;
-  label: string;
-  value: number;
-  color: string;
-  bg: string;
-}) {
-  return (
-    <View style={[styles.statCard, { backgroundColor: bg }]}>
-      <Text style={styles.statIcon}>{icon}</Text>
-      <Text style={[styles.statValue, { color }]}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
-    </View>
   );
 }
 
@@ -103,15 +66,6 @@ const styles = StyleSheet.create({
   },
   logoutText: { color: colors.textMuted, fontWeight: '600', fontSize: fontSize.sm },
   statsRow: { flexDirection: 'row', gap: spacing.md, marginBottom: spacing.lg },
-  statCard: {
-    flex: 1,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
-    alignItems: 'center',
-  },
-  statIcon: { fontSize: 28 },
-  statValue: { fontSize: fontSize.xxl, fontWeight: '800', marginTop: spacing.xs },
-  statLabel: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: 2 },
   goalCard: {
     backgroundColor: colors.navy,
     borderRadius: radius.lg,

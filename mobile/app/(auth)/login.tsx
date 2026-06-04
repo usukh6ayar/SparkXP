@@ -1,20 +1,15 @@
 import { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-} from 'react-native';
-import { Link } from 'expo-router';
+import { View, StyleSheet } from 'react-native';
 import { useAuth } from '../../src/auth/AuthContext';
 import { ApiError } from '../../src/api/client';
 import { t } from '../../src/i18n';
-import { colors, spacing, fontSize } from '../../src/theme/theme';
+import { spacing } from '../../src/theme/theme';
+import { Screen } from '../../src/components/Screen';
 import { Logo } from '../../src/components/Logo';
 import { TextField } from '../../src/components/TextField';
 import { Button } from '../../src/components/Button';
+import { FormError } from '../../src/components/FormError';
+import { AuthFooter } from '../../src/components/AuthFooter';
 
 export default function LoginScreen() {
   const { login } = useAuth();
@@ -27,8 +22,7 @@ export default function LoginScreen() {
     setError(null);
     setBusy(true);
     try {
-      await login(email.trim(), password);
-      // Auth gate redirects on success.
+      await login(email.trim(), password); // auth gate redirects on success
     } catch (e) {
       setError(e instanceof ApiError ? e.message : t('errorGeneric'));
     } finally {
@@ -37,64 +31,35 @@ export default function LoginScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.flex}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <ScrollView
-        contentContainerStyle={styles.container}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View style={styles.logo}>
-          <Logo />
-        </View>
+    <Screen centered>
+      <View style={styles.logo}>
+        <Logo />
+      </View>
 
-        <TextField
-          label={t('email')}
-          placeholder="name@email.com"
-          autoCapitalize="none"
-          keyboardType="email-address"
-          value={email}
-          onChangeText={setEmail}
-        />
-        <TextField
-          label={t('password')}
-          placeholder="••••••••"
-          secureTextEntry
-          value={password}
-          onChangeText={setPassword}
-        />
+      <TextField
+        label={t('email')}
+        placeholder="name@email.com"
+        autoCapitalize="none"
+        keyboardType="email-address"
+        value={email}
+        onChangeText={setEmail}
+      />
+      <TextField
+        label={t('password')}
+        placeholder="••••••••"
+        secureTextEntry
+        value={password}
+        onChangeText={setPassword}
+      />
 
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-
-        <Button label={t('login')} onPress={onSubmit} loading={busy} style={styles.button} />
-
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>{t('noAccount')} </Text>
-          <Link href="/(auth)/register" style={styles.link}>
-            {t('register')}
-          </Link>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      <FormError message={error} />
+      <Button label={t('login')} onPress={onSubmit} loading={busy} style={styles.button} />
+      <AuthFooter prompt={t('noAccount')} linkLabel={t('register')} href="/(auth)/register" />
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: colors.background },
-  container: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    padding: spacing.lg,
-  },
   logo: { alignItems: 'center', marginBottom: spacing.xl },
-  error: { color: colors.danger, marginBottom: spacing.sm },
   button: { marginTop: spacing.sm },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: spacing.lg,
-  },
-  footerText: { color: colors.textMuted, fontSize: fontSize.md },
-  link: { color: colors.primary, fontWeight: '700', fontSize: fontSize.md },
 });
