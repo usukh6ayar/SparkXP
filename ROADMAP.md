@@ -84,7 +84,7 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
 - **DoD:** ✅ Хэрэглэгч өөрийн профайлаа засна, admin бусдыг удирдана.
   passwordHash хэзээ ч задрахгүй. E2E тестээр баталгаажсан.
 
-### 3. Content modules — DB-д суурилсан `[ ]`
+### 3. Content modules — DB-д суурилсан `[x]` ✅
 
 > Бүх контент DB-д. Hardcode хийхгүй. Admin нэмж чадна.
 > **Хуваарь:** Words/Lessons = 👤 Өсөхбаяр · Quizzes = 👤 Бишрэлт (өөр файл тул зэрэг хийж болно)
@@ -128,7 +128,7 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
 - [x] Контент CRUD-ийг admin role-оор хамгаалах (Words/Lessons/Quizzes @Roles)
 - [x] Seed script (`npm run seed`) — admin + туршилтын үг/хичээл/quiz, idempotent
 
-### 8. Leaderboard module `[ ]` — 👤 Усухбаяр
+### 8. Leaderboard module `[x]` — 👤 Усухбаяр ✅ (Redis ZSET оптимизаци дараа)
 
 > Рейтинг = **XP** (Spark-аар БИШ). XP-г устгаж reset хийхгүй — period нь зүгээр
 > `XpLog.created_at` дээрх хугацааны цонх.
@@ -205,16 +205,23 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
 
 ---
 
-## 📌 Дараагийн алхам — хэн юунаас эхлэх
+## 📌 Дараагийн алхам — Phase 1 бараг бүрэн
 
-✅ **Бишрэлтийн ажлууд (#3 Quizzes, #5 XP, #6 AI Gateway, #9 Sparks) `bishrelt` branch-д бэлэн.**
-✅ **Усухбаярын ажлууд (#3 Words/Lessons, #4 SRS, #8 Leaderboard) `usukhbayar` branch-д бэлэн.**
+✅ **Phase 1-ийн бараг бүх backend ажил дууссан:**
+#1 Auth · #2 Users · #3 Content (Words/Lessons/Quizzes) · #4 SRS · #5 Quiz+XP ·
+#6 AI Gateway · #7 Admin/seed · #8 Leaderboard · #9 Sparks store · #10 (health,
+exception filter, validation).
 
-Дараагийн үе шат:
+⬜ **Phase 1-д үлдсэн (жижиг):**
+- #10: production migration (`DB_SYNCHRONIZE=false`) + автомат тест (jest)
+- #9: Spark-г **мөнгөөр** цэнэглэх — Payment module-той (Phase 2)
 
-| Dev          | Branch       | Дараагийн ажил                                          |
-| ------------ | ------------ | ------------------------------------------------------- |
-| **Усухбаяр** | `usukhbayar` | #2 Users CRUD (профайл засах, XP/Sparks stats)          |
-| **Бишрэлт**  | `bishrelt`   | #7 Admin seed script + #10 Health check + exception filter |
+Дараагийн боломжит чиглэл:
 
-Хоёулаа PR нээж `main` руу merge хийнэ. Дараа нь Phase 2 (teacher dashboard, payment) эхэлнэ.
+| Сонголт | Тайлбар |
+| --- | --- |
+| **Тест + migration** (#10) | jest суулгаж гол flow-уудыг тест, production migration |
+| **Phase 2** | Organizations · Classes (join_code) · Assignments · Teacher dashboard · **Payments** |
+| **Mobile app** | `/mobile` — React Native (Expo), одоог хүртэл эхлээгүй |
+
+> Ажлын урсгал хэвээр: хүн бүр өөрийн branch → PR → review → `main`.
