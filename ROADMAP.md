@@ -87,7 +87,7 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
 
 - [x] **Words module** — CRUD, level/lesson-оор шүүх — 👤 Усухбаяр ✅
 - [x] **Lessons module** — CRUD, type/level/publish, jsonb content — 👤 Усухбаяр ✅
-- [ ] **Quizzes module** — CRUD, `questions` jsonb-ийг service-д validate — 👤 Бишрэлт
+- [x] **Quizzes module** — CRUD, `questions` jsonb-ийг service-д validate — 👤 Бишрэлт ✅
 - **DoD:** Admin үг/хичээл нэмж, оюутан API-аар авч чадна (admin-only бичих, E2E тест).
 
 ### 4. Vocabulary / Spaced Repetition `[x]` — 👤 Усухбаяр ✅
@@ -98,24 +98,24 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
 - **DoD:** ✅ Оюутан үг давтахад дараагийн давталтын огноо зөв тооцогдоно
   (1→6→16 өдөр, буруу хариунд reset). E2E тестээр баталгаажсан.
 
-### 5. Quiz submission + XP `[ ]` — 👤 Бишрэлт
+### 5. Quiz submission + XP `[x]` — 👤 Бишрэлт ✅
 
-- [ ] `POST /api/quizzes/:id/submit` — хариу шалгах, оноо тооцох
-- [ ] **XP service** — зөв хариунаас XP олгох, `XpLog`-д бичих,
+- [x] `POST /api/quizzes/:id/submit` — хариу шалгах, оноо тооцох
+- [x] **XP service** — зөв хариунаас XP олгох, `XpLog`-д бичих,
       `User.xp` cache-г шинэчлэх
-- [ ] Anti-abuse: зөвхөн жинхэнэ зөв харилцаанаас XP (CLAUDE.md)
+- [x] Anti-abuse: зөвхөн жинхэнэ зөв харилцаанаас XP (CLAUDE.md)
 - **DoD:** Quiz өгөхөд XP нэмэгдэж, XpLog-д мөр үүснэ.
 
-### 6. AI Gateway module `[ ]` ⚠️ ЧУХАЛ — 👤 Бишрэлт
+### 6. AI Gateway module `[x]` ⚠️ ЧУХАЛ — 👤 Бишрэлт ✅
 
 > Бүх AI дуудлага ЗААВАЛ энэ нэг module-ээр дамжина. Feature-ээс шууд AI API
 > дуудахгүй (CLAUDE.md).
 
-- [ ] `AiGatewayService.chat()` — текст AI buddy
-- [ ] Per-user хязгаар шалгах (DB/Redis-ээс уншсан тохиргоогоор)
-- [ ] Дуудлага бүрийг `AiUsage`-д logging (token, cost тооцох)
-- [ ] Plan limit-ийг DB/admin-аас тохируулдаг болгох (app update-гүйгээр)
-- [ ] `Message` entity-д харилцааны түүх хадгалах
+- [x] `AiGatewayService.chat()` — текст AI buddy (Claude Haiku)
+- [x] Per-user хязгаар шалгах (Redis-ийн `ai:limits:default`-аас)
+- [x] Дуудлага бүрийг `AiUsage`-д logging (token, cost тооцох)
+- [x] Plan limit-ийг Redis-аар тохируулдаг болгох — `PATCH /api/ai/limits` (app update-гүйгээр)
+- [x] `Message` entity-д харилцааны түүх хадгалах
 - **DoD:** Оюутан AI buddy-тэй ярихад хариу авч, AiUsage-д бүртгэгдэж,
   хязгаар хэтрэхэд блоклогдоно.
 
@@ -141,17 +141,17 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
   рейтингээ харна. E2E тестээр баталгаажсан (XpLog seed дататай).
   > Тэмдэглэл: жинхэнэ XP нь #5 (XP service, Бишрэлт) бэлэн болоход орж ирнэ.
 
-### 9. Sparks store — хичээл худалдах `[ ]` — 👤 Бишрэлт
+### 9. Sparks store — хичээл худалдах `[~]` — 👤 Бишрэлт
 
 > Spark = зарцуулагддаг валют. Хичээл Spark-аар нээж болно.
 
 - [x] Schema: `Lesson.priceSparks`, `SparksLog` (ledger), `LessonUnlock`
 - [x] Enum: `SparksSource` (олох/зарах эх сурвалж)
-- [ ] **Sparks service** — Spark олгох/хасах, `SparksLog`-д бичих,
+- [x] **Sparks service** — Spark олгох/хасах, `SparksLog`-д бичих,
       `User.sparks` cache шинэчлэх (XP service-ийн ихэр)
-- [ ] `POST /api/lessons/:id/unlock` — Spark хасч `LessonUnlock` үүсгэх
+- [x] `POST /api/lessons/:id/unlock` — Spark хасч `LessonUnlock` үүсгэх
       (нэг транзакц, balance шалгах, давхар худалдан авалтаас сэргийлэх)
-- [ ] Хичээл авах эрхийг шалгах (нээгдсэн эсэх) контент уншихад
+- [x] Хичээл авах эрхийг шалгах — `GET /api/lessons/:id/access`
 - [ ] **Spark-г мөнгөөр цэнэглэх** — `Payment` амжилттай → `SparksLog` (+,
       source=`PURCHASE`). Payment module-той хамт (Phase 2).
 - **DoD:** Оюутан хангалттай Spark-тай бол хичээл нээж, дараа нь үргэлж
@@ -203,16 +203,14 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
 
 ## 📌 Дараагийн алхам — хэн юунаас эхлэх
 
-✅ **Auth (#1) дууссан, `main`-д merged.** Schema (#8, #9) бэлэн. Одоо хоёулаа
-**параллель** эхэлж болно (өөр өөр модуль = өөр файл = conflict бараг үгүй):
+✅ **Бишрэлтийн ажлууд (#3 Quizzes, #5 XP, #6 AI Gateway, #9 Sparks) `bishrelt` branch-д бэлэн.**
+✅ **Усухбаярын ажлууд (#3 Words/Lessons, #4 SRS, #8 Leaderboard) `usukhbayar` branch-д бэлэн.**
 
-| Dev          | Branch       | Эхлэх ажил                                  |
-| ------------ | ------------ | ------------------------------------------- |
-| **Усухбаяр** | `usukhbayar` | #3 Words + Lessons module → дараа нь #4 SRS |
-| **Бишрэлт**  | `bishrelt`   | #3 Quizzes module → дараа нь #5 Quiz+XP     |
+Дараагийн үе шат:
 
-Дараа нь: Усухбаяр → #8 Leaderboard · Бишрэлт → #9 Sparks store + #6 AI Gateway.
+| Dev          | Branch       | Дараагийн ажил                                          |
+| ------------ | ------------ | ------------------------------------------------------- |
+| **Усухбаяр** | `usukhbayar` | #2 Users CRUD (профайл засах, XP/Sparks stats)          |
+| **Бишрэлт**  | `bishrelt`   | #7 Admin seed script + #10 Health check + exception filter |
 
-> Тэмдэглэл: Content (#3) бол суурь — XP (#5), Leaderboard (#8), Sparks store (#9)
-> бүгд контент байхыг шаардана. Тиймээс хоёулаа эхлээд өөрсдийн контент модулиа
-> барина.
+Хоёулаа PR нээж `main` руу merge хийнэ. Дараа нь Phase 2 (teacher dashboard, payment) эхэлнэ.
