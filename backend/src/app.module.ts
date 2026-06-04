@@ -5,6 +5,7 @@ import { buildTypeOrmOptions } from './config/typeorm.config';
 import { RedisModule } from './redis/redis.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
+import { WordsModule } from './words/words.module';
 
 /**
  * Root module. Wires up the three foundations:
@@ -25,6 +26,7 @@ import { UsersModule } from './users/users.module';
     RedisModule,
     UsersModule,
     AuthModule,
+    WordsModule,
   ],
 })
 export class AppModule {}

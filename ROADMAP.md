@@ -12,10 +12,10 @@ Over-engineering хийхгүй.
 
 Бид 2 dev. Хүн бүр **өөрийн branch**-тай ажиллана:
 
-| Dev | Branch | Хариуцах сэдэв |
-|---|---|---|
+| Dev          | Branch       | Хариуцах сэдэв                                                   |
+| ------------ | ------------ | ---------------------------------------------------------------- |
 | **Усухбаяр** | `usukhbayar` | Контент (Words/Lessons) · Vocabulary/SRS (#4) · Leaderboard (#8) |
-| **Бишрэлт** | `bishrelt` | Quizzes · XP service (#5) · Sparks store (#9) · AI Gateway (#6) |
+| **Бишрэлт**  | `bishrelt`   | Quizzes · XP service (#5) · Sparks store (#9) · AI Gateway (#6)  |
 
 `main` = үргэлж тогтвортой. **`main` руу шууд push хийхгүй** — зөвхөн PR-аар.
 
@@ -38,6 +38,7 @@ Over-engineering хийхгүй.
 7. Хоёулаа `git checkout main && git pull origin main` хийж шинэчилнэ.
 
 ### Чухал дүрэм
+
 - **Нэг модуль дуусах бүрт PR → merge хий.** Бүх ажлаа нэг дор хураалгүй,
   branch-аа `main`-тай ойр байлга (хол явах тусам conflict ихэснэ).
 - Өөр өөр модуль = өөр өөр файл → conflict бараг гарахгүй.
@@ -63,6 +64,7 @@ Over-engineering хийхгүй.
 XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
 
 ### 1. Auth module `[x]`
+
 - [x] `POST /api/auth/register` — имэйл, нууц үг, нэр (bcrypt hash)
 - [x] `POST /api/auth/login` — JWT access token буцаах
 - [x] JWT strategy + `@UseGuards(JwtAuthGuard)` + `@CurrentUser()` decorator
@@ -73,25 +75,30 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
   admin→200). (E2E тестээр баталгаажсан)
 
 ### 2. Users module `[ ]` — 👥 хамт / дараа
+
 - [ ] CRUD (admin-д зориулсан)
 - [ ] Профайл засах (`PATCH /api/users/me`)
 - [ ] XP/Sparks тэнцэл унших (`GET /api/users/me/stats`)
 
 ### 3. Content modules — DB-д суурилсан `[ ]`
+
 > Бүх контент DB-д. Hardcode хийхгүй. Admin нэмж чадна.
-> **Хуваарь:** Words/Lessons = 👤 Усухбаяр · Quizzes = 👤 Бишрэлт (өөр файл тул зэрэг хийж болно)
-- [ ] **Words module** — CRUD, level/lesson-оор шүүх — 👤 Усухбаяр
+> **Хуваарь:** Words/Lessons = 👤 Өсөхбаяр · Quizzes = 👤 Бишрэлт (өөр файл тул зэрэг хийж болно)
+
+- [ ] **Words module** — CRUD, level/lesson-оор шүүх — 👤 Өсөхбаяр
 - [ ] **Lessons module** — CRUD, type (vocab/grammar/listening), publish — 👤 Усухбаяр
 - [ ] **Quizzes module** — CRUD, `questions` jsonb-ийг service-д validate — 👤 Бишрэлт
 - **DoD:** Admin үг/хичээл/quiz нэмж, оюутан түүнийг API-аар авч чадна.
 
 ### 4. Vocabulary / Spaced Repetition `[ ]` — 👤 Усухбаяр
+
 - [ ] `GET /api/reviews/due` — өнөөдөр давтах ёстой үгс (WordReview)
 - [ ] `POST /api/reviews/:wordId` — хариу илгээх (зөв/буруу)
 - [ ] SM-2 алгоритм service-д (easeFactor, interval, nextReviewAt шинэчлэх)
 - **DoD:** Оюутан үг давтахад дараагийн давталтын огноо зөв тооцогдоно.
 
 ### 5. Quiz submission + XP `[ ]` — 👤 Бишрэлт
+
 - [ ] `POST /api/quizzes/:id/submit` — хариу шалгах, оноо тооцох
 - [ ] **XP service** — зөв хариунаас XP олгох, `XpLog`-д бичих,
       `User.xp` cache-г шинэчлэх
@@ -99,8 +106,10 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
 - **DoD:** Quiz өгөхөд XP нэмэгдэж, XpLog-д мөр үүснэ.
 
 ### 6. AI Gateway module `[ ]` ⚠️ ЧУХАЛ — 👤 Бишрэлт
+
 > Бүх AI дуудлага ЗААВАЛ энэ нэг module-ээр дамжина. Feature-ээс шууд AI API
 > дуудахгүй (CLAUDE.md).
+
 - [ ] `AiGatewayService.chat()` — текст AI buddy
 - [ ] Per-user хязгаар шалгах (DB/Redis-ээс уншсан тохиргоогоор)
 - [ ] Дуудлага бүрийг `AiUsage`-д logging (token, cost тооцох)
@@ -110,14 +119,17 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
   хязгаар хэтрэхэд блоклогдоно.
 
 ### 7. Basic Admin `[ ]` — 👥 хамт / дараа
+
 - [ ] Контент CRUD-ийг admin role-оор хамгаалах
 - [ ] Энгийн seed script (туршилтын үг/хичээл оруулах)
 
 ### 8. Leaderboard module `[ ]` — 👤 Усухбаяр
+
 > Рейтинг = **XP** (Spark-аар БИШ). XP-г устгаж reset хийхгүй — period нь зүгээр
 > `XpLog.created_at` дээрх хугацааны цонх.
 > ⚠️ Энэ нь #5 (XP service, Бишрэлт)-ийн дараа жинхэнэ дата авна — query-г seed
 > дататай урьдчилж барьж болно.
+
 - [x] Schema: `User.province/district/country`, `Organization.province/district`
 - [x] Enum: `LeaderboardPeriod` (weekly/monthly/all_time), `LeaderboardScope`
 - [ ] `GET /api/leaderboard?period=weekly&scope=province` — топ N + миний байр
@@ -128,7 +140,9 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
   рейтингээ харна.
 
 ### 9. Sparks store — хичээл худалдах `[ ]` — 👤 Бишрэлт
+
 > Spark = зарцуулагддаг валют. Хичээл Spark-аар нээж болно.
+
 - [x] Schema: `Lesson.priceSparks`, `SparksLog` (ledger), `LessonUnlock`
 - [x] Enum: `SparksSource` (олох/зарах эх сурвалж)
 - [ ] **Sparks service** — Spark олгох/хасах, `SparksLog`-д бичих,
@@ -142,6 +156,7 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
   хандана. Spark дутвал блоклогдоно. Spark-г мөнгөөр худалдаж авч болно.
 
 ### 10. Чанар, найдвартай байдал `[ ]` — 👥 хамт
+
 - [ ] Global exception filter + стандарт алдааны формат
 - [ ] Request validation (DTO + class-validator) бүх endpoint дээр
 - [ ] `GET /api/health` — health check
@@ -189,10 +204,10 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
 ✅ **Auth (#1) дууссан, `main`-д merged.** Schema (#8, #9) бэлэн. Одоо хоёулаа
 **параллель** эхэлж болно (өөр өөр модуль = өөр файл = conflict бараг үгүй):
 
-| Dev | Branch | Эхлэх ажил |
-|---|---|---|
+| Dev          | Branch       | Эхлэх ажил                                  |
+| ------------ | ------------ | ------------------------------------------- |
 | **Усухбаяр** | `usukhbayar` | #3 Words + Lessons module → дараа нь #4 SRS |
-| **Бишрэлт** | `bishrelt` | #3 Quizzes module → дараа нь #5 Quiz+XP |
+| **Бишрэлт**  | `bishrelt`   | #3 Quizzes module → дараа нь #5 Quiz+XP     |
 
 Дараа нь: Усухбаяр → #8 Leaderboard · Бишрэлт → #9 Sparks store + #6 AI Gateway.
 
