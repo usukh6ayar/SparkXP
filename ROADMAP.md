@@ -74,11 +74,15 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
   endpoint руу хандаж чадна. Role-оор хамгаалалт ажиллаж байна (student→403,
   admin→200). (E2E тестээр баталгаажсан)
 
-### 2. Users module `[ ]` — 👥 хамт / дараа
+### 2. Users module `[x]` — 👤 Усухбаяр ✅
 
-- [ ] CRUD (admin-д зориулсан)
-- [ ] Профайл засах (`PATCH /api/users/me`)
-- [ ] XP/Sparks тэнцэл унших (`GET /api/users/me/stats`)
+- [x] Admin CRUD — `GET /api/users` (role/search филтр, pagination), `GET/:id`,
+      `PATCH /:id` (role/org/location), `DELETE /:id`
+- [x] Профайл засах (`PATCH /api/users/me` — нэр, province/district)
+- [x] XP/Sparks тэнцэл унших (`GET /api/users/me/stats`)
+- [x] Бонус: бүртгэлд province/district авах (RegisterDto) — байршлын эх сурвалж
+- **DoD:** ✅ Хэрэглэгч өөрийн профайлаа засна, admin бусдыг удирдана.
+  passwordHash хэзээ ч задрахгүй. E2E тестээр баталгаажсан.
 
 ### 3. Content modules — DB-д суурилсан `[ ]`
 
@@ -119,10 +123,10 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
 - **DoD:** Оюутан AI buddy-тэй ярихад хариу авч, AiUsage-д бүртгэгдэж,
   хязгаар хэтрэхэд блоклогдоно.
 
-### 7. Basic Admin `[ ]` — 👥 хамт / дараа
+### 7. Basic Admin `[x]` — 👤 Усухбаяр ✅
 
-- [ ] Контент CRUD-ийг admin role-оор хамгаалах
-- [ ] Энгийн seed script (туршилтын үг/хичээл оруулах)
+- [x] Контент CRUD-ийг admin role-оор хамгаалах (Words/Lessons/Quizzes @Roles)
+- [x] Seed script (`npm run seed`) — admin + туршилтын үг/хичээл/quiz, idempotent
 
 ### 8. Leaderboard module `[ ]` — 👤 Усухбаяр
 
@@ -157,11 +161,11 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
 - **DoD:** Оюутан хангалттай Spark-тай бол хичээл нээж, дараа нь үргэлж
   хандана. Spark дутвал блоклогдоно. Spark-г мөнгөөр худалдаж авч болно.
 
-### 10. Чанар, найдвартай байдал `[ ]` — 👥 хамт
+### 10. Чанар, найдвартай байдал `[~]` — 👥 хамт
 
-- [ ] Global exception filter + стандарт алдааны формат
-- [ ] Request validation (DTO + class-validator) бүх endpoint дээр
-- [ ] `GET /api/health` — health check
+- [x] Global exception filter + стандарт алдааны формат (path, timestamp)
+- [x] Request validation (DTO + class-validator) бүх endpoint дээр (global pipe)
+- [x] `GET /api/health` — health check (db + redis статус)
 - [ ] Production-д `DB_SYNCHRONIZE=false` + migration ашиглах
 - [ ] Гол flow-уудад unit/e2e test (auth, XP, review, leaderboard, unlock)
 
