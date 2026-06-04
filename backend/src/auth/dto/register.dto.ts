@@ -1,4 +1,12 @@
-import { IsEmail, IsString, MinLength, MaxLength } from 'class-validator';
+import {
+  IsEmail,
+  IsString,
+  IsOptional,
+  IsIn,
+  MinLength,
+  MaxLength,
+} from 'class-validator';
+import { MN_PROVINCES } from '../../common/enums';
 
 /** Body for POST /api/auth/register. Validated by the global ValidationPipe. */
 export class RegisterDto {
@@ -14,4 +22,15 @@ export class RegisterDto {
   @MinLength(2)
   @MaxLength(100)
   fullName: string;
+
+  // Optional location, set at sign-up (feeds local leaderboards). Can also be
+  // edited later via PATCH /api/users/me, or inherited from a school/org.
+  @IsOptional()
+  @IsIn([...MN_PROVINCES], { message: 'Аймаг/хот буруу байна' })
+  province?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  district?: string;
 }

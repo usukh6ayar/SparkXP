@@ -23,6 +23,8 @@ export class UsersService {
     email: string;
     passwordHash: string;
     fullName: string;
+    province?: string | null;
+    district?: string | null;
   }): Promise<User> {
     const user = this.users.create(data);
     return this.users.save(user);
