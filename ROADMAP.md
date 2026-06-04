@@ -74,11 +74,15 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
   endpoint руу хандаж чадна. Role-оор хамгаалалт ажиллаж байна (student→403,
   admin→200). (E2E тестээр баталгаажсан)
 
-### 2. Users module `[ ]` — 👥 хамт / дараа
+### 2. Users module `[x]` — 👤 Усухбаяр ✅
 
-- [ ] CRUD (admin-д зориулсан)
-- [ ] Профайл засах (`PATCH /api/users/me`)
-- [ ] XP/Sparks тэнцэл унших (`GET /api/users/me/stats`)
+- [x] Admin CRUD — `GET /api/users` (role/search филтр, pagination), `GET/:id`,
+      `PATCH /:id` (role/org/location), `DELETE /:id`
+- [x] Профайл засах (`PATCH /api/users/me` — нэр, province/district)
+- [x] XP/Sparks тэнцэл унших (`GET /api/users/me/stats`)
+- [x] Бонус: бүртгэлд province/district авах (RegisterDto) — байршлын эх сурвалж
+- **DoD:** ✅ Хэрэглэгч өөрийн профайлаа засна, admin бусдыг удирдана.
+  passwordHash хэзээ ч задрахгүй. E2E тестээр баталгаажсан.
 
 ### 3. Content modules — DB-д суурилсан `[ ]`
 
