@@ -28,9 +28,10 @@ organizations (e.g. law firms). Owner: Hustle Hive LLC.
 ## Repo Structure
 
 - `/backend` — NestJS API (built — see "Current Status")
-- `/mobile` — React Native (Expo) app (not started yet)
+- `/mobile` — React Native (Expo) app (started — Expo Router, see MOBILE_ROADMAP.md)
 - `CLAUDE.md` — this file (shared rules + project context)
-- `ROADMAP.md` — ordered task list and build phases
+- `ROADMAP.md` — backend task list and build phases
+- `MOBILE_ROADMAP.md` — mobile (frontend) task list + brand
 
 ---
 
@@ -176,6 +177,21 @@ WordReview, XpLog, AiUsage, Message, Payment, SparksLog, LessonUnlock.
 - Comment non-obvious logic.
 - Validate all incoming data with DTOs + class-validator.
 - Write code a junior dev can read.
+- **DRY / less code.** Don't repeat yourself. If the same UI or logic appears
+  twice, extract it into a **reusable component** (mobile) or a shared
+  service/helper (backend) instead of copy-pasting. Prefer small, composable
+  pieces over big duplicated blocks.
+
+### Mobile (Expo) conventions
+
+- Reusable UI lives in `mobile/src/components/` (e.g. `Button`, `TextField`,
+  `SelectField`, `Logo`). Build a component once, reuse it everywhere — screens
+  should mostly compose components, not redefine styles.
+- Colors/spacing/type come from `mobile/src/theme/theme.ts` (no hardcoded hex
+  in screens). User-facing text comes from `mobile/src/i18n` (Mongolian first).
+- API calls go through `mobile/src/api/` (the `client.ts` fetch wrapper),
+  never raw `fetch` inside a screen.
+- Full plan + brand colors: see **MOBILE_ROADMAP.md**.
 
 ## Git Workflow (2-dev team)
 
