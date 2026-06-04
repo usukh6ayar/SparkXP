@@ -80,7 +80,7 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
 - [x] Профайл засах (`PATCH /api/users/me`)
 - [x] XP/Sparks тэнцэл унших (`GET /api/users/me/stats`)
 
-### 3. Content modules — DB-д суурилсан `[ ]`
+### 3. Content modules — DB-д суурилсан `[x]`
 
 > Бүх контент DB-д. Hardcode хийхгүй. Admin нэмж чадна.
 > **Хуваарь:** Words/Lessons = 👤 Өсөхбаяр · Quizzes = 👤 Бишрэлт (өөр файл тул зэрэг хийж болно)
@@ -124,7 +124,7 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
 - [x] Контент CRUD-ийг admin role-оор хамгаалах (Quizzes, Lessons, Words — admin guard)
 - [x] Seed script — `npm run seed` (admin user, words, lessons, quizzes) — `src/scripts/seed.ts`
 
-### 8. Leaderboard module `[ ]` — 👤 Усухбаяр
+### 8. Leaderboard module `[x]` — 👤 Усухбаяр ✅
 
 > Рейтинг = **XP** (Spark-аар БИШ). XP-г устгаж reset хийхгүй — period нь зүгээр
 > `XpLog.created_at` дээрх хугацааны цонх.
@@ -141,7 +141,7 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
   рейтингээ харна. E2E тестээр баталгаажсан (XpLog seed дататай).
   > Тэмдэглэл: жинхэнэ XP нь #5 (XP service, Бишрэлт) бэлэн болоход орж ирнэ.
 
-### 9. Sparks store — хичээл худалдах `[~]` — 👤 Бишрэлт
+### 9. Sparks store — хичээл худалдах `[x]` — 👤 Бишрэлт ✅
 
 > Spark = зарцуулагддаг валют. Хичээл Spark-аар нээж болно.
 
