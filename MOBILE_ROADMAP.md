@@ -90,15 +90,16 @@ mobile/
 
 ---
 
-## 🎯 Phase M0 — Foundation `[ ]` — 👤 Усухбаяр (эхэнд)
+## 🎯 Phase M0 — Foundation `[x]` — 👤 Усухбаяр ✅
 
-- [ ] Expo + TypeScript төсөл (`/mobile`) үүсгэх
-- [ ] Folder бүтэц + theme/фонт (Cyrillic-safe) + i18n (mn/en)
-- [ ] `api/client.ts` — fetch wrapper, baseUrl env-ээс, Bearer token автомат,
-      алдааг стандарт хэлбэрээр
-- [ ] `AuthContext` — login/logout, token-г secure-store-д, `/auth/me` сэргээх
-- [ ] Expo Router navigation: auth stack ↔ tabs (нэвтэрсэн эсэхээр салгах)
-- **DoD:** Апп асаж, нэвтрээгүй бол login руу, токентой бол tabs руу чиглүүлнэ.
+- [x] Expo (SDK 56) + TypeScript төсөл (`/mobile`) + Expo Router
+- [x] Folder бүтэц (`app/`, `src/api|auth|i18n|theme`) + theme + i18n (mn primary)
+- [x] `api/client.ts` — fetch wrapper, `EXPO_PUBLIC_API_URL`, Bearer token, ApiError
+- [x] `AuthContext` — login/register/logout, token-г secure-store-д, `/auth/me` сэргээх
+- [x] Expo Router auth gate: нэвтрээгүй→login, токентой→tabs (автомат redirect)
+- [x] Минимал Login + Home (XP/Sparks, logout) дэлгэц
+- **DoD:** ✅ Апп асаж, auth gate ажиллаж байна. tsc typecheck цэвэр.
+  > Theme өнгө/фонт нь placeholder — дизайн ирэхэд тааруулна.
 
 ## 🎯 Phase M1 — Auth дэлгэцүүд `[ ]` — 👤 Усухбаяр
 
