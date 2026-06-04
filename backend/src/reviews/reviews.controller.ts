@@ -1,0 +1,40 @@
+import {
+  Controller,
+  Get,
+  Post,
+  Param,
+  Body,
+  UseGuards,
+  ParseUUIDPipe,
+} from '@nestjs/common';
+import { ReviewsService } from './reviews.service';
+import { SubmitReviewDto } from './dto/submit-review.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { User } from '../entities/user.entity';
+
+/**
+ * Spaced-repetition endpoints under /api/reviews. Student-facing: each acts on
+ * the current user's own review schedule.
+ */
+@Controller('reviews')
+@UseGuards(JwtAuthGuard)
+export class ReviewsController {
+  constructor(private readonly reviewsService: ReviewsService) {}
+
+  /** Words due for review right now. */
+  @Get('due')
+  getDue(@CurrentUser() user: User) {
+    return this.reviewsService.getDue(user.id);
+  }
+
+  /** Submit a recall attempt for a word; returns the rescheduled review. */
+  @Post(':wordId')
+  submit(
+    @CurrentUser() user: User,
+    @Param('wordId', ParseUUIDPipe) wordId: string,
+    @Body() dto: SubmitReviewDto,
+  ) {
+    return this.reviewsService.submit(user.id, wordId, dto.quality);
+  }
+}
