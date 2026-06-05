@@ -31,7 +31,22 @@ const mn = {
   sparks: 'Очирхон',
   streak: 'Дараалал',
 
+  // Review (spaced repetition)
+  reviewTitle: 'Үг давтах',
+  tapToFlip: 'Хариуг харах бол дар',
+  example: 'Жишээ',
+  again: 'Дахин',
+  hard: 'Хэцүү',
+  good: 'Сайн',
+  easy: 'Амархан',
+  noReviews: 'Одоогоор давтах үг алга 🎉',
+  noReviewsHint: 'Шинэ үг сурахаар дараа дахин ороорой.',
+  reviewDone: 'Бүгдийг давталаа!',
+  reviewDoneHint: 'Маргааш дахин давтаарай 🦊',
+  backHome: 'Нүүр рүү',
+
   // Common
+  back: 'Буцах',
   continue: 'Үргэлжлүүлэх',
   errorGeneric: 'Алдаа гарлаа. Дахин оролдоно уу.',
   required: 'Заавал бөглөнө үү',
