@@ -1,5 +1,6 @@
 import { View, Text, Pressable, StyleSheet, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { useAuth } from '../../src/auth/AuthContext';
 import { t } from '../../src/i18n';
 import { colors, spacing, radius, fontSize } from '../../src/theme/theme';
@@ -7,11 +8,12 @@ import { Button } from '../../src/components/Button';
 import { StatCard } from '../../src/components/StatCard';
 
 /**
- * Home / Dashboard. XP + Sparks come from the auth session for now; M2 will
+ * Home / Dashboard. XP + Sparks come from the auth session for now; later we'll
  * pull live stats from GET /api/users/me/stats and the real review count.
  */
 export default function HomeScreen() {
   const { user, logout } = useAuth();
+  const router = useRouter();
 
   const comingSoon = () =>
     Alert.alert('Тун удахгүй', 'Энэ хэсэг удахгүй нэмэгдэнэ.');
@@ -37,7 +39,7 @@ export default function HomeScreen() {
         <View style={styles.goalCard}>
           <Text style={styles.goalTitle}>{t('todayGoal')}</Text>
           <Text style={styles.goalSub}>Үгсээ давтаж XP цуглуул! 🦊</Text>
-          <Button label={t('reviewWords')} onPress={comingSoon} style={{ marginTop: spacing.md }} />
+          <Button label={t('reviewWords')} onPress={() => router.push('/review')} style={{ marginTop: spacing.md }} />
         </View>
 
         <Button label={t('startLearning')} variant="secondary" onPress={comingSoon} />
