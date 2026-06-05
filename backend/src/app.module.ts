@@ -14,6 +14,9 @@ import { XpModule } from './xp/xp.module';
 import { SparksModule } from './sparks/sparks.module';
 import { AiGatewayModule } from './ai-gateway/ai-gateway.module';
 import { HealthModule } from './health/health.module';
+import { OrganizationsModule } from './organizations/organizations.module';
+import { ClassesModule } from './classes/classes.module';
+import { AssignmentsModule } from './assignments/assignments.module';
 
 @Module({
   imports: [
@@ -35,6 +38,9 @@ import { HealthModule } from './health/health.module';
     SparksModule,
     AiGatewayModule,
     HealthModule,
+    OrganizationsModule,
+    ClassesModule,
+    AssignmentsModule,
   ],
 })
 export class AppModule {}
