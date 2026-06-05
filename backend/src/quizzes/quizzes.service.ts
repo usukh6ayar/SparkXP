@@ -6,7 +6,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Quiz } from '../entities/quiz.entity';
-import { CreateQuizDto } from './dto/create-quiz.dto';
+import { CreateQuizDto, QuestionDto } from './dto/create-quiz.dto';
 import { UpdateQuizDto } from './dto/update-quiz.dto';
 import { QueryQuizzesDto } from './dto/query-quizzes.dto';
 import { SubmitQuizDto } from './dto/submit-quiz.dto';
@@ -54,7 +54,7 @@ export class QuizzesService {
   ) {}
 
   /** Validate that every question has a supported type and required fields. */
-  private validateQuestions(raw: Record<string, unknown>[]): StoredQuestion[] {
+  private validateQuestions(raw: QuestionDto[]): StoredQuestion[] {
     return raw.map((q, i) => {
       if (q.type === 'multiple_choice') {
         const mc = q as Partial<McQuestion>;
@@ -103,7 +103,7 @@ export class QuizzesService {
       }
 
       throw new BadRequestException(
-        `questions[${i}]: unknown type "${String(q.type)}" — use multiple_choice or fill_blank`,
+        `questions[${i}]: unknown type "${String((q as { type?: unknown }).type)}" — use multiple_choice or fill_blank`,
       );
     });
   }

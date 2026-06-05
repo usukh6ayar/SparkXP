@@ -12,7 +12,7 @@
  */
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
-import * as request from 'supertest';
+import request from 'supertest';
 import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter';
@@ -46,7 +46,7 @@ async function registerAndLogin(
     .post('/api/auth/login')
     .send({ email, password });
 
-  return res.body.access_token as string;
+  return res.body.accessToken as string;
 }
 
 // ── Auth ─────────────────────────────────────────────────────────────────────
@@ -62,15 +62,15 @@ describe('Auth', () => {
       .post('/api/auth/register')
       .send({ email: 'auth_test@test.mn', password: 'Test1234!', fullName: 'Auth Test' });
     expect(res.status).toBe(201);
-    expect(res.body).toHaveProperty('access_token');
+    expect(res.body).toHaveProperty('accessToken');
   });
 
-  it('POST /api/auth/login → 201 with token', async () => {
+  it('POST /api/auth/login → 200 with token', async () => {
     const res = await request(app.getHttpServer())
       .post('/api/auth/login')
       .send({ email: 'auth_test@test.mn', password: 'Test1234!' });
-    expect(res.status).toBe(201);
-    expect(res.body).toHaveProperty('access_token');
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('accessToken');
   });
 
   it('GET /api/auth/me with valid token → 200', async () => {
@@ -250,6 +250,53 @@ describe('Sparks lesson unlock', () => {
       .post(`/api/lessons/${lesRes.body.id}/unlock`)
       .set('Authorization', `Bearer ${studentToken}`);
     expect(res.status).toBe(400);
+  });
+});
+
+// ── Admin user list does not leak password hashes ─────────────────────────────
+
+describe('Admin user list (no passwordHash leak)', () => {
+  let app: INestApplication;
+  let adminToken: string;
+
+  beforeAll(async () => {
+    app = await createApp();
+    const ds = app.get(DataSource);
+
+    adminToken = await registerAndLogin(app, 'userlist_admin@test.mn');
+    const adminRes = await request(app.getHttpServer())
+      .get('/api/auth/me')
+      .set('Authorization', `Bearer ${adminToken}`);
+    await ds.query(`UPDATE users SET role = 'admin' WHERE id = $1`, [adminRes.body.id]);
+
+    // Add another user so the list has more than one entry.
+    await registerAndLogin(app, 'userlist_student@test.mn');
+  });
+
+  afterAll(async () => { await app.close(); });
+
+  it('GET /api/users (admin) → 200 and no passwordHash on any user', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/api/users')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.items)).toBe(true);
+    expect(res.body.items.length).toBeGreaterThan(0);
+    for (const user of res.body.items) {
+      expect(user).not.toHaveProperty('passwordHash');
+      expect(user).not.toHaveProperty('password_hash');
+    }
+  });
+
+  it('PATCH /api/users/me → 200 and no passwordHash in response', async () => {
+    const res = await request(app.getHttpServer())
+      .patch('/api/users/me')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ fullName: 'Renamed Admin' });
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('fullName', 'Renamed Admin');
+    expect(res.body).not.toHaveProperty('passwordHash');
+    expect(res.body).not.toHaveProperty('password_hash');
   });
 });
 
