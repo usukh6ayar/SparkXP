@@ -9,7 +9,7 @@ import { TextField } from '../../src/components/TextField';
 import { SelectField } from '../../src/components/SelectField';
 import { Button } from '../../src/components/Button';
 import { StatCard } from '../../src/components/StatCard';
-import { PROVINCES, UB_DISTRICTS } from '../../src/constants/locations';
+import { MN_PROVINCES as PROVINCES, UB_DISTRICTS } from '../../src/constants/locations';
 import { colors, spacing, radius, fontSize } from '../../src/theme/theme';
 
 export default function ProfileScreen() {
