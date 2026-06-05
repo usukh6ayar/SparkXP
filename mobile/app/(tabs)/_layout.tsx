@@ -1,12 +1,6 @@
 import { Tabs } from 'expo-router';
 import { colors } from '../../src/theme/theme';
-import { t } from '../../src/i18n';
 
-/**
- * Main app tabs. For now only Home; Learn / Leaderboard / Profile get added as
- * those screens are built (see MOBILE_ROADMAP.md). Headers are hidden so each
- * screen can render its own branded header.
- */
 export default function TabsLayout() {
   return (
     <Tabs
@@ -17,7 +11,9 @@ export default function TabsLayout() {
         tabBarStyle: { borderTopColor: colors.border },
       }}
     >
-      <Tabs.Screen name="index" options={{ title: t('home') }} />
+      <Tabs.Screen name="index"   options={{ title: 'Нүүр',    tabBarIcon: () => null }} />
+      <Tabs.Screen name="chat"    options={{ title: 'AI Найз', tabBarIcon: () => null }} />
+      <Tabs.Screen name="profile" options={{ title: 'Профайл', tabBarIcon: () => null }} />
     </Tabs>
   );
 }
