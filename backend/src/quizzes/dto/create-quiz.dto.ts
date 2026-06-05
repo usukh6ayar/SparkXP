@@ -70,13 +70,25 @@ export class CreateQuizDto {
   level?: ContentLevel;
 
   /**
-   * Array of question objects. Each must have a `type` field.
-   * The service validates each element against its discriminated type.
+   * Array of question objects. Each must have a `type` field that selects
+   * which DTO it is validated against (multiple_choice or fill_blank).
+   * Using a discriminator (instead of `@Type(() => Object)`) is required so
+   * that `whitelist: true` keeps each question's properties instead of
+   * stripping them down to an empty object.
    */
   @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => Object)
-  questions: Record<string, unknown>[];
+  @Type(() => Object, {
+    discriminator: {
+      property: 'type',
+      subTypes: [
+        { value: MultipleChoiceQuestionDto, name: 'multiple_choice' },
+        { value: FillBlankQuestionDto, name: 'fill_blank' },
+      ],
+    },
+    keepDiscriminatorProperty: true,
+  })
+  questions: QuestionDto[];
 
   /** XP awarded when a student passes (>= 50% score). */
   @IsOptional()

@@ -4,12 +4,21 @@ import { Repository } from 'typeorm';
 import { User } from '../entities/user.entity';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 
+/** A User with its secret fields removed, safe to return over the API. */
+export type SafeUser = Omit<User, 'passwordHash'>;
+
 @Injectable()
 export class UsersService {
   constructor(
     @InjectRepository(User)
     private readonly users: Repository<User>,
   ) {}
+
+  /** Strip the password hash before a user is returned over the API. */
+  private sanitize(user: User): SafeUser {
+    const { passwordHash, ...rest } = user;
+    return rest;
+  }
 
   findByEmail(email: string): Promise<User | null> {
     return this.users.findOne({ where: { email } });
@@ -30,24 +39,26 @@ export class UsersService {
     return this.users.save(user);
   }
 
-  async updateProfile(id: string, dto: UpdateProfileDto): Promise<User> {
+  async updateProfile(id: string, dto: UpdateProfileDto): Promise<SafeUser> {
     const user = await this.users.findOne({ where: { id } });
     if (!user) throw new NotFoundException('Хэрэглэгч олдсонгүй');
     Object.assign(user, dto);
-    return this.users.save(user);
+    const saved = await this.users.save(user);
+    return this.sanitize(saved);
   }
 
   getStats(user: User): { xp: number; sparks: number } {
     return { xp: user.xp, sparks: user.sparks };
   }
 
-  /** Admin: paginated user list. */
-  findAll(page = 1, limit = 20): Promise<[User[], number]> {
-    return this.users.findAndCount({
+  /** Admin: paginated user list (password hashes stripped). */
+  async findAll(page = 1, limit = 20): Promise<[SafeUser[], number]> {
+    const [users, total] = await this.users.findAndCount({
       order: { createdAt: 'DESC' },
       skip: (page - 1) * limit,
       take: limit,
     });
+    return [users.map((user) => this.sanitize(user)), total];
   }
 
   async remove(id: string): Promise<void> {
