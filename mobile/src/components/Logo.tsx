@@ -1,15 +1,24 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, Image, StyleSheet } from 'react-native';
 import { colors, fontSize, spacing } from '../theme/theme';
 
+// The running-fox brand mark. Lives in assets/ so it ships with the app bundle.
+const logoMark = require('../../assets/logo.png');
+
 /**
- * SparkXP wordmark. Text-based for now (🦊 + "Spark"+"XP"). Drop the real logo
- * at assets/logo.png and swap this for an <Image> when ready.
+ * SparkXP logo: the running-fox brand mark above the "SparkXP" wordmark.
+ * `lg` (default) is for the auth/splash screens; `md` for tighter headers.
  */
 export function Logo({ size = 'lg' }: { size?: 'md' | 'lg' }) {
   const big = size === 'lg';
+  const mark = big ? 132 : 84;
   return (
     <View style={styles.wrap}>
-      <Text style={{ fontSize: big ? 60 : 40 }}>🦊</Text>
+      <Image
+        source={logoMark}
+        style={{ width: mark, height: mark }}
+        resizeMode="contain"
+        accessibilityLabel="SparkXP"
+      />
       <Text style={[styles.word, { fontSize: big ? fontSize.xxl : fontSize.xl }]}>
         Spark<Text style={{ color: colors.primary }}>XP</Text>
       </Text>
