@@ -169,10 +169,18 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
 
 ## 📋 Phase 2 — Teacher dashboard, Organizations, Payments
 
-- [ ] **Organizations module** — school/company/law_firm (type нь нээлттэй string)
-- [ ] **Classes module** — багш класс үүсгэх, `join_code` үүсгэх
-- [ ] Оюутан `join_code`-оор класст элсэх (`POST /api/classes/join`)
-- [ ] **Assignments** — багш класст хичээл/quiz оноох, due date
+- [x] **Organizations module** — school/company/law_firm (type нь нээлттэй string) ✅
+      `POST/GET/PATCH/DELETE /api/organizations` (бичих admin-only)
+- [x] **Classes module** — багш класс үүсгэх, `join_code` автоматаар үүсгэх ✅
+      `POST /api/classes` (teacher/admin), `GET /api/classes` (teaching+enrolled),
+      `GET /api/classes/:id`, `GET /api/classes/:id/students` (зөвхөн багш/admin)
+- [x] Оюутан `join_code`-оор класст элсэх (`POST /api/classes/join`) ✅
+      Org-той бол байршил (province/district/org) оюутан руу өвлөгдөнө.
+- [x] **Assignments** — багш класст хичээл/quiz оноох, due date ✅
+      `POST /api/assignments`, `GET /api/assignments?classId=`, `GET /api/assignments/mine`,
+      `DELETE /api/assignments/:id` (зөвхөн ангийн багш/admin)
+- **DoD:** ✅ Багш анги үүсгэж, оюутан кодоор элсэж, багш даалгавар оноож, оюутан
+  өөрийн даалгавруудаа харна. Хэрэглэгчийн hash хаана ч задрахгүй. E2E тестээр баталгаажсан.
 - [ ] Багшийн dashboard API — оюутны прогресс, статистик
 - [ ] **Payments module** — QPay (Монгол) эсвэл Stripe integration
 - [ ] Org-level plan / суудлын тоо удирдах

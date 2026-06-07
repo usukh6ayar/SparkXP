@@ -300,6 +300,210 @@ describe('Admin user list (no passwordHash leak)', () => {
   });
 });
 
+// ── Phase 2: Organizations + Classes + Assignments ───────────────────────────
+
+describe('Organizations + Classes + Assignments', () => {
+  let app: INestApplication;
+  let ds: DataSource;
+  let adminToken: string;
+  let teacherToken: string;
+  let studentToken: string;
+  let studentId: string;
+  let orgId: string;
+  let classId: string;
+  let joinCode: string;
+  let lessonId: string;
+  let assignmentId: string;
+
+  /** Promote the user behind `token` to `role` in the DB. */
+  async function setRole(token: string, role: string): Promise<string> {
+    const me = await request(app.getHttpServer())
+      .get('/api/auth/me')
+      .set('Authorization', `Bearer ${token}`);
+    await ds.query(`UPDATE users SET role = $1 WHERE id = $2`, [role, me.body.id]);
+    return me.body.id as string;
+  }
+
+  beforeAll(async () => {
+    app = await createApp();
+    ds = app.get(DataSource);
+
+    adminToken = await registerAndLogin(app, 'p2_admin@test.mn');
+    await setRole(adminToken, 'admin');
+
+    teacherToken = await registerAndLogin(app, 'p2_teacher@test.mn');
+    await setRole(teacherToken, 'teacher');
+
+    studentToken = await registerAndLogin(app, 'p2_student@test.mn');
+    studentId = await setRole(studentToken, 'student');
+  });
+
+  afterAll(async () => { await app.close(); });
+
+  // ── Organizations ──
+
+  it('POST /api/organizations (admin) → 201', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/organizations')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        name: 'Test School',
+        type: 'school',
+        province: 'Улаанбаатар',
+        district: 'Баянзүрх',
+      });
+    expect(res.status).toBe(201);
+    expect(res.body).toHaveProperty('id');
+    expect(res.body.type).toBe('school');
+    orgId = res.body.id;
+  });
+
+  it('POST /api/organizations (student) → 403', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/organizations')
+      .set('Authorization', `Bearer ${studentToken}`)
+      .send({ name: 'Nope', type: 'school' });
+    expect(res.status).toBe(403);
+  });
+
+  it('GET /api/organizations → list includes the new org', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/api/organizations')
+      .set('Authorization', `Bearer ${studentToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body.items.some((o: { id: string }) => o.id === orgId)).toBe(true);
+  });
+
+  // ── Classes ──
+
+  it('POST /api/classes (teacher) → 201 with a join code', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/classes')
+      .set('Authorization', `Bearer ${teacherToken}`)
+      .send({ name: 'English A1', organizationId: orgId });
+    expect(res.status).toBe(201);
+    expect(res.body.joinCode).toEqual(expect.any(String));
+    expect(res.body.organizationId).toBe(orgId);
+    classId = res.body.id;
+    joinCode = res.body.joinCode;
+  });
+
+  it('POST /api/classes (student) → 403', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/classes')
+      .set('Authorization', `Bearer ${studentToken}`)
+      .send({ name: 'Nope' });
+    expect(res.status).toBe(403);
+  });
+
+  it('POST /api/classes/join (student) → 201, no passwordHash leaked', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/classes/join')
+      .set('Authorization', `Bearer ${studentToken}`)
+      .send({ joinCode });
+    expect(res.status).toBe(201);
+    expect(res.body.students.some((s: { id: string }) => s.id === studentId)).toBe(true);
+    for (const s of res.body.students) {
+      expect(s).not.toHaveProperty('passwordHash');
+    }
+  });
+
+  it('joining inherits the org location onto the student', async () => {
+    const rows = await ds.query(
+      `SELECT province, district, organization_id FROM users WHERE id = $1`,
+      [studentId],
+    );
+    expect(rows[0].province).toBe('Улаанбаатар');
+    expect(rows[0].district).toBe('Баянзүрх');
+    expect(rows[0].organization_id).toBe(orgId);
+  });
+
+  it('POST /api/classes/join again → 409', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/classes/join')
+      .set('Authorization', `Bearer ${studentToken}`)
+      .send({ joinCode });
+    expect(res.status).toBe(409);
+  });
+
+  it('GET /api/classes (student) → class appears under enrolled', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/api/classes')
+      .set('Authorization', `Bearer ${studentToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body.enrolled.some((c: { id: string }) => c.id === classId)).toBe(true);
+  });
+
+  it('GET /api/classes/:id/students (teacher) → roster without hashes', async () => {
+    const res = await request(app.getHttpServer())
+      .get(`/api/classes/${classId}/students`)
+      .set('Authorization', `Bearer ${teacherToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body.some((s: { id: string }) => s.id === studentId)).toBe(true);
+    for (const s of res.body) {
+      expect(s).not.toHaveProperty('passwordHash');
+    }
+  });
+
+  it('GET /api/classes/:id/students (student) → 403', async () => {
+    const res = await request(app.getHttpServer())
+      .get(`/api/classes/${classId}/students`)
+      .set('Authorization', `Bearer ${studentToken}`);
+    expect(res.status).toBe(403);
+  });
+
+  // ── Assignments ──
+
+  it('POST /api/lessons (admin) → 201 (target for the assignment)', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/lessons')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ title: 'Assignable Lesson', type: 'vocabulary', level: 'a1', content: {}, isPublished: true });
+    expect(res.status).toBe(201);
+    lessonId = res.body.id;
+  });
+
+  it('POST /api/assignments (teacher) → 201', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/assignments')
+      .set('Authorization', `Bearer ${teacherToken}`)
+      .send({ classId, type: 'lesson', targetId: lessonId });
+    expect(res.status).toBe(201);
+    expect(res.body.classId).toBe(classId);
+    assignmentId = res.body.id;
+  });
+
+  it('POST /api/assignments with unknown target → 400', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/assignments')
+      .set('Authorization', `Bearer ${teacherToken}`)
+      .send({ classId, type: 'lesson', targetId: '00000000-0000-0000-0000-000000000000' });
+    expect(res.status).toBe(400);
+  });
+
+  it('GET /api/assignments/mine (student) → includes the assignment', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/api/assignments/mine')
+      .set('Authorization', `Bearer ${studentToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body.some((a: { id: string }) => a.id === assignmentId)).toBe(true);
+  });
+
+  it('DELETE /api/assignments/:id (student) → 403', async () => {
+    const res = await request(app.getHttpServer())
+      .delete(`/api/assignments/${assignmentId}`)
+      .set('Authorization', `Bearer ${studentToken}`);
+    expect(res.status).toBe(403);
+  });
+
+  it('DELETE /api/assignments/:id (teacher) → 204', async () => {
+    const res = await request(app.getHttpServer())
+      .delete(`/api/assignments/${assignmentId}`)
+      .set('Authorization', `Bearer ${teacherToken}`);
+    expect(res.status).toBe(204);
+  });
+});
+
 // ── Health check ──────────────────────────────────────────────────────────────
 
 describe('Health', () => {

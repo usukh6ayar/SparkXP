@@ -3,9 +3,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../entities/user.entity';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { sanitizeUser, SafeUser } from '../common/utils/sanitize-user';
 
-/** A User with its secret fields removed, safe to return over the API. */
-export type SafeUser = Omit<User, 'passwordHash'>;
+// Re-export so existing imports of SafeUser from this module keep working.
+export { SafeUser };
 
 @Injectable()
 export class UsersService {
@@ -16,8 +17,7 @@ export class UsersService {
 
   /** Strip the password hash before a user is returned over the API. */
   private sanitize(user: User): SafeUser {
-    const { passwordHash, ...rest } = user;
-    return rest;
+    return sanitizeUser(user);
   }
 
   findByEmail(email: string): Promise<User | null> {
