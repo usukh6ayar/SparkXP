@@ -44,10 +44,10 @@ scale. Монгол хэл primary.
 | M2 Review (SRS) | Усухбаяр | `usukhbayar` | `/reviews/*` | ⬜ дараагийнх |
 | M2 Lessons (list+detail) | Усухбаяр | `usukhbayar` | `/lessons/*` | ⬜ |
 | M3 Leaderboard | Усухбаяр | `usukhbayar` | `/leaderboard` | ⬜ |
-| M2 Quiz | Бишрэлт | `bishrelt` | `/quizzes/:id/submit` | ⬜ |
-| M2 AI buddy chat | Бишрэлт | `bishrelt` | `/ai/chat` | ⬜ |
-| M3 Profile (засах) | Бишрэлт | `bishrelt` | `/users/me` | ⬜ |
-| M3 Sparks store / нээх | Бишрэлт | `bishrelt` | `/lessons/:id/unlock` | ⬜ |
+| M2 Quiz | Бишрэлт | `bishrelt` | `/quizzes/:id/submit` | ✅ bishrelt-д |
+| M2 AI buddy chat | Бишрэлт | `bishrelt` | `/ai/chat` | ✅ bishrelt-д |
+| M3 Profile (засах) | Бишрэлт | `bishrelt` | `/users/me` | ✅ bishrelt-д |
+| M3 Sparks store / нээх | Бишрэлт | `bishrelt` | `/lessons/:id/unlock` | ✅ bishrelt-д |
 | M4 Өнгөлгөө | 👥 хамт | — | — | ⬜ |
 
 ### Branch урсгал
@@ -136,17 +136,18 @@ mobile/
 - [ ] **Lessons** жагсаалт — `GET /api/lessons` (type/level филтр)
 - [ ] **Lesson detail** — `GET /api/lessons/:id`, түгжээтэй бол үнэ (priceSparks)
       харуулах; `GET /api/lessons/:id/access`-ээр нээгдсэн эсэхийг шалгах
-- [ ] **Quiz** — асуулт харуулах → `POST /api/quizzes/:id/submit` → оноо + XP
-- [ ] **AI buddy chat** — `POST /api/ai/chat` (текст), түүх харуулах
+- [x] **Quiz** — асуулт харуулах → `POST /api/quizzes/:id/submit` → оноо + XP — 👤 Бишрэлт ✅
+- [x] **AI buddy chat** — `POST /api/ai/chat` (текст), түүх харуулах — 👤 Бишрэлт ✅
+- [x] **Lesson detail** — `GET /api/lessons/:id` + `GET /api/lessons/:id/access` + unlock — 👤 Бишрэлт ✅
 - **DoD:** Оюутан үг давтаж, хичээл үзэж, quiz өгч, AI-тай ярина.
 
-## 🎯 Phase M3 — Gamification UI `[ ]` — 👤 Усухбаяр + Бишрэлт
+## 🎯 Phase M3 — Gamification UI `[~]` — 👤 Усухбаяр + Бишрэлт
 
 - [ ] **Leaderboard** — `GET /api/leaderboard?period=&scope=`
-      (weekly/monthly/all-time таб + global/аймаг/дүүрэг/класс scope), миний байр
-- [ ] **Profile** — мэдээлэл, `PATCH /api/users/me` (нэр, аймаг/дүүрэг засах)
-- [ ] **Sparks store / хичээл нээх** — `POST /api/lessons/:id/unlock`
-      (Spark хүрэлцэхгүй бол мессеж)
+      (weekly/monthly/all-time таб + global/аймаг/дүүрэг/класс scope), миний байр — 👤 Усухбаяр
+- [x] **Profile** — мэдээлэл, `PATCH /api/users/me` (нэр, аймаг/дүүрэг засах) — 👤 Бишрэлт ✅
+- [x] **Sparks store / хичээл нээх** — `POST /api/lessons/:id/unlock`
+      (Spark хүрэлцэхгүй бол мессеж) — 👤 Бишрэлт ✅
 - **DoD:** Оюутан рейтингээ, профайлаа харж, Spark-аар хичээл нээнэ.
 
 ## 🎯 Phase M4 — Өнгөлгөө `[ ]` — 👥 хамт
@@ -178,13 +179,15 @@ mobile/
 ✅ **Дууссан (main-д):** M0 Foundation · M1 Auth (login/register) · Home ·
 SparkXP брэнд theme · дахин ашиглах компонентууд.
 
-**Одоо хоёулаа зэрэг эхэлнэ:**
+✅ **Бишрэлт дууссан (`bishrelt` branch-д):** Quiz · AI chat · Profile · Lesson detail + unlock · API modules
+
+**Одоо үлдсэн ажил:**
 
 | Dev | Branch | Дараагийн дэлгэц |
 | --- | --- | --- |
-| **Усухбаяр** | `usukhbayar` | M2 **Review (SRS)** → Lessons → M3 Leaderboard |
-| **Бишрэлт** | `bishrelt` | M2 **Quiz** → AI chat → M3 Profile → Sparks store |
+| **Усухбаяр** | `usukhbayar` | M2 **Review (SRS)** → Lessons жагсаалт → M3 Leaderboard |
+| **Бишрэлт** | `bishrelt` | M4 Өнгөлгөө (skeleton, error state, pull-to-refresh) |
 
-> Сануулга: эхлэхийн өмнө `git checkout <branch> && git merge main` (foundation
-> + компонентуудыг авна). Шинэ дахин ашиглах UI бол `src/components/`-д нэм.
+> Усухбаяр **Lessons жагсаалт** дэлгэц хийхдээ `app/lesson/[id].tsx` руу navigate хийвэл
+> Бишрэлтийн lesson detail + unlock дэлгэц автоматаар ажиллана.
 3. Дараа нь M1 (auth дэлгэц) → M2 (суралцах) → M3 (gamification).

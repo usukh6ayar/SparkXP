@@ -45,11 +45,43 @@ const mn = {
   reviewDoneHint: 'Маргааш дахин давтаарай 🦊',
   backHome: 'Нүүр рүү',
 
+  // Quiz
+  quiz: 'Quiz',
+  question: 'Асуулт',
+  submit: 'Дүгнэх',
+  next: 'Дараагийнх →',
+  result: 'Үр дүн',
+  passed: 'Тэнцлээ! 🎉',
+  failed: 'Дахин оролдоорой 😅',
+  xpEarned: 'XP авлаа',
+  yourAnswer: 'Хариултаа бичнэ үү...',
+
+  // AI Chat
+  aiChat: 'AI Туслах',
+  aiBuddy: 'Англи хэлний AI найз',
+  newChat: '+ Шинэ',
+  typeMessage: 'Мессеж бичнэ үү...',
+  aiTyping: 'AI бичиж байна...',
+
+  // Profile
+  profile: 'Профайл',
+  editProfile: 'Профайл засах',
+  save: 'Хадгалах',
+  saving: 'Хадгалж байна...',
+
+  // Lessons / Sparks
+  lessons: 'Хичээлүүд',
+  unlock: 'Нээх',
+  locked: 'Түгжигдсэн 🔒',
+  free: 'Үнэгүй',
+  myBalance: 'Таны үлдэгдэл',
+
   // Common
   back: 'Буцах',
   continue: 'Үргэлжлүүлэх',
   errorGeneric: 'Алдаа гарлаа. Дахин оролдоно уу.',
   required: 'Заавал бөглөнө үү',
+  comingSoon: 'Тун удахгүй',
 };
 
 export type TranslationKey = keyof typeof mn;
