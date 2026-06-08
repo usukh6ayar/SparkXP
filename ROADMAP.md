@@ -167,15 +167,23 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
 
 ---
 
-## 📋 Phase 2 — Teacher dashboard, Organizations, Payments
+## 📋 Phase 2 — Teacher dashboard, Organizations, Payments `[x]` — 👤 Бишрэлт ✅
 
-- [ ] **Organizations module** — school/company/law_firm (type нь нээлттэй string)
-- [ ] **Classes module** — багш класс үүсгэх, `join_code` үүсгэх
-- [ ] Оюутан `join_code`-оор класст элсэх (`POST /api/classes/join`)
-- [ ] **Assignments** — багш класст хичээл/quiz оноох, due date
-- [ ] Багшийн dashboard API — оюутны прогресс, статистик
-- [ ] **Payments module** — QPay (Монгол) эсвэл Stripe integration
-- [ ] Org-level plan / суудлын тоо удирдах
+- [x] **Organizations module** — school/company/law_firm (type нь нээлттэй string)
+      `POST/GET/PATCH/DELETE /api/organizations` (admin-only write)
+- [x] **Classes module** — багш класс үүсгэх, `join_code` автомат үүснэ
+      `POST/GET/PATCH/DELETE /api/classes` (teacher/admin)
+- [x] Оюутан `join_code`-оор класст элсэх — `POST /api/classes/join`
+- [x] Оюутан класс орхих — `DELETE /api/classes/:id/leave`
+- [x] **Assignments** — багш класст хичээл/quiz оноох, due date
+      `POST/GET/DELETE /api/assignments`, `GET /api/assignments/my` (оюутан)
+- [x] Багшийн dashboard API — `GET /api/classes/:id/progress`
+      (оюутан бүрийн xpWeek/xpMonth/xpTotal/sparks)
+- [x] **Payments module** — QPay stub (амьд API-г тохиргоо хийхэд орлоно)
+      `POST /api/payments` (intent үүсгэх), `POST /api/payments/:id/confirm` (Sparks цэнэглэх),
+      `GET /api/payments/my`, `GET /api/payments` (admin)
+- [ ] Org-level plan / суудлын тоо удирдах (Phase 3-т шилжүүлсэн)
+- [ ] QPay live API холбох (`.env` QPAY_* keys нэмэхэд бэлэн)
 
 ---
 
@@ -201,13 +209,15 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
 
 ---
 
-## 📌 Дараагийн алхам — Phase 1 бараг бүрэн
+## 📌 Дараагийн алхам
 
-✅ **Phase 1 бүрэн дууссан — `bishrelt` branch-д бэлэн.**
+✅ **Phase 1 бүрэн дууссан.**
+✅ **Phase 2 бүрэн дууссан — `bishrelt` branch-д бэлэн.**
 
-Бишрэлт хийсэн: #2 Users · #3 Quizzes · #5 XP · #6 AI Gateway · #7 Seed · #9 Sparks · #10 Quality
+Бишрэлт хийсэн: #2 Users · #3 Quizzes · #5 XP · #6 AI Gateway · #7 Seed · #9 Sparks · #10 Quality · Phase 2 (Orgs/Classes/Assignments/Payments)
 Усухбаяр хийсэн: #3 Words/Lessons · #4 SRS · #8 Leaderboard
 
 **Дараагийн алхам:**
-1. Хоёулаа `bishrelt` + `usukhbayar` branch-аа PR нээж `main` руу merge хийнэ.
-2. Phase 2 (teacher dashboard, organizations, payments) эхэлнэ.
+1. `bishrelt` + `usukhbayar` branch PR → `main` merge.
+2. Phase 3 (Voice AI, Premium, Sparks store өргөтгөл) эхлэх.
+3. QPay live API нэгтгэх — `.env.example`-д `QPAY_*` keys нэмнэ.
