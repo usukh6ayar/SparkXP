@@ -34,6 +34,8 @@ organizations (e.g. law firms). Owner: Hustle Hive LLC.
 - `MOBILE_ROADMAP.md` — mobile (frontend) task list + brand
 - `ROLES.md` — user types, roles (student/teacher/admin/super_admin) +
   permissions matrix (read this to understand who can do what)
+- `API.md` — full backend endpoint reference (path, auth level, purpose)
+- `ADMIN_ROADMAP.md` — web admin dashboard plan (tech, phases, features)
 
 ---
 
