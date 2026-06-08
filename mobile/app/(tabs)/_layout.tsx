@@ -1,19 +1,21 @@
 import { Tabs } from 'expo-router';
-import { colors } from '../../src/theme/theme';
+import { CustomTabBar } from '../../src/components/CustomTabBar';
 
+/**
+ * Main tabs with the custom SparkXP bottom bar.
+ * Order = tab order: Нүүр · Хичээл · [AI fox center] · Сорил · Профайл.
+ */
 export default function TabsLayout() {
   return (
     <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textMuted,
-        tabBarStyle: { borderTopColor: colors.border },
-      }}
+      tabBar={(props) => <CustomTabBar {...props} />}
+      screenOptions={{ headerShown: false }}
     >
-      <Tabs.Screen name="index"   options={{ title: 'Нүүр',    tabBarIcon: () => null }} />
-      <Tabs.Screen name="chat"    options={{ title: 'AI Найз', tabBarIcon: () => null }} />
-      <Tabs.Screen name="profile" options={{ title: 'Профайл', tabBarIcon: () => null }} />
+      <Tabs.Screen name="index" />
+      <Tabs.Screen name="lessons" />
+      <Tabs.Screen name="chat" />
+      <Tabs.Screen name="soril" />
+      <Tabs.Screen name="profile" />
     </Tabs>
   );
 }

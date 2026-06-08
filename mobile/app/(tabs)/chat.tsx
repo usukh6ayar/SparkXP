@@ -1,11 +1,12 @@
 import { useState, useRef } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, TextInput,
-  Pressable, KeyboardAvoidingView, Platform, ActivityIndicator,
+  View, Text, StyleSheet, FlatList, TextInput, ScrollView,
+  Pressable, KeyboardAvoidingView, Platform, ActivityIndicator, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../src/auth/AuthContext';
 import * as aiApi from '../../src/api/ai';
+import { TopBar } from '../../src/components/TopBar';
 import { colors, spacing, radius, fontSize } from '../../src/theme/theme';
 
 interface LocalMessage {
@@ -13,6 +14,15 @@ interface LocalMessage {
   role: 'user' | 'assistant';
   content: string;
 }
+
+/** AI tutor characters. Only Спарк is active for now. */
+const BUDDIES = [
+  { id: 'spark', name: 'Спарк', emoji: '🦊', active: true },
+  { id: 'oli', name: 'Оли', emoji: '🦉' },
+  { id: 'lili', name: 'Лили', emoji: '🐰' },
+  { id: 'reks', name: 'Рекс', emoji: '🐲' },
+  { id: 'pandi', name: 'Панди', emoji: '🐼' },
+];
 
 export default function ChatScreen() {
   const { token } = useAuth();
@@ -30,46 +40,64 @@ export default function ChatScreen() {
     setMessages((prev) => [...prev, userMsg]);
     setInput('');
     setLoading(true);
-
     try {
       const res = await aiApi.sendMessage(text, token!, conversationId);
       setConversationId(res.conversationId);
-      const aiMsg: LocalMessage = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: res.reply,
-      };
-      setMessages((prev) => [...prev, aiMsg]);
+      setMessages((prev) => [
+        ...prev,
+        { id: (Date.now() + 1).toString(), role: 'assistant', content: res.reply },
+      ]);
     } catch {
-      const errMsg: LocalMessage = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: 'Уучлаарай, алдаа гарлаа. Дахин оролдоорой.',
-      };
-      setMessages((prev) => [...prev, errMsg]);
+      setMessages((prev) => [
+        ...prev,
+        { id: (Date.now() + 1).toString(), role: 'assistant', content: 'Уучлаарай, алдаа гарлаа. Дахин оролдоорой.' },
+      ]);
     } finally {
       setLoading(false);
       setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
     }
   }
 
-  function newConversation() {
-    setMessages([]);
-    setConversationId(undefined);
+  function onBuddyPress(active?: boolean) {
+    if (active) {
+      // Tapping your active buddy starts a fresh conversation.
+      setMessages([]);
+      setConversationId(undefined);
+    } else {
+      Alert.alert('Тун удахгүй', 'Энэ дүр удахгүй нэмэгдэнэ. 🦊');
+    }
   }
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>🦊 AI Туслах</Text>
-          <Text style={styles.headerSub}>Англи хэлний AI найз</Text>
-        </View>
-        <Pressable onPress={newConversation} style={styles.newBtn} hitSlop={8}>
-          <Text style={styles.newBtnText}>+ Шинэ</Text>
+      <TopBar title="AI Найз" streak={5} />
+
+      {/* Buddy selector */}
+      <View style={styles.buddyHeader}>
+        <Text style={styles.buddyTitle}>Таны AI найз</Text>
+        <Pressable onPress={() => onBuddyPress(false)}>
+          <Text style={styles.seeAll}>Бүгдийг харах ›</Text>
         </Pressable>
       </View>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.buddyRow}
+        style={styles.buddyScroll}
+      >
+        {BUDDIES.map((b) => (
+          <Pressable
+            key={b.id}
+            style={[styles.buddyCard, b.active && styles.buddyActive]}
+            onPress={() => onBuddyPress(b.active)}
+          >
+            <Text style={styles.buddyEmoji}>{b.emoji}</Text>
+            <Text style={styles.buddyName}>
+              {b.name} {b.active ? '🟢' : '⚪'}
+            </Text>
+          </Pressable>
+        ))}
+      </ScrollView>
 
       {/* Messages */}
       <FlatList
@@ -134,7 +162,7 @@ function EmptyState() {
   return (
     <View style={styles.emptyState}>
       <Text style={styles.emptyEmoji}>🦊</Text>
-      <Text style={styles.emptyTitle}>AI Туслахтай ярилцаарай</Text>
+      <Text style={styles.emptyTitle}>Сайн уу! Би Спарк байна 👋</Text>
       <Text style={styles.emptySub}>
         Англи хэл дэх асуулт, дасгал, тайлбар — бүгдийг асуугаарай!
       </Text>
@@ -144,82 +172,44 @@ function EmptyState() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+  buddyHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: spacing.lg, marginTop: spacing.xs,
   },
-  headerTitle: { fontSize: fontSize.lg, fontWeight: '800', color: colors.navy },
-  headerSub: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
-  newBtn: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: radius.full,
-    borderWidth: 1.5,
-    borderColor: colors.primary,
+  buddyTitle: { fontSize: fontSize.md, fontWeight: '800', color: colors.navy },
+  seeAll: { color: colors.primary, fontWeight: '700' },
+  buddyScroll: { flexGrow: 0, marginVertical: spacing.sm },
+  buddyRow: { gap: spacing.sm, paddingHorizontal: spacing.lg },
+  buddyCard: {
+    width: 76, alignItems: 'center', backgroundColor: colors.surface,
+    borderRadius: radius.md, paddingVertical: spacing.sm, borderWidth: 2, borderColor: 'transparent',
   },
-  newBtnText: { color: colors.primary, fontWeight: '700', fontSize: fontSize.sm },
+  buddyActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  buddyEmoji: { fontSize: 34 },
+  buddyName: { fontSize: fontSize.xs, fontWeight: '700', color: colors.navy, marginTop: 2 },
   messageList: { padding: spacing.md, gap: spacing.md, flexGrow: 1 },
   bubbleRow: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm, marginBottom: spacing.sm },
   bubbleRowUser: { flexDirection: 'row-reverse' },
-  avatar: { fontSize: 24 },
-  bubble: {
-    maxWidth: '80%',
-    borderRadius: radius.lg,
-    padding: spacing.md,
-  },
-  bubbleAi: { backgroundColor: colors.surface, borderBottomLeftRadius: 4 },
+  avatar: { fontSize: 26 },
+  bubble: { maxWidth: '78%', borderRadius: radius.lg, padding: spacing.md },
+  bubbleAi: { backgroundColor: colors.cream, borderBottomLeftRadius: 4 },
   bubbleUser: { backgroundColor: colors.primary, borderBottomRightRadius: 4 },
   bubbleText: { fontSize: fontSize.md, color: colors.text, lineHeight: 22 },
   bubbleTextUser: { color: colors.white },
-  typingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.sm,
-  },
+  typingRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
   typingText: { color: colors.textMuted, fontSize: fontSize.sm },
   inputBar: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    padding: spacing.md,
-    gap: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    backgroundColor: colors.background,
+    flexDirection: 'row', alignItems: 'flex-end', padding: spacing.md, gap: spacing.sm,
+    borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.background,
   },
   input: {
-    flex: 1,
-    minHeight: 44,
-    maxHeight: 120,
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    fontSize: fontSize.md,
-    color: colors.text,
+    flex: 1, minHeight: 46, maxHeight: 120, backgroundColor: colors.surface, borderRadius: radius.full,
+    paddingHorizontal: spacing.md, paddingVertical: spacing.sm, fontSize: fontSize.md, color: colors.text,
   },
-  sendBtn: {
-    width: 44, height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+  sendBtn: { width: 46, height: 46, borderRadius: 23, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' },
   sendBtnDisabled: { backgroundColor: colors.border },
   sendIcon: { color: colors.white, fontSize: fontSize.md, fontWeight: '800' },
-  emptyState: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.xxl * 2,
-  },
+  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xl, paddingTop: spacing.xxl },
   emptyEmoji: { fontSize: 56, marginBottom: spacing.md },
   emptyTitle: { fontSize: fontSize.lg, fontWeight: '800', color: colors.navy, textAlign: 'center', marginBottom: spacing.sm },
   emptySub: { fontSize: fontSize.md, color: colors.textMuted, textAlign: 'center', lineHeight: 22 },

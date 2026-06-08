@@ -88,7 +88,7 @@ export default function QuizScreen() {
   if (phase === 'error') {
     return (
       <SafeAreaView style={styles.center}>
-        <Text style={styles.errorText}>Quiz ачаалахад алдаа гарлаа.</Text>
+        <Text style={styles.errorText}>Сорил ачаалахад алдаа гарлаа.</Text>
         <Button label="Буцах" onPress={() => router.back()} style={{ marginTop: spacing.lg }} />
       </SafeAreaView>
     );

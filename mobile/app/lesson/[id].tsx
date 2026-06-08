@@ -1,24 +1,33 @@
 import { useEffect, useState } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView, ActivityIndicator, Alert,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../src/auth/AuthContext';
 import * as lessonsApi from '../../src/api/lessons';
 import type { Lesson } from '../../src/api/lessons';
+import { TopBar } from '../../src/components/TopBar';
+import { Pill } from '../../src/components/Pill';
 import { Button } from '../../src/components/Button';
-import { colors, spacing, radius, fontSize } from '../../src/theme/theme';
+import { Loading } from '../../src/components/Loading';
+import { colors, spacing, radius, fontSize, levelColor } from '../../src/theme/theme';
 
-const LEVEL_COLOR: Record<string, string> = {
-  a1: '#16A34A', a2: '#2563EB', b1: '#D97706',
-  b2: '#EA580C', c1: '#9333EA', c2: '#DC2626',
-};
+type UnitState = 'done' | 'current' | 'locked';
+interface Unit {
+  n: number; icon: string; title: string; sub: string; tag: string; state: UnitState;
+}
 
-const TYPE_LABEL: Record<string, string> = {
-  vocabulary: '📚 Үгсийн сан',
-  grammar: '✏️ Дүрэм',
-  listening: '🎧 Сонсгол',
+// Standard lesson activity path (presentational; per-unit progress isn't tracked yet).
+const UNITS: Unit[] = [
+  { n: 1, icon: '📖', title: 'Шинэ үгс', sub: 'Шинэ үг сурцгаая.', tag: '5 үг', state: 'done' },
+  { n: 2, icon: '🎧', title: 'Сонсож ойлгох', sub: 'Сонсож, зөв хариулцгаая.', tag: 'Дасгал', state: 'done' },
+  { n: 3, icon: '✏️', title: 'Бичиж дадлага хийх', sub: 'Зөв бичиж сурцгаая.', tag: 'Дасгал', state: 'current' },
+  { n: 4, icon: '🗣️', title: 'Ярианы дадлага', sub: 'Хичээлийн тухай ярилцъя.', tag: 'Яриа', state: 'locked' },
+];
+
+const STATE_COLOR: Record<UnitState, string> = {
+  done: colors.success,
+  current: colors.primary,
+  locked: colors.textMuted,
 };
 
 export default function LessonDetailScreen() {
@@ -32,7 +41,7 @@ export default function LessonDetailScreen() {
   const [unlocking, setUnlocking] = useState(false);
 
   useEffect(() => {
-    async function load() {
+    (async () => {
       try {
         const [l, access] = await Promise.all([
           lessonsApi.getLesson(id!, token!),
@@ -46,140 +55,126 @@ export default function LessonDetailScreen() {
       } finally {
         setLoading(false);
       }
-    }
-    load();
+    })();
   }, [id]);
 
-  async function unlock() {
+  function unlock() {
     if (!lesson) return;
     if ((user?.sparks ?? 0) < lesson.priceSparks) {
-      Alert.alert(
-        'Spark хүрэлцэхгүй',
-        `Танд ${user?.sparks ?? 0} ✨ байна. Энэ хичээлд ${lesson.priceSparks} ✨ шаардлагатай.`,
-      );
+      Alert.alert('Spark хүрэлцэхгүй', `Танд ${user?.sparks ?? 0} ✨ байна. Энэ хичээлд ${lesson.priceSparks} ✨ шаардлагатай.`);
       return;
     }
-    Alert.alert(
-      'Хичээл нээх үү?',
-      `${lesson.priceSparks} ✨ Очирхон зарцуулна`,
-      [
-        { text: 'Болих' },
-        {
-          text: `Нээх (${lesson.priceSparks} ✨)`,
-          onPress: async () => {
-            setUnlocking(true);
-            try {
-              await lessonsApi.unlockLesson(id!, token!);
-              setHasAccess(true);
-              Alert.alert('✅ Амжилттай', 'Хичээл нээгдлээ!');
-            } catch {
-              Alert.alert('Алдаа', 'Нээхэд алдаа гарлаа.');
-            } finally {
-              setUnlocking(false);
-            }
-          },
+    Alert.alert('Хичээл нээх үү?', `${lesson.priceSparks} ✨ Очирхон зарцуулна`, [
+      { text: 'Болих' },
+      {
+        text: `Нээх (${lesson.priceSparks} ✨)`,
+        onPress: async () => {
+          setUnlocking(true);
+          try {
+            await lessonsApi.unlockLesson(id!, token!);
+            setHasAccess(true);
+            Alert.alert('✅ Амжилттай', 'Хичээл нээгдлээ!');
+          } catch {
+            Alert.alert('Алдаа', 'Нээхэд алдаа гарлаа.');
+          } finally {
+            setUnlocking(false);
+          }
         },
-      ],
-    );
+      },
+    ]);
   }
 
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.center}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </SafeAreaView>
-    );
-  }
-
+  if (loading) return <Loading />;
   if (!lesson) return null;
 
-  const levelColor = LEVEL_COLOR[lesson.level] ?? colors.primary;
-  const typeLabel = TYPE_LABEL[lesson.type] ?? lesson.type;
-  const isFree = lesson.priceSparks === 0;
+  const lvl = levelColor[lesson.level] ?? levelColor.a1;
+  const soon = () => Alert.alert('Тун удахгүй', 'Энэ хэсэг удахгүй нэмэгдэнэ. 🦊');
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      <TopBar back streak={5} />
       <ScrollView contentContainerStyle={styles.container}>
-        {/* Back */}
-        <Button
-          label="← Буцах"
-          variant="secondary"
-          onPress={() => router.back()}
-          style={{ alignSelf: 'flex-start', marginBottom: spacing.md }}
-        />
-
-        {/* Badges */}
-        <View style={styles.badgeRow}>
-          <View style={[styles.badge, { backgroundColor: levelColor + '20' }]}>
-            <Text style={[styles.badgeText, { color: levelColor }]}>
-              {lesson.level.toUpperCase()}
-            </Text>
-          </View>
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>{typeLabel}</Text>
-          </View>
-          {isFree ? (
-            <View style={[styles.badge, { backgroundColor: '#dcfce7' }]}>
-              <Text style={[styles.badgeText, { color: '#16A34A' }]}>Үнэгүй</Text>
-            </View>
-          ) : (
-            <View style={[styles.badge, { backgroundColor: colors.cream }]}>
-              <Text style={[styles.badgeText, { color: colors.sparks }]}>
-                {lesson.priceSparks} ✨
-              </Text>
-            </View>
-          )}
+        {/* Lesson header */}
+        <View style={styles.head}>
+          <View style={styles.thumb}><Text style={styles.thumbEmoji}>🦊</Text></View>
+          <Text style={styles.title}>{lesson.title}</Text>
+        </View>
+        <View style={styles.metaRow}>
+          <Pill label={lesson.level.toUpperCase()} bg={lvl.bg} fg={lvl.fg} />
+          <Text style={styles.metaText}>{UNITS.length} хичээл</Text>
         </View>
 
-        <Text style={styles.title}>{lesson.title}</Text>
-        {lesson.description && (
-          <Text style={styles.description}>{lesson.description}</Text>
-        )}
+        {/* Pager */}
+        <View style={styles.pager}>
+          <Text style={styles.pagerArrow}>‹</Text>
+          <Text style={styles.pagerText}>1 / 1</Text>
+          <Text style={[styles.pagerArrow, { opacity: 0.4 }]}>›</Text>
+        </View>
 
-        {/* Locked state */}
-        {!hasAccess && (
+        {!hasAccess ? (
+          /* Locked — preserve unlock logic */
           <View style={styles.lockedBox}>
             <Text style={styles.lockedEmoji}>🔒</Text>
             <Text style={styles.lockedTitle}>Хичээл түгжигдсэн</Text>
-            <Text style={styles.lockedSub}>
-              Энэ хичээлийг нээхийн тулд {lesson.priceSparks} ✨ Очирхон зарцуулна.
-            </Text>
-            <Text style={styles.myBalance}>Таны үлдэгдэл: {user?.sparks ?? 0} ✨</Text>
+            <Text style={styles.lockedSub}>Нээхийн тулд {lesson.priceSparks} ✨ Очирхон зарцуулна.</Text>
+            <Text style={styles.balance}>Таны үлдэгдэл: {user?.sparks ?? 0} ✨</Text>
             <Button
               label={unlocking ? 'Нээж байна...' : `Нээх  ${lesson.priceSparks} ✨`}
               onPress={unlock}
               disabled={unlocking}
-              style={{ marginTop: spacing.md }}
+              style={{ marginTop: spacing.md, alignSelf: 'stretch' }}
             />
           </View>
-        )}
+        ) : (
+          <>
+            {/* Unit path */}
+            {UNITS.map((u, i) => (
+              <View key={u.n} style={styles.unitRow}>
+                <View style={styles.rail}>
+                  <View style={[styles.node, { backgroundColor: STATE_COLOR[u.state] }]}>
+                    <Text style={styles.nodeText}>{u.n}</Text>
+                  </View>
+                  {i < UNITS.length - 1 && <View style={styles.connector} />}
+                </View>
 
-        {/* Unlocked content */}
-        {hasAccess && (
-          <View style={styles.contentBox}>
-            <Text style={styles.contentTitle}>📖 Агуулга</Text>
-            {lesson.content?.notes ? (
-              <Text style={styles.contentText}>{String(lesson.content.notes)}</Text>
-            ) : (
-              <Text style={styles.contentPlaceholder}>
-                Хичээлийн агуулга удахгүй нэмэгдэнэ.
+                <Pressable
+                  style={[
+                    styles.unitCard,
+                    u.state === 'current' && styles.unitCurrent,
+                    u.state === 'locked' && styles.unitLocked,
+                  ]}
+                  onPress={soon}
+                >
+                  <Text style={styles.unitIcon}>{u.state === 'locked' ? '🔒' : u.icon}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.unitTitle}>{u.title}</Text>
+                    <Text style={styles.unitSub}>{u.sub}</Text>
+                    <Pill label={u.tag} bg={colors.surface} fg={colors.textMuted} />
+                  </View>
+                  <Text style={[styles.unitMark, { color: STATE_COLOR[u.state] }]}>
+                    {u.state === 'done' ? '✓' : u.state === 'current' ? '→' : '🔒'}
+                  </Text>
+                </Pressable>
+              </View>
+            ))}
+
+            {/* Fox banner */}
+            <View style={styles.banner}>
+              <Text style={styles.bannerFox}>🦊</Text>
+              <Text style={styles.bannerText}>
+                Тест өгөх эсвэл{'\n'}
+                <Text style={{ color: colors.primary, fontWeight: '800' }}>дараагийн хичээл</Text>
               </Text>
-            )}
-          </View>
-        )}
+            </View>
 
-        {/* Quiz button */}
-        {hasAccess && (
-          <Button
-            label="📝 Quiz өгөх"
-            onPress={() => {
-              // Lesson's quiz: navigate using lessonId filter via quizzes list
-              // For MVP, this would typically pass a quizId. Placeholder for now.
-              Alert.alert('Тун удахгүй', 'Quiz удахгүй нэмэгдэнэ.');
-            }}
-            style={{ marginTop: spacing.lg }}
-          />
+            {/* Actions */}
+            <View style={styles.actions}>
+              <Button label="Буцах" variant="secondary" onPress={() => router.back()} style={{ flex: 1 }} />
+              <Button label="Тест өгөх" onPress={soon} style={{ flex: 1 }} />
+            </View>
+          </>
         )}
+        <View style={{ height: spacing.lg }} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -187,36 +182,51 @@ export default function LessonDetailScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background },
-  container: { padding: spacing.lg },
-  badgeRow: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap', marginBottom: spacing.md },
-  badge: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
-    borderRadius: radius.full,
-    backgroundColor: colors.surface,
+  container: { paddingHorizontal: spacing.lg },
+  head: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  thumb: {
+    width: 56, height: 56, borderRadius: radius.md, backgroundColor: colors.primarySoft,
+    alignItems: 'center', justifyContent: 'center',
   },
-  badgeText: { fontSize: fontSize.xs, fontWeight: '700', color: colors.textMuted },
-  title: { fontSize: fontSize.xl, fontWeight: '800', color: colors.navy, marginBottom: spacing.sm },
-  description: { fontSize: fontSize.md, color: colors.textMuted, lineHeight: 22, marginBottom: spacing.lg },
-  lockedBox: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.xl,
-    alignItems: 'center',
-    marginTop: spacing.lg,
+  thumbEmoji: { fontSize: 30 },
+  title: { fontSize: fontSize.xxl, fontWeight: '800', color: colors.navy, flex: 1 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.sm },
+  metaText: { color: colors.textMuted, fontSize: fontSize.sm, fontWeight: '600' },
+  pager: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xl, marginVertical: spacing.lg },
+  pagerArrow: { fontSize: 28, color: colors.navy, fontWeight: '700' },
+  pagerText: { fontSize: fontSize.md, fontWeight: '800', color: colors.navy },
+  // Unit path
+  unitRow: { flexDirection: 'row', gap: spacing.md },
+  rail: { width: 40, alignItems: 'center' },
+  node: {
+    width: 36, height: 36, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 3, borderColor: colors.white,
   },
+  nodeText: { color: colors.white, fontWeight: '800', fontSize: fontSize.md },
+  connector: { flex: 1, width: 3, backgroundColor: colors.border, marginVertical: 2 },
+  unitCard: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+    backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.md,
+    borderWidth: 2, borderColor: 'transparent',
+  },
+  unitCurrent: { backgroundColor: '#FFF6EC', borderColor: colors.primary },
+  unitLocked: { opacity: 0.6 },
+  unitIcon: { fontSize: 28 },
+  unitTitle: { fontSize: fontSize.md, fontWeight: '800', color: colors.navy },
+  unitSub: { fontSize: fontSize.sm, color: colors.textMuted, marginVertical: 2 },
+  unitMark: { fontSize: fontSize.lg, fontWeight: '800' },
+  // Fox banner
+  banner: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+    backgroundColor: colors.cream, borderRadius: radius.lg, padding: spacing.md, marginTop: spacing.sm, marginBottom: spacing.lg,
+  },
+  bannerFox: { fontSize: 44 },
+  bannerText: { fontSize: fontSize.md, fontWeight: '700', color: colors.navy, lineHeight: 22 },
+  actions: { flexDirection: 'row', gap: spacing.md },
+  // Locked
+  lockedBox: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.xl, alignItems: 'center' },
   lockedEmoji: { fontSize: 48, marginBottom: spacing.md },
   lockedTitle: { fontSize: fontSize.lg, fontWeight: '800', color: colors.navy, marginBottom: spacing.sm },
   lockedSub: { fontSize: fontSize.md, color: colors.textMuted, textAlign: 'center', lineHeight: 22 },
-  myBalance: { marginTop: spacing.sm, color: colors.sparks, fontWeight: '700', fontSize: fontSize.md },
-  contentBox: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
-    marginTop: spacing.lg,
-  },
-  contentTitle: { fontSize: fontSize.md, fontWeight: '700', color: colors.navy, marginBottom: spacing.sm },
-  contentText: { fontSize: fontSize.md, color: colors.text, lineHeight: 24 },
-  contentPlaceholder: { fontSize: fontSize.md, color: colors.textMuted, fontStyle: 'italic' },
+  balance: { marginTop: spacing.sm, color: colors.sparks, fontWeight: '700', fontSize: fontSize.md },
 });
