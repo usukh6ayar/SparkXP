@@ -16,6 +16,16 @@ organizations (e.g. law firms). Owner: Hustle Hive LLC.
 - Keep code simple, readable, well-documented. MVP first, scale later.
 - Avoid over-engineering. Write code a junior dev can read.
 
+### Work division (who owns what — avoid duplicate work!)
+
+- **Usukhbayar** → **Mobile app + student/user** features (`/mobile`, student-facing
+  backend). Branch: `usukhbayar`.
+- **Bishrelt** → **Admin web** dashboard (`/admin`) + admin-facing backend endpoints.
+  Branch: `bishrelt`.
+- The **backend (`/backend`) is shared** — whoever needs an endpoint adds it and
+  updates `API.md`. Don't both build the same module (this caused duplicate Phase 2
+  work before).
+
 ## Tech Stack
 
 - Mobile: React Native + Expo
@@ -199,9 +209,14 @@ WordReview, XpLog, AiUsage, Message, Payment, SparksLog, LessonUnlock.
 
 ## Git Workflow (2-dev team)
 
+- **ALWAYS pull `main` BEFORE starting any task** (so you build on the other dev's
+  latest and don't duplicate/conflict). This is the #1 rule — do it every time:
+  ```bash
+  git checkout main && git pull origin main
+  git checkout <your-branch> && git merge main   # bring in their merged work
+  ```
 - `main` is always working/deployable. **Never push directly to `main`.**
-- One branch per task: `feature/...` or `fix/...` (e.g. `feature/auth`).
-- Before starting: `git checkout main && git pull origin main`.
+- One branch per dev/task: `usukhbayar`, `bishrelt`, or `feature/...` / `fix/...`.
 - Open a Pull Request, have the other dev review, then merge to `main`.
 - Keep PRs small and frequent. Split work by module to avoid conflicts.
 - `.env` is never committed (secrets). Update `.env.example` when adding new
