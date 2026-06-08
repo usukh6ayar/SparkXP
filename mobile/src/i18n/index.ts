@@ -45,8 +45,8 @@ const mn = {
   reviewDoneHint: 'Маргааш дахин давтаарай 🦊',
   backHome: 'Нүүр рүү',
 
-  // Quiz
-  quiz: 'Quiz',
+  // Сорил (quiz)
+  quiz: 'Сорил',
   question: 'Асуулт',
   submit: 'Дүгнэх',
   next: 'Дараагийнх →',

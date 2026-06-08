@@ -168,14 +168,14 @@ export default function LessonDetailScreen() {
           </View>
         )}
 
-        {/* Quiz button */}
+        {/* Сорил button */}
         {hasAccess && (
           <Button
-            label="📝 Quiz өгөх"
+            label="📝 Сорил өгөх"
             onPress={() => {
               // Lesson's quiz: navigate using lessonId filter via quizzes list
               // For MVP, this would typically pass a quizId. Placeholder for now.
-              Alert.alert('Тун удахгүй', 'Quiz удахгүй нэмэгдэнэ.');
+              Alert.alert('Тун удахгүй', 'Сорил удахгүй нэмэгдэнэ.');
             }}
             style={{ marginTop: spacing.lg }}
           />
