@@ -52,3 +52,23 @@ export const fontSize = {
   xl: 28,
   xxl: 36,
 };
+
+/** Soft tint pairs (bg + foreground) for category / game cards. */
+export const tints = {
+  green: { bg: '#E7F6EC', fg: '#16A34A' },
+  blue: { bg: '#E6F0FB', fg: '#2563EB' },
+  purple: { bg: '#F0EAFB', fg: '#7C3AED' },
+  amber: { bg: '#FEF3DA', fg: '#D9760F' },
+  pink: { bg: '#FCE8EE', fg: '#DB2777' },
+  teal: { bg: '#E2F5F2', fg: '#0D9488' },
+};
+
+/** CEFR level tag colors (a1, a2, ...). */
+export const levelColor: Record<string, { bg: string; fg: string }> = {
+  a1: { bg: '#E7F6EC', fg: '#16A34A' },
+  a2: { bg: '#FEF3DA', fg: '#D9760F' },
+  b1: { bg: '#E6F0FB', fg: '#2563EB' },
+  b2: { bg: '#F0EAFB', fg: '#7C3AED' },
+  c1: { bg: '#F0EAFB', fg: '#7C3AED' },
+  c2: { bg: '#FCE8EE', fg: '#DB2777' },
+};
