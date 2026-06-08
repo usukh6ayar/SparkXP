@@ -67,6 +67,8 @@
 |---|---|:---:|---|
 | GET | `/reviews/due` | 🔑 | Өнөөдөр давтах үгс (word-той) |
 | POST | `/reviews/:wordId` | 🔑 | Хариу `{ quality: 0-5 }` → SM-2 reschedule |
+| GET | `/reviews/learn` | 🔑 | Swipe deck — мэдээгүй үгс (known-г хасна) |
+| GET | `/reviews/stats` | 🔑 | `{ known, learning }` — "мэдэх үг" тоо |
 
 ## 🤖 AI Gateway — `/api/ai`
 

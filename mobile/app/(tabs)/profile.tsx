@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, Pressable, Image, Modal, Alert,
 } from 'react-native';
@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../src/auth/AuthContext';
 import * as usersApi from '../../src/api/users';
+import { getReviewStats } from '../../src/api/reviews';
 import { MN_PROVINCES as PROVINCES, UB_DISTRICTS } from '../../src/constants/locations';
 import { TopBar } from '../../src/components/TopBar';
 import { Pill } from '../../src/components/Pill';
@@ -29,6 +30,13 @@ export default function ProfileScreen() {
   const { user, token, logout } = useAuth();
   const router = useRouter();
   const [editing, setEditing] = useState(false);
+  const [known, setKnown] = useState<number | null>(null);
+
+  // "Мэдэх үг" count — words recalled at least once.
+  useEffect(() => {
+    if (!token) return;
+    getReviewStats(token).then((s) => setKnown(s.known)).catch(() => {});
+  }, [token]);
 
   const soon = () => Alert.alert('Тун удахгүй', 'Энэ хэсэг удахгүй нэмэгдэнэ.');
   const confirmLogout = () =>
@@ -57,6 +65,16 @@ export default function ProfileScreen() {
           <StatCard icon="🪙" label="Очирхон" value={user?.sparks ?? 0} color={colors.sparks} bg={colors.cream} />
           <StatCard icon="🔥" label="Цуврал" value="5" color={colors.danger} bg="#FDE8E8" />
         </View>
+
+        {/* Known words */}
+        <Pressable style={styles.knownCard} onPress={() => router.push('/swipe')}>
+          <Text style={styles.knownIcon}>📚</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.knownLabel}>Мэдэх үг</Text>
+            <Text style={styles.knownSub}>Дарж шинэ үг сур →</Text>
+          </View>
+          <Text style={styles.knownValue}>{known ?? '—'}</Text>
+        </Pressable>
 
         {/* Leaderboard banner */}
         <Pressable style={styles.leaderboard} onPress={() => router.push('/leaderboard')}>
@@ -187,6 +205,14 @@ const styles = StyleSheet.create({
   name: { fontSize: fontSize.xl, fontWeight: '800', color: colors.navy },
   email: { fontSize: fontSize.sm, color: colors.textMuted },
   statsRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
+  knownCard: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+    backgroundColor: '#E7F6EC', borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.md,
+  },
+  knownIcon: { fontSize: 30 },
+  knownLabel: { fontSize: fontSize.md, fontWeight: '800', color: colors.navy },
+  knownSub: { fontSize: fontSize.sm, color: colors.textMuted },
+  knownValue: { fontSize: fontSize.xxl, fontWeight: '800', color: colors.success },
   leaderboard: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
     backgroundColor: colors.navy, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.lg,

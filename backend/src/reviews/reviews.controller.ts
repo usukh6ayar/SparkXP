@@ -28,6 +28,18 @@ export class ReviewsController {
     return this.reviewsService.getDue(user.id);
   }
 
+  /** Word stats: { known, learning } — for the profile "мэдэх үг" count. */
+  @Get('stats')
+  getStats(@CurrentUser() user: User) {
+    return this.reviewsService.getStats(user.id);
+  }
+
+  /** Deck of words to learn (not yet known) — for the swipe screen. */
+  @Get('learn')
+  getLearn(@CurrentUser() user: User) {
+    return this.reviewsService.getLearnQueue(user.id);
+  }
+
   /** Submit a recall attempt for a word; returns the rescheduled review. */
   @Post(':wordId')
   submit(
