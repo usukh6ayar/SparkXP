@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, Pressable, Image, Modal, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { useAuth } from '../../src/auth/AuthContext';
 import * as usersApi from '../../src/api/users';
 import { MN_PROVINCES as PROVINCES, UB_DISTRICTS } from '../../src/constants/locations';
@@ -26,6 +27,7 @@ const ACHIEVEMENTS = [
 
 export default function ProfileScreen() {
   const { user, token, logout } = useAuth();
+  const router = useRouter();
   const [editing, setEditing] = useState(false);
 
   const soon = () => Alert.alert('Тун удахгүй', 'Энэ хэсэг удахгүй нэмэгдэнэ.');
@@ -57,7 +59,7 @@ export default function ProfileScreen() {
         </View>
 
         {/* Leaderboard banner */}
-        <Pressable style={styles.leaderboard} onPress={soon}>
+        <Pressable style={styles.leaderboard} onPress={() => router.push('/leaderboard')}>
           <Text style={styles.lbIcon}>🏆</Text>
           <View style={{ flex: 1 }}>
             <Text style={styles.lbTitle}>Дэлхийн чансаа</Text>
