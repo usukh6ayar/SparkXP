@@ -32,6 +32,8 @@ organizations (e.g. law firms). Owner: Hustle Hive LLC.
 - `CLAUDE.md` — this file (shared rules + project context)
 - `ROADMAP.md` — backend task list and build phases
 - `MOBILE_ROADMAP.md` — mobile (frontend) task list + brand
+- `ROLES.md` — user types, roles (student/teacher/admin/super_admin) +
+  permissions matrix (read this to understand who can do what)
 
 ---
 
