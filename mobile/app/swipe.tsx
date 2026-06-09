@@ -1,0 +1,220 @@
+import { useEffect, useRef, useState } from 'react';
+import {
+  View, Text, StyleSheet, Animated, PanResponder, Dimensions, Pressable,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import { useAuth } from '../src/auth/AuthContext';
+import { getLearnQueue, markKnown, type LearnWord } from '../src/api/reviews';
+import { TopBar } from '../src/components/TopBar';
+import { Loading } from '../src/components/Loading';
+import { Button } from '../src/components/Button';
+import { colors, spacing, radius, fontSize } from '../src/theme/theme';
+
+const SCREEN_W = Dimensions.get('window').width;
+const THRESHOLD = SCREEN_W * 0.25;
+const OUT_DURATION = 250;
+
+/**
+ * Tinder-style word learning.
+ * - Swipe RIGHT = "Мэднэ" → mark known (quality 5), word leaves the deck.
+ * - Swipe LEFT  = "Мэдэхгүй" → word goes to the back of the deck (comes again).
+ * - Tap the card → flip to the Mongolian meaning.
+ * Loops until every word is known. Known count shown on Profile.
+ */
+export default function SwipeScreen() {
+  const { token } = useAuth();
+  const router = useRouter();
+  const [queue, setQueue] = useState<LearnWord[]>([]);
+  const [known, setKnown] = useState(0);
+  const [flipped, setFlipped] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  const position = useRef(new Animated.ValueXY()).current;
+  // Refs so the (once-created) PanResponder always reads the latest values.
+  const queueRef = useRef<LearnWord[]>([]);
+  queueRef.current = queue;
+  const tokenRef = useRef(token);
+  tokenRef.current = token;
+
+  useEffect(() => {
+    if (!token) return;
+    getLearnQueue(token)
+      .then(setQueue)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  function handleSwipe(dir: 'left' | 'right') {
+    const card = queueRef.current[0];
+    if (!card) return;
+    if (dir === 'right') {
+      const t = tokenRef.current;
+      if (t) markKnown(t, card.id).catch(() => {});
+      setKnown((k) => k + 1);
+      setQueue((q) => q.slice(1)); // known → remove
+    } else {
+      setQueue((q) => [...q.slice(1), card]); // don't know → back of deck
+    }
+    position.setValue({ x: 0, y: 0 });
+    setFlipped(false);
+  }
+
+  function forceSwipe(dir: 'left' | 'right') {
+    Animated.timing(position, {
+      toValue: { x: dir === 'right' ? SCREEN_W * 1.4 : -SCREEN_W * 1.4, y: 0 },
+      duration: OUT_DURATION,
+      useNativeDriver: false,
+    }).start(() => handleSwipe(dir));
+  }
+
+  function reset() {
+    Animated.spring(position, { toValue: { x: 0, y: 0 }, useNativeDriver: false }).start();
+  }
+
+  const pan = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onPanResponderMove: (_, g) => position.setValue({ x: g.dx, y: g.dy }),
+      onPanResponderRelease: (_, g) => {
+        if (Math.abs(g.dx) < 8 && Math.abs(g.dy) < 8) setFlipped((f) => !f);
+        else if (g.dx > THRESHOLD) forceSwipe('right');
+        else if (g.dx < -THRESHOLD) forceSwipe('left');
+        else reset();
+      },
+    }),
+  ).current;
+
+  if (loading) return <Loading />;
+
+  const current = queue[0];
+  const next = queue[1];
+
+  const rotate = position.x.interpolate({
+    inputRange: [-SCREEN_W * 1.4, 0, SCREEN_W * 1.4],
+    outputRange: ['-28deg', '0deg', '28deg'],
+  });
+  const knowOpacity = position.x.interpolate({ inputRange: [0, THRESHOLD], outputRange: [0, 1], extrapolate: 'clamp' });
+  const dontOpacity = position.x.interpolate({ inputRange: [-THRESHOLD, 0], outputRange: [1, 0], extrapolate: 'clamp' });
+
+  return (
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      <TopBar title="Үг сурах" back streak={5} />
+
+      <View style={styles.counter}>
+        <Text style={styles.counterKnown}>✓ {known} мэдсэн</Text>
+        <Text style={styles.counterLeft}>{queue.length} үлдсэн</Text>
+      </View>
+
+      {!current ? (
+        <View style={styles.done}>
+          <Text style={styles.doneEmoji}>🎉🦊</Text>
+          <Text style={styles.doneTitle}>Бүх үгийг мэдлээ!</Text>
+          <Text style={styles.doneSub}>Энэ удаад {known} үг мэдсэн.</Text>
+          <Button label="Нүүр рүү" onPress={() => router.back()} style={{ marginTop: spacing.xl, alignSelf: 'stretch' }} />
+        </View>
+      ) : (
+        <View style={styles.deck}>
+          {/* Next card peek */}
+          {next ? (
+            <View style={[styles.card, styles.cardBehind]}>
+              <Text style={styles.word}>{next.english}</Text>
+            </View>
+          ) : null}
+
+          {/* Current card */}
+          <Animated.View
+            {...pan.panHandlers}
+            style={[
+              styles.card,
+              { transform: [{ translateX: position.x }, { translateY: position.y }, { rotate }] },
+            ]}
+          >
+            <Animated.View style={[styles.badge, styles.badgeKnow, { opacity: knowOpacity }]}>
+              <Text style={styles.badgeKnowText}>МЭДНЭ ✓</Text>
+            </Animated.View>
+            <Animated.View style={[styles.badge, styles.badgeDont, { opacity: dontOpacity }]}>
+              <Text style={styles.badgeDontText}>МЭДЭХГҮЙ ✗</Text>
+            </Animated.View>
+
+            {!flipped ? (
+              <>
+                <Text style={styles.word}>{current.english}</Text>
+                <Text style={styles.hint}>дарж орчуулга харах</Text>
+              </>
+            ) : (
+              <>
+                <Text style={styles.translation}>{current.mongolian}</Text>
+                {current.exampleSentence ? (
+                  <Text style={styles.example}>{current.exampleSentence}</Text>
+                ) : null}
+              </>
+            )}
+          </Animated.View>
+        </View>
+      )}
+
+      {/* Action buttons */}
+      {current ? (
+        <View style={styles.actions}>
+          <Pressable style={[styles.actBtn, styles.actDont]} onPress={() => forceSwipe('left')}>
+            <Text style={styles.actDontText}>✗</Text>
+          </Pressable>
+          <Pressable style={[styles.actBtn, styles.actFlip]} onPress={() => setFlipped((f) => !f)}>
+            <Text style={styles.actFlipText}>↺</Text>
+          </Pressable>
+          <Pressable style={[styles.actBtn, styles.actKnow]} onPress={() => forceSwipe('right')}>
+            <Text style={styles.actKnowText}>✓</Text>
+          </Pressable>
+        </View>
+      ) : null}
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: colors.background },
+  counter: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: spacing.lg, marginTop: spacing.xs },
+  counterKnown: { color: colors.success, fontWeight: '800', fontSize: fontSize.md },
+  counterLeft: { color: colors.textMuted, fontWeight: '700', fontSize: fontSize.md },
+  deck: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
+  card: {
+    position: 'absolute',
+    width: SCREEN_W - spacing.lg * 2,
+    minHeight: 340,
+    backgroundColor: colors.white,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.xl,
+    shadowColor: colors.navy,
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
+  },
+  cardBehind: { transform: [{ scale: 0.94 }, { translateY: 16 }], opacity: 0.6 },
+  word: { fontSize: 44, fontWeight: '800', color: colors.navy, textAlign: 'center' },
+  hint: { marginTop: spacing.lg, color: colors.textMuted, fontSize: fontSize.sm },
+  translation: { fontSize: fontSize.xxl, fontWeight: '800', color: colors.primary, textAlign: 'center' },
+  example: { marginTop: spacing.md, color: colors.textMuted, fontSize: fontSize.md, textAlign: 'center' },
+  badge: { position: 'absolute', top: spacing.lg, paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: radius.md, borderWidth: 3 },
+  badgeKnow: { right: spacing.lg, borderColor: colors.success, transform: [{ rotate: '12deg' }] },
+  badgeKnowText: { color: colors.success, fontWeight: '900', fontSize: fontSize.lg },
+  badgeDont: { left: spacing.lg, borderColor: colors.danger, transform: [{ rotate: '-12deg' }] },
+  badgeDontText: { color: colors.danger, fontWeight: '900', fontSize: fontSize.lg },
+  actions: { flexDirection: 'row', justifyContent: 'center', gap: spacing.xl, paddingVertical: spacing.lg },
+  actBtn: { width: 64, height: 64, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center', borderWidth: 2 },
+  actDont: { borderColor: colors.danger, backgroundColor: colors.white },
+  actDontText: { color: colors.danger, fontSize: 28, fontWeight: '800' },
+  actFlip: { borderColor: colors.border, backgroundColor: colors.white, width: 52, height: 52 },
+  actFlipText: { color: colors.navy, fontSize: 24, fontWeight: '800' },
+  actKnow: { borderColor: colors.success, backgroundColor: colors.success },
+  actKnowText: { color: colors.white, fontSize: 28, fontWeight: '800' },
+  done: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
+  doneEmoji: { fontSize: 56 },
+  doneTitle: { fontSize: fontSize.xl, fontWeight: '800', color: colors.navy, marginTop: spacing.md },
+  doneSub: { fontSize: fontSize.md, color: colors.textMuted, marginTop: spacing.sm },
+});

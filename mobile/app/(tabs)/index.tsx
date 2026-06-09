@@ -8,7 +8,7 @@ import { colors, spacing, radius, fontSize, tints } from '../../src/theme/theme'
 
 const CATS: { icon: string; label: string; route: Href; tint: { bg: string; fg: string } }[] = [
   { icon: '📖', label: 'Хичээл', route: '/(tabs)/lessons', tint: tints.green },
-  { icon: '🃏', label: 'Үг давтах', route: '/review', tint: tints.amber },
+  { icon: '🃏', label: 'Үг давтах', route: '/swipe', tint: tints.amber },
   { icon: '🏆', label: 'Сорил', route: '/(tabs)/soril', tint: tints.blue },
   { icon: '🦊', label: 'AI Найз', route: '/(tabs)/chat', tint: tints.purple },
 ];
@@ -33,7 +33,7 @@ export default function HomeScreen() {
         <View style={styles.goalCard}>
           <Text style={styles.goalTitle}>Өнөөдрийн зорилго 🎯</Text>
           <Text style={styles.goalSub}>Үгсээ давтаж XP цуглуул! 🦊</Text>
-          <Pressable style={styles.goalBtn} onPress={() => router.push('/review')}>
+          <Pressable style={styles.goalBtn} onPress={() => router.push('/swipe')}>
             <Text style={styles.goalBtnText}>Үг давтах</Text>
           </Pressable>
         </View>

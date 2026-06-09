@@ -31,3 +31,32 @@ export function submitReview(token: string, wordId: string, quality: number) {
     token,
   });
 }
+
+/** A word in the swipe-learning deck. */
+export interface LearnWord {
+  id: string;
+  english: string;
+  mongolian: string;
+  exampleSentence: string | null;
+}
+
+/** GET /api/reviews/learn — words not yet known (swipe deck). */
+export function getLearnQueue(token: string): Promise<LearnWord[]> {
+  return apiRequest<LearnWord[]>('/reviews/learn', { token });
+}
+
+export interface ReviewStats {
+  known: number; // мэдэх үгийн тоо
+  learning: number;
+}
+
+/** GET /api/reviews/stats — { known, learning } for the profile counter. */
+export function getReviewStats(token: string): Promise<ReviewStats> {
+  return apiRequest<ReviewStats>('/reviews/stats', { token });
+}
+
+/** Swipe right = "I know it" → quality 5 (advances SM-2 → counts as known). */
+export function markKnown(token: string, wordId: string) {
+  return submitReview(token, wordId, 5);
+}
+

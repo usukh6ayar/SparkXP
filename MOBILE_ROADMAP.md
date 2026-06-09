@@ -43,7 +43,7 @@ scale. Монгол хэл primary.
 | M2 Home/Dashboard | Усухбаяр | `usukhbayar` | `/users/me/stats` | ✅ main-д (XP/Sparks карт) |
 | M2 Review (SRS) | Усухбаяр | `usukhbayar` | `/reviews/*` | ⬜ дараагийнх |
 | M2 Lessons (list+detail) | Усухбаяр | `usukhbayar` | `/lessons/*` | ⬜ |
-| M3 Leaderboard | Усухбаяр | `usukhbayar` | `/leaderboard` | ⬜ |
+| M3 Leaderboard | Усухбаяр | `usukhbayar` | `/leaderboard` | ✅ |
 | M2 Quiz | Бишрэлт | `bishrelt` | `/quizzes/:id/submit` | ✅ bishrelt-д |
 | M2 AI buddy chat | Бишрэлт | `bishrelt` | `/ai/chat` | ✅ bishrelt-д |
 | M3 Profile (засах) | Бишрэлт | `bishrelt` | `/users/me` | ✅ bishrelt-д |
@@ -143,7 +143,7 @@ mobile/
 
 ## 🎯 Phase M3 — Gamification UI `[~]` — 👤 Усухбаяр + Бишрэлт
 
-- [ ] **Leaderboard** — `GET /api/leaderboard?period=&scope=`
+- [x] **Leaderboard** — `GET /api/leaderboard?period=&scope=`
       (weekly/monthly/all-time таб + global/аймаг/дүүрэг/класс scope), миний байр — 👤 Усухбаяр
 - [x] **Profile** — мэдээлэл, `PATCH /api/users/me` (нэр, аймаг/дүүрэг засах) — 👤 Бишрэлт ✅
 - [x] **Sparks store / хичээл нээх** — `POST /api/lessons/:id/unlock`
