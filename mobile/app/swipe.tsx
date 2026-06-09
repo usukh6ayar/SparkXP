@@ -1,14 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, Animated, PanResponder, Dimensions, Pressable,
+  View, StyleSheet, Animated, PanResponder, Dimensions, Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../src/auth/AuthContext';
 import { getLearnQueue, markKnown, type LearnWord } from '../src/api/reviews';
 import { TopBar } from '../src/components/TopBar';
+import { AppText } from '../src/components/Text';
 import { Loading } from '../src/components/Loading';
 import { Button } from '../src/components/Button';
+import { ProgressBar } from '../src/components/ProgressBar';
 import { colors, spacing, radius, fontSize } from '../src/theme/theme';
 
 const SCREEN_W = Dimensions.get('window').width;
@@ -97,28 +100,34 @@ export default function SwipeScreen() {
   const knowOpacity = position.x.interpolate({ inputRange: [0, THRESHOLD], outputRange: [0, 1], extrapolate: 'clamp' });
   const dontOpacity = position.x.interpolate({ inputRange: [-THRESHOLD, 0], outputRange: [1, 0], extrapolate: 'clamp' });
 
+  const total = known + queue.length;
+  const progress = total > 0 ? known / total : 0;
+
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      <TopBar title="Үг сурах" back streak={5} />
+      <TopBar title="Үг сурах" back />
 
-      <View style={styles.counter}>
-        <Text style={styles.counterKnown}>✓ {known} мэдсэн</Text>
-        <Text style={styles.counterLeft}>{queue.length} үлдсэн</Text>
+      <View style={styles.counterWrap}>
+        <ProgressBar value={progress} color={colors.success} />
+        <View style={styles.counter}>
+          <AppText variant="label" color={colors.success}>{known} мэдсэн</AppText>
+          <AppText variant="label" color={colors.textMuted}>{queue.length} үлдсэн</AppText>
+        </View>
       </View>
 
       {!current ? (
         <View style={styles.done}>
-          <Text style={styles.doneEmoji}>🎉🦊</Text>
-          <Text style={styles.doneTitle}>Бүх үгийг мэдлээ!</Text>
-          <Text style={styles.doneSub}>Энэ удаад {known} үг мэдсэн.</Text>
-          <Button label="Нүүр рүү" onPress={() => router.back()} style={{ marginTop: spacing.xl, alignSelf: 'stretch' }} />
+          <AppText style={styles.doneEmoji}>🎉</AppText>
+          <AppText variant="h1" center style={styles.doneTitle}>Бүх үгийг мэдлээ!</AppText>
+          <AppText variant="body" color={colors.textSecondary} center>Энэ удаад {known} үг сурлаа.</AppText>
+          <Button label="Нүүр рүү" icon="home" onPress={() => router.back()} style={{ marginTop: spacing.xl }} />
         </View>
       ) : (
         <View style={styles.deck}>
           {/* Next card peek */}
           {next ? (
             <View style={[styles.card, styles.cardBehind]}>
-              <Text style={styles.word}>{next.english}</Text>
+              <AppText style={styles.word}>{next.english}</AppText>
             </View>
           ) : null}
 
@@ -131,22 +140,24 @@ export default function SwipeScreen() {
             ]}
           >
             <Animated.View style={[styles.badge, styles.badgeKnow, { opacity: knowOpacity }]}>
-              <Text style={styles.badgeKnowText}>МЭДНЭ ✓</Text>
+              <AppText variant="label" color={colors.success} style={styles.badgeText}>МЭДНЭ</AppText>
             </Animated.View>
             <Animated.View style={[styles.badge, styles.badgeDont, { opacity: dontOpacity }]}>
-              <Text style={styles.badgeDontText}>МЭДЭХГҮЙ ✗</Text>
+              <AppText variant="label" color={colors.danger} style={styles.badgeText}>МЭДЭХГҮЙ</AppText>
             </Animated.View>
 
             {!flipped ? (
               <>
-                <Text style={styles.word}>{current.english}</Text>
-                <Text style={styles.hint}>дарж орчуулга харах</Text>
+                <AppText style={styles.word}>{current.english}</AppText>
+                <AppText variant="caption" style={styles.hint}>дарж орчуулга харах</AppText>
               </>
             ) : (
               <>
-                <Text style={styles.translation}>{current.mongolian}</Text>
+                <AppText style={styles.translation}>{current.mongolian}</AppText>
                 {current.exampleSentence ? (
-                  <Text style={styles.example}>{current.exampleSentence}</Text>
+                  <AppText variant="body" color={colors.textSecondary} center style={styles.example}>
+                    {current.exampleSentence}
+                  </AppText>
                 ) : null}
               </>
             )}
@@ -158,13 +169,13 @@ export default function SwipeScreen() {
       {current ? (
         <View style={styles.actions}>
           <Pressable style={[styles.actBtn, styles.actDont]} onPress={() => forceSwipe('left')}>
-            <Text style={styles.actDontText}>✗</Text>
+            <Ionicons name="close" size={30} color={colors.danger} />
           </Pressable>
           <Pressable style={[styles.actBtn, styles.actFlip]} onPress={() => setFlipped((f) => !f)}>
-            <Text style={styles.actFlipText}>↺</Text>
+            <Ionicons name="sync" size={22} color={colors.navy} />
           </Pressable>
           <Pressable style={[styles.actBtn, styles.actKnow]} onPress={() => forceSwipe('right')}>
-            <Text style={styles.actKnowText}>✓</Text>
+            <Ionicons name="checkmark" size={30} color={colors.white} />
           </Pressable>
         </View>
       ) : null}
@@ -174,7 +185,8 @@ export default function SwipeScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
-  counter: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: spacing.lg, marginTop: spacing.xs },
+  counterWrap: { paddingHorizontal: spacing.lg, marginBottom: spacing.sm },
+  counter: { flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.xs },
   counterKnown: { color: colors.success, fontWeight: '800', fontSize: fontSize.md },
   counterLeft: { color: colors.textMuted, fontWeight: '700', fontSize: fontSize.md },
   deck: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
@@ -202,9 +214,8 @@ const styles = StyleSheet.create({
   example: { marginTop: spacing.md, color: colors.textMuted, fontSize: fontSize.md, textAlign: 'center' },
   badge: { position: 'absolute', top: spacing.lg, paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: radius.md, borderWidth: 3 },
   badgeKnow: { right: spacing.lg, borderColor: colors.success, transform: [{ rotate: '12deg' }] },
-  badgeKnowText: { color: colors.success, fontWeight: '900', fontSize: fontSize.lg },
   badgeDont: { left: spacing.lg, borderColor: colors.danger, transform: [{ rotate: '-12deg' }] },
-  badgeDontText: { color: colors.danger, fontWeight: '900', fontSize: fontSize.lg },
+  badgeText: { fontWeight: '900', fontSize: fontSize.lg },
   actions: { flexDirection: 'row', justifyContent: 'center', gap: spacing.xl, paddingVertical: spacing.lg },
   actBtn: { width: 64, height: 64, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center', borderWidth: 2 },
   actDont: { borderColor: colors.danger, backgroundColor: colors.white },

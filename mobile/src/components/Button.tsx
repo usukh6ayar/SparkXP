@@ -1,32 +1,45 @@
 import {
   Pressable,
-  Text,
   ActivityIndicator,
   StyleSheet,
+  View,
   type ViewStyle,
 } from 'react-native';
-import { colors, radius, spacing, fontSize } from '../theme/theme';
+import { Ionicons } from '@expo/vector-icons';
+import { AppText } from './Text';
+import { colors, radius, spacing } from '../theme/theme';
+
+type IconName = keyof typeof Ionicons.glyphMap;
 
 interface Props {
   label: string;
   onPress: () => void;
-  variant?: 'primary' | 'secondary';
+  /** primary = orange fill · secondary = navy outline · ghost = text only */
+  variant?: 'primary' | 'secondary' | 'ghost';
+  size?: 'md' | 'lg';
+  icon?: IconName;
   loading?: boolean;
   disabled?: boolean;
+  fullWidth?: boolean;
   style?: ViewStyle;
 }
 
-/** Brand button. Primary = orange fill; secondary = navy outline. */
+/** Brand button with size + variant system and an optional leading icon. */
 export function Button({
   label,
   onPress,
   variant = 'primary',
+  size = 'lg',
+  icon,
   loading,
   disabled,
+  fullWidth = true,
   style,
 }: Props) {
   const isPrimary = variant === 'primary';
+  const isSecondary = variant === 'secondary';
   const blocked = disabled || loading;
+  const fg = isPrimary ? colors.white : colors.primary;
 
   return (
     <Pressable
@@ -34,40 +47,40 @@ export function Button({
       disabled={blocked}
       style={({ pressed }) => [
         styles.base,
-        isPrimary ? styles.primary : styles.secondary,
+        size === 'lg' ? styles.lg : styles.md,
+        isPrimary && styles.primary,
+        isSecondary && styles.secondary,
+        variant === 'ghost' && styles.ghost,
+        fullWidth && styles.fullWidth,
         blocked && styles.disabled,
         pressed && !blocked && styles.pressed,
         style,
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={isPrimary ? colors.white : colors.primary} />
+        <ActivityIndicator color={fg} />
       ) : (
-        <Text style={[styles.label, isPrimary ? styles.labelPrimary : styles.labelSecondary]}>
-          {label}
-        </Text>
+        <View style={styles.content}>
+          {icon ? <Ionicons name={icon} size={size === 'lg' ? 20 : 18} color={fg} /> : null}
+          <AppText variant="bodyStrong" color={fg} style={styles.label}>
+            {label}
+          </AppText>
+        </View>
       )}
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  base: {
-    height: 54,
-    borderRadius: radius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.lg,
-  },
+  base: { borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
+  lg: { height: 52, paddingHorizontal: spacing.xl },
+  md: { height: 44, paddingHorizontal: spacing.lg },
+  fullWidth: { alignSelf: 'stretch' },
   primary: { backgroundColor: colors.primary },
-  secondary: {
-    backgroundColor: colors.white,
-    borderWidth: 2,
-    borderColor: colors.primary,
-  },
-  disabled: { opacity: 0.5 },
-  pressed: { opacity: 0.85 },
-  label: { fontSize: fontSize.md, fontWeight: '700' },
-  labelPrimary: { color: colors.white },
-  labelSecondary: { color: colors.primary },
+  secondary: { backgroundColor: colors.background, borderWidth: 1.5, borderColor: colors.primary },
+  ghost: { backgroundColor: 'transparent' },
+  disabled: { opacity: 0.45 },
+  pressed: { opacity: 0.88, transform: [{ scale: 0.99 }] },
+  content: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  label: { fontWeight: '700' },
 });

@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import { View, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../src/auth/AuthContext';
 import {
   getLeaderboard,
@@ -10,8 +11,9 @@ import {
   type LeaderboardResult,
 } from '../src/api/leaderboard';
 import { TopBar } from '../src/components/TopBar';
+import { AppText } from '../src/components/Text';
 import { Loading } from '../src/components/Loading';
-import { colors, spacing, radius, fontSize } from '../src/theme/theme';
+import { colors, spacing, radius } from '../src/theme/theme';
 
 const PERIODS: { key: Period; label: string }[] = [
   { key: 'weekly', label: 'Долоо хоног' },
@@ -23,7 +25,7 @@ const SCOPES: { key: Scope; label: string }[] = [
   { key: 'province', label: 'Аймаг' },
   { key: 'district', label: 'Дүүрэг' },
 ];
-const MEDALS = ['🥇', '🥈', '🥉'];
+const MEDAL = [colors.sparks, '#A9B4C7', '#CD7F4D']; // gold, silver, bronze
 
 export default function LeaderboardScreen() {
   const { token, user } = useAuth();
@@ -44,56 +46,67 @@ export default function LeaderboardScreen() {
     }
   }, [token, period, scope]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useEffect(() => { load(); }, [load]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <TopBar title="Тэргүүлэгчид" back streak={5} />
+      <TopBar title="Тэргүүлэгчид" back />
 
-      {/* Period tabs */}
+      {/* Period segmented control */}
       <View style={styles.tabs}>
-        {PERIODS.map((p) => (
-          <Pressable
-            key={p.key}
-            style={[styles.tab, period === p.key && styles.tabActive]}
-            onPress={() => setPeriod(p.key)}
-          >
-            <Text style={[styles.tabText, period === p.key && styles.tabTextActive]}>{p.label}</Text>
-          </Pressable>
-        ))}
+        {PERIODS.map((p) => {
+          const active = period === p.key;
+          return (
+            <Pressable
+              key={p.key}
+              style={[styles.tab, active && styles.tabActive]}
+              onPress={() => setPeriod(p.key)}
+            >
+              <AppText variant="label" color={active ? colors.white : colors.textSecondary}>{p.label}</AppText>
+            </Pressable>
+          );
+        })}
       </View>
 
       {/* Scope chips */}
       <View style={styles.chips}>
-        {SCOPES.map((s) => (
-          <Pressable
-            key={s.key}
-            style={[styles.chip, scope === s.key && styles.chipActive]}
-            onPress={() => setScope(s.key)}
-          >
-            <Text style={[styles.chipText, scope === s.key && styles.chipTextActive]}>{s.label}</Text>
-          </Pressable>
-        ))}
+        {SCOPES.map((s) => {
+          const active = scope === s.key;
+          return (
+            <Pressable
+              key={s.key}
+              style={[styles.chip, active && styles.chipActive]}
+              onPress={() => setScope(s.key)}
+            >
+              <AppText variant="label" color={active ? colors.white : colors.textSecondary}>{s.label}</AppText>
+            </Pressable>
+          );
+        })}
       </View>
 
       {loading ? (
         <Loading />
       ) : (
-        <ScrollView contentContainerStyle={styles.list}>
+        <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
           {/* My standing */}
           <View style={styles.meCard}>
-            <Text style={styles.meRank}>{data?.me?.rank ? `#${data.me.rank}` : '—'}</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.meLabel}>Таны байр</Text>
-              <Text style={styles.meName}>{user?.fullName}</Text>
+            <View style={styles.meRankWrap}>
+              <AppText variant="h3" color={colors.sparks}>{data?.me?.rank ? `#${data.me.rank}` : '—'}</AppText>
             </View>
-            <Text style={styles.meXp}>⚡ {data?.me?.xp ?? 0}</Text>
+            <View style={{ flex: 1 }}>
+              <AppText variant="caption" color={colors.textOnDarkMuted}>Таны байр</AppText>
+              <AppText variant="h3" color={colors.white} numberOfLines={1}>{user?.fullName}</AppText>
+            </View>
+            <View style={styles.meXp}>
+              <Ionicons name="flash" size={14} color={colors.xp} />
+              <AppText variant="bodyStrong" color={colors.white}>{data?.me?.xp ?? 0}</AppText>
+            </View>
           </View>
 
           {!data || data.entries.length === 0 ? (
-            <Text style={styles.empty}>Энэ хугацаанд дата алга 🦊</Text>
+            <AppText variant="body" color={colors.textMuted} center style={styles.empty}>
+              Энэ хугацаанд дата алга 🦊
+            </AppText>
           ) : (
             data.entries.map((e) => (
               <Row key={e.userId} entry={e} isMe={e.userId === user?.id} />
@@ -107,15 +120,22 @@ export default function LeaderboardScreen() {
 }
 
 function Row({ entry, isMe }: { entry: LeaderboardEntry; isMe: boolean }) {
-  const medal = entry.rank <= 3 ? MEDALS[entry.rank - 1] : null;
+  const medalColor = entry.rank <= 3 ? MEDAL[entry.rank - 1] : null;
   return (
     <View style={[styles.row, isMe && styles.rowMe]}>
-      <Text style={[styles.rank, medal ? styles.rankMedal : null]}>{medal ?? entry.rank}</Text>
-      <View style={styles.avatar}><Text style={styles.avatarEmoji}>🦊</Text></View>
-      <Text style={styles.name} numberOfLines={1}>
+      <View style={[styles.rankBadge, medalColor ? { backgroundColor: medalColor } : styles.rankPlain]}>
+        <AppText variant="label" color={medalColor ? colors.white : colors.textSecondary}>{entry.rank}</AppText>
+      </View>
+      <View style={styles.avatar}>
+        <Ionicons name="person" size={16} color={colors.textSecondary} />
+      </View>
+      <AppText variant="bodyStrong" style={styles.name} numberOfLines={1}>
         {entry.fullName}{isMe ? ' (Та)' : ''}
-      </Text>
-      <Text style={styles.xp}>⚡ {entry.xp}</Text>
+      </AppText>
+      <View style={styles.xp}>
+        <Ionicons name="flash" size={13} color={colors.xp} />
+        <AppText variant="bodyStrong" color={colors.primary}>{entry.xp}</AppText>
+      </View>
     </View>
   );
 }
@@ -132,53 +152,33 @@ const styles = StyleSheet.create({
   },
   tab: { flex: 1, paddingVertical: spacing.sm, borderRadius: radius.full, alignItems: 'center' },
   tabActive: { backgroundColor: colors.primary },
-  tabText: { fontWeight: '700', color: colors.textMuted, fontSize: fontSize.sm },
-  tabTextActive: { color: colors.white },
   chips: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg, marginVertical: spacing.md },
-  chip: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: 6,
-    borderRadius: radius.full,
-    backgroundColor: colors.cream,
-  },
+  chip: { paddingHorizontal: spacing.md, paddingVertical: 7, borderRadius: radius.full, backgroundColor: colors.surface },
   chipActive: { backgroundColor: colors.navy },
-  chipText: { fontWeight: '700', color: colors.navy, fontSize: fontSize.sm },
-  chipTextActive: { color: colors.white },
   list: { paddingHorizontal: spacing.lg },
   meCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    backgroundColor: colors.navy,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    marginBottom: spacing.md,
+    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+    backgroundColor: colors.navy, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.md,
   },
-  meRank: { fontSize: fontSize.lg, fontWeight: '800', color: colors.sparks, minWidth: 44 },
-  meLabel: { color: '#C7CEDF', fontSize: fontSize.sm },
-  meName: { color: colors.white, fontWeight: '800', fontSize: fontSize.md },
-  meXp: { color: colors.white, fontWeight: '800', fontSize: fontSize.md },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    backgroundColor: colors.white,
-    borderRadius: radius.md,
-    padding: spacing.sm,
-    paddingHorizontal: spacing.md,
-    marginBottom: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  rowMe: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
-  rank: { fontSize: fontSize.md, fontWeight: '800', color: colors.textMuted, minWidth: 28, textAlign: 'center' },
-  rankMedal: { fontSize: fontSize.lg },
-  avatar: {
-    width: 38, height: 38, borderRadius: radius.full, backgroundColor: colors.cream,
+  meRankWrap: {
+    width: 48, height: 48, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,0.1)',
     alignItems: 'center', justifyContent: 'center',
   },
-  avatarEmoji: { fontSize: 20 },
-  name: { flex: 1, fontWeight: '700', color: colors.navy, fontSize: fontSize.md },
-  xp: { fontWeight: '800', color: colors.primary, fontSize: fontSize.md },
-  empty: { textAlign: 'center', color: colors.textMuted, marginTop: spacing.xl },
+  meXp: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  row: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+    backgroundColor: colors.background, borderRadius: radius.md,
+    paddingVertical: spacing.sm, paddingHorizontal: spacing.md, marginBottom: spacing.sm,
+    borderWidth: 1, borderColor: colors.border,
+  },
+  rowMe: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  rankBadge: { width: 28, height: 28, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center' },
+  rankPlain: { backgroundColor: colors.surface },
+  avatar: {
+    width: 36, height: 36, borderRadius: radius.full, backgroundColor: colors.surface,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  name: { flex: 1 },
+  xp: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  empty: { marginTop: spacing.xxl },
 });

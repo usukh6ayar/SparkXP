@@ -1,13 +1,15 @@
 import { useState, useRef } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, TextInput, ScrollView,
+  View, StyleSheet, FlatList, TextInput, ScrollView,
   Pressable, KeyboardAvoidingView, Platform, ActivityIndicator, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/auth/AuthContext';
 import * as aiApi from '../../src/api/ai';
 import { TopBar } from '../../src/components/TopBar';
-import { colors, spacing, radius, fontSize } from '../../src/theme/theme';
+import { AppText } from '../../src/components/Text';
+import { colors, spacing, radius } from '../../src/theme/theme';
 
 interface LocalMessage {
   id: string;
@@ -60,7 +62,6 @@ export default function ChatScreen() {
 
   function onBuddyPress(active?: boolean) {
     if (active) {
-      // Tapping your active buddy starts a fresh conversation.
       setMessages([]);
       setConversationId(undefined);
     } else {
@@ -73,12 +74,6 @@ export default function ChatScreen() {
       <TopBar title="AI Найз" streak={5} />
 
       {/* Buddy selector */}
-      <View style={styles.buddyHeader}>
-        <Text style={styles.buddyTitle}>Таны AI найз</Text>
-        <Pressable onPress={() => onBuddyPress(false)}>
-          <Text style={styles.seeAll}>Бүгдийг харах ›</Text>
-        </Pressable>
-      </View>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -91,10 +86,11 @@ export default function ChatScreen() {
             style={[styles.buddyCard, b.active && styles.buddyActive]}
             onPress={() => onBuddyPress(b.active)}
           >
-            <Text style={styles.buddyEmoji}>{b.emoji}</Text>
-            <Text style={styles.buddyName}>
-              {b.name} {b.active ? '🟢' : '⚪'}
-            </Text>
+            <AppText style={styles.buddyEmoji}>{b.emoji}</AppText>
+            <View style={styles.buddyNameRow}>
+              <View style={[styles.dot, { backgroundColor: b.active ? colors.success : colors.borderStrong }]} />
+              <AppText variant="caption" color={colors.text} style={styles.buddyName}>{b.name}</AppText>
+            </View>
           </Pressable>
         ))}
       </ScrollView>
@@ -113,7 +109,7 @@ export default function ChatScreen() {
       {loading && (
         <View style={styles.typingRow}>
           <ActivityIndicator size="small" color={colors.primary} />
-          <Text style={styles.typingText}>AI бичиж байна...</Text>
+          <AppText variant="caption">Спарк бичиж байна...</AppText>
         </View>
       )}
 
@@ -124,7 +120,7 @@ export default function ChatScreen() {
             style={styles.voiceBtn}
             onPress={() => Alert.alert('Тун удахгүй', 'Дуу хоолойгоор ярих боломж удахгүй нэмэгдэнэ. 🎤')}
           >
-            <Text style={styles.voiceIcon}>🎤</Text>
+            <Ionicons name="mic-outline" size={20} color={colors.textSecondary} />
           </Pressable>
           <TextInput
             style={styles.input}
@@ -142,7 +138,7 @@ export default function ChatScreen() {
             onPress={send}
             disabled={!input.trim() || loading}
           >
-            <Text style={styles.sendIcon}>➤</Text>
+            <Ionicons name="arrow-up" size={20} color={colors.white} />
           </Pressable>
         </View>
       </KeyboardAvoidingView>
@@ -154,11 +150,11 @@ function MessageBubble({ message }: { message: LocalMessage }) {
   const isUser = message.role === 'user';
   return (
     <View style={[styles.bubbleRow, isUser && styles.bubbleRowUser]}>
-      {!isUser && <Text style={styles.avatar}>🦊</Text>}
+      {!isUser && <AppText style={styles.avatar}>🦊</AppText>}
       <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAi]}>
-        <Text style={[styles.bubbleText, isUser && styles.bubbleTextUser]}>
+        <AppText variant="body" color={isUser ? colors.white : colors.text}>
           {message.content}
-        </Text>
+        </AppText>
       </View>
     </View>
   );
@@ -167,58 +163,48 @@ function MessageBubble({ message }: { message: LocalMessage }) {
 function EmptyState() {
   return (
     <View style={styles.emptyState}>
-      <Text style={styles.emptyEmoji}>🦊</Text>
-      <Text style={styles.emptyTitle}>Сайн уу! Би Спарк байна 👋</Text>
-      <Text style={styles.emptySub}>
-        Англи хэл дэх асуулт, дасгал, тайлбар — бүгдийг асуугаарай!
-      </Text>
+      <AppText style={styles.emptyEmoji}>🦊</AppText>
+      <AppText variant="h2" center style={styles.emptyTitle}>Сайн уу! Би Спарк 👋</AppText>
+      <AppText variant="body" color={colors.textSecondary} center>
+        Англи хэлний асуулт, дасгал, тайлбар — бүгдийг асуугаарай.
+      </AppText>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
-  buddyHeader: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: spacing.lg, marginTop: spacing.xs,
-  },
-  buddyTitle: { fontSize: fontSize.md, fontWeight: '800', color: colors.navy },
-  seeAll: { color: colors.primary, fontWeight: '700' },
-  buddyScroll: { flexGrow: 0, marginVertical: spacing.sm },
+  buddyScroll: { flexGrow: 0, marginTop: spacing.xs, marginBottom: spacing.sm },
   buddyRow: { gap: spacing.sm, paddingHorizontal: spacing.lg },
   buddyCard: {
-    width: 76, alignItems: 'center', backgroundColor: colors.surface,
-    borderRadius: radius.md, paddingVertical: spacing.sm, borderWidth: 2, borderColor: 'transparent',
+    width: 68, alignItems: 'center', backgroundColor: colors.surface,
+    borderRadius: radius.md, paddingVertical: spacing.sm, borderWidth: 1.5, borderColor: 'transparent',
   },
   buddyActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
-  buddyEmoji: { fontSize: 34 },
-  buddyName: { fontSize: fontSize.xs, fontWeight: '700', color: colors.navy, marginTop: 2 },
-  messageList: { padding: spacing.md, gap: spacing.md, flexGrow: 1 },
-  bubbleRow: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm, marginBottom: spacing.sm },
+  buddyEmoji: { fontSize: 30 },
+  buddyNameRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
+  dot: { width: 6, height: 6, borderRadius: 3 },
+  buddyName: { fontWeight: '700' },
+  messageList: { padding: spacing.md, gap: spacing.sm, flexGrow: 1 },
+  bubbleRow: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm, marginBottom: spacing.xs },
   bubbleRowUser: { flexDirection: 'row-reverse' },
-  avatar: { fontSize: 26 },
-  bubble: { maxWidth: '78%', borderRadius: radius.lg, padding: spacing.md },
-  bubbleAi: { backgroundColor: colors.cream, borderBottomLeftRadius: 4 },
+  avatar: { fontSize: 24 },
+  bubble: { maxWidth: '78%', borderRadius: radius.lg, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  bubbleAi: { backgroundColor: colors.surface, borderBottomLeftRadius: 4 },
   bubbleUser: { backgroundColor: colors.primary, borderBottomRightRadius: 4 },
-  bubbleText: { fontSize: fontSize.md, color: colors.text, lineHeight: 22 },
-  bubbleTextUser: { color: colors.white },
   typingRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
-  typingText: { color: colors.textMuted, fontSize: fontSize.sm },
   inputBar: {
     flexDirection: 'row', alignItems: 'flex-end', padding: spacing.md, gap: spacing.sm,
     borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.background,
   },
   input: {
-    flex: 1, minHeight: 46, maxHeight: 120, backgroundColor: colors.surface, borderRadius: radius.full,
-    paddingHorizontal: spacing.md, paddingVertical: spacing.sm, fontSize: fontSize.md, color: colors.text,
+    flex: 1, minHeight: 44, maxHeight: 120, backgroundColor: colors.surface, borderRadius: radius.lg,
+    paddingHorizontal: spacing.md, paddingTop: 11, paddingBottom: 11, fontSize: 15, color: colors.text,
   },
-  voiceBtn: { width: 46, height: 46, borderRadius: 23, backgroundColor: colors.cream, justifyContent: 'center', alignItems: 'center' },
-  voiceIcon: { fontSize: 20 },
-  sendBtn: { width: 46, height: 46, borderRadius: 23, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' },
-  sendBtnDisabled: { backgroundColor: colors.border },
-  sendIcon: { color: colors.white, fontSize: fontSize.md, fontWeight: '800' },
-  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xl, paddingTop: spacing.xxl },
-  emptyEmoji: { fontSize: 56, marginBottom: spacing.md },
-  emptyTitle: { fontSize: fontSize.lg, fontWeight: '800', color: colors.navy, textAlign: 'center', marginBottom: spacing.sm },
-  emptySub: { fontSize: fontSize.md, color: colors.textMuted, textAlign: 'center', lineHeight: 22 },
+  voiceBtn: { width: 44, height: 44, borderRadius: radius.full, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center' },
+  sendBtn: { width: 44, height: 44, borderRadius: radius.full, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' },
+  sendBtnDisabled: { backgroundColor: colors.borderStrong },
+  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xl, paddingTop: spacing.xxxl },
+  emptyEmoji: { fontSize: 52, marginBottom: spacing.md },
+  emptyTitle: { marginBottom: spacing.sm },
 });

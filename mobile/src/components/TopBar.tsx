@@ -1,21 +1,25 @@
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Pressable, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../auth/AuthContext';
-import { colors, spacing, radius, fontSize } from '../theme/theme';
+import { AppText } from './Text';
+import { colors, spacing, radius } from '../theme/theme';
 
 /**
- * Shared screen header: optional back button + title on the left, the
- * streak 🔥 and Sparks 🪙 badges on the right (как in the design). Streak is a
- * placeholder until the backend tracks it; Sparks is the real balance.
+ * Shared screen header: optional back button + title on the left, streak and
+ * Sparks badges on the right. Streak is a placeholder until the backend tracks
+ * it; Sparks is the real balance.
  */
 export function TopBar({
   title,
   back = false,
   streak = 0,
+  showBadges = true,
 }: {
   title?: string;
   back?: boolean;
   streak?: number;
+  showBadges?: boolean;
 }) {
   const router = useRouter();
   const { user } = useAuth();
@@ -25,22 +29,24 @@ export function TopBar({
       <View style={styles.left}>
         {back ? (
           <Pressable style={styles.backBtn} onPress={() => router.back()} hitSlop={8}>
-            <Text style={styles.backIcon}>‹</Text>
+            <Ionicons name="chevron-back" size={22} color={colors.text} />
           </Pressable>
         ) : null}
-        {title ? <Text style={styles.title}>{title}</Text> : null}
+        {title ? <AppText variant="h1" numberOfLines={1}>{title}</AppText> : null}
       </View>
 
-      <View style={styles.badges}>
-        <View style={styles.badge}>
-          <Text style={styles.badgeIcon}>🔥</Text>
-          <Text style={styles.badgeText}>{streak}</Text>
+      {showBadges ? (
+        <View style={styles.badges}>
+          <View style={styles.badge}>
+            <Ionicons name="flame" size={15} color={colors.streak} />
+            <AppText variant="label" color={colors.text}>{streak}</AppText>
+          </View>
+          <View style={styles.badge}>
+            <Ionicons name="sparkles" size={14} color={colors.sparks} />
+            <AppText variant="label" color={colors.text}>{user?.sparks ?? 0}</AppText>
+          </View>
         </View>
-        <View style={styles.badge}>
-          <Text style={styles.badgeIcon}>🪙</Text>
-          <Text style={styles.badgeText}>{user?.sparks ?? 0}</Text>
-        </View>
-      </View>
+      ) : null}
     </View>
   );
 }
@@ -52,28 +58,25 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
+    minHeight: 48,
   },
   left: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexShrink: 1 },
   backBtn: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
     borderRadius: radius.md,
-    backgroundColor: colors.cream,
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  backIcon: { fontSize: 26, color: colors.navy, marginTop: -2, fontWeight: '700' },
-  title: { fontSize: fontSize.xl, fontWeight: '800', color: colors.navy },
   badges: { flexDirection: 'row', gap: spacing.sm },
   badge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: colors.cream,
+    gap: 5,
+    backgroundColor: colors.surface,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    paddingVertical: 7,
     borderRadius: radius.full,
   },
-  badgeIcon: { fontSize: fontSize.md },
-  badgeText: { fontWeight: '800', color: colors.navy, fontSize: fontSize.md },
 });

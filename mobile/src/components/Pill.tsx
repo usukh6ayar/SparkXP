@@ -1,29 +1,41 @@
-import { View, Text, StyleSheet } from 'react-native';
-import { colors, radius, fontSize } from '../theme/theme';
+import { View, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { AppText } from './Text';
+import { colors, radius, spacing } from '../theme/theme';
 
-/** Small rounded tag — level (A1), lesson state ("Дасгал"), etc. */
+type IconName = keyof typeof Ionicons.glyphMap;
+
+/** Small rounded tag — CEFR level, lesson state, counts. Optional leading icon. */
 export function Pill({
   label,
   bg = colors.surface,
-  fg = colors.textMuted,
+  fg = colors.textSecondary,
+  icon,
 }: {
   label: string;
   bg?: string;
   fg?: string;
+  icon?: IconName;
 }) {
   return (
     <View style={[styles.pill, { backgroundColor: bg }]}>
-      <Text style={[styles.text, { color: fg }]}>{label}</Text>
+      {icon ? <Ionicons name={icon} size={12} color={fg} /> : null}
+      <AppText variant="caption" color={fg} style={styles.text}>
+        {label}
+      </AppText>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     alignSelf: 'flex-start',
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: radius.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: radius.full,
   },
-  text: { fontSize: fontSize.xs, fontWeight: '700' },
+  text: { fontWeight: '700', letterSpacing: 0.2 },
 });

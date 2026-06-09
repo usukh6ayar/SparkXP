@@ -6,10 +6,12 @@ import {
   type ReactNode,
 } from 'react';
 import * as SecureStore from 'expo-secure-store';
+import { ApiError } from '../api/client';
 import * as authApi from '../api/auth';
 import type { AuthUser, RegisterPayload } from '../api/auth';
 
 const TOKEN_KEY = 'englishxp.token';
+const USER_KEY = 'englishxp.user';
 
 interface AuthState {
   token: string | null;
@@ -40,21 +42,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function restoreSession() {
     try {
       const saved = await SecureStore.getItemAsync(TOKEN_KEY);
-      if (saved) {
-        const me = await authApi.getMe(saved);
-        setToken(saved);
-        setUser(me);
+      if (!saved) return;
+
+      // Trust the saved token immediately so we don't bounce to login on restart.
+      setToken(saved);
+
+      const cachedUser = await SecureStore.getItemAsync(USER_KEY);
+      if (cachedUser) {
+        try {
+          setUser(JSON.parse(cachedUser) as AuthUser);
+        } catch {
+          // Corrupt cache — will refresh from /me below.
+        }
       }
-    } catch {
-      // Saved token invalid/expired — clear it and start logged out.
-      await SecureStore.deleteItemAsync(TOKEN_KEY);
+
+      try {
+        const me = await authApi.getMe(saved);
+        setUser(me);
+        await SecureStore.setItemAsync(USER_KEY, JSON.stringify(me));
+      } catch (err) {
+        // Only clear the session when the token is actually invalid/expired.
+        if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+          await clearSession();
+        }
+      }
     } finally {
       setLoading(false);
     }
   }
 
+  async function clearSession() {
+    await SecureStore.deleteItemAsync(TOKEN_KEY);
+    await SecureStore.deleteItemAsync(USER_KEY);
+    setToken(null);
+    setUser(null);
+  }
+
   async function persist(result: { accessToken: string; user: AuthUser }) {
     await SecureStore.setItemAsync(TOKEN_KEY, result.accessToken);
+    await SecureStore.setItemAsync(USER_KEY, JSON.stringify(result.user));
     setToken(result.accessToken);
     setUser(result.user);
   }
@@ -68,9 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function logout() {
-    await SecureStore.deleteItemAsync(TOKEN_KEY);
-    setToken(null);
-    setUser(null);
+    await clearSession();
   }
 
   return (

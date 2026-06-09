@@ -1,29 +1,33 @@
 import { useState, useEffect } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView, Pressable, Image, Modal, Alert,
-} from 'react-native';
+import { View, StyleSheet, ScrollView, Pressable, Image, Modal, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/auth/AuthContext';
 import * as usersApi from '../../src/api/users';
 import { getReviewStats } from '../../src/api/reviews';
 import { MN_PROVINCES as PROVINCES, UB_DISTRICTS } from '../../src/constants/locations';
 import { TopBar } from '../../src/components/TopBar';
+import { AppText } from '../../src/components/Text';
+import { Card } from '../../src/components/Card';
 import { Pill } from '../../src/components/Pill';
+import { IconTile } from '../../src/components/IconTile';
 import { StatCard } from '../../src/components/StatCard';
+import { SectionHeader } from '../../src/components/SectionHeader';
 import { TextField } from '../../src/components/TextField';
 import { SelectField } from '../../src/components/SelectField';
 import { Button } from '../../src/components/Button';
-import { colors, spacing, radius, fontSize } from '../../src/theme/theme';
+import { colors, spacing, radius, tints } from '../../src/theme/theme';
 
+type IconName = keyof typeof Ionicons.glyphMap;
 const fox = require('../../assets/logo.png');
 
-const ACHIEVEMENTS = [
-  { icon: '📖', label: 'Анхны алхам' },
-  { icon: '🔥', label: '7 хоног' },
-  { icon: '🎧', label: 'Сонсох мастер' },
-  { icon: '🏆', label: 'Сорил мастер' },
-  { icon: '👑', label: '100 хичээл' },
+const ACHIEVEMENTS: { icon: IconName; label: string; earned: boolean }[] = [
+  { icon: 'footsteps', label: 'Анхны алхам', earned: true },
+  { icon: 'flame', label: '7 хоног', earned: true },
+  { icon: 'headset', label: 'Сонсох мастер', earned: true },
+  { icon: 'trophy', label: 'Сорил мастер', earned: false },
+  { icon: 'ribbon', label: '100 хичээл', earned: false },
 ];
 
 export default function ProfileScreen() {
@@ -32,7 +36,6 @@ export default function ProfileScreen() {
   const [editing, setEditing] = useState(false);
   const [known, setKnown] = useState<number | null>(null);
 
-  // "Мэдэх үг" count — words recalled at least once.
   useEffect(() => {
     if (!token) return;
     getReviewStats(token).then((s) => setKnown(s.known)).catch(() => {});
@@ -48,70 +51,77 @@ export default function ProfileScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <TopBar title="Профайл" streak={5} />
-      <ScrollView contentContainerStyle={styles.container}>
-        {/* Profile card */}
+      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+        {/* Profile header */}
         <View style={styles.profileCard}>
           <Image source={fox} style={styles.avatar} resizeMode="contain" />
           <View style={styles.profileInfo}>
-            <Text style={styles.name}>{user?.fullName}</Text>
-            <Text style={styles.email}>{user?.email}</Text>
-            <Pill label="A2  Түвшин" bg={colors.primarySoft} fg={colors.primary} />
+            <AppText variant="h2" numberOfLines={1}>{user?.fullName}</AppText>
+            <AppText variant="caption" numberOfLines={1} style={styles.email}>{user?.email}</AppText>
+            <Pill label="A2 түвшин" bg={colors.primarySoft} fg={colors.primaryDark} />
           </View>
+          <Pressable style={styles.editBtn} onPress={() => setEditing(true)} hitSlop={8}>
+            <Ionicons name="create-outline" size={20} color={colors.textSecondary} />
+          </Pressable>
         </View>
 
         {/* Stats */}
         <View style={styles.statsRow}>
-          <StatCard icon="⚡" label="XP" value={user?.xp ?? 0} color={colors.xp} bg={colors.primarySoft} />
-          <StatCard icon="🪙" label="Очирхон" value={user?.sparks ?? 0} color={colors.sparks} bg={colors.cream} />
-          <StatCard icon="🔥" label="Цуврал" value="5" color={colors.danger} bg="#FDE8E8" />
+          <StatCard icon="flash" label="XP" value={user?.xp ?? 0} color={colors.xp} bg={tints.orange.bg} />
+          <StatCard icon="sparkles" label="Очирхон" value={user?.sparks ?? 0} color={colors.sparks} bg={colors.cream} />
+          <StatCard icon="flame" label="Цуврал" value="5" color={colors.streak} bg={colors.dangerSoft} />
         </View>
 
         {/* Known words */}
-        <Pressable style={styles.knownCard} onPress={() => router.push('/swipe')}>
-          <Text style={styles.knownIcon}>📚</Text>
+        <Card onPress={() => router.push('/swipe')} padding="md" style={styles.rowCard}>
+          <IconTile icon="library" bg={tints.green.bg} fg={tints.green.fg} />
           <View style={{ flex: 1 }}>
-            <Text style={styles.knownLabel}>Мэдэх үг</Text>
-            <Text style={styles.knownSub}>Дарж шинэ үг сур →</Text>
+            <AppText variant="h3">Мэдэх үг</AppText>
+            <AppText variant="caption">Дарж шинэ үг сур</AppText>
           </View>
-          <Text style={styles.knownValue}>{known ?? '—'}</Text>
-        </Pressable>
+          <AppText variant="h2" color={colors.success}>{known ?? '—'}</AppText>
+        </Card>
 
         {/* Leaderboard banner */}
-        <Pressable style={styles.leaderboard} onPress={() => router.push('/leaderboard')}>
-          <Text style={styles.lbIcon}>🏆</Text>
+        <Pressable
+          style={({ pressed }) => [styles.leaderboard, pressed && styles.pressed]}
+          onPress={() => router.push('/leaderboard')}
+        >
+          <IconTile icon="podium" bg="rgba(255,255,255,0.12)" fg={colors.sparks} />
           <View style={{ flex: 1 }}>
-            <Text style={styles.lbTitle}>Дэлхийн чансаа</Text>
-            <Text style={styles.lbSub}>Таны байр</Text>
+            <AppText variant="h3" color={colors.white}>Дэлхийн чансаа</AppText>
+            <AppText variant="caption" color={colors.textOnDarkMuted}>Таны байр · Top 12%</AppText>
           </View>
-          <View style={{ alignItems: 'flex-end' }}>
-            <Text style={styles.lbRank}>#1284</Text>
-            <Text style={styles.lbTop}>Top 12%</Text>
-          </View>
-          <Text style={styles.lbChev}>›</Text>
+          <AppText variant="h2" color={colors.white}>#1284</AppText>
+          <Ionicons name="chevron-forward" size={18} color={colors.textOnDarkMuted} />
         </Pressable>
 
-        {/* Settings list */}
-        <View style={styles.list}>
-          <Row icon="👤" label="Профайл засах" onPress={() => setEditing(true)} />
-          <Row icon="🌐" label="Хэл" value="Монгол" onPress={soon} />
-          <Row icon="❓" label="Тусламж" onPress={soon} />
-          <Row icon="ℹ️" label="Бидний тухай" onPress={soon} />
-          <Row icon="🚪" label="Гарах" onPress={confirmLogout} danger last />
-        </View>
-
         {/* Achievements */}
-        <View style={styles.achHeader}>
-          <Text style={styles.achTitle}>Амжилтын тэмдгүүд</Text>
-          <Pressable onPress={soon}><Text style={styles.seeAll}>Бүгдийг харах ›</Text></Pressable>
-        </View>
+        <SectionHeader title="Амжилтын тэмдэг" actionLabel="Бүгд" onAction={soon} style={styles.section} />
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.achRow}>
           {ACHIEVEMENTS.map((a) => (
             <View key={a.label} style={styles.achItem}>
-              <View style={styles.achBadge}><Text style={styles.achIcon}>{a.icon}</Text></View>
-              <Text style={styles.achLabel}>{a.label}</Text>
+              <View style={[styles.achBadge, !a.earned && styles.achBadgeLocked]}>
+                <Ionicons
+                  name={a.earned ? a.icon : 'lock-closed'}
+                  size={26}
+                  color={a.earned ? colors.sparks : colors.textMuted}
+                />
+              </View>
+              <AppText variant="caption" center numberOfLines={2} style={styles.achLabel}>{a.label}</AppText>
             </View>
           ))}
         </ScrollView>
+
+        {/* Settings list */}
+        <SectionHeader title="Тохиргоо" style={styles.section} />
+        <Card padding={0} style={styles.list}>
+          <Row icon="globe-outline" label="Хэл" value="Монгол" onPress={soon} />
+          <Row icon="notifications-outline" label="Мэдэгдэл" onPress={soon} />
+          <Row icon="help-circle-outline" label="Тусламж" onPress={soon} />
+          <Row icon="information-circle-outline" label="Бидний тухай" onPress={soon} />
+          <Row icon="log-out-outline" label="Гарах" onPress={confirmLogout} danger last />
+        </Card>
 
         <View style={{ height: 110 }} />
       </ScrollView>
@@ -126,18 +136,18 @@ export default function ProfileScreen() {
   );
 }
 
-/** A settings list row. */
 function Row({
   icon, label, value, onPress, danger, last,
 }: {
-  icon: string; label: string; value?: string; onPress: () => void; danger?: boolean; last?: boolean;
+  icon: IconName; label: string; value?: string; onPress: () => void; danger?: boolean; last?: boolean;
 }) {
+  const fg = danger ? colors.danger : colors.text;
   return (
     <Pressable style={[styles.row, !last && styles.rowBorder]} onPress={onPress}>
-      <Text style={styles.rowIcon}>{icon}</Text>
-      <Text style={[styles.rowLabel, danger && { color: colors.danger }]}>{label}</Text>
-      {value ? <Text style={styles.rowValue}>{value}</Text> : null}
-      <Text style={styles.rowChev}>›</Text>
+      <Ionicons name={icon} size={20} color={danger ? colors.danger : colors.textSecondary} />
+      <AppText variant="bodyStrong" color={fg} style={{ flex: 1 }}>{label}</AppText>
+      {value ? <AppText variant="caption">{value}</AppText> : null}
+      {!danger ? <Ionicons name="chevron-forward" size={16} color={colors.borderStrong} /> : null}
     </Pressable>
   );
 }
@@ -174,7 +184,7 @@ function EditProfileModal({
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-        <TopBar title="Профайл засах" back={false} />
+        <TopBar title="Профайл засах" showBadges={false} />
         <ScrollView contentContainerStyle={{ padding: spacing.lg }}>
           <TextField label="Бүтэн нэр" value={fullName} onChangeText={setFullName} placeholder="Нэрээ оруулна уу" />
           <SelectField
@@ -195,50 +205,35 @@ function EditProfileModal({
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
-  container: { paddingHorizontal: spacing.lg },
+  container: { paddingHorizontal: spacing.lg, paddingTop: spacing.xs },
   profileCard: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    backgroundColor: colors.cream, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.md,
+    backgroundColor: colors.cream, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.lg,
   },
-  avatar: { width: 76, height: 76 },
+  avatar: { width: 60, height: 60 },
   profileInfo: { flex: 1, gap: 4 },
-  name: { fontSize: fontSize.xl, fontWeight: '800', color: colors.navy },
-  email: { fontSize: fontSize.sm, color: colors.textMuted },
-  statsRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
-  knownCard: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    backgroundColor: '#E7F6EC', borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.md,
+  email: { marginBottom: 2 },
+  editBtn: {
+    width: 36, height: 36, borderRadius: radius.md, backgroundColor: colors.background,
+    alignItems: 'center', justifyContent: 'center',
   },
-  knownIcon: { fontSize: 30 },
-  knownLabel: { fontSize: fontSize.md, fontWeight: '800', color: colors.navy },
-  knownSub: { fontSize: fontSize.sm, color: colors.textMuted },
-  knownValue: { fontSize: fontSize.xxl, fontWeight: '800', color: colors.success },
+  statsRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.lg },
+  rowCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.lg },
   leaderboard: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    backgroundColor: colors.navy, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.lg,
+    backgroundColor: colors.navy, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.xs,
   },
-  lbIcon: { fontSize: 30 },
-  lbTitle: { color: colors.white, fontWeight: '800', fontSize: fontSize.md },
-  lbSub: { color: '#C7CEDF', fontSize: fontSize.sm },
-  lbRank: { color: colors.white, fontWeight: '800', fontSize: fontSize.lg },
-  lbTop: { color: colors.sparks, fontWeight: '700', fontSize: fontSize.sm },
-  lbChev: { color: colors.white, fontSize: 24 },
-  list: { backgroundColor: colors.white, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.lg },
-  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md },
-  rowBorder: { borderBottomWidth: 1, borderBottomColor: colors.border },
-  rowIcon: { fontSize: fontSize.lg },
-  rowLabel: { flex: 1, fontSize: fontSize.md, fontWeight: '600', color: colors.navy },
-  rowValue: { color: colors.textMuted, fontSize: fontSize.sm },
-  rowChev: { color: colors.textMuted, fontSize: 22 },
-  achHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md },
-  achTitle: { fontSize: fontSize.lg, fontWeight: '800', color: colors.navy },
-  seeAll: { color: colors.primary, fontWeight: '700' },
+  pressed: { opacity: 0.9, transform: [{ scale: 0.99 }] },
+  section: { marginTop: spacing.lg },
   achRow: { gap: spacing.md, paddingRight: spacing.lg },
-  achItem: { alignItems: 'center', width: 76 },
+  achItem: { alignItems: 'center', width: 72 },
   achBadge: {
-    width: 64, height: 64, borderRadius: radius.full, backgroundColor: colors.cream,
-    alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: colors.sparks,
+    width: 60, height: 60, borderRadius: radius.full, backgroundColor: colors.cream,
+    alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: colors.sparks,
   },
-  achIcon: { fontSize: 30 },
-  achLabel: { fontSize: fontSize.xs, color: colors.textMuted, textAlign: 'center', marginTop: 4 },
+  achBadgeLocked: { backgroundColor: colors.surface, borderColor: colors.border },
+  achLabel: { marginTop: spacing.xs },
+  list: {},
+  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.md, paddingVertical: 14 },
+  rowBorder: { borderBottomWidth: 1, borderBottomColor: colors.border },
 });
