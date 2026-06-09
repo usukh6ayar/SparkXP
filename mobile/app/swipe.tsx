@@ -12,7 +12,7 @@ import { AppText } from '../src/components/Text';
 import { Loading } from '../src/components/Loading';
 import { Button } from '../src/components/Button';
 import { ProgressBar } from '../src/components/ProgressBar';
-import { colors, spacing, radius, fontSize } from '../src/theme/theme';
+import { colors, spacing, radius, elevation } from '../src/theme/theme';
 
 const SCREEN_W = Dimensions.get('window').width;
 const THRESHOLD = SCREEN_W * 0.25;
@@ -185,47 +185,37 @@ export default function SwipeScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
-  counterWrap: { paddingHorizontal: spacing.lg, marginBottom: spacing.sm },
-  counter: { flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.xs },
-  counterKnown: { color: colors.success, fontWeight: '800', fontSize: fontSize.md },
-  counterLeft: { color: colors.textMuted, fontWeight: '700', fontSize: fontSize.md },
+  counterWrap: { paddingHorizontal: spacing.lg, marginBottom: spacing.sm, marginTop: spacing.xs },
+  counter: { flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.sm },
   deck: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
   card: {
     position: 'absolute',
     width: SCREEN_W - spacing.lg * 2,
-    minHeight: 340,
-    backgroundColor: colors.white,
-    borderRadius: radius.lg,
+    minHeight: 320,
+    backgroundColor: colors.background,
+    borderRadius: radius.xl,
     borderWidth: 1,
     borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
     padding: spacing.xl,
-    shadowColor: colors.navy,
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 4,
+    ...(elevation.md as object),
   },
   cardBehind: { transform: [{ scale: 0.94 }, { translateY: 16 }], opacity: 0.6 },
-  word: { fontSize: 44, fontWeight: '800', color: colors.navy, textAlign: 'center' },
-  hint: { marginTop: spacing.lg, color: colors.textMuted, fontSize: fontSize.sm },
-  translation: { fontSize: fontSize.xxl, fontWeight: '800', color: colors.primary, textAlign: 'center' },
-  example: { marginTop: spacing.md, color: colors.textMuted, fontSize: fontSize.md, textAlign: 'center' },
-  badge: { position: 'absolute', top: spacing.lg, paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: radius.md, borderWidth: 3 },
+  word: { fontSize: 40, lineHeight: 46, fontWeight: '800', color: colors.navy, textAlign: 'center' },
+  hint: { marginTop: spacing.lg },
+  translation: { fontSize: 30, lineHeight: 36, fontWeight: '800', color: colors.primary, textAlign: 'center' },
+  example: { marginTop: spacing.md },
+  badge: { position: 'absolute', top: spacing.lg, paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: radius.md, borderWidth: 2.5 },
   badgeKnow: { right: spacing.lg, borderColor: colors.success, transform: [{ rotate: '12deg' }] },
   badgeDont: { left: spacing.lg, borderColor: colors.danger, transform: [{ rotate: '-12deg' }] },
-  badgeText: { fontWeight: '900', fontSize: fontSize.lg },
-  actions: { flexDirection: 'row', justifyContent: 'center', gap: spacing.xl, paddingVertical: spacing.lg },
+  badgeText: { fontWeight: '900', letterSpacing: 0.5 },
+  actions: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: spacing.xl, paddingVertical: spacing.lg },
   actBtn: { width: 64, height: 64, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center', borderWidth: 2 },
-  actDont: { borderColor: colors.danger, backgroundColor: colors.white },
-  actDontText: { color: colors.danger, fontSize: 28, fontWeight: '800' },
-  actFlip: { borderColor: colors.border, backgroundColor: colors.white, width: 52, height: 52 },
-  actFlipText: { color: colors.navy, fontSize: 24, fontWeight: '800' },
+  actDont: { borderColor: colors.danger, backgroundColor: colors.background },
+  actFlip: { borderColor: colors.border, backgroundColor: colors.background, width: 52, height: 52 },
   actKnow: { borderColor: colors.success, backgroundColor: colors.success },
-  actKnowText: { color: colors.white, fontSize: 28, fontWeight: '800' },
   done: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
   doneEmoji: { fontSize: 56 },
-  doneTitle: { fontSize: fontSize.xl, fontWeight: '800', color: colors.navy, marginTop: spacing.md },
-  doneSub: { fontSize: fontSize.md, color: colors.textMuted, marginTop: spacing.sm },
+  doneTitle: { marginTop: spacing.md, marginBottom: spacing.xs },
 });
