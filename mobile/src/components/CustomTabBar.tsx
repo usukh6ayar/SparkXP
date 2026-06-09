@@ -1,17 +1,20 @@
 import { View, Text, Pressable, Image, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { colors, spacing, radius, fontSize } from '../theme/theme';
 
 const fox = require('../../assets/logo.png');
 
-/** Icon + label per tab route. The `chat` route is rendered as the raised
- *  center fox button instead of a normal tab. */
-const TAB_META: Record<string, { icon: string; label: string }> = {
-  index: { icon: '🏠', label: 'Нүүр' },
-  lessons: { icon: '📖', label: 'Хичээл' },
-  soril: { icon: '🏆', label: 'Сорил' },
-  profile: { icon: '👤', label: 'Профайл' },
+type IconName = keyof typeof Ionicons.glyphMap;
+
+/** Icon (filled + outline) + label per tab route. The `chat` route is rendered
+ *  as the raised center fox button instead of a normal tab. */
+const TAB_META: Record<string, { icon: IconName; iconOutline: IconName; label: string }> = {
+  index: { icon: 'home', iconOutline: 'home-outline', label: 'Нүүр' },
+  lessons: { icon: 'book', iconOutline: 'book-outline', label: 'Хичээл' },
+  soril: { icon: 'trophy', iconOutline: 'trophy-outline', label: 'Сорил' },
+  profile: { icon: 'person', iconOutline: 'person-outline', label: 'Профайл' },
 };
 
 /**
@@ -52,7 +55,11 @@ export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
 
         return (
           <Pressable key={route.key} style={styles.tab} onPress={onPress}>
-            <Text style={[styles.icon, { opacity: focused ? 1 : 0.45 }]}>{meta.icon}</Text>
+            <Ionicons
+              name={focused ? meta.icon : meta.iconOutline}
+              size={24}
+              color={focused ? colors.primary : colors.textMuted}
+            />
             <Text style={[styles.label, focused && styles.labelActive]}>{meta.label}</Text>
           </Pressable>
         );
