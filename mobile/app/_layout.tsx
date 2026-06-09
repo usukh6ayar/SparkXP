@@ -1,15 +1,13 @@
-import { useEffect } from 'react';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
-import { Stack, useRouter, useSegments } from 'expo-router';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { AuthProvider, useAuth } from '../src/auth/AuthContext';
-import { colors } from '../src/theme/theme';
+import { useEffect } from "react";
+import { View, ActivityIndicator, StyleSheet } from "react-native";
+import { Stack, useRouter, useSegments } from "expo-router";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import { AuthProvider, useAuth } from "../src/auth/AuthContext";
+import { colors } from "../src/theme/theme";
 
 /**
- * Auth gate: redirects based on whether the user is logged in.
- * - Not logged in + not on an auth screen → go to login.
- * - Logged in + on an auth screen → go to the app (tabs).
- * Runs on every auth/route change, so login/logout navigate automatically.
+ * Auth gate: logged-in users on login/register are sent to the main app.
+ * Guests can browse tabs without signing in; login is optional from profile.
  */
 function RootNavigator() {
   const { token, loading } = useAuth();
@@ -18,11 +16,9 @@ function RootNavigator() {
 
   useEffect(() => {
     if (loading) return;
-    const inAuthGroup = segments[0] === '(auth)';
-    if (!token && !inAuthGroup) {
-      router.replace('/(auth)/login');
-    } else if (token && inAuthGroup) {
-      router.replace('/(tabs)');
+    const inAuthGroup = segments[0] === "(auth)";
+    if (token && inAuthGroup) {
+      router.replace("/(tabs)");
     }
   }, [token, loading, segments]);
 
@@ -33,6 +29,16 @@ function RootNavigator() {
       </View>
     );
   }
+
+  // useEffect(() => {
+  //   if (loading) return;
+  //   const inAuthGroup = segments[0] === "(auth)";
+  //   if (!token && !inAuthGroup) {
+  //     router.replace("/(auth)/login");
+  //   } else if (token && inAuthGroup) {
+  //     router.replace("/(tabs)");
+  //   }
+  // }, [token, loading, segments]);
 
   return <Stack screenOptions={{ headerShown: false }} />;
 }
@@ -50,8 +56,8 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   center: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     backgroundColor: colors.background,
   },
 });
