@@ -120,6 +120,12 @@ export default function ChatScreen() {
       {/* Input bar */}
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.inputBar}>
+          <Pressable
+            style={styles.voiceBtn}
+            onPress={() => Alert.alert('Тун удахгүй', 'Дуу хоолойгоор ярих боломж удахгүй нэмэгдэнэ. 🎤')}
+          >
+            <Text style={styles.voiceIcon}>🎤</Text>
+          </Pressable>
           <TextInput
             style={styles.input}
             value={input}
@@ -206,6 +212,8 @@ const styles = StyleSheet.create({
     flex: 1, minHeight: 46, maxHeight: 120, backgroundColor: colors.surface, borderRadius: radius.full,
     paddingHorizontal: spacing.md, paddingVertical: spacing.sm, fontSize: fontSize.md, color: colors.text,
   },
+  voiceBtn: { width: 46, height: 46, borderRadius: 23, backgroundColor: colors.cream, justifyContent: 'center', alignItems: 'center' },
+  voiceIcon: { fontSize: 20 },
   sendBtn: { width: 46, height: 46, borderRadius: 23, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' },
   sendBtnDisabled: { backgroundColor: colors.border },
   sendIcon: { color: colors.white, fontSize: fontSize.md, fontWeight: '800' },
