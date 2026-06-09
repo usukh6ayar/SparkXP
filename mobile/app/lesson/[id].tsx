@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../src/auth/AuthContext';
 import * as lessonsApi from '../../src/api/lessons';
 import type { Lesson } from '../../src/api/lessons';
+import { getQuizzes } from '../../src/api/quizzes';
 import { TopBar } from '../../src/components/TopBar';
 import { Pill } from '../../src/components/Pill';
 import { Button } from '../../src/components/Button';
@@ -90,6 +91,20 @@ export default function LessonDetailScreen() {
   const lvl = levelColor[lesson.level] ?? levelColor.a1;
   const soon = () => Alert.alert('Тун удахгүй', 'Энэ хэсэг удахгүй нэмэгдэнэ. 🦊');
 
+  // Open the lesson's quiz (Сорил) if it has one.
+  async function startTest() {
+    try {
+      const res = await getQuizzes(token!, { lessonId: id });
+      if (res.items.length > 0) {
+        router.push(`/quiz/${res.items[0].id}`);
+      } else {
+        Alert.alert('Сорил алга', 'Энэ хичээлд сорил хараахан байхгүй байна.');
+      }
+    } catch {
+      Alert.alert('Алдаа', 'Сорил ачаалахад алдаа гарлаа.');
+    }
+  }
+
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <TopBar back streak={5} />
@@ -170,7 +185,7 @@ export default function LessonDetailScreen() {
             {/* Actions */}
             <View style={styles.actions}>
               <Button label="Буцах" variant="secondary" onPress={() => router.back()} style={{ flex: 1 }} />
-              <Button label="Тест өгөх" onPress={soon} style={{ flex: 1 }} />
+              <Button label="Тест өгөх" onPress={startTest} style={{ flex: 1 }} />
             </View>
           </>
         )}
