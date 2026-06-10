@@ -11,6 +11,12 @@ scale. Монгол хэл primary.
 
 ## 🎨 Дизайн / Брэнд — **SparkXP** 🦊
 
+> ⚠️ **UI/UX REDESIGN ЯВАГДАЖ БАЙНА (2026-06).** Брэндийг **бүрэн шинэ** чиглэл рүү
+> (Modern Mongol — гүн индиго + алт, Onest фонт, үнэг mascot хэвээр) шилжүүлж байна.
+> Дэлгэрэнгүй: **`mobile/DESIGN_BRIEF.md`** (requirement) + **`mobile/DESIGN_SYSTEM.md`**
+> (Figma spec). Эхлээд Figma-д design system, дараа нь кодод буулгана.
+> Доорх **хуучин SparkXP палитр** нь шилжилт дуустал кодод түр хэвээр.
+
 Лого: гүйж буй үнэг + очирхон. Брэнд өнгө (`src/theme/theme.ts`):
 
 - **Улбар шар** `#F47B20` — primary, XP, гол товч (үнэг + "XP")
@@ -191,3 +197,19 @@ SparkXP брэнд theme · дахин ашиглах компонентууд.
 > Усухбаяр **Lessons жагсаалт** дэлгэц хийхдээ `app/lesson/[id].tsx` руу navigate хийвэл
 > Бишрэлтийн lesson detail + unlock дэлгэц автоматаар ажиллана.
 3. Дараа нь M1 (auth дэлгэц) → M2 (суралцах) → M3 (gamification).
+
+---
+
+## 🔄 Сүүлийн өөрчлөлтүүд (2026-06-09)
+
+- **UI/UX redesign эхэлсэн** — design system шинэчилсэн (`theme.ts`: semantic
+  typography, тэнцвэртэй spacing/radius, elevation), шинэ дахин ашиглах
+  компонентууд (`Text`, `Card`, `SectionHeader`, `ProgressBar`, `IconTile`),
+  гол дэлгэцүүд (Home/Lessons/Soril/Profile/Leaderboard/Chat/Swipe) шинэчилсэн.
+  Брэндийн **шинэ чиглэл** Figma-д барина → `DESIGN_BRIEF.md` / `DESIGN_SYSTEM.md`.
+- **Home grid → хэлний 4 чадвар:** Сонсгол (`listening`) · Унших (`reading`) ·
+  Нөхөх (`fill`) · Бичих (`writing`). Box дарахад Lessons тухайн `type`-аар
+  шүүгдэнэ (`app/(tabs)/lessons.tsx` `type` param). Icon = Ionicons (одоохондоо;
+  Lucide руу шилжих нь дараагийн task).
+- **Backend (shared):** `LessonType`-д `reading`, `writing`, `fill` нэмсэн +
+  seed жишээ хичээл. `API.md` шинэчилсэн. → Бишрэлтэд мэдэгдэх.

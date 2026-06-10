@@ -50,6 +50,11 @@
 | POST | `/lessons/:id/unlock` | 🔑 | **Spark-аар нээх** (sparks module) |
 | GET | `/lessons/:id/access` | 🔑 | Нээгдсэн эсэх `{ hasAccess }` |
 
+> **`type` утгууд (`LessonType`):** `vocabulary` · `grammar` · `listening` ·
+> `reading` · `writing` · `fill`. (Mobile Home grid: Сонсгол=`listening`,
+> Унших=`reading`, Нөхөх=`fill`, Бичих=`writing`.) `reading`/`writing`/`fill`
+> нь 2026-06-09-д нэмэгдсэн (`fill` = нөхөх даалгавар).
+
 ## ❓ Quizzes (Сорил) — `/api/quizzes`
 
 | Method | Path | Auth | Тайлбар |

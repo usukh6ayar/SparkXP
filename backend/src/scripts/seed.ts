@@ -137,6 +137,52 @@ async function seed(ds: DataSource) {
   } else {
     console.log('— Paid lesson already exists, skipping');
   }
+
+  // ── Skill lessons (Home grid: Сонсгол / Унших / Дүрэм / Бичих) ───────────────
+  const skillLessons = [
+    {
+      title: 'Listening: Daily Conversations (A1)',
+      description: 'Өдөр тутмын яриа сонсох',
+      type: LessonType.LISTENING,
+      level: ContentLevel.A1,
+      content: { notes: 'Listen and answer simple questions about everyday talk.' },
+      position: 2,
+    },
+    {
+      title: 'Reading: Short Stories (A2)',
+      description: 'Богино өгүүллэг унших',
+      type: LessonType.READING,
+      level: ContentLevel.A2,
+      content: { notes: 'Read short passages and check comprehension.' },
+      position: 3,
+    },
+    {
+      title: 'Fill in the Blanks (A2)',
+      description: 'Нөхөх даалгавар — хоосон зайг гүйцээх',
+      type: LessonType.FILL,
+      level: ContentLevel.A2,
+      content: { notes: 'Complete sentences by filling the missing words.' },
+      position: 4,
+    },
+    {
+      title: 'Writing: Sentences (A2)',
+      description: 'Энгийн өгүүлбэр бичих',
+      type: LessonType.WRITING,
+      level: ContentLevel.A2,
+      content: { notes: 'Practice building correct simple sentences.' },
+      position: 5,
+    },
+  ];
+
+  let skillCreated = 0;
+  for (const sl of skillLessons) {
+    const exists = await lessonRepo.findOne({ where: { title: sl.title } });
+    if (!exists) {
+      await lessonRepo.save(lessonRepo.create({ ...sl, isPublished: true, priceSparks: 0 }));
+      skillCreated++;
+    }
+  }
+  console.log(skillCreated > 0 ? `✅ ${skillCreated} skill lessons created` : '— Skill lessons already exist, skipping');
 }
 
 async function main() {

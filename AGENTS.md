@@ -3,16 +3,16 @@
 Gamified English learning app for Mongolian students, schools, and
 organizations (e.g. law firms). Owner: Hustle Hive LLC.
 
-> **This file is the shared brain for both developers' Claude sessions.**
-> We are 2 devs, each on a separate Claude Pro account. Keep this file clear and
-> up to date — whatever is written here is what each person's Claude will follow.
+> **This file is the shared brain for both developers' Codex sessions.**
+> We are 2 devs, each on a separate Codex Pro account. Keep this file clear and
+> up to date — whatever is written here is what each person's Codex will follow.
 > For the task list / what to build next, see **ROADMAP.md**.
 
 ---
 
 ## Team & Working Style
 
-- 2 developers, each using their own Claude Pro account.
+- 2 developers, each using their own Codex Pro account.
 - Keep code simple, readable, well-documented. MVP first, scale later.
 - Avoid over-engineering. Write code a junior dev can read.
 
@@ -39,7 +39,7 @@ organizations (e.g. law firms). Owner: Hustle Hive LLC.
 
 - `/backend` — NestJS API (built — see "Current Status")
 - `/mobile` — React Native (Expo) app (started — Expo Router, see MOBILE_ROADMAP.md)
-- `CLAUDE.md` — this file (shared rules + project context)
+- `AGENTS.md` — this file (shared rules + project context)
 - `ROADMAP.md` — backend task list and build phases
 - `MOBILE_ROADMAP.md` — mobile (frontend) task list + brand
 - `ROLES.md` — user types, roles (student/teacher/admin/super_admin) +
@@ -63,15 +63,6 @@ organizations (e.g. law firms). Owner: Hustle Hive LLC.
 (`@Roles()` + `RolesGuard`). See `src/auth/` and `src/users/`.
 
 Next up: Content modules + Leaderboard + Sparks store (see ROADMAP.md).
-
-**Mobile UI/UX redesign in progress (2026-06-09).** New brand direction
-("Modern Mongol" — deep indigo + gold, Onest font, fox mascot kept) is being
-designed in Figma first — see `mobile/DESIGN_BRIEF.md` + `mobile/DESIGN_SYSTEM.md`.
-Code-side: design tokens + shared components refreshed; main screens redesigned.
-Home grid now shows the 4 language skills → Сонсгол `listening` · Унших `reading`
-· Нөхөх `fill` · Бичих `writing` (each filters the Lessons list by `type`).
-`LessonType` enum gained `reading`, `writing`, `fill` (shared `/backend` change —
-coordinate with Bishrelt; `API.md` updated).
 
 ### Backend folder layout
 

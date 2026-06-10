@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/auth/AuthContext';
 import { apiRequest } from '../../src/api/client';
@@ -22,24 +22,40 @@ interface LessonItem {
 
 const TINT_LIST = [tints.green, tints.amber, tints.blue, tints.purple, tints.pink, tints.teal];
 
+/** Скилл төрлийн нэр (Home grid-ээс ирэх `type` param). */
+const TYPE_LABEL: Record<string, string> = {
+  listening: 'Сонсгол',
+  reading: 'Унших',
+  fill: 'Нөхөх',
+  writing: 'Бичих',
+  grammar: 'Дүрэм',
+  vocabulary: 'Үгсийн сан',
+};
+
 export default function LessonsScreen() {
   const { token } = useAuth();
   const router = useRouter();
+  const { type } = useLocalSearchParams<{ type?: string }>();
   const [lessons, setLessons] = useState<LessonItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    apiRequest<{ items: LessonItem[] }>('/lessons?limit=50', { token })
+    setLoading(true);
+    const q = new URLSearchParams({ limit: '50', isPublished: 'true' });
+    if (type) q.set('type', type);
+    apiRequest<{ items: LessonItem[] }>(`/lessons?${q}`, { token })
       .then((r) => setLessons(r.items))
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [token]);
+  }, [token, type]);
 
   if (loading) return <Loading />;
 
+  const title = type ? TYPE_LABEL[type] ?? 'Хичээлүүд' : 'Хичээлүүд';
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <TopBar title="Хичээлүүд" back />
+      <TopBar title={title} back />
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
         {lessons.map((l, i) => {
           const locked = l.priceSparks > 0;

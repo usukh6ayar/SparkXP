@@ -24,6 +24,9 @@ export enum LessonType {
   VOCABULARY = "vocabulary",
   GRAMMAR = "grammar",
   LISTENING = "listening",
+  READING = "reading",
+  WRITING = "writing",
+  FILL = "fill", // нөхөх даалгавар (fill-in-the-blank)
 }
 
 /** CEFR-style difficulty, reused by Lesson and Word. */

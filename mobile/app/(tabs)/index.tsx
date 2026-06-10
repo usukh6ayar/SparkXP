@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { View, StyleSheet, ScrollView, Pressable, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, type Href } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/auth/AuthContext';
 import { getStats } from '../../src/api/users';
@@ -18,11 +18,11 @@ type IconName = keyof typeof Ionicons.glyphMap;
 
 const STREAK = 5; // TODO: real streak from backend
 
-const CATS: { icon: IconName; label: string; sub: string; route: Href; tint: { bg: string; fg: string } }[] = [
-  { icon: 'book', label: 'Хичээл', sub: 'Шинэ сэдэв', route: '/(tabs)/lessons', tint: tints.green },
-  { icon: 'layers', label: 'Үг давтах', sub: 'Картаар сур', route: '/swipe', tint: tints.amber },
-  { icon: 'game-controller', label: 'Сорил', sub: 'Тоглоом', route: '/(tabs)/soril', tint: tints.blue },
-  { icon: 'chatbubble-ellipses', label: 'AI Найз', sub: 'Спарктай ярь', route: '/(tabs)/chat', tint: tints.purple },
+const CATS: { icon: IconName; label: string; sub: string; type: string; tint: { bg: string; fg: string } }[] = [
+  { icon: 'headset', label: 'Сонсгол', sub: 'Сонсож сур', type: 'listening', tint: tints.blue },
+  { icon: 'book', label: 'Унших', sub: 'Текст унших', type: 'reading', tint: tints.green },
+  { icon: 'extension-puzzle', label: 'Нөхөх', sub: 'Нөхөх даалгавар', type: 'fill', tint: tints.purple },
+  { icon: 'create', label: 'Бичих', sub: 'Бичиж дадлага', type: 'writing', tint: tints.amber },
 ];
 
 export default function HomeScreen() {
@@ -107,7 +107,7 @@ export default function HomeScreen() {
             <Pressable
               key={c.label}
               style={({ pressed }) => [styles.cat, pressed && styles.catPressed]}
-              onPress={() => router.push(c.route)}
+              onPress={() => router.push({ pathname: '/(tabs)/lessons', params: { type: c.type } })}
             >
               <IconTile icon={c.icon} bg={c.tint.bg} fg={c.tint.fg} size={44} />
               <View style={styles.catText}>
