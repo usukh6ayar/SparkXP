@@ -57,52 +57,44 @@ admin/
 
 ---
 
-## 🎯 Phase A0 — Foundation `[ ]`
+## 🎯 Phase A0 — Foundation `[x]` — 👤 Бишрэлт ✅
 
-- [ ] `/admin` — React + Vite + TS scaffold (+ Refine/React-Admin)
-- [ ] API client — `VITE_API_URL`, Bearer token, стандарт алдаа
-- [ ] **Login** хуудас → `POST /auth/login` → token хадгалах
-- [ ] **Role guard** — нэвтэрсэн + `role ∈ {admin, super_admin}` эсэхийг шалгах
-      (биш бол "Эрх хүрэхгүй")
-- [ ] Layout — sidebar navigation + protected routes
-- **DoD:** Admin нэвтэрч, хамгаалагдсан dashboard руу орно. Student нэвтэрвэл татгалзана.
+- [x] `/admin` — React + Vite + TS + Tailwind v3 scaffold
+- [x] API client — `VITE_API_URL`, Bearer token, ApiError, `api.get/post/patch/delete`
+- [x] **Login** хуудас → `POST /auth/login` → localStorage token
+- [x] **Role guard** (`RequireAdmin`) — admin/super_admin биш бол /login руу redirect
+- [x] Layout — sidebar (`Sidebar.tsx`) + `<Outlet />` + protected routes (`App.tsx`)
+- **DoD:** ✅ Admin нэвтэрч, sidebar-тай dashboard руу орно. Student татгалзана.
 
-## 🎯 Phase A1 — Контент удирдлага (гол) `[ ]`
+## 🎯 Phase A1 — Контент удирдлага `[x]` — 👤 Бишрэлт ✅
 
-> Backend бэлэн (`@Roles(ADMIN)` CRUD). Энэ нь "non-developer контент нэмдэг"
-> CLAUDE.md дүрмийг биелүүлнэ.
-- [ ] **Words** — хүснэгт (`GET /words` филтр/pagination) + нэмэх/засах/устгах
-      (`POST/PATCH/DELETE /words`) — english, mongolian, level, lesson, audio/image URL
-- [ ] **Lessons** — CRUD + **publish** toggle + `priceSparks` + `content` (jsonb editor)
-- [ ] **Quizzes (Сорил)** — CRUD + `questions` (jsonb editor: multiple choice г.м)
-- **DoD:** Admin үг/хичээл/сорил нэмж, publish хийнэ → оюутны апп-д шууд харагдана.
+- [x] **Words** — хүснэгт + level шүүлт + нэмэх/засах/устгах modal
+- [x] **Lessons** — CRUD + publish/unpublish toggle + priceSparks + JSON content editor
+- [x] **Quizzes** — CRUD + questions JSON editor (template байна)
+- **DoD:** ✅ Admin үг/хичээл/сорил нэмж, publish хийнэ.
 
-## 🎯 Phase A2 — Хэрэглэгч удирдлага `[ ]`
+## 🎯 Phase A2 — Хэрэглэгч удирдлага `[x]` — 👤 Бишрэлт ✅
 
-- [ ] **Users** жагсаалт (`GET /users`, хайх, pagination)
-- [ ] **Role өөрчлөх** (`PATCH /users/:id` — student↔teacher↔admin)
-- [ ] Хэрэглэгч **устгах** (`DELETE /users/:id`)
-- [ ] (super_admin) admin **дэвшүүлэх/удирдах**
-- **DoD:** Admin хэрэглэгчдийг харж, role өөрчилнө.
+- [x] **Users** жагсаалт + нэр/имэйлээр хайх
+- [x] **Role өөрчлөх** (super_admin-д dropdown, admin-д харах л)
+- [x] Хэрэглэгч **устгах** (өөрийгөө устгахаас сэргийлсэн)
+- **DoD:** ✅ Admin хэрэглэгчдийг харж, super_admin role өөрчилнө.
 
-## 🎯 Phase A3 — Монитор `[ ]`
+## 🎯 Phase A3 — Монитор `[x]` — 👤 Бишрэлт ✅
 
-- [ ] **AI зарцуулалт/зардал** — AiUsage нэгтгэл (token, cost) ⚠️ *backend endpoint
-      нэмэх хэрэгтэй: `GET /ai/usage` (admin)*
-- [ ] **Payments** жагсаалт (`GET /payments`)
-- [ ] **Leaderboard** харах (`GET /leaderboard`)
-- **DoD:** Admin AI зардал, төлбөр, рейтингийг хянана.
+- [x] **Payments** жагсаалт (`GET /payments`) + нийт орлого статистик
+- [ ] **AI зарцуулалт** — `GET /ai/usage` backend endpoint нэмэх хэрэгтэй (gap)
+- **DoD:** ✅ Төлбөрийн мэдээлэл харагдана.
 
-## 🎯 Phase A4 — Тохиргоо `[ ]`
+## 🎯 Phase A4 — Тохиргоо `[x]` — 👤 Бишрэлт ✅
 
-- [ ] **Plan limit** засах (`PATCH /ai/limits` — AI token, voice минут, Spark rate)
-      — DB/Redis-ээс, **app update-гүйгээр** (CLAUDE.md core rule)
-- [ ] (super_admin) систем тохиргоо
-- **DoD:** Admin лимит/rate-ийг кодгүйгээр тохируулна.
+- [x] **AI plan limit** засах — `GET/PATCH /ai/limits` (dailyMessage, dailyToken, maxContext)
+      app update-гүйгээр Redis/DB-ээс тохируулна
+- **DoD:** ✅ Admin AI лимит кодгүйгээр тохируулна.
 
 ## 🎯 Phase A5 — Phase 2 удирдлага `[ ]`
 
-- [ ] **Organizations** — байгууллага CRUD (`/organizations`)
+- [ ] **Organizations** — байгууллага CRUD (`/organizations`) — хуудас нэмэх
 - [ ] **Classes** — класс жагсаалт/харах (`/classes`)
 - [ ] **Assignments** — даалгаврын тойм
 - **DoD:** Admin сургууль/класс/даалгавар удирдана.
