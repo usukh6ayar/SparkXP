@@ -13,6 +13,15 @@ async function bootstrap() {
 
   app.setGlobalPrefix('api');
 
+  app.enableCors({
+    origin: [
+      'http://localhost:5173',
+      'http://127.0.0.1:5173',
+      'http://localhost:5174',
+    ],
+    credentials: true,
+  });
+
   const port = config.get<number>('PORT', 3000);
   await app.listen(port);
   Logger.log(`EnglishXP API running on http://localhost:${port}/api`, 'Bootstrap');
