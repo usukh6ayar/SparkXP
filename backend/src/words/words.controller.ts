@@ -10,6 +10,7 @@ import {
   UseGuards,
   ParseUUIDPipe,
   HttpCode,
+  BadRequestException,
 } from '@nestjs/common';
 import { WordsService } from './words.service';
 import { CreateWordDto } from './dto/create-word.dto';
@@ -33,9 +34,27 @@ export class WordsController {
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
   create(@Body() dto: CreateWordDto) {
     return this.wordsService.create(dto);
+  }
+
+  /**
+   * Bulk import words from a JSON array.
+   * POST /api/words/bulk  { words: [...] }
+   * Returns { inserted, skipped } counts.
+   */
+  @Post('bulk')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  bulkImport(@Body('words') words: CreateWordDto[]) {
+    if (!Array.isArray(words) || words.length === 0) {
+      throw new BadRequestException('"words" массив шаардлагатай');
+    }
+    if (words.length > 50_000) {
+      throw new BadRequestException('Нэг удаад 50,000-аас дээш үг оруулах боломжгүй');
+    }
+    return this.wordsService.bulkImport(words);
   }
 
   @Get()

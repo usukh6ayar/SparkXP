@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
-import { api } from '../../api/client';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Plus, Pencil, Trash2, Upload, Download } from 'lucide-react';
+import { api, getToken } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
 import { Button } from '../../components/Button';
 import { Badge } from '../../components/Badge';
@@ -9,10 +9,15 @@ import { Modal } from '../../components/Modal';
 import { Input } from '../../components/Input';
 import { Select } from '../../components/Select';
 
+const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api';
+
 interface Word {
   id: string;
   english: string;
   mongolian: string;
+  partOfSpeech: string | null;
+  exampleSentence: string | null;
+  exampleTranslation: string | null;
   level: string;
   lessonId: string | null;
 }
@@ -29,31 +34,64 @@ const levelColors: Record<string, 'green' | 'blue' | 'yellow' | 'red' | 'gray'> 
   a1: 'green', a2: 'green', b1: 'blue', b2: 'blue', c1: 'yellow', c2: 'red',
 };
 
-interface WordForm { english: string; mongolian: string; level: string; }
-const empty: WordForm = { english: '', mongolian: '', level: 'a1' };
+interface WordForm {
+  english: string; mongolian: string; level: string;
+  partOfSpeech: string; exampleSentence: string; exampleTranslation: string;
+}
+const empty: WordForm = {
+  english: '', mongolian: '', level: 'a1',
+  partOfSpeech: '', exampleSentence: '', exampleTranslation: '',
+};
+
+const TEMPLATE = JSON.stringify({
+  words: [
+    {
+      english: "apple",
+      mongolian: "алим",
+      partOfSpeech: "noun",
+      level: "a1",
+      exampleSentence: "I eat an apple every day.",
+      exampleTranslation: "Би өдөр бүр нэг алим иддэг."
+    },
+    {
+      english: "run",
+      mongolian: "гүйх",
+      partOfSpeech: "verb",
+      level: "a1",
+      exampleSentence: "She runs in the park.",
+      exampleTranslation: "Тэр цэцэрлэгт гүйдэг."
+    }
+  ]
+}, null, 2);
 
 export default function WordsPage() {
   const [words, setWords] = useState<Word[]>([]);
   const [levelFilter, setLevelFilter] = useState('');
-  const [modal, setModal] = useState<null | 'create' | 'edit'>(null);
+  const [modal, setModal] = useState<null | 'create' | 'edit' | 'import'>(null);
   const [editing, setEditing] = useState<Word | null>(null);
   const [form, setForm] = useState<WordForm>(empty);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [importResult, setImportResult] = useState<{ inserted: number; skipped: number } | null>(null);
+  const [importing, setImporting] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
-    const qs = levelFilter ? `?level=${levelFilter}` : '';
-    const data = await api.get<{ items: Word[] }>(`/words${qs}`);
+    const qs = levelFilter ? `?level=${levelFilter}&limit=200` : '?limit=200';
+    const data = await api.get<{ items: Word[]; total: number }>(`/words${qs}`);
     setWords(data.items ?? []);
   }, [levelFilter]);
 
   useEffect(() => { load(); }, [load]);
 
-  function openCreate() {
-    setForm(empty); setEditing(null); setError(''); setModal('create');
-  }
+  function openCreate() { setForm(empty); setEditing(null); setError(''); setModal('create'); }
   function openEdit(w: Word) {
-    setForm({ english: w.english, mongolian: w.mongolian, level: w.level });
+    setForm({
+      english: w.english, mongolian: w.mongolian, level: w.level,
+      partOfSpeech: w.partOfSpeech ?? '',
+      exampleSentence: w.exampleSentence ?? '',
+      exampleTranslation: w.exampleTranslation ?? '',
+    });
     setEditing(w); setError(''); setModal('edit');
   }
 
@@ -63,17 +101,20 @@ export default function WordsPage() {
     }
     setSaving(true); setError('');
     try {
-      if (modal === 'create') {
-        await api.post('/words', form);
-      } else if (editing) {
-        await api.patch(`/words/${editing.id}`, form);
-      }
+      const payload = {
+        english: form.english,
+        mongolian: form.mongolian,
+        level: form.level,
+        partOfSpeech: form.partOfSpeech || undefined,
+        exampleSentence: form.exampleSentence || undefined,
+        exampleTranslation: form.exampleTranslation || undefined,
+      };
+      if (modal === 'create') await api.post('/words', payload);
+      else if (editing) await api.patch(`/words/${editing.id}`, payload);
       setModal(null); load();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Алдаа гарлаа');
-    } finally {
-      setSaving(false);
-    }
+    } finally { setSaving(false); }
   }
 
   async function remove(id: string) {
@@ -82,9 +123,67 @@ export default function WordsPage() {
     load();
   }
 
+  async function handleImportFile(file: File) {
+    setImporting(true); setError(''); setImportResult(null);
+    try {
+      const text = await file.text();
+      const json = JSON.parse(text);
+      const words = Array.isArray(json) ? json : json.words;
+      if (!Array.isArray(words)) throw new Error('JSON файл { words: [...] } эсвэл [...] хэлбэрт байх ёстой');
+
+      const res = await fetch(`${BASE}/words/bulk`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${getToken() ?? ''}`,
+        },
+        body: JSON.stringify({ words }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.message ?? `Алдаа ${res.status}`);
+      }
+      const result = await res.json();
+      setImportResult(result);
+      load();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Import алдаа');
+    } finally { setImporting(false); }
+  }
+
+  function downloadTemplate() {
+    const blob = new Blob([TEMPLATE], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'words_template.json'; a.click();
+    URL.revokeObjectURL(url);
+  }
+
   const columns = [
-    { key: 'english', header: 'Англи', render: (w: Word) => <span className="font-medium">{w.english}</span> },
-    { key: 'mongolian', header: 'Монгол', render: (w: Word) => w.mongolian },
+    {
+      key: 'word', header: 'Үг', render: (w: Word) => (
+        <div>
+          <p className="font-medium">{w.english}</p>
+          {w.exampleSentence && (
+            <p className="text-xs text-gray-400 truncate max-w-xs">{w.exampleSentence}</p>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'mongolian', header: 'Монгол утга', render: (w: Word) => (
+        <div>
+          <p>{w.mongolian}</p>
+          {w.exampleTranslation && (
+            <p className="text-xs text-gray-400 truncate max-w-xs">{w.exampleTranslation}</p>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'pos', header: 'Хэлзүй', render: (w: Word) =>
+        w.partOfSpeech ? <span className="text-xs text-gray-500 italic">{w.partOfSpeech}</span> : <span className="text-gray-300">—</span>,
+    },
     {
       key: 'level', header: 'Түвшин', render: (w: Word) => (
         <Badge color={levelColors[w.level] ?? 'gray'}>{w.level.toUpperCase()}</Badge>
@@ -106,31 +205,100 @@ export default function WordsPage() {
       <PageHeader
         title="Үгс"
         description={`Нийт: ${words.length} үг`}
-        action={<Button onClick={openCreate}><Plus className="h-4 w-4" /> Үг нэмэх</Button>}
+        action={
+          <div className="flex gap-2">
+            <Button variant="secondary" size="sm" onClick={() => { setModal('import'); setImportResult(null); setError(''); }}>
+              <Upload className="h-4 w-4" /> Файлаас оруулах
+            </Button>
+            <Button onClick={openCreate}><Plus className="h-4 w-4" /> Үг нэмэх</Button>
+          </div>
+        }
       />
 
       <div className="mb-4">
-        <Select
-          options={levelOptions}
-          value={levelFilter}
-          onChange={(e) => setLevelFilter(e.target.value)}
-          className="w-40"
-        />
+        <Select options={levelOptions} value={levelFilter} onChange={(e) => setLevelFilter(e.target.value)} className="w-40" />
       </div>
 
       <Table columns={columns} rows={words} keyFn={(w) => w.id} empty="Үг байхгүй байна" />
 
-      {modal && (
+      {/* Create / Edit modal */}
+      {(modal === 'create' || modal === 'edit') && (
         <Modal title={modal === 'create' ? 'Үг нэмэх' : 'Үг засах'} onClose={() => setModal(null)}>
           <div className="space-y-4">
-            <Input label="Англи үг" value={form.english} onChange={(e) => setForm({ ...form, english: e.target.value })} placeholder="word" />
-            <Input label="Монгол утга" value={form.mongolian} onChange={(e) => setForm({ ...form, mongolian: e.target.value })} placeholder="үг" />
-            <Select label="Түвшин" options={levelFormOptions} value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value })} />
+            <div className="grid grid-cols-2 gap-4">
+              <Input label="Англи үг" value={form.english} onChange={(e) => setForm({ ...form, english: e.target.value })} placeholder="apple" />
+              <Input label="Монгол утга" value={form.mongolian} onChange={(e) => setForm({ ...form, mongolian: e.target.value })} placeholder="алим" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Select label="Түвшин" options={levelFormOptions} value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value })} />
+              <Input label="Хэлзүй (noun, verb...)" value={form.partOfSpeech} onChange={(e) => setForm({ ...form, partOfSpeech: e.target.value })} placeholder="noun" />
+            </div>
+            <Input label="Жишээ өгүүлбэр (Англи)" value={form.exampleSentence} onChange={(e) => setForm({ ...form, exampleSentence: e.target.value })} placeholder="I eat an apple every day." />
+            <Input label="Жишээ өгүүлбэрийн орчуулга" value={form.exampleTranslation} onChange={(e) => setForm({ ...form, exampleTranslation: e.target.value })} placeholder="Би өдөр бүр нэг алим иддэг." />
             {error && <p className="text-sm text-red-500">{error}</p>}
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="secondary" onClick={() => setModal(null)}>Болих</Button>
               <Button onClick={save} disabled={saving}>{saving ? 'Хадгалж байна...' : 'Хадгалах'}</Button>
             </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Import modal */}
+      {modal === 'import' && (
+        <Modal title="Файлаас үг оруулах" onClose={() => setModal(null)}>
+          <div className="space-y-4">
+            <div className="rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 text-sm text-blue-800">
+              <p className="font-medium mb-1">JSON файлын формат:</p>
+              <pre className="text-xs overflow-x-auto bg-white rounded p-2 border border-blue-100">
+{`{ "words": [
+  {
+    "english": "apple",
+    "mongolian": "алим",
+    "partOfSpeech": "noun",
+    "level": "a1",
+    "exampleSentence": "I eat an apple.",
+    "exampleTranslation": "Би алим иддэг."
+  }
+]}`}
+              </pre>
+            </div>
+
+            <button
+              onClick={downloadTemplate}
+              className="flex items-center gap-2 text-sm text-primary hover:underline"
+            >
+              <Download className="h-4 w-4" /> Template татах (words_template.json)
+            </button>
+
+            <div
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleImportFile(f); }}
+              onClick={() => fileRef.current?.click()}
+              className="flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-8 cursor-pointer hover:border-primary hover:bg-primary/5 transition-colors"
+            >
+              {importing ? (
+                <div className="flex items-center gap-2 text-sm text-primary">
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                  Оруулж байна...
+                </div>
+              ) : (
+                <>
+                  <Upload className="h-8 w-8 text-gray-400" />
+                  <p className="text-sm text-gray-600"><span className="font-medium text-primary">JSON файл сонгох</span> эсвэл чирж оруулна уу</p>
+                </>
+              )}
+              <input ref={fileRef} type="file" accept=".json" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImportFile(f); }} />
+            </div>
+
+            {importResult && (
+              <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-800">
+                ✅ <strong>{importResult.inserted.toLocaleString()}</strong> үг нэмэгдлээ
+                {importResult.skipped > 0 && <span className="text-green-600"> · {importResult.skipped} давхардал алгасагдсан</span>}
+              </div>
+            )}
+
+            {error && <p className="text-sm text-red-500">{error}</p>}
           </div>
         </Modal>
       )}
