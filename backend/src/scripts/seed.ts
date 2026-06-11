@@ -17,6 +17,8 @@ import { Word } from '../entities/word.entity';
 import { Lesson } from '../entities/lesson.entity';
 import { Quiz } from '../entities/quiz.entity';
 import { UserRole, LessonType, ContentLevel } from '../common/enums';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 
 async function seed(ds: DataSource) {
   // ── Subscription plans ──────────────────────────────────────────────────────
@@ -219,6 +221,36 @@ async function seed(ds: DataSource) {
     }
   }
   console.log(skillCreated > 0 ? `✅ ${skillCreated} skill lessons created` : '— Skill lessons already exist, skipping');
+
+  // ── Vocabulary bank (words-seed.json) ─────────────────────────────────────
+  const seedFile = join(__dirname, 'words-seed.json');
+  try {
+    const raw = JSON.parse(readFileSync(seedFile, 'utf-8'));
+    const wordDefs: any[] = Array.isArray(raw) ? raw : raw.words ?? [];
+    let vocabInserted = 0;
+    const BATCH = 50;
+    for (let i = 0; i < wordDefs.length; i += BATCH) {
+      const batch = wordDefs.slice(i, i + BATCH);
+      await Promise.all(batch.map(async (w) => {
+        if (!w.english || !w.mongolian) return;
+        const level = (w.level ?? ContentLevel.A1) as ContentLevel;
+        const exists = await wordRepo.findOne({ where: { english: w.english, level }, select: { id: true } });
+        if (exists) return;
+        await wordRepo.save(wordRepo.create({
+          english: w.english,
+          mongolian: w.mongolian,
+          partOfSpeech: w.partOfSpeech ?? null,
+          exampleSentence: w.exampleSentence ?? null,
+          exampleTranslation: w.exampleTranslation ?? null,
+          level,
+        }));
+        vocabInserted++;
+      }));
+    }
+    console.log(vocabInserted > 0 ? `✅ ${vocabInserted} vocabulary words inserted` : '— Vocabulary words already exist, skipping');
+  } catch {
+    console.log('— words-seed.json олдсонгүй, алгасав');
+  }
 }
 
 async function main() {
