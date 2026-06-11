@@ -1,5 +1,5 @@
 /**
- * Thin fetch wrapper around the EnglishXP backend.
+ * Thin fetch wrapper around the SparkXP backend.
  *
  * - Base URL comes from EXPO_PUBLIC_API_URL (falls back to localhost for dev).
  *   On a real device use your machine's LAN IP, e.g. http://192.168.1.10:3000/api

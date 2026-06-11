@@ -1,7 +1,8 @@
 import { useState, useRef } from 'react';
 import {
-  View, StyleSheet, FlatList, TextInput, ScrollView,
+  View, StyleSheet, FlatList, TextInput, ScrollView, Image,
   Pressable, KeyboardAvoidingView, Platform, ActivityIndicator, Alert,
+  type ImageSourcePropType,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,9 +18,13 @@ interface LocalMessage {
   content: string;
 }
 
-/** AI tutor characters. Only Спарк is active for now. */
-const BUDDIES = [
-  { id: 'spark', name: 'Спарк', emoji: '🦊', active: true },
+const sparkImg = require('../../assets/buddy-menu.png');
+
+/** AI tutor characters. Only Спарк is active for now (with a 3D avatar image;
+ *  the rest use emoji until their art is added). */
+type Buddy = { id: string; name: string; emoji?: string; image?: ImageSourcePropType; active?: boolean };
+const BUDDIES: Buddy[] = [
+  { id: 'spark', name: 'Спарк', image: sparkImg, active: true },
   { id: 'oli', name: 'Оли', emoji: '🦉' },
   { id: 'lili', name: 'Лили', emoji: '🐰' },
   { id: 'reks', name: 'Рекс', emoji: '🐲' },
@@ -86,7 +91,11 @@ export default function ChatScreen() {
             style={[styles.buddyCard, b.active && styles.buddyActive]}
             onPress={() => onBuddyPress(b.active)}
           >
-            <AppText style={styles.buddyEmoji}>{b.emoji}</AppText>
+            {b.image ? (
+              <Image source={b.image} style={styles.buddyImg} resizeMode="contain" />
+            ) : (
+              <AppText style={styles.buddyEmoji}>{b.emoji}</AppText>
+            )}
             <View style={styles.buddyNameRow}>
               <View style={[styles.dot, { backgroundColor: b.active ? colors.success : colors.borderStrong }]} />
               <AppText variant="caption" color={colors.text} style={styles.buddyName}>{b.name}</AppText>
@@ -150,7 +159,7 @@ function MessageBubble({ message }: { message: LocalMessage }) {
   const isUser = message.role === 'user';
   return (
     <View style={[styles.bubbleRow, isUser && styles.bubbleRowUser]}>
-      {!isUser && <AppText style={styles.avatar}>🦊</AppText>}
+      {!isUser && <Image source={sparkImg} style={styles.avatarImg} resizeMode="contain" />}
       <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAi]}>
         <AppText variant="body" color={isUser ? colors.white : colors.text}>
           {message.content}
@@ -163,7 +172,7 @@ function MessageBubble({ message }: { message: LocalMessage }) {
 function EmptyState() {
   return (
     <View style={styles.emptyState}>
-      <AppText style={styles.emptyEmoji}>🦊</AppText>
+      <Image source={sparkImg} style={styles.emptyImg} resizeMode="contain" />
       <AppText variant="h2" center style={styles.emptyTitle}>Сайн уу! Би Спарк 👋</AppText>
       <AppText variant="body" color={colors.textSecondary} center>
         Англи хэлний асуулт, дасгал, тайлбар — бүгдийг асуугаарай.
@@ -177,34 +186,35 @@ const styles = StyleSheet.create({
   buddyScroll: { flexGrow: 0, marginTop: spacing.xs, marginBottom: spacing.sm },
   buddyRow: { gap: spacing.sm, paddingHorizontal: spacing.lg },
   buddyCard: {
-    width: 68, alignItems: 'center', backgroundColor: colors.surface,
+    width: 68, alignItems: 'center', backgroundColor: colors.surfaceAlt,
     borderRadius: radius.md, paddingVertical: spacing.sm, borderWidth: 1.5, borderColor: 'transparent',
   },
   buddyActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
   buddyEmoji: { fontSize: 30 },
+  buddyImg: { width: 46, height: 46, borderRadius: 23 },
   buddyNameRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
   dot: { width: 6, height: 6, borderRadius: 3 },
   buddyName: { fontWeight: '700' },
   messageList: { padding: spacing.md, gap: spacing.sm, flexGrow: 1 },
   bubbleRow: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm, marginBottom: spacing.xs },
   bubbleRowUser: { flexDirection: 'row-reverse' },
-  avatar: { fontSize: 24 },
+  avatarImg: { width: 28, height: 28, borderRadius: 14 },
   bubble: { maxWidth: '78%', borderRadius: radius.lg, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
-  bubbleAi: { backgroundColor: colors.surface, borderBottomLeftRadius: 4 },
+  bubbleAi: { backgroundColor: colors.surfaceAlt, borderBottomLeftRadius: 4 },
   bubbleUser: { backgroundColor: colors.primary, borderBottomRightRadius: 4 },
   typingRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
   inputBar: {
     flexDirection: 'row', alignItems: 'flex-end', padding: spacing.md, gap: spacing.sm,
-    borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.background,
+    borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.surface,
   },
   input: {
-    flex: 1, minHeight: 44, maxHeight: 120, backgroundColor: colors.surface, borderRadius: radius.lg,
+    flex: 1, minHeight: 44, maxHeight: 120, backgroundColor: colors.surfaceAlt, borderRadius: radius.lg,
     paddingHorizontal: spacing.md, paddingTop: 11, paddingBottom: 11, fontSize: 15, color: colors.text,
   },
-  voiceBtn: { width: 44, height: 44, borderRadius: radius.full, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center' },
+  voiceBtn: { width: 44, height: 44, borderRadius: radius.full, backgroundColor: colors.surfaceAlt, justifyContent: 'center', alignItems: 'center' },
   sendBtn: { width: 44, height: 44, borderRadius: radius.full, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' },
   sendBtnDisabled: { backgroundColor: colors.borderStrong },
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xl, paddingTop: spacing.xxxl },
-  emptyEmoji: { fontSize: 52, marginBottom: spacing.md },
+  emptyImg: { width: 110, height: 110, borderRadius: 55, marginBottom: spacing.md },
   emptyTitle: { marginBottom: spacing.sm },
 });

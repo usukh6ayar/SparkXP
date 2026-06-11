@@ -1,53 +1,119 @@
-import { useState, useEffect, useCallback } from 'react';
-import { View, StyleSheet, ScrollView, Pressable, RefreshControl } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../../src/auth/AuthContext';
-import { getStats } from '../../src/api/users';
-import { getDue } from '../../src/api/reviews';
-import { TopBar } from '../../src/components/TopBar';
-import { StatCard } from '../../src/components/StatCard';
-import { AppText } from '../../src/components/Text';
-import { IconTile } from '../../src/components/IconTile';
-import { SectionHeader } from '../../src/components/SectionHeader';
-import { Button } from '../../src/components/Button';
-import { colors, spacing, radius, tints } from '../../src/theme/theme';
+import { useState, useEffect, useCallback } from "react";
+import {
+  View,
+  StyleSheet,
+  ScrollView,
+  Pressable,
+  ImageBackground,
+  RefreshControl,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { useAuth } from "../../src/auth/AuthContext";
+import { getStats } from "../../src/api/users";
+import { getDue } from "../../src/api/reviews";
+import { apiRequest } from "../../src/api/client";
+import { AppText } from "../../src/components/Text";
+import { ProgressBar } from "../../src/components/ProgressBar";
+import { SectionHeader } from "../../src/components/SectionHeader";
+import {
+  colors,
+  spacing,
+  radius,
+  tints,
+  elevation,
+} from "../../src/theme/theme";
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
-const STREAK = 5; // TODO: real streak from backend
+const banner = require("../../assets/home-banner.png");
 
-const CATS: { icon: IconName; label: string; sub: string; type: string; tint: { bg: string; fg: string } }[] = [
-  { icon: 'headset', label: 'Сонсгол', sub: 'Сонсож сур', type: 'listening', tint: tints.blue },
-  { icon: 'book', label: 'Унших', sub: 'Текст унших', type: 'reading', tint: tints.green },
-  { icon: 'extension-puzzle', label: 'Нөхөх', sub: 'Нөхөх даалгавар', type: 'fill', tint: tints.purple },
-  { icon: 'create', label: 'Бичих', sub: 'Бичиж дадлага', type: 'writing', tint: tints.amber },
+// TODO: бодит утгуудаар солих (backend streak / daily-XP tracking)
+const STREAK = 5;
+const DAILY_GOAL = 50;
+const TODAY_XP = 35;
+
+const CATS: {
+  key: string;
+  label: string;
+  en: string;
+  icon: IconName;
+  tint: { bg: string; fg: string };
+  progress: number;
+}[] = [
+  {
+    key: "listening",
+    label: "Сонсгол",
+    en: "Listening",
+    icon: "headset",
+    tint: tints.purple,
+    progress: 0.45,
+  },
+  {
+    key: "reading",
+    label: "Унших",
+    en: "Reading",
+    icon: "book",
+    tint: tints.green,
+    progress: 0.6,
+  },
+  {
+    key: "fill",
+    label: "Нөхөх",
+    en: "Fill in the blank",
+    icon: "pencil",
+    tint: tints.coral,
+    progress: 0.3,
+  },
+  {
+    key: "writing",
+    label: "Бичих",
+    en: "Writing",
+    icon: "create",
+    tint: tints.blue,
+    progress: 0.5,
+  },
 ];
 
 export default function HomeScreen() {
   const { user, token } = useAuth();
   const router = useRouter();
-  const firstName = user?.fullName?.split(' ')[0] ?? '';
+  const firstName = user?.fullName?.split(" ")[0] ?? "";
 
   const [xp, setXp] = useState(user?.xp ?? 0);
   const [sparks, setSparks] = useState(user?.sparks ?? 0);
   const [due, setDue] = useState(0);
+  const [counts, setCounts] = useState<Record<string, number>>({});
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
     if (!token) return;
     try {
-      const [stats, dueList] = await Promise.all([getStats(token), getDue(token)]);
+      const [stats, dueList, lessons] = await Promise.all([
+        getStats(token),
+        getDue(token),
+        apiRequest<{ items: { type: string }[] }>(
+          "/lessons?limit=200&isPublished=true",
+          { token },
+        ),
+      ]);
       setXp(stats.xp);
       setSparks(stats.sparks);
       setDue(dueList.length);
+      const c: Record<string, number> = {};
+      lessons.items.forEach((l) => {
+        c[l.type] = (c[l.type] ?? 0) + 1;
+      });
+      setCounts(c);
     } catch {
       // keep last values
     }
   }, [token]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -56,111 +122,344 @@ export default function HomeScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <TopBar streak={STREAK} />
+    <SafeAreaView style={styles.safe} edges={["top"]}>
       <ScrollView
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+          />
+        }
       >
-        {/* Greeting */}
-        <AppText variant="h1">Сайн уу, {firstName} 👋</AppText>
-        <AppText variant="body" color={colors.textSecondary} style={styles.sub}>
-          Өнөөдөр суралцахад бэлэн үү?
-        </AppText>
-
-        {/* Daily goal hero */}
-        <View style={styles.hero}>
-          <View style={styles.heroTop}>
-            <View style={styles.heroBadge}>
-              <Ionicons name="flame" size={14} color={colors.streak} />
-              <AppText variant="label" color={colors.white}>{STREAK} хоног цуврал</AppText>
-            </View>
+        {/* Header: greeting + badges */}
+        <View style={styles.header}>
+          <View style={styles.headerText}>
+            <AppText variant="h1">Сайн уу, {firstName} аа! 👋</AppText>
+            <AppText
+              variant="body"
+              color={colors.textSecondary}
+              style={styles.sub}
+            >
+              Өнөөдөр англи хэлийг хамтдаа урагшлуулцгаая!
+            </AppText>
           </View>
-          <AppText variant="h2" color={colors.white} style={styles.heroTitle}>
-            {due > 0 ? `${due} үг давтахаар хүлээж байна` : 'Өнөөдрийн зорилго'}
-          </AppText>
-          <AppText variant="body" color={colors.textOnDarkMuted} style={styles.heroSub}>
-            {due > 0
-              ? 'Цувралаа таслахгүйн тулд давтаж эхэл.'
-              : 'Шинэ үг сурч, XP цуглуулаарай.'}
-          </AppText>
-          <Button
-            label={due > 0 ? 'Давтаж эхлэх' : 'Үг сурах'}
-            icon="arrow-forward"
-            onPress={() => router.push('/swipe')}
-            style={styles.heroBtn}
+          <View style={styles.badges}>
+            <Badge
+              icon="flame"
+              color={colors.streak}
+              value={STREAK}
+              label="Цуврал"
+            />
+            <Badge
+              icon="diamond"
+              color={colors.sparks}
+              value={sparks}
+              label="Очирхон"
+            />
+          </View>
+        </View>
+
+        {/* Daily goal hero — banner image as full background */}
+        <ImageBackground
+          source={banner}
+          style={styles.hero}
+          imageStyle={styles.heroImg}
+          resizeMode="cover"
+        >
+          <View style={styles.heroText}>
+            <AppText variant="bodyStrong" color={colors.textOnDark}>
+              Өнөөдрийн зорилго
+            </AppText>
+            <AppText
+              variant="display"
+              color={colors.white}
+              style={styles.heroGoal}
+            >
+              {DAILY_GOAL} XP
+            </AppText>
+            <ProgressBar
+              value={TODAY_XP / DAILY_GOAL}
+              color={colors.white}
+              track="rgba(255,255,255,0.35)"
+              height={10}
+              style={styles.heroBar}
+            />
+            <AppText variant="caption" color={colors.textOnDark}>
+              {TODAY_XP} / {DAILY_GOAL} XP
+            </AppText>
+          </View>
+        </ImageBackground>
+
+        {/* Review reminder */}
+        <View style={styles.reviewCard}>
+          <View style={styles.reviewIcon}>
+            <Ionicons name="time" size={24} color={colors.primary} />
+          </View>
+          <View style={styles.reviewBody}>
+            <AppText variant="h3">Давтах үгс</AppText>
+            <AppText variant="caption" style={styles.reviewSub}>
+              {due > 0
+                ? `${due} үг давтах хугацаатай байна`
+                : "Өнөөдөр давтах үг алга"}
+            </AppText>
+            <Pressable
+              style={({ pressed }) => [
+                styles.reviewBtn,
+                pressed && styles.pressed,
+              ]}
+              onPress={() => router.push("/swipe")}
+            >
+              <AppText variant="bodyStrong" color={colors.white}>
+                Давтах эхлэх
+              </AppText>
+            </Pressable>
+          </View>
+          <Ionicons
+            name="chevron-forward"
+            size={20}
+            color={colors.borderStrong}
           />
         </View>
 
-        {/* Stats */}
-        <View style={styles.statsRow}>
-          <StatCard icon="flash" label="XP" value={xp} color={colors.xp} bg={tints.orange.bg} />
-          <StatCard icon="sparkles" label="Очирхон" value={sparks} color={colors.sparks} bg={colors.cream} />
-          <StatCard icon="flame" label="Цуврал" value={STREAK} color={colors.streak} bg={colors.dangerSoft} />
-        </View>
-
-        {/* Learning paths */}
-        <SectionHeader title="Юу сурах вэ?" style={styles.section} />
+        {/* Learn categories */}
+        <SectionHeader
+          title="Юу сурах вэ?"
+          actionLabel="Бүгдийг харах ›"
+          onAction={() => router.push("/(tabs)/lessons")}
+          style={styles.section}
+        />
         <View style={styles.grid}>
           {CATS.map((c) => (
             <Pressable
-              key={c.label}
-              style={({ pressed }) => [styles.cat, pressed && styles.catPressed]}
-              onPress={() => router.push({ pathname: '/(tabs)/lessons', params: { type: c.type } })}
+              key={c.key}
+              style={({ pressed }) => [
+                styles.cat,
+                { backgroundColor: c.tint.bg },
+                pressed && styles.pressed,
+              ]}
+              onPress={() =>
+                router.push({
+                  pathname: "/(tabs)/lessons",
+                  params: { type: c.key },
+                })
+              }
             >
-              <IconTile icon={c.icon} bg={c.tint.bg} fg={c.tint.fg} size={44} />
-              <View style={styles.catText}>
-                <AppText variant="h3">{c.label}</AppText>
-                <AppText variant="caption">{c.sub}</AppText>
+              <View style={styles.catTop}>
+                <View style={styles.catIcon}>
+                  <Ionicons name={c.icon} size={20} color={c.tint.fg} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <AppText variant="h3" numberOfLines={1}>
+                    {c.label}
+                  </AppText>
+                  <AppText variant="caption" numberOfLines={1}>
+                    {c.en}
+                  </AppText>
+                </View>
               </View>
+              <ProgressBar
+                value={c.progress}
+                color={c.tint.fg}
+                track="rgba(255,255,255,0.7)"
+                height={6}
+                style={styles.catBar}
+              />
+              <AppText variant="caption" style={styles.catCount}>
+                {counts[c.key] ?? 0} хичээл
+              </AppText>
             </Pressable>
           ))}
         </View>
 
+        {/* Stats summary */}
+        <View style={styles.statsCard}>
+          <StatCol
+            icon="flash"
+            color={colors.xp}
+            value={xp.toLocaleString()}
+            label="XP оноо"
+          />
+          <View style={styles.statDivider} />
+          <StatCol
+            icon="diamond"
+            color={colors.sparks}
+            value={sparks}
+            label="Очирхон"
+          />
+          <View style={styles.statDivider} />
+          <StatCol
+            icon="flame"
+            color={colors.streak}
+            value={`${STREAK} өдөр`}
+            label="Цуврал"
+          />
+        </View>
         <View style={{ height: 110 }} />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
+function Badge({
+  icon,
+  color,
+  value,
+  label,
+}: {
+  icon: IconName;
+  color: string;
+  value: number | string;
+  label: string;
+}) {
+  return (
+    <View style={styles.badge}>
+      <View style={styles.badgeTop}>
+        <Ionicons name={icon} size={16} color={color} />
+        <AppText variant="h3">{value}</AppText>
+      </View>
+      <AppText variant="caption">{label}</AppText>
+    </View>
+  );
+}
+
+function StatCol({
+  icon,
+  color,
+  value,
+  label,
+}: {
+  icon: IconName;
+  color: string;
+  value: number | string;
+  label: string;
+}) {
+  return (
+    <View style={styles.statCol}>
+      <View style={[styles.statIcon, { backgroundColor: `${color}22` }]}>
+        <Ionicons name={icon} size={18} color={color} />
+      </View>
+      <View>
+        <AppText variant="h3" numberOfLines={1}>
+          {value}
+        </AppText>
+        <AppText variant="caption">{label}</AppText>
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
-  container: { paddingHorizontal: spacing.lg, paddingTop: spacing.xs },
-  sub: { marginTop: 2, marginBottom: spacing.lg },
+  container: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
+
+  header: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm },
+  headerText: { flex: 1, paddingTop: 2 },
+  sub: { marginTop: 4 },
+  badges: { flexDirection: "row", gap: spacing.sm },
+  badge: {
+    alignItems: "center",
+    minWidth: 76,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    ...(elevation.sm as object),
+  },
+  badgeTop: { flexDirection: "row", alignItems: "center", gap: 5 },
+
   hero: {
-    backgroundColor: colors.navy,
     borderRadius: radius.xl,
     padding: spacing.lg,
-    marginBottom: spacing.lg,
+    marginTop: spacing.lg,
+    overflow: "hidden",
+    minHeight: 180,
+    justifyContent: "center",
+    backgroundColor: colors.primary, // зураг ачаалагдах хүртэлх fallback
   },
-  heroTop: { flexDirection: 'row', marginBottom: spacing.md },
-  heroBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 5,
-    borderRadius: radius.full,
-  },
-  heroTitle: { marginBottom: spacing.xs },
-  heroSub: { marginBottom: spacing.lg },
-  heroBtn: { alignSelf: 'flex-start', paddingHorizontal: spacing.xl },
-  statsRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.xl },
-  section: { marginBottom: spacing.md },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: spacing.md },
-  cat: {
-    width: '48.5%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    backgroundColor: colors.background,
-    borderWidth: 1,
-    borderColor: colors.border,
+  heroImg: { borderRadius: radius.xl },
+  heroText: { maxWidth: "62%" },
+  heroGoal: { marginTop: 2, marginBottom: spacing.md },
+  heroBar: { marginBottom: spacing.sm },
+
+  reviewCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
     borderRadius: radius.lg,
     padding: spacing.md,
+    marginTop: spacing.lg,
+    ...(elevation.sm as object),
   },
-  catPressed: { backgroundColor: colors.surface, transform: [{ scale: 0.99 }] },
-  catText: { flex: 1 },
+  reviewIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: radius.full,
+    backgroundColor: colors.primarySoft,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reviewBody: { flex: 1, gap: 4 },
+  reviewSub: { marginBottom: spacing.sm },
+  reviewBtn: {
+    alignSelf: "flex-start",
+    backgroundColor: colors.primary,
+    borderRadius: radius.md,
+    paddingVertical: 9,
+    paddingHorizontal: spacing.lg,
+  },
+
+  section: { marginTop: spacing.xl },
+  grid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    rowGap: spacing.md,
+  },
+  cat: { width: "48.5%", borderRadius: radius.lg, padding: spacing.md },
+  catTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  catIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.full,
+    backgroundColor: colors.white,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  catBar: { marginBottom: spacing.xs },
+  catCount: { alignSelf: "flex-end" },
+
+  statsCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginTop: spacing.lg,
+    ...(elevation.sm as object),
+  },
+  statCol: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  statIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: radius.full,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  statDivider: { width: 1, height: 32, backgroundColor: colors.border },
+
+  pressed: { opacity: 0.9, transform: [{ scale: 0.99 }] },
 });

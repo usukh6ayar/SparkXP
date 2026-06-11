@@ -200,7 +200,7 @@ const styles = StyleSheet.create({
   },
   body: { flex: 1, padding: spacing.lg, justifyContent: 'center' },
   card: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceAlt,
     borderRadius: radius.lg,
     borderWidth: 2,
     borderColor: colors.border,

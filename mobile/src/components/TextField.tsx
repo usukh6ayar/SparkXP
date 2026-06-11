@@ -35,6 +35,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     fontSize: fontSize.md,
     color: colors.text,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceAlt,
   },
 });

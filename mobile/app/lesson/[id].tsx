@@ -164,7 +164,7 @@ export default function LessonDetailScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.unitTitle}>{u.title}</Text>
                     <Text style={styles.unitSub}>{u.sub}</Text>
-                    <Pill label={u.tag} bg={colors.surface} fg={colors.textMuted} />
+                    <Pill label={u.tag} bg={colors.surfaceAlt} fg={colors.textMuted} />
                   </View>
                   <Text style={[styles.unitMark, { color: STATE_COLOR[u.state] }]}>
                     {u.state === 'done' ? '✓' : u.state === 'current' ? '→' : '🔒'}
@@ -221,7 +221,7 @@ const styles = StyleSheet.create({
   connector: { flex: 1, width: 3, backgroundColor: colors.border, marginVertical: 2 },
   unitCard: {
     flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.md,
+    backgroundColor: colors.surfaceAlt, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.md,
     borderWidth: 2, borderColor: 'transparent',
   },
   unitCurrent: { backgroundColor: '#FFF6EC', borderColor: colors.primary },
@@ -239,7 +239,7 @@ const styles = StyleSheet.create({
   bannerText: { fontSize: fontSize.md, fontWeight: '700', color: colors.navy, lineHeight: 22 },
   actions: { flexDirection: 'row', gap: spacing.md },
   // Locked
-  lockedBox: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.xl, alignItems: 'center' },
+  lockedBox: { backgroundColor: colors.surfaceAlt, borderRadius: radius.lg, padding: spacing.xl, alignItems: 'center' },
   lockedEmoji: { fontSize: 48, marginBottom: spacing.md },
   lockedTitle: { fontSize: fontSize.lg, fontWeight: '800', color: colors.navy, marginBottom: spacing.sm },
   lockedSub: { fontSize: fontSize.md, color: colors.textMuted, textAlign: 'center', lineHeight: 22 },

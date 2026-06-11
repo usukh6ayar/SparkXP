@@ -14,42 +14,44 @@
 import { Platform, TextStyle } from 'react-native';
 
 export const colors = {
-  // Brand
-  primary: '#F47B20', // orange (fox + "XP")
-  primaryDark: '#D9660F',
-  primaryPressed: '#C85D0E',
-  primarySoft: '#FDEBDA', // light orange tint (chips, highlights)
+  // Brand — premium purple (фоx брэнд)
+  primary: '#6D4AFF', // cleaner premium purple
+  primaryDark: '#5536E8',
+  primaryPressed: '#472BC7',
+  primarySoft: '#F1EEFF', // light purple tint (chips, highlights)
+  // Hero gradient stops
+  primaryGradient: ['#7C5CFC', '#5E3FE6'] as const,
 
-  navy: '#16213E', // brand navy — primary text + dark surfaces
-  navySoft: '#33406A',
+  navy: '#18244A', // deep ink — primary text / dark surfaces
+  navySoft: '#4A5578',
 
-  // Surfaces (light → dark)
-  background: '#FFFFFF', // app background
-  surface: '#F4F6FA', // subtle cards / inputs (cool)
-  surfaceAlt: '#EEF1F7', // pressed / nested surface
-  cream: '#FBF4E6', // warm accent surface
+  // Surfaces — off-white screen, white cards, gray nested
+  background: '#FAFBFF', // app background (subtle off-white)
+  surface: '#FFFFFF', // cards / elevated surfaces (white)
+  surfaceAlt: '#F5F6FB', // subtle gray — inputs, chips, tracks, pressed
+  cream: '#FFF6E8', // warm accent surface
 
   // Text (high → low emphasis)
-  text: '#16213E', // navy — primary text
-  textSecondary: '#5B6478', // secondary copy
-  textMuted: '#8A91A3', // captions, hints, inactive
+  text: '#18244A', // primary text
+  textSecondary: '#5F698A', // secondary copy
+  textMuted: '#97A0B8', // captions, hints, inactive
   textOnDark: '#FFFFFF',
-  textOnDarkMuted: '#AEB6CC',
+  textOnDarkMuted: '#DCD7FF', // on-purple secondary
 
-  border: '#E6E9F0',
-  borderStrong: '#D5DAE5',
+  border: '#ECEEF5',
+  borderStrong: '#D7DCEC',
 
   // Semantic
-  success: '#1FA463',
-  successSoft: '#E6F6EE',
-  danger: '#E0383E',
-  dangerSoft: '#FCEBEC',
-  warning: '#E8A317',
+  success: '#22C55E',
+  successSoft: '#EAFBF0',
+  danger: '#EF4444',
+  dangerSoft: '#FEECEC',
+  warning: '#F59E0B',
 
   // Gamification
-  xp: '#F47B20', // XP in brand orange
-  sparks: '#F4A52A', // Sparks in amber
-  streak: '#F2542D', // streak flame red-orange
+  xp: '#F5A623', // XP — gold
+  sparks: '#38BDF8', // Очирхон — diamond blue
+  streak: '#FF6B35', // streak — fox orange
 
   white: '#FFFFFF',
 };
@@ -139,13 +141,14 @@ export const elevation = {
 
 /** Soft tint pairs (bg + foreground) for category / game / icon tiles. */
 export const tints = {
-  green: { bg: '#E7F6EC', fg: '#15924F' },
-  blue: { bg: '#E6F0FB', fg: '#2563EB' },
-  purple: { bg: '#F0EAFB', fg: '#7C3AED' },
-  amber: { bg: '#FEF3DA', fg: '#C9820B' },
-  pink: { bg: '#FCE8EE', fg: '#DB2777' },
-  teal: { bg: '#E2F5F2', fg: '#0D9488' },
-  orange: { bg: colors.primarySoft, fg: colors.primaryDark },
+  purple: { bg: '#F1EEFF', fg: '#6D4AFF' }, // listening
+  green: { bg: '#EAFBF0', fg: '#22C55E' }, // reading
+  coral: { bg: '#FFF0EA', fg: '#FF6B35' }, // fill
+  blue: { bg: '#EAF4FF', fg: '#3B82F6' }, // writing
+  amber: { bg: '#FFF7E3', fg: '#D97706' },
+  pink: { bg: '#FDECF5', fg: '#DB2777' },
+  teal: { bg: '#E8FBF7', fg: '#0F9D8A' },
+  orange: { bg: '#FFF0EA', fg: '#FF6B35' },
 };
 
 /** CEFR level tag colors (a1, a2, ...). */

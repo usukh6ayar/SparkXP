@@ -86,14 +86,14 @@ const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: spacing.md },
   card: {
     width: '48.5%',
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.lg,
     padding: spacing.md,
     minHeight: 132,
   },
-  cardPressed: { backgroundColor: colors.surface, transform: [{ scale: 0.99 }] },
+  cardPressed: { backgroundColor: colors.surfaceAlt, transform: [{ scale: 0.99 }] },
   cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
   cardTitle: { marginBottom: 2 },
   challenge: {

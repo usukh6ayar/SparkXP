@@ -8,7 +8,7 @@ type IconName = keyof typeof Ionicons.glyphMap;
 /** Small rounded tag — CEFR level, lesson state, counts. Optional leading icon. */
 export function Pill({
   label,
-  bg = colors.surface,
+  bg = colors.surfaceAlt,
   fg = colors.textSecondary,
   icon,
 }: {

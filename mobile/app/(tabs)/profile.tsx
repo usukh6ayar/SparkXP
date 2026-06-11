@@ -214,7 +214,7 @@ const styles = StyleSheet.create({
   profileInfo: { flex: 1, gap: 4 },
   email: { marginBottom: 2 },
   editBtn: {
-    width: 36, height: 36, borderRadius: radius.md, backgroundColor: colors.background,
+    width: 36, height: 36, borderRadius: radius.md, backgroundColor: colors.surface,
     alignItems: 'center', justifyContent: 'center',
   },
   statsRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.lg },
@@ -231,7 +231,7 @@ const styles = StyleSheet.create({
     width: 60, height: 60, borderRadius: radius.full, backgroundColor: colors.cream,
     alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: colors.sparks,
   },
-  achBadgeLocked: { backgroundColor: colors.surface, borderColor: colors.border },
+  achBadgeLocked: { backgroundColor: colors.surfaceAlt, borderColor: colors.border },
   achLabel: { marginTop: spacing.xs },
   list: {},
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.md, paddingVertical: 14 },

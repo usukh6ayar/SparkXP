@@ -77,7 +77,7 @@ const styles = StyleSheet.create({
   md: { height: 44, paddingHorizontal: spacing.lg },
   fullWidth: { alignSelf: 'stretch' },
   primary: { backgroundColor: colors.primary },
-  secondary: { backgroundColor: colors.background, borderWidth: 1.5, borderColor: colors.primary },
+  secondary: { backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.primary },
   ghost: { backgroundColor: 'transparent' },
   disabled: { opacity: 0.45 },
   pressed: { opacity: 0.88, transform: [{ scale: 0.99 }] },
