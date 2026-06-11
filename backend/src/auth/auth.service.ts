@@ -49,6 +49,9 @@ export class AuthService {
       email: dto.email,
       passwordHash,
       fullName: dto.fullName,
+      username: dto.username ?? null,
+      phone: dto.phone ?? null,
+      role: dto.role,
       province: dto.province ?? null,
       district: dto.district ?? null,
     });

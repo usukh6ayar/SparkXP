@@ -39,8 +39,21 @@ export class User extends BaseEntity {
   @Column({ name: 'full_name' })
   fullName: string;
 
+  /** Optional display name chosen at registration (e.g. "Bold123"). */
+  @Index({ unique: true, where: '"username" IS NOT NULL' })
+  @Column({ type: 'varchar', nullable: true })
+  username: string | null;
+
+  /** Phone number (Mongolian format: 8 digits). Used for teacher/student contact. */
+  @Column({ type: 'varchar', nullable: true })
+  phone: string | null;
+
   @Column({ type: 'enum', enum: UserRole, default: UserRole.STUDENT })
   role: UserRole;
+
+  /** Achievement trophies collected by the user (slug list). e.g. ["first_quiz", "streak_7"]. */
+  @Column({ type: 'jsonb', nullable: true })
+  trophies: string[] | null;
 
   // --- Gamification ---
   @Column({ type: 'int', default: 0 })

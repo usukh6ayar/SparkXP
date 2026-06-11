@@ -33,6 +33,9 @@ export class UsersService {
     email: string;
     passwordHash: string;
     fullName: string;
+    username?: string | null;
+    phone?: string | null;
+    role?: UserRole;
     province?: string | null;
     district?: string | null;
   }): Promise<User> {
