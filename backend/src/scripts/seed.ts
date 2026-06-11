@@ -12,12 +12,48 @@ import { DataSource } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { entities } from '../entities';
 import { User } from '../entities/user.entity';
+import { Plan } from '../entities/plan.entity';
 import { Word } from '../entities/word.entity';
 import { Lesson } from '../entities/lesson.entity';
 import { Quiz } from '../entities/quiz.entity';
 import { UserRole, LessonType, ContentLevel } from '../common/enums';
 
 async function seed(ds: DataSource) {
+  // ── Subscription plans ──────────────────────────────────────────────────────
+  const planRepo = ds.getRepository(Plan);
+  const planDefs = [
+    {
+      slug: 'standard',
+      name: 'Standard',
+      priceAmount: 34000,
+      durationDays: 30,
+      features: ['Бүх үндсэн хичээл', 'Өдрийн 20 AI мессеж', 'XP & Sparks'],
+    },
+    {
+      slug: 'plus',
+      name: 'Plus',
+      priceAmount: 56000,
+      durationDays: 30,
+      features: ['Standard-ийн бүх давуу тал', 'Өдрийн 50 AI мессеж', 'Premium хичээлүүд', 'Дэвшилтэт статистик'],
+    },
+    {
+      slug: 'premier',
+      name: 'Premier',
+      priceAmount: 85000,
+      durationDays: 30,
+      features: ['Plus-ийн бүх давуу тал', 'Хязгааргүй AI мессеж', 'Хоолойн AI (Voice)', 'Тэргүүлэх дэмжлэг'],
+    },
+  ];
+  for (const p of planDefs) {
+    const exists = await planRepo.findOne({ where: { slug: p.slug } });
+    if (!exists) {
+      await planRepo.save(planRepo.create({ ...p, isActive: true }));
+      console.log(`✅ Plan created: ${p.name} (${p.priceAmount.toLocaleString()} MNT/сар)`);
+    } else {
+      console.log(`— Plan already exists: ${p.name}, skipping`);
+    }
+  }
+
   // ── Admin user ──────────────────────────────────────────────────────────────
   const userRepo = ds.getRepository(User);
   let admin = await userRepo.findOne({ where: { email: 'admin@englishxp.mn' } });

@@ -45,4 +45,19 @@ export class AiGatewayController {
   updateLimits(@Body() dto: UpdateLimitsDto) {
     return this.aiGateway.updateLimits(dto);
   }
+
+  /** Public: list all AI buddy character definitions + pricing. */
+  @Get('buddies')
+  async getBuddies() {
+    const { AI_BUDDIES } = await import('./buddies');
+    return AI_BUDDIES.map(({ systemPrompt: _, ...rest }) => rest);
+  }
+
+  /** Admin: usage stats per AI buddy (message count, tokens, cost). */
+  @Get('buddy-stats')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  getBuddyStats() {
+    return this.aiGateway.getBuddyStats();
+  }
 }

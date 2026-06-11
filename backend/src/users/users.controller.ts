@@ -10,6 +10,7 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  ForbiddenException,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -50,6 +51,22 @@ export class UsersController {
       limit ? parseInt(limit, 10) : 20,
     );
     return { items, total };
+  }
+
+  /**
+   * Super-admin: change a user's role.
+   * Only super_admin can assign moderator/admin roles.
+   */
+  @Patch(':id')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN)
+  updateRole(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body('role') role: UserRole,
+    @CurrentUser() caller: User,
+  ) {
+    if (id === caller.id) throw new ForbiddenException('Өөрийн роль өөрчлөх боломжгүй');
+    return this.usersService.updateRole(id, role);
   }
 
   /** Admin: delete a user. */

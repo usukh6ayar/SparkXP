@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { User } from '../entities/user.entity';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { sanitizeUser, SafeUser } from '../common/utils/sanitize-user';
+import { UserRole } from '../common/enums';
 
 // Re-export so existing imports of SafeUser from this module keep working.
 export { SafeUser };
@@ -65,5 +66,14 @@ export class UsersService {
     const user = await this.users.findOne({ where: { id } });
     if (!user) throw new NotFoundException('Хэрэглэгч олдсонгүй');
     await this.users.remove(user);
+  }
+
+  /** Super-admin: change a user's role. */
+  async updateRole(id: string, role: UserRole): Promise<SafeUser> {
+    const user = await this.users.findOne({ where: { id } });
+    if (!user) throw new NotFoundException('Хэрэглэгч олдсонгүй');
+    user.role = role;
+    const saved = await this.users.save(user);
+    return this.sanitize(saved);
   }
 }
