@@ -8,6 +8,7 @@ import { Table } from '../../components/Table';
 import { Modal } from '../../components/Modal';
 import { Input } from '../../components/Input';
 import { Select } from '../../components/Select';
+import { FileUpload } from '../../components/FileUpload';
 
 interface Lesson {
   id: string;
@@ -34,9 +35,13 @@ const levelOptions = [
 ];
 
 interface LessonForm {
-  title: string; type: string; level: string; priceSparks: number; description: string;
+  title: string; type: string; level: string; priceSparks: number;
+  description: string; imageUrl: string; videoUrl: string;
 }
-const emptyForm: LessonForm = { title: '', type: 'vocabulary', level: 'a1', priceSparks: 0, description: '' };
+const emptyForm: LessonForm = {
+  title: '', type: 'vocabulary', level: 'a1', priceSparks: 0,
+  description: '', imageUrl: '', videoUrl: '',
+};
 
 export default function LessonsPage() {
   const [lessons, setLessons] = useState<Lesson[]>([]);
@@ -55,7 +60,12 @@ export default function LessonsPage() {
 
   function openCreate() { setForm(emptyForm); setEditing(null); setError(''); setModal('create'); }
   function openEdit(l: Lesson) {
-    setForm({ title: l.title, type: l.type, level: l.level, priceSparks: l.priceSparks, description: l.description ?? '' });
+    setForm({
+      title: l.title, type: l.type, level: l.level, priceSparks: l.priceSparks,
+      description: l.description ?? '',
+      imageUrl: (l as any).content?.imageUrl ?? '',
+      videoUrl: (l as any).content?.videoUrl ?? '',
+    });
     setEditing(l); setError(''); setModal('edit');
   }
 
@@ -63,8 +73,11 @@ export default function LessonsPage() {
     if (!form.title.trim()) { setError('Гарчиг оруулна уу'); return; }
     setSaving(true); setError('');
     try {
-      const { description, ...rest } = form;
-      const payload = { ...rest, description: description || undefined, content: {} };
+      const { description, imageUrl, videoUrl, ...rest } = form;
+      const content: Record<string, string> = {};
+      if (imageUrl) content.imageUrl = imageUrl;
+      if (videoUrl) content.videoUrl = videoUrl;
+      const payload = { ...rest, description: description || undefined, content };
       if (modal === 'create') await api.post('/lessons', payload);
       else if (editing) await api.patch(`/lessons/${editing.id}`, payload);
       setModal(null); load();
@@ -134,6 +147,20 @@ export default function LessonsPage() {
                 placeholder="Хичээлийн тайлбар, дүрэм, тэмдэглэл..."
                 value={form.description}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
+              />
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <FileUpload
+                accept="image"
+                label="Зураг (заавал биш)"
+                value={form.imageUrl}
+                onChange={(url) => setForm({ ...form, imageUrl: url })}
+              />
+              <FileUpload
+                accept="video"
+                label="Видео (заавал биш)"
+                value={form.videoUrl}
+                onChange={(url) => setForm({ ...form, videoUrl: url })}
               />
             </div>
             <Input label="Үнэ (Sparks, 0=үнэгүй)" type="number" min={0} value={form.priceSparks}

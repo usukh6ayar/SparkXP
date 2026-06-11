@@ -16,6 +16,7 @@ import { XpLog } from './xp-log.entity';
 import { AiUsage } from './ai-usage.entity';
 import { Message } from './message.entity';
 import { Payment } from './payment.entity';
+import { Plan } from './plan.entity';
 
 /**
  * Every person in the system — student, teacher, admin, super_admin — lives in
@@ -61,6 +62,21 @@ export class User extends BaseEntity {
 
   @Column({ type: 'varchar', default: 'MN' })
   country: string;
+
+  // --- Subscription plan ---
+  @ManyToOne(() => Plan, (plan) => plan.subscribers, {
+    nullable: true,
+    onDelete: 'SET NULL',
+  })
+  @JoinColumn({ name: 'plan_id' })
+  plan: Plan | null;
+
+  @Column({ name: 'plan_id', type: 'uuid', nullable: true })
+  planId: string | null;
+
+  /** When the active plan expires (null = no active plan). */
+  @Column({ name: 'plan_expires_at', type: 'timestamptz', nullable: true })
+  planExpiresAt: Date | null;
 
   // --- Org membership (null for individual learners) ---
   @ManyToOne(() => Organization, (org) => org.users, {

@@ -1,6 +1,7 @@
 /** Barrel of all entities — import from here when registering with TypeORM. */
 import { Organization } from './organization.entity';
 import { User } from './user.entity';
+import { Plan } from './plan.entity';
 import { ClassEntity } from './class.entity';
 import { Lesson } from './lesson.entity';
 import { Word } from './word.entity';
@@ -17,6 +18,7 @@ import { LessonUnlock } from './lesson-unlock.entity';
 export {
   Organization,
   User,
+  Plan,
   ClassEntity,
   Lesson,
   Word,
@@ -35,6 +37,7 @@ export {
 export const entities = [
   Organization,
   User,
+  Plan,
   ClassEntity,
   Lesson,
   Word,

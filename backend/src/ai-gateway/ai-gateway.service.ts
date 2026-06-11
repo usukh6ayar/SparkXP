@@ -204,4 +204,33 @@ export class AiGatewayService implements OnModuleInit {
     await this.redis.set('ai:limits:default', JSON.stringify(updated));
     return updated;
   }
+
+  /**
+   * Admin: usage stats per AI buddy character.
+   * Counts ai_usages rows where metadata->>'buddySlug' matches each buddy.
+   * Returns 0 until mobile implements buddy selection (metadata not yet set).
+   */
+  async getBuddyStats(): Promise<
+    { slug: string; totalMessages: number; totalTokens: number; costMicroUsd: number }[]
+  > {
+    const { AI_BUDDIES } = await import('./buddies');
+    return Promise.all(
+      AI_BUDDIES.map(async (buddy) => {
+        const row = await this.aiUsages
+          .createQueryBuilder('a')
+          .select('COUNT(*)::int', 'totalMessages')
+          .addSelect('COALESCE(SUM(a.prompt_tokens + a.completion_tokens), 0)::int', 'totalTokens')
+          .addSelect('COALESCE(SUM(a.cost_micro_usd), 0)::int', 'costMicroUsd')
+          .where(`a.metadata->>'buddySlug' = :slug`, { slug: buddy.slug })
+          .getRawOne<{ totalMessages: number; totalTokens: number; costMicroUsd: number }>();
+
+        return {
+          slug: buddy.slug,
+          totalMessages: Number(row?.totalMessages ?? 0),
+          totalTokens: Number(row?.totalTokens ?? 0),
+          costMicroUsd: Number(row?.costMicroUsd ?? 0),
+        };
+      }),
+    );
+  }
 }

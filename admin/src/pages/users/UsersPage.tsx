@@ -14,14 +14,15 @@ interface User {
 }
 
 const roleOptions = [
-  { value: 'student', label: 'Оюутан' },
-  { value: 'teacher', label: 'Багш' },
-  { value: 'admin', label: 'Admin' },
+  { value: 'student',    label: 'Оюутан' },
+  { value: 'teacher',    label: 'Багш' },
+  { value: 'moderator',  label: 'Модератор' },
+  { value: 'admin',      label: 'Admin' },
   { value: 'super_admin', label: 'Super Admin' },
 ];
 
 const roleColors: Record<string, 'gray' | 'blue' | 'yellow' | 'red'> = {
-  student: 'gray', teacher: 'blue', admin: 'yellow', super_admin: 'red',
+  student: 'gray', teacher: 'blue', moderator: 'blue', admin: 'yellow', super_admin: 'red',
 };
 
 export default function UsersPage() {

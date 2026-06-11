@@ -1,6 +1,6 @@
-import { IsInt, IsPositive, IsOptional, IsString, IsIn } from 'class-validator';
+import { IsInt, IsPositive, IsOptional, IsString, IsIn, IsUUID } from 'class-validator';
 
-/** Sparks packages (amount in MNT → Sparks credited on confirmation). */
+/** Sparks top-up packages (amount MNT → Sparks credited). */
 export const SPARKS_PACKAGES = [
   { amount: 1000, sparks: 50 },
   { amount: 3000, sparks: 180 },
@@ -8,12 +8,20 @@ export const SPARKS_PACKAGES = [
 ] as const;
 
 export class CreatePaymentDto {
-  /** Package amount in MNT tögrög. Must match one of SPARKS_PACKAGES. */
+  /**
+   * For Sparks top-ups: package amount in MNT (must match SPARKS_PACKAGES).
+   * For plan purchases: omit this and provide planId instead.
+   */
+  @IsOptional()
   @IsInt()
   @IsPositive()
-  amount: number;
+  amount?: number;
 
-  /** Payment provider — "qpay" or "stripe". Defaults to qpay. */
+  /** For subscription plan purchase: the Plan UUID. */
+  @IsOptional()
+  @IsUUID()
+  planId?: string;
+
   @IsOptional()
   @IsString()
   @IsIn(['qpay', 'stripe'])

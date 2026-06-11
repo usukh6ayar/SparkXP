@@ -9,6 +9,8 @@ import QuizzesPage from './pages/quizzes/QuizzesPage';
 import UsersPage from './pages/users/UsersPage';
 import MonitorPage from './pages/monitor/MonitorPage';
 import SettingsPage from './pages/settings/SettingsPage';
+import LeaderboardPage from './pages/leaderboard/LeaderboardPage';
+import AiBuddyPage from './pages/buddy/AiBuddyPage';
 
 export default function App() {
   return (
@@ -25,12 +27,14 @@ export default function App() {
             }
           >
             <Route index element={<Navigate to="/words" replace />} />
-            <Route path="/words"    element={<WordsPage />} />
-            <Route path="/lessons"  element={<LessonsPage />} />
-            <Route path="/quizzes"  element={<QuizzesPage />} />
-            <Route path="/users"    element={<UsersPage />} />
-            <Route path="/monitor"  element={<MonitorPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/words"       element={<WordsPage />} />
+            <Route path="/lessons"     element={<LessonsPage />} />
+            <Route path="/quizzes"     element={<QuizzesPage />} />
+            <Route path="/users"       element={<UsersPage />} />
+            <Route path="/leaderboard" element={<LeaderboardPage />} />
+            <Route path="/buddy"       element={<AiBuddyPage />} />
+            <Route path="/monitor"     element={<MonitorPage />} />
+            <Route path="/settings"    element={<SettingsPage />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

@@ -155,6 +155,39 @@ export class LeaderboardService {
     }
   }
 
+  /**
+   * Admin view: top N users for any scope without relying on the caller's
+   * own province/district. `scopeValue` is the explicit filter value
+   * (province name, district name, orgId) or null for global.
+   */
+  async getTopList(
+    scope: LeaderboardScope,
+    period: string,
+    scopeValue: string | null,
+    limit = 50,
+  ): Promise<LeaderboardEntry[]> {
+    const since = periodStart(period as any);
+    const rows = await this.baseQuery(scope, scopeValue, since)
+      .select('u.id', 'userId')
+      .addSelect('u.fullName', 'fullName')
+      .addSelect('u.province', 'province')
+      .addSelect('u.district', 'district')
+      .addSelect('SUM(x.amount)', 'xp')
+      .groupBy('u.id')
+      .orderBy('xp', 'DESC')
+      .limit(limit)
+      .getRawMany();
+
+    return rows.map((r, i) => ({
+      rank: i + 1,
+      userId: r.userId,
+      fullName: r.fullName,
+      province: r.province,
+      district: r.district,
+      xp: Number(r.xp),
+    }));
+  }
+
   /** The user's XP in this window + their rank (count of users above them + 1). */
   private async myStanding(
     user: User,

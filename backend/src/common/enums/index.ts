@@ -7,6 +7,8 @@
 export enum UserRole {
   STUDENT = "student",
   TEACHER = "teacher",
+  /** Moderator = teacher-level + content management (create/edit lessons, words, quizzes). Set by super_admin only. */
+  MODERATOR = "moderator",
   ADMIN = "admin",
   SUPER_ADMIN = "super_admin",
 }
