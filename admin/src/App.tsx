@@ -11,6 +11,7 @@ import MonitorPage from './pages/monitor/MonitorPage';
 import SettingsPage from './pages/settings/SettingsPage';
 import LeaderboardPage from './pages/leaderboard/LeaderboardPage';
 import AiBuddyPage from './pages/buddy/AiBuddyPage';
+import ClassesPage from './pages/classes/ClassesPage';
 
 export default function App() {
   return (
@@ -31,6 +32,7 @@ export default function App() {
             <Route path="/lessons"     element={<LessonsPage />} />
             <Route path="/quizzes"     element={<QuizzesPage />} />
             <Route path="/users"       element={<UsersPage />} />
+            <Route path="/classes"     element={<ClassesPage />} />
             <Route path="/leaderboard" element={<LeaderboardPage />} />
             <Route path="/buddy"       element={<AiBuddyPage />} />
             <Route path="/monitor"     element={<MonitorPage />} />

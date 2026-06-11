@@ -124,6 +124,27 @@ export class ClassesService {
     return detail.students;
   }
 
+  /** Admin: all classes with teacher info and student count. */
+  async findAll(): Promise<{
+    id: string; name: string; joinCode: string;
+    teacherId: string | null; teacherName: string | null;
+    studentCount: number; createdAt: Date;
+  }[]> {
+    const classes = await this.classes.find({
+      relations: { teacher: true, students: true },
+      order: { createdAt: 'DESC' },
+    });
+    return classes.map((c) => ({
+      id: c.id,
+      name: c.name,
+      joinCode: c.joinCode,
+      teacherId: c.teacherId,
+      teacherName: c.teacher?.fullName ?? null,
+      studentCount: (c.students ?? []).length,
+      createdAt: c.createdAt,
+    }));
+  }
+
   // ── helpers ────────────────────────────────────────────────────────────────
 
   private isAdmin(user: User): boolean {

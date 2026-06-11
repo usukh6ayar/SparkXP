@@ -42,6 +42,14 @@ export class ClassesController {
     return this.classesService.join(dto.joinCode, user);
   }
 
+  /** Admin: all classes with teacher info and student count. */
+  @Get('all')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  findAll() {
+    return this.classesService.findAll();
+  }
+
   /** Classes relevant to the current user (teaching + enrolled). */
   @Get()
   findMine(@CurrentUser() user: User) {

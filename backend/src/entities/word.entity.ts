@@ -23,6 +23,10 @@ export class Word extends BaseEntity {
   @Column({ name: 'example_sentence', type: 'text', nullable: true })
   exampleSentence: string | null;
 
+  /** Mongolian translation of exampleSentence. */
+  @Column({ name: 'example_translation', type: 'text', nullable: true })
+  exampleTranslation: string | null;
+
   /** CDN URL for pronunciation audio. */
   @Column({ name: 'audio_url', type: 'varchar', nullable: true })
   audioUrl: string | null;

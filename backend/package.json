@@ -12,6 +12,7 @@
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "seed": "ts-node -r tsconfig-paths/register src/scripts/seed.ts",
+    "import-words": "ts-node -r tsconfig-paths/register src/scripts/import-words.ts",
     "lint": "eslint \"{src,test}/**/*.ts\" --fix",
     "format": "prettier --write \"src/**/*.ts\"",
     "test:e2e": "jest --config jest.config.ts --runInBand",
