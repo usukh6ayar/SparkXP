@@ -38,8 +38,8 @@ export default function QuizzesPage() {
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
-    const data = await api.get<Quiz[]>('/quizzes');
-    setQuizzes(data);
+    const data = await api.get<{ items: Quiz[] }>('/quizzes');
+    setQuizzes(data.items ?? []);
   }, []);
 
   useEffect(() => { load(); }, [load]);

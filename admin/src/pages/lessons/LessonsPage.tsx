@@ -16,6 +16,7 @@ interface Lesson {
   level: string;
   isPublished: boolean;
   priceSparks: number;
+  description?: string;
 }
 
 const typeOptions = [
@@ -33,10 +34,9 @@ const levelOptions = [
 ];
 
 interface LessonForm {
-  title: string; type: string; level: string;
-  priceSparks: number; content: string;
+  title: string; type: string; level: string; priceSparks: number; description: string;
 }
-const emptyForm: LessonForm = { title: '', type: 'vocabulary', level: 'a1', priceSparks: 0, content: '{}' };
+const emptyForm: LessonForm = { title: '', type: 'vocabulary', level: 'a1', priceSparks: 0, description: '' };
 
 export default function LessonsPage() {
   const [lessons, setLessons] = useState<Lesson[]>([]);
@@ -47,15 +47,15 @@ export default function LessonsPage() {
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
-    const data = await api.get<Lesson[]>('/lessons');
-    setLessons(data);
+    const data = await api.get<{ items: Lesson[] }>('/lessons');
+    setLessons(data.items ?? []);
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
   function openCreate() { setForm(emptyForm); setEditing(null); setError(''); setModal('create'); }
   function openEdit(l: Lesson) {
-    setForm({ title: l.title, type: l.type, level: l.level, priceSparks: l.priceSparks, content: '{}' });
+    setForm({ title: l.title, type: l.type, level: l.level, priceSparks: l.priceSparks, description: l.description ?? '' });
     setEditing(l); setError(''); setModal('edit');
   }
 
@@ -63,9 +63,8 @@ export default function LessonsPage() {
     if (!form.title.trim()) { setError('Гарчиг оруулна уу'); return; }
     setSaving(true); setError('');
     try {
-      let content: unknown;
-      try { content = JSON.parse(form.content); } catch { setError('Content буруу JSON байна'); setSaving(false); return; }
-      const payload = { ...form, content };
+      const { description, ...rest } = form;
+      const payload = { ...rest, description: description || undefined, content: {} };
       if (modal === 'create') await api.post('/lessons', payload);
       else if (editing) await api.patch(`/lessons/${editing.id}`, payload);
       setModal(null); load();
@@ -127,17 +126,18 @@ export default function LessonsPage() {
               <Select label="Төрөл" options={typeOptions} value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} />
               <Select label="Түвшин" options={levelOptions} value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value })} />
             </div>
-            <Input label="Үнэ (Sparks, 0=үнэгүй)" type="number" min={0} value={form.priceSparks}
-              onChange={(e) => setForm({ ...form, priceSparks: Number(e.target.value) })} />
             <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-gray-700">Content (JSON)</label>
+              <label className="text-sm font-medium text-gray-700">Тайлбар / Контент</label>
               <textarea
-                className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                rows={5}
-                value={form.content}
-                onChange={(e) => setForm({ ...form, content: e.target.value })}
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                rows={4}
+                placeholder="Хичээлийн тайлбар, дүрэм, тэмдэглэл..."
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
               />
             </div>
+            <Input label="Үнэ (Sparks, 0=үнэгүй)" type="number" min={0} value={form.priceSparks}
+              onChange={(e) => setForm({ ...form, priceSparks: Number(e.target.value) })} />
             {error && <p className="text-sm text-red-500">{error}</p>}
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="secondary" onClick={() => setModal(null)}>Болих</Button>

@@ -9,11 +9,24 @@ export class ApiError extends Error {
   }
 }
 
+// In-memory token cache — survives even if localStorage is wiped mid-session
+let memToken: string | null = localStorage.getItem('admin_token');
+
+export function setToken(token: string | null) {
+  memToken = token;
+  if (token) localStorage.setItem('admin_token', token);
+  else localStorage.removeItem('admin_token');
+}
+
+export function getToken(): string | null {
+  return memToken ?? localStorage.getItem('admin_token');
+}
+
 export async function apiFetch<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const token = localStorage.getItem('admin_token');
+  const token = getToken();
   const res = await fetch(`${BASE}${path}`, {
     ...options,
     headers: {

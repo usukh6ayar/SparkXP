@@ -43,8 +43,8 @@ export default function WordsPage() {
 
   const load = useCallback(async () => {
     const qs = levelFilter ? `?level=${levelFilter}` : '';
-    const data = await api.get<Word[]>(`/words${qs}`);
-    setWords(data);
+    const data = await api.get<{ items: Word[] }>(`/words${qs}`);
+    setWords(data.items ?? []);
   }, [levelFilter]);
 
   useEffect(() => { load(); }, [load]);

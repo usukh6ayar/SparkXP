@@ -30,8 +30,8 @@ export default function UsersPage() {
   const [search, setSearch] = useState('');
 
   const load = useCallback(async () => {
-    const data = await api.get<User[]>('/users');
-    setUsers(data);
+    const data = await api.get<{ items: User[] }>('/users');
+    setUsers(data.items ?? []);
   }, []);
 
   useEffect(() => { load(); }, [load]);

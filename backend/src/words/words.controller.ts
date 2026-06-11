@@ -28,12 +28,11 @@ import { UserRole } from '../common/enums';
  *   admin panel, never by students.
  */
 @Controller('words')
-@UseGuards(JwtAuthGuard) // every route needs a logged-in user
 export class WordsController {
   constructor(private readonly wordsService: WordsService) {}
 
   @Post()
-  @UseGuards(RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
   create(@Body() dto: CreateWordDto) {
     return this.wordsService.create(dto);
@@ -50,7 +49,7 @@ export class WordsController {
   }
 
   @Patch(':id')
-  @UseGuards(RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
   update(
     @Param('id', ParseUUIDPipe) id: string,
@@ -60,8 +59,8 @@ export class WordsController {
   }
 
   @Delete(':id')
-  @HttpCode(204) // no content on successful delete
-  @UseGuards(RolesGuard)
+  @HttpCode(204)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
   remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.wordsService.remove(id);

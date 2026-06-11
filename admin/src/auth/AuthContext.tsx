@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
-import { api } from '../api/client';
+import { api, setToken } from '../api/client';
 
 interface AuthUser {
   id: string;
@@ -27,24 +27,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     api.get<AuthUser>('/auth/me')
       .then(setUser)
-      .catch(() => localStorage.removeItem('admin_token'))
+      .catch(() => setToken(null))
       .finally(() => setLoading(false));
   }, []);
 
   async function login(email: string, password: string) {
-    const { access_token, user } = await api.post<{ access_token: string; user: AuthUser }>(
-      '/auth/login',
-      { email, password },
-    );
-    if (user.role !== 'admin' && user.role !== 'super_admin') {
+    const res = await api.post<Record<string, unknown>>('/auth/login', { email, password });
+    // Handle both camelCase and snake_case token field names for robustness
+    const token = (res.accessToken ?? res.access_token) as string | undefined;
+    const authUser = res.user as AuthUser | undefined;
+    if (!token || !authUser) {
+      throw new Error('Серверээс буруу хариу ирлээ');
+    }
+    if (authUser.role !== 'admin' && authUser.role !== 'super_admin') {
       throw new Error('Таны эрх хүрэхгүй байна');
     }
-    localStorage.setItem('admin_token', access_token);
-    setUser(user);
+    setToken(token);
+    setUser(authUser);
   }
 
   function logout() {
-    localStorage.removeItem('admin_token');
+    setToken(null);
     setUser(null);
   }
 
