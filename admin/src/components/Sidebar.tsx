@@ -12,7 +12,7 @@ const nav = [
   { to: '/quizzes',     label: 'Сорил',       icon: HelpCircle },
   { to: '/users',       label: 'Хэрэглэгч',  icon: Users },
   { to: '/classes',     label: 'Ангиуд',      icon: GraduationCap },
-  { to: '/leaderboard', label: 'Өрсөлдөөн',  icon: Trophy },
+  { to: '/leaderboard', label: 'Leaderboard', icon: Trophy },
   { to: '/buddy',       label: 'AI Buddy',    icon: Bot },
   { to: '/monitor',     label: 'Монитор',     icon: BarChart2 },
   { to: '/settings',    label: 'Тохиргоо',   icon: Settings },
