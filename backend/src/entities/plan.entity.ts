@@ -33,6 +33,28 @@ export class Plan extends BaseEntity {
   @Column({ name: 'is_active', default: true })
   isActive: boolean;
 
+  // --- Monthly usage limits (null = unlimited) ---
+
+  /** AI TTS voice output minutes allowed per month. */
+  @Column({ name: 'voice_minutes_limit', type: 'int', nullable: true })
+  voiceMinutesLimit: number | null;
+
+  /** User speech-to-text (STT) minutes allowed per month. */
+  @Column({ name: 'stt_minutes_limit', type: 'int', nullable: true })
+  sttMinutesLimit: number | null;
+
+  /** Gemini AI dictionary explanations allowed per month. */
+  @Column({ name: 'dictionary_ai_limit', type: 'int', nullable: true })
+  dictionaryAiLimit: number | null;
+
+  /** AI text chat token budget per month (in thousands). */
+  @Column({ name: 'ai_text_tokens_limit', type: 'int', nullable: true })
+  aiTextTokensLimit: number | null;
+
+  /** AI buddy memory storage cap per user (MB). */
+  @Column({ name: 'memory_mb_limit', type: 'int', nullable: true })
+  memoryMbLimit: number | null;
+
   @OneToMany(() => User, (user) => user.plan)
   subscribers: User[];
 }

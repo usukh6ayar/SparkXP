@@ -146,6 +146,11 @@ export class PaymentsService {
       durationDays: dto.durationDays,
       features: dto.features ?? null,
       isActive: dto.isActive ?? true,
+      voiceMinutesLimit: dto.voiceMinutesLimit ?? null,
+      sttMinutesLimit: dto.sttMinutesLimit ?? null,
+      dictionaryAiLimit: dto.dictionaryAiLimit ?? null,
+      aiTextTokensLimit: dto.aiTextTokensLimit ?? null,
+      memoryMbLimit: dto.memoryMbLimit ?? null,
     });
     return this.planRepo.save(plan);
   }

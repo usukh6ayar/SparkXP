@@ -19,14 +19,25 @@ interface Plan {
   id: string; name: string; slug: string;
   priceAmount: number; durationDays: number;
   features: string[] | null; isActive: boolean;
+  voiceMinutesLimit: number | null;
+  sttMinutesLimit: number | null;
+  dictionaryAiLimit: number | null;
+  aiTextTokensLimit: number | null;
+  memoryMbLimit: number | null;
 }
 
 interface PlanForm {
   name: string; slug: string; priceAmount: string;
   durationDays: string; features: string; isActive: boolean;
+  voiceMinutesLimit: string;
+  sttMinutesLimit: string;
+  dictionaryAiLimit: string;
+  aiTextTokensLimit: string;
+  memoryMbLimit: string;
 }
 const emptyPlanForm: PlanForm = {
   name: '', slug: '', priceAmount: '', durationDays: '30', features: '', isActive: true,
+  voiceMinutesLimit: '', sttMinutesLimit: '', dictionaryAiLimit: '', aiTextTokensLimit: '', memoryMbLimit: '',
 };
 
 const statusColors: Record<string, 'green' | 'yellow' | 'red' | 'gray'> = {
@@ -71,6 +82,7 @@ export default function MonitorPage() {
         .split('\n')
         .map(f => f.trim())
         .filter(Boolean);
+      const toLimit = (v: string) => v.trim() === '' ? null : Number(v);
       await api.post('/payments/plans', {
         name: planForm.name,
         slug: planForm.slug,
@@ -78,6 +90,11 @@ export default function MonitorPage() {
         durationDays: Number(planForm.durationDays) || 30,
         features: features.length ? features : undefined,
         isActive: planForm.isActive,
+        voiceMinutesLimit: toLimit(planForm.voiceMinutesLimit),
+        sttMinutesLimit: toLimit(planForm.sttMinutesLimit),
+        dictionaryAiLimit: toLimit(planForm.dictionaryAiLimit),
+        aiTextTokensLimit: toLimit(planForm.aiTextTokensLimit),
+        memoryMbLimit: toLimit(planForm.memoryMbLimit),
       });
       setPlanModal(false);
       setPlanForm(emptyPlanForm);
@@ -146,13 +163,20 @@ export default function MonitorPage() {
             </div>
             <p className="text-2xl font-bold text-primary">{plan.priceAmount.toLocaleString()} ₮</p>
             <p className="text-xs text-gray-400 mb-3">{plan.durationDays} хоног</p>
-            <ul className="space-y-1">
+            <ul className="space-y-1 mb-3">
               {(plan.features ?? []).map((f, i) => (
                 <li key={i} className="text-xs text-gray-600 flex items-start gap-1">
                   <span className="text-green-500 mt-0.5">✓</span> {f}
                 </li>
               ))}
             </ul>
+            {/* Usage limits */}
+            <div className="border-t border-gray-100 pt-3 grid grid-cols-2 gap-1">
+              <LimitBadge label="🎙 Voice" value={plan.voiceMinutesLimit} unit="мин" />
+              <LimitBadge label="🎧 STT" value={plan.sttMinutesLimit} unit="мин" />
+              <LimitBadge label="📖 Толь" value={plan.dictionaryAiLimit} unit="үг" />
+              <LimitBadge label="🧠 Memory" value={plan.memoryMbLimit} unit="MB" />
+            </div>
           </div>
         ))}
       </div>
@@ -206,6 +230,42 @@ export default function MonitorPage() {
                 onChange={(e) => setPlanForm(f => ({ ...f, features: e.target.value }))}
               />
             </div>
+            {/* Usage limits */}
+            <div>
+              <p className="text-sm font-medium text-gray-700 mb-2">
+                Сарын хязгаарлалт <span className="text-gray-400 font-normal">(хоосон = хязгааргүй)</span>
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <Input
+                  label="🎙 AI Voice (мин)"
+                  type="number" min={0}
+                  value={planForm.voiceMinutesLimit}
+                  onChange={(e) => setPlanForm(f => ({ ...f, voiceMinutesLimit: e.target.value }))}
+                  placeholder="25"
+                />
+                <Input
+                  label="🎧 STT (мин)"
+                  type="number" min={0}
+                  value={planForm.sttMinutesLimit}
+                  onChange={(e) => setPlanForm(f => ({ ...f, sttMinutesLimit: e.target.value }))}
+                  placeholder="120"
+                />
+                <Input
+                  label="📖 AI Толь (үг)"
+                  type="number" min={0}
+                  value={planForm.dictionaryAiLimit}
+                  onChange={(e) => setPlanForm(f => ({ ...f, dictionaryAiLimit: e.target.value }))}
+                  placeholder="300"
+                />
+                <Input
+                  label="🧠 Memory (MB)"
+                  type="number" min={0}
+                  value={planForm.memoryMbLimit}
+                  onChange={(e) => setPlanForm(f => ({ ...f, memoryMbLimit: e.target.value }))}
+                  placeholder="100"
+                />
+              </div>
+            </div>
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
@@ -235,6 +295,15 @@ function StatCard({ label, value, unit }: { label: string; value: string | numbe
       <p className="text-sm text-gray-500">{label}</p>
       <p className="mt-1 text-2xl font-bold text-navy">{value}</p>
       <p className="text-xs text-gray-400">{unit}</p>
+    </div>
+  );
+}
+
+function LimitBadge({ label, value, unit }: { label: string; value: number | null; unit: string }) {
+  return (
+    <div className="text-xs text-gray-500">
+      <span className="font-medium">{label}:</span>{' '}
+      {value == null ? <span className="text-green-600">∞</span> : <span>{value} {unit}</span>}
     </div>
   );
 }
