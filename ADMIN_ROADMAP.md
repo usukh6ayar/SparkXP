@@ -1,4 +1,4 @@
-# EnglishXP (SparkXP) — Admin Dashboard Roadmap
+# SparkXP — Admin Dashboard Roadmap
 
 > **Web admin panel**-ийн төлөвлөгөө. Контент бичигч/ажилтан контент удирдах,
 > хэрэглэгч хянах вэб. Роль/эрх: `ROLES.md` · Endpoint: `API.md` · Дүрэм: `CLAUDE.md`.
@@ -9,135 +9,348 @@
 ## 🏛️ Архитектур
 
 ```
-Backend (бэлэн NestJS API)
-   ├── Mobile app  (оюутан, React Native)
-   └── Admin web   (admin/super_admin, React)   ← ШИНЭ, /admin folder
+Backend (NestJS API)
+   ├── Mobile app  (оюутан, React Native — Усухбаяр)
+   └── Admin web   (admin/super_admin, React — Бишрэлт)  ← /admin folder
 ```
 
 - **Шинэ backend хийхгүй** — одоо байгаа API-г ашиглана (`API.md`).
 - Admin вэб → `admin` role-оор нэвтэрч, JWT токеноор `@Roles(ADMIN)` endpoint рүү.
 - Repo-д **`/admin`** folder (`/backend`, `/mobile`-ийн хажууд).
 - `super_admin` нэмэлт эрхтэй (admin удирдах, систем тохиргоо).
+- `moderator` = teacher-ийн дээр, admin-ийн доор (контент удирдах эрхтэй).
 
 ---
 
-## 🧰 Технологийн сонголт (MVP)
+## 🧰 Технологийн сонголт
 
-| Зүйл | Санал | Тайлбар |
+| Зүйл | Хэрэгжсэн | Тайлбар |
 |---|---|---|
 | Framework | **React + Vite + TypeScript** | Хурдан, хөнгөн |
-| Admin engine | **Refine** (refine.dev) ⭐ эсвэл **React-Admin** | REST дээр table/form/CRUD автоматаар |
-| (Эсвэл) UI | **shadcn/ui** + custom | SparkXP брэндтэй, илүү дизайн хяналт |
-| Auth | JWT (login → token → localStorage) | Backend-ийн `/auth/login` |
-| Data | `fetch`/axios wrapper (Bearer token) | `API.md`-ийн endpoint-ууд |
-| Charts | recharts (монитор хэсэгт) | AI зардал/прогресс |
-
-> **2 dev, REST бэлэн** → **Refine/React-Admin** хамгийн хурдан (boilerplate бага).
-> Брэнд дизайн чухал бол shadcn. Эхлээд Refine-аар туршихыг санал болгоё.
+| UI | **Tailwind CSS v3** + custom components | SparkXP брэндтэй |
+| Auth | JWT → `admin_token` localStorage + in-memory | Backend-ийн `/auth/login` |
+| Data | `fetch` wrapper (`api/client.ts`, Bearer token) | `API.md`-ийн endpoint-ууд |
+| Upload | Multer (`@nestjs/platform-express`) | `/upload` endpoint |
 
 ---
 
-## 📁 Төлөвлөж буй бүтэц
+## ✅ Хийгдсэн бүх ажил (2026-06)
+
+---
+
+### 🎯 Phase A0 — Foundation `[x]`
+
+**Commit:** `141c398` Admin dashboard: Phase A0-A4
+
+| Зүйл | Дэлгэрэнгүй |
+|---|---|
+| `/admin` scaffold | React + Vite 5 + TypeScript + Tailwind v3 |
+| `api/client.ts` | `VITE_API_URL`, Bearer token, `ApiError`, `api.get/post/patch/delete` |
+| Auth flow | Login → `POST /auth/login` → token → localStorage (`admin_token`) + in-memory (`memToken`) |
+| Role guard | `RequireAdmin` — admin/super_admin/moderator биш бол `/login` redirect |
+| Layout | `Sidebar.tsx` + `<Outlet />` + protected routes (`App.tsx`) |
+| Reusable components | `Button`, `Input`, `Select`, `Badge`, `Table`, `Modal`, `PageHeader` |
+
+---
+
+### 🎯 Phase A1 — Контент удирдлага `[x]`
+
+**Commit:** `141c398`, `0e944be`
+
+| Хуудас | Боломж |
+|---|---|
+| **Words** (`/words`) | Жагсаалт + level шүүлт + нэмэх/засах/устгах modal |
+| **Lessons** (`/lessons`) | CRUD + publish/unpublish toggle + priceSparks + FileUpload (зураг/видео) |
+| **Quizzes** (`/quizzes`) | CRUD + questions JSON editor (template байна) |
+
+**Засварууд (`0e944be`):**
+- Paginated API: `data.items ?? []` хэлбэрт шилжсэн
+- Auth token `in-memory memToken` — localStorage цэвэрлэгдсэн ч ажиллана
+- Lesson form UX сайжруулсан
+
+---
+
+### 🎯 Phase A2 — Хэрэглэгч удирдлага `[x]`
+
+**Commit:** `141c398`, `cbf474b`, `23d30d0`
+
+| Боломж | Дэлгэрэнгүй |
+|---|---|
+| Users жагсаалт | нэр/имэйл/username/утасны дугаараар хайх |
+| Оюутан/багш тоо | header дээр харуулна |
+| Role өөрчлөх | super_admin-д dropdown, admin-д зөвхөн харах |
+| Хэрэглэгч устгах | өөрийгөө устгахаас сэргийлсэн |
+| **Username, phone** | AtSign болон Phone icon-тэй харуулна |
+| **Trophies** 🏆 | Хэрэглэгч бүрийн цуглуулсан медалийг modal-д харуулна |
+
+**Backend нэмэлт:**
+- `User.username`, `User.phone`, `User.trophies` (jsonb) талбарууд
+- Register DTO: `username`, `phone`, `role` (student/teacher) хүлээн авна
+- `PATCH /users/:id` — role өөрчлөх (super_admin only)
+
+---
+
+### 🎯 Phase A3 — Монитор (Payments + Plans) `[x]`
+
+**Commit:** `141c398`, `cbf474b`, `ab8bf5c`
+
+| Боломж | Дэлгэрэнгүй |
+|---|---|
+| Payments жагсаалт | нийт орлого, гүйлгээний тоо, plan худалдаа, хүлээгдэж буй |
+| **Plan нэмэх** | Modal: нэр, slug (auto), үнэ, хоног, онцлогууд, идэвхтэй |
+| **Plan usage limits** | voice мин, STT мин, AI толь, token, memory (MB) — plan карт дээр харуулна |
+
+**Plan limit default утга (cost doc-оос):**
+
+| Plan | Voice | STT | Толь | Memory |
+|---|---|---|---|---|
+| Standard 34,000₮ | 25 мин | — | 300/сар | 100 MB |
+| Plus 56,000₮ | 50 мин | 120 мин | 700/сар | 250 MB |
+| Premier 85,000₮ | ∞ | ∞ | ∞ | ∞ |
+
+**Backend нэмэлт:**
+- `POST /payments/plans` endpoint (admin/super_admin)
+- `Plan` entity: `voiceMinutesLimit`, `sttMinutesLimit`, `dictionaryAiLimit`, `aiTextTokensLimit`, `memoryMbLimit`
+- `CreatePlanDto`: дээрх limit талбарууд нэмэгдсэн
+
+---
+
+### 🎯 Phase A4 — AI Buddy `[x]`
+
+**Commit:** `5e00fe4`, `ab8bf5c`
+
+| Боломж | Дэлгэрэнгүй |
+|---|---|
+| Buddy карт | emoji, нэр, гарчиг, тайлбар, usage progress bar |
+| Хэрэглээний статистик | мессеж тоо, token, зардал (USD) |
+| Үнийн мэдээлэл | нэмэлт pack үнэ, дуу/мин үнэ |
+| Summary | нийт мессеж, нийт зардал, идэвхтэй buddy тоо |
+
+**5 AI Buddy мэргэжил:**
+
+| Slug | Нэр | Мэргэжил |
+|---|---|---|
+| `cop` | Цагдаа Болд 🚔 | Хуулийн/албан ёсны англи |
+| `doctor` | Эмч Сарнай 🏥 | Эмнэлгийн англи |
+| `lawyer` | Хуульч Мөнхбаяр ⚖️ | Хуулийн гэрээний англи |
+| `engineer` | Программист Тэмүүжин 💻 | IT/техникийн англи |
+| `business` | Бизнесмэн Оюунцэцэг 💼 | Корпорацийн англи |
+
+**Backend нэмэлт:**
+- `backend/src/ai-gateway/buddies.ts` — `BuddyDefinition` interface + 5 buddy
+- `GET /ai/buddies` — public (systemPrompt-гүй)
+- `GET /ai/buddy-stats` — admin/moderator (AiUsage-аас нэгтгэл)
+
+---
+
+### 🎯 Phase A5 — Leaderboard `[x]`
+
+**Commit:** `5e00fe4`
+
+| Боломж | Дэлгэрэнгүй |
+|---|---|
+| Scope tabs | 🌏 Улс / 🏔️ Аймаг / 🏙️ Дүүрэг |
+| Period tabs | 7 хоног / Сар / Бүх цаг |
+| Dropdown | Аймаг/Дүүрэг сонгох (scope-оос хамаарч) |
+| Дүгнэлт | 🥇🥈🥉 медал + XP хэмжээ |
+
+**Backend нэмэлт:**
+- `GET /leaderboard/top?scope&period&value&limit` — admin/moderator
+- `leaderboard.service.ts`: `getTopList()` — caller-ийн байршлаас хамааралгүй
+
+---
+
+### 🎯 Phase A6 — Ангиуд (Classes) `[x]`
+
+**Commit:** `cbf474b`, `23d30d0`
+
+| Боломж | Дэлгэрэнгүй |
+|---|---|
+| Ангиудын карт | нэр, багш, оюутны тоо, join code (copy товч) |
+| Оюутны жагсаалт | modal: fullName, @username, phone, XP, trophy тоо |
+
+**Backend нэмэлт:**
+- `GET /classes/all` — admin/moderator
+- `ClassEntity`, join code логик
+
+---
+
+### 🎯 Phase A7 — File Upload `[x]`
+
+**Commit:** `cbf474b`
+
+| Боломж | Дэлгэрэнгүй |
+|---|---|
+| `FileUpload` component | drag-drop + click, preview, × цэвэрлэх |
+| Зураг | max 10 MB, `image/*` |
+| Видео | max 200 MB, `video/*` |
+| Хичээлд оруулах | Lessons form-д imageUrl + videoUrl талбарууд |
+
+**Backend нэмэлт:**
+- `POST /upload` — Multer, `backend/uploads/<uuid>.ext` хадгална
+- `GET /uploads/:filename` — static assets served
+- `NestExpressApplication` + `useStaticAssets()`
+- `upload.module.ts`, `upload.controller.ts`
+
+---
+
+### 🎯 Phase A8 — Үгийн сан (Vocabulary Bank) `[x]`
+
+**Commit:** `23d30d0`, `2e9fa1b`, `d475f5f`
+
+| Боломж | Дэлгэрэнгүй |
+|---|---|
+| Words table | `exampleSentence` + `exampleTranslation` харуулна |
+| **Төхөөрөмжөөс оруулах** | CSV (.csv) болон JSON (.json) хоёуланг дэмжинэ |
+| CSV загвар | "Загвар татах" → `words_template.csv` (Excel-д нээж засна) |
+| Import үр дүн | оруулсан тоо + давхардал алгасагдсан тоо |
+
+**500 үгийн сан:**
+- `backend/src/scripts/words-seed.json` — A1–C2 бүх түвшин
+- Монгол орчуулга + жишээ өгүүлбэр + жишээний орчуулга
+- `npm run import-words` — database руу оруулах скрипт
+- `npm run seed` — аяндаа оруулна
+
+**Backend нэмэлт:**
+- `POST /words/bulk` — max 50,000 үг нэг дор (admin/moderator)
+- `Word.exampleTranslation` талбар нэмэгдсэн
+- `@Max(100)` → `@Max(1000)` (QueryWordsDto)
+
+---
+
+### 🎯 Phase A9 — Moderator роль `[x]`
+
+**Commit:** `cbf474b`
+
+| Зүйл | Дэлгэрэнгүй |
+|---|---|
+| `UserRole.MODERATOR` | teacher-ийн дээр, admin-ийн доор |
+| Эрх | контент CRUD, file upload, words/lessons/quizzes удирдах |
+| Хязгаарлалт | super_admin л role өөрчилж чадна |
+
+**Backend нэмэлт:**
+- `MODERATOR = "moderator"` → `UserRole` enum
+- Controller-уудад `@Roles(ADMIN, SUPER_ADMIN, MODERATOR)` нэмэгдсэн
+
+---
+
+### 🎯 Phase A10 — Хэрэглэгчийн Usage Tracking `[x]`
+
+**Commit:** `ab8bf5c`
+
+`User` entity-д нэмэгдсэн tracking талбарууд (сарын дараа reset хийнэ):
+
+| Талбар | Утга |
+|---|---|
+| `voiceSecondsUsed` | AI TTS дуу секундэд |
+| `sttSecondsUsed` | STT хэрэглэгчийн яриа секундэд |
+| `dictionaryAiCount` | Gemini AI тайлбарын тоо |
+| `aiInputTokens` | AI chat input токен |
+| `aiOutputTokens` | AI chat output токен |
+| `memoryStorageMb` | AI buddy memory MB |
+| `usageResetAt` | Сүүлийн reset огноо |
+
+---
+
+### 🎯 Phase A11 — Брэнд шинэчлэл `[x]`
+
+**Commit:** `d475f5f`
+
+| Өөрчлөлт | Файл |
+|---|---|
+| Browser tab: **SparkXP Admin** | `admin/index.html` |
+| Sidebar: **Leaderboard** (Өрсөлдөөн-ийн оронд) | `Sidebar.tsx` |
+
+---
+
+## 📁 Одоогийн бүтэц
 
 ```
 admin/
+  index.html                  title: SparkXP Admin
   src/
-    api/client.ts        fetch wrapper (baseUrl, Bearer token, алдаа)
-    auth/                login, token storage, role guard
+    api/client.ts             fetch wrapper (Bearer token, ApiError)
+    auth/
+      AuthContext.tsx         login, logout, token (localStorage + memToken)
+      RequireAdmin.tsx        role guard
+    components/
+      Sidebar.tsx             navigation (Words/Lessons/Quizzes/Users/Classes/
+                              Leaderboard/AI Buddy/Monitor/Settings)
+      Button / Input / Select / Badge / Table / Modal / PageHeader
+      FileUpload.tsx          drag-drop image/video upload
     pages/
-      words/             list + form
-      lessons/           list + form (content editor)
-      quizzes/           list + form (questions editor)
-      users/             list + role change
-      monitor/           AI usage, payments, leaderboard
-      settings/          plan limits
-    components/          Table, Form, Sidebar, ...
-  .env                   VITE_API_URL=http://localhost:3000/api
+      login/LoginPage.tsx
+      words/WordsPage.tsx     CRUD + CSV/JSON import from device
+      lessons/LessonsPage.tsx CRUD + image/video upload
+      quizzes/QuizzesPage.tsx CRUD + questions editor
+      users/UsersPage.tsx     list + search + role + trophy viewer
+      classes/ClassesPage.tsx card layout + student roster
+      leaderboard/LeaderboardPage.tsx  scope + period tabs
+      buddy/AiBuddyPage.tsx   5 buddy stats
+      monitor/MonitorPage.tsx payments + plan CRUD + usage limits
+      settings/SettingsPage.tsx AI limits
+  .env.example                VITE_API_URL=http://localhost:3000/api
 ```
 
 ---
 
-## 🎯 Phase A0 — Foundation `[x]` — 👤 Бишрэлт ✅
+## 🔐 Эрх матриц
 
-- [x] `/admin` — React + Vite + TS + Tailwind v3 scaffold
-- [x] API client — `VITE_API_URL`, Bearer token, ApiError, `api.get/post/patch/delete`
-- [x] **Login** хуудас → `POST /auth/login` → localStorage token
-- [x] **Role guard** (`RequireAdmin`) — admin/super_admin биш бол /login руу redirect
-- [x] Layout — sidebar (`Sidebar.tsx`) + `<Outlet />` + protected routes (`App.tsx`)
-- **DoD:** ✅ Admin нэвтэрч, sidebar-тай dashboard руу орно. Student татгалзана.
-
-## 🎯 Phase A1 — Контент удирдлага `[x]` — 👤 Бишрэлт ✅
-
-- [x] **Words** — хүснэгт + level шүүлт + нэмэх/засах/устгах modal
-- [x] **Lessons** — CRUD + publish/unpublish toggle + priceSparks + JSON content editor
-- [x] **Quizzes** — CRUD + questions JSON editor (template байна)
-- **DoD:** ✅ Admin үг/хичээл/сорил нэмж, publish хийнэ.
-
-## 🎯 Phase A2 — Хэрэглэгч удирдлага `[x]` — 👤 Бишрэлт ✅
-
-- [x] **Users** жагсаалт + нэр/имэйлээр хайх
-- [x] **Role өөрчлөх** (super_admin-д dropdown, admin-д харах л)
-- [x] Хэрэглэгч **устгах** (өөрийгөө устгахаас сэргийлсэн)
-- **DoD:** ✅ Admin хэрэглэгчдийг харж, super_admin role өөрчилнө.
-
-## 🎯 Phase A3 — Монитор `[x]` — 👤 Бишрэлт ✅
-
-- [x] **Payments** жагсаалт (`GET /payments`) + нийт орлого статистик
-- [ ] **AI зарцуулалт** — `GET /ai/usage` backend endpoint нэмэх хэрэгтэй (gap)
-- **DoD:** ✅ Төлбөрийн мэдээлэл харагдана.
-
-## 🎯 Phase A4 — Тохиргоо `[x]` — 👤 Бишрэлт ✅
-
-- [x] **AI plan limit** засах — `GET/PATCH /ai/limits` (dailyMessage, dailyToken, maxContext)
-      app update-гүйгээр Redis/DB-ээс тохируулна
-- **DoD:** ✅ Admin AI лимит кодгүйгээр тохируулна.
-
-## 🎯 Phase A5 — Phase 2 удирдлага `[ ]`
-
-- [ ] **Organizations** — байгууллага CRUD (`/organizations`) — хуудас нэмэх
-- [ ] **Classes** — класс жагсаалт/харах (`/classes`)
-- [ ] **Assignments** — даалгаврын тойм
-- **DoD:** Admin сургууль/класс/даалгавар удирдана.
+| Үйлдэл | moderator | admin | super_admin |
+|---|:---:|:---:|:---:|
+| Контент CRUD (үг/хичээл/сорил) | ✅ | ✅ | ✅ |
+| File upload (зураг/видео) | ✅ | ✅ | ✅ |
+| Words bulk import | ✅ | ✅ | ✅ |
+| Хэрэглэгч харах | ✅ | ✅ | ✅ |
+| Хэрэглэгч устгах | ❌ | ✅ | ✅ |
+| Role өөрчлөх | ❌ | ❌ | ✅ |
+| Монитор (AI, Payments) | ✅ | ✅ | ✅ |
+| Plan нэмэх | ❌ | ✅ | ✅ |
+| Leaderboard харах | ✅ | ✅ | ✅ |
 
 ---
 
-## ⚠️ Backend-д нэмэх боломжтой endpoint (gap)
+## 🔧 Backend нэмэлтүүд (Bishrelt хийсэн)
 
-Admin dashboard-д хэрэгтэй боловч одоо байхгүй байж болзошгүй:
-- [ ] `GET /ai/usage` — AiUsage нэгтгэл/жагсаалт (зардал монитор) — admin
-- [ ] `POST /users` (admin) — admin хэрэглэгч/багш шууд үүсгэх (одоо зөвхөн register)
-- [ ] `GET /quizzes` admin филтр (бэлэн байж магадгүй — шалгах)
-- [ ] Хичээл/сорилын **дэлгэрэнгүй статистик** (хэдэн оюутан дуусгасан г.м)
-
-> Эдгээрийг Phase-д хүрэхэд backend талд нэмнэ (Бишрэлт/Усухбаяр тохиролцоно).
+| Endpoint / Өөрчлөлт | Файл |
+|---|---|
+| `POST /upload` (image/video) | `upload.controller.ts` |
+| `POST /payments/plans` | `payments.controller.ts` |
+| `GET /payments/plans` | `payments.controller.ts` |
+| `GET /classes/all` | `classes.controller.ts` |
+| `GET /leaderboard/top` | `leaderboard.controller.ts` |
+| `GET /ai/buddies` (public) | `ai-gateway.controller.ts` |
+| `GET /ai/buddy-stats` | `ai-gateway.controller.ts` |
+| `POST /words/bulk` | `words.controller.ts` |
+| `PATCH /users/:id` (role) | `users.controller.ts` |
+| `UserRole.MODERATOR` | `common/enums/index.ts` |
+| `User`: username, phone, trophies, usage fields | `user.entity.ts` |
+| `Word`: exampleTranslation | `word.entity.ts` |
+| `Plan`: 5 usage limit columns | `plan.entity.ts` |
+| `AI_BUDDIES` (5 мэргэжил) | `ai-gateway/buddies.ts` |
+| `QueryWordsDto @Max(1000)` | `words/dto/query-words.dto.ts` |
 
 ---
 
-## 🔐 Эрх (ROLES.md-ээс)
+## 📌 Дараагийн алхам `[ ]`
 
-| Үйлдэл | admin | super_admin |
-|---|:---:|:---:|
-| Контент CRUD (үг/хичээл/сорил) | ✅ | ✅ |
-| Хэрэглэгч жагсаалт/role/устгах | ✅ | ✅ |
-| Монитор (AI зардал, Payments) | ✅ | ✅ |
-| Plan limit тохируулах | ✅ | ✅ |
-| **Бусад admin удирдах**, систем тохиргоо | ❌ | ✅ |
+### Backend (хийгдэх ёстой)
+- [ ] Usage metering — voice/STT/dictionary/token хязгаарыг backend дээр бодитоор шалгах
+- [ ] Monthly usage reset — сар бүр `voiceSecondsUsed` г.м. reset хийх (cron job)
+- [ ] QPay integration — `createIntent()` дахь stub URL-г бодит QPay API-аар солих
+- [ ] AI Dictionary endpoint — `GET /dictionary/:word` (DB cache → Gemini fallback)
 
-> `teacher` нь admin БИШ — өөрийн класс/оюутныг **teacher dashboard**-аар (тусдаа).
+### Admin dashboard (хийгдэх ёстой)
+- [ ] **Organizations** хуудас — байгууллага CRUD (`/organizations`)
+- [ ] **Usage monitor** — хэрэглэгч бүрийн voice/STT/dictionary/token хэрэглээний хүснэгт
+- [ ] **Cost dashboard** — plan-аар нэгтгэсэн сарын API зардлын тооцоо
+- [ ] **Assignment** удирдлага — класст даалгавар нэмэх/шалгах
+- [ ] Push notification — admin-аас бүх хэрэглэгчид мэдэгдэл явуулах
 
 ---
 
 ## 🌿 Git workflow
 
-- Backend-тэй ижил: өөрийн branch (`usukhbayar`/`bishrelt` эсвэл `feature/admin-*`)
-  → PR → review → `main`. `main` руу шууд push хийхгүй.
-- `admin/.env` (`VITE_API_URL`) commit хийхгүй — `.env.example` болго.
-
----
-
-## 📌 Дараагийн алхам
-
-1. Технологи сонгох (Refine vs React-Admin vs shadcn)
-2. **Phase A0** (scaffold + login + layout)
-3. **Phase A1 — Words CRUD**-аас эхлэх (хамгийн энгийн, backend бэлэн)
-4. Дараа нь Lessons → Quizzes → Users → монитор
+- Бишрэлт → `bishrelt` branch → PR → review → `main`
+- `admin/.env` commit хийхгүй — `.env.example` ашиглана
+- Ажил эхлэхэд: `git checkout main && git pull origin main && git checkout bishrelt && git merge main`
