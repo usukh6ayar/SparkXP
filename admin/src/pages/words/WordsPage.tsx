@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Plus, Pencil, Trash2, Upload, Download } from 'lucide-react';
+import { Plus, Pencil, Trash2, Upload } from 'lucide-react';
 import { api, getToken } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
 import { Button } from '../../components/Button';
@@ -43,26 +43,36 @@ const empty: WordForm = {
   partOfSpeech: '', exampleSentence: '', exampleTranslation: '',
 };
 
-const TEMPLATE = JSON.stringify({
-  words: [
-    {
-      english: "apple",
-      mongolian: "алим",
-      partOfSpeech: "noun",
-      level: "a1",
-      exampleSentence: "I eat an apple every day.",
-      exampleTranslation: "Би өдөр бүр нэг алим иддэг."
-    },
-    {
-      english: "run",
-      mongolian: "гүйх",
-      partOfSpeech: "verb",
-      level: "a1",
-      exampleSentence: "She runs in the park.",
-      exampleTranslation: "Тэр цэцэрлэгт гүйдэг."
-    }
-  ]
-}, null, 2);
+const CSV_TEMPLATE =
+  'english,mongolian,level,partOfSpeech,exampleSentence,exampleTranslation\n' +
+  'apple,алим,a1,noun,I eat an apple every day.,Би өдөр бүр нэг алим иддэг.\n' +
+  'run,гүйх,a1,verb,She runs in the park.,Тэр цэцэрлэгт гүйдэг.\n';
+
+/** Parse a CSV string into word objects. Handles quoted fields. */
+function parseCsv(text: string): Record<string, string>[] {
+  const lines = text.trim().split(/\r?\n/);
+  if (lines.length < 2) return [];
+  const headers = splitCsvLine(lines[0]).map(h => h.trim());
+  return lines.slice(1).map(line => {
+    const vals = splitCsvLine(line);
+    const obj: Record<string, string> = {};
+    headers.forEach((h, i) => { obj[h] = (vals[i] ?? '').trim(); });
+    return obj;
+  }).filter(o => o['english']);
+}
+
+function splitCsvLine(line: string): string[] {
+  const result: string[] = [];
+  let cur = '';
+  let inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    if (line[i] === '"') { inQ = !inQ; }
+    else if (line[i] === ',' && !inQ) { result.push(cur); cur = ''; }
+    else { cur += line[i]; }
+  }
+  result.push(cur);
+  return result;
+}
 
 export default function WordsPage() {
   const [words, setWords] = useState<Word[]>([]);
@@ -127,16 +137,20 @@ export default function WordsPage() {
     setImporting(true); setError(''); setImportResult(null);
     try {
       const text = await file.text();
-      const json = JSON.parse(text);
-      const words = Array.isArray(json) ? json : json.words;
-      if (!Array.isArray(words)) throw new Error('JSON файл { words: [...] } эсвэл [...] хэлбэрт байх ёстой');
+      let words: Record<string, string>[];
+
+      if (file.name.endsWith('.csv')) {
+        words = parseCsv(text);
+        if (words.length === 0) throw new Error('CSV файл хоосон байна эсвэл формат буруу байна');
+      } else {
+        const json = JSON.parse(text);
+        words = Array.isArray(json) ? json : json.words;
+        if (!Array.isArray(words)) throw new Error('JSON файл { words: [...] } хэлбэрт байх ёстой');
+      }
 
       const res = await fetch(`${BASE}/words/bulk`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${getToken() ?? ''}`,
-        },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken() ?? ''}` },
         body: JSON.stringify({ words }),
       });
       if (!res.ok) {
@@ -151,11 +165,11 @@ export default function WordsPage() {
     } finally { setImporting(false); }
   }
 
-  function downloadTemplate() {
-    const blob = new Blob([TEMPLATE], { type: 'application/json' });
+  function downloadCsvTemplate() {
+    const blob = new Blob([CSV_TEMPLATE], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = 'words_template.json'; a.click();
+    a.href = url; a.download = 'words_template.csv'; a.click();
     URL.revokeObjectURL(url);
   }
 
@@ -208,7 +222,7 @@ export default function WordsPage() {
         action={
           <div className="flex gap-2">
             <Button variant="secondary" size="sm" onClick={() => { setModal('import'); setImportResult(null); setError(''); }}>
-              <Upload className="h-4 w-4" /> Файлаас оруулах
+              <Upload className="h-4 w-4" /> Төхөөрөмжөөс оруулах
             </Button>
             <Button onClick={openCreate}><Plus className="h-4 w-4" /> Үг нэмэх</Button>
           </div>
@@ -246,58 +260,53 @@ export default function WordsPage() {
 
       {/* Import modal */}
       {modal === 'import' && (
-        <Modal title="Файлаас үг оруулах" onClose={() => setModal(null)}>
+        <Modal title="Төхөөрөмжөөс үг оруулах" onClose={() => setModal(null)}>
           <div className="space-y-4">
-            <div className="rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 text-sm text-blue-800">
-              <p className="font-medium mb-1">JSON файлын формат:</p>
-              <pre className="text-xs overflow-x-auto bg-white rounded p-2 border border-blue-100">
-{`{ "words": [
-  {
-    "english": "apple",
-    "mongolian": "алим",
-    "partOfSpeech": "noun",
-    "level": "a1",
-    "exampleSentence": "I eat an apple.",
-    "exampleTranslation": "Би алим иддэг."
-  }
-]}`}
-              </pre>
+            {/* Instructions */}
+            <div className="rounded-lg bg-gray-50 border border-gray-200 px-4 py-3 text-sm text-gray-700">
+              <p className="font-medium mb-1">CSV формат (Excel-д нээж засах боломжтой):</p>
+              <p className="text-xs text-gray-500 font-mono bg-white rounded px-2 py-1 border border-gray-100 overflow-x-auto whitespace-nowrap">
+                english, mongolian, level, partOfSpeech, exampleSentence, exampleTranslation
+              </p>
+              <button
+                onClick={downloadCsvTemplate}
+                className="mt-2 flex items-center gap-1 text-xs text-primary hover:underline"
+              >
+                <Upload className="h-3 w-3 rotate-180" /> Загвар татах (words_template.csv)
+              </button>
             </div>
 
-            <button
-              onClick={downloadTemplate}
-              className="flex items-center gap-2 text-sm text-primary hover:underline"
-            >
-              <Download className="h-4 w-4" /> Template татах (words_template.json)
-            </button>
-
+            {/* Drop zone */}
             <div
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleImportFile(f); }}
               onClick={() => fileRef.current?.click()}
-              className="flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-8 cursor-pointer hover:border-primary hover:bg-primary/5 transition-colors"
+              className="flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 p-10 cursor-pointer hover:border-primary hover:bg-primary/5 transition-colors"
             >
               {importing ? (
                 <div className="flex items-center gap-2 text-sm text-primary">
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
                   Оруулж байна...
                 </div>
               ) : (
                 <>
-                  <Upload className="h-8 w-8 text-gray-400" />
-                  <p className="text-sm text-gray-600"><span className="font-medium text-primary">JSON файл сонгох</span> эсвэл чирж оруулна уу</p>
+                  <Upload className="h-10 w-10 text-gray-300" />
+                  <p className="text-sm font-medium text-gray-700">Файл сонгох</p>
+                  <p className="text-xs text-gray-400">.csv эсвэл .json · чирж оруулж болно</p>
                 </>
               )}
-              <input ref={fileRef} type="file" accept=".json" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImportFile(f); }} />
+              <input
+                ref={fileRef} type="file" accept=".csv,.json" className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImportFile(f); e.target.value = ''; }}
+              />
             </div>
 
             {importResult && (
               <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-800">
                 ✅ <strong>{importResult.inserted.toLocaleString()}</strong> үг нэмэгдлээ
-                {importResult.skipped > 0 && <span className="text-green-600"> · {importResult.skipped} давхардал алгасагдсан</span>}
+                {importResult.skipped > 0 && <span className="text-green-600 ml-1">· {importResult.skipped} давхардал алгасагдсан</span>}
               </div>
             )}
-
             {error && <p className="text-sm text-red-500">{error}</p>}
           </div>
         </Modal>
