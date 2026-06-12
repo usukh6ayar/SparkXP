@@ -23,8 +23,11 @@ interface BuddyStat {
 }
 
 const CARD_COLORS: Record<string, { bg: string; ring: string; badge: string }> = {
-  cop:    { bg: 'from-blue-50 to-indigo-50',   ring: 'ring-indigo-200', badge: 'bg-indigo-100 text-indigo-700' },
-  doctor: { bg: 'from-green-50 to-emerald-50', ring: 'ring-emerald-200', badge: 'bg-emerald-100 text-emerald-700' },
+  cop:      { bg: 'from-blue-50 to-indigo-50',    ring: 'ring-indigo-200',  badge: 'bg-indigo-100 text-indigo-700' },
+  doctor:   { bg: 'from-green-50 to-emerald-50',  ring: 'ring-emerald-200', badge: 'bg-emerald-100 text-emerald-700' },
+  lawyer:   { bg: 'from-amber-50 to-yellow-50',   ring: 'ring-amber-200',   badge: 'bg-amber-100 text-amber-700' },
+  engineer: { bg: 'from-violet-50 to-purple-50',  ring: 'ring-violet-200',  badge: 'bg-violet-100 text-violet-700' },
+  business: { bg: 'from-rose-50 to-pink-50',      ring: 'ring-rose-200',    badge: 'bg-rose-100 text-rose-700' },
 };
 
 export default function AiBuddyPage() {

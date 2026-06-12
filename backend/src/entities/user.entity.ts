@@ -110,6 +110,35 @@ export class User extends BaseEntity {
   @OneToMany(() => ClassEntity, (klass) => klass.teacher)
   taughtClasses: ClassEntity[];
 
+  // --- Per-period usage tracking (reset monthly by a scheduled job) ---
+  /** AI TTS voice seconds used in current billing period. */
+  @Column({ name: 'voice_seconds_used', type: 'int', default: 0 })
+  voiceSecondsUsed: number;
+
+  /** STT user speech seconds used in current billing period. */
+  @Column({ name: 'stt_seconds_used', type: 'int', default: 0 })
+  sttSecondsUsed: number;
+
+  /** Number of Gemini AI dictionary explanations generated this period. */
+  @Column({ name: 'dictionary_ai_count', type: 'int', default: 0 })
+  dictionaryAiCount: number;
+
+  /** AI text chat input tokens used this period. */
+  @Column({ name: 'ai_input_tokens', type: 'int', default: 0 })
+  aiInputTokens: number;
+
+  /** AI text chat output tokens used this period. */
+  @Column({ name: 'ai_output_tokens', type: 'int', default: 0 })
+  aiOutputTokens: number;
+
+  /** AI buddy memory storage used in MB. */
+  @Column({ name: 'memory_storage_mb', type: 'float', default: 0 })
+  memoryStorageMb: number;
+
+  /** When usage counters were last reset. */
+  @Column({ name: 'usage_reset_at', type: 'timestamptz', nullable: true })
+  usageResetAt: Date | null;
+
   // --- Activity relations ---
   @OneToMany(() => WordReview, (review) => review.user)
   wordReviews: WordReview[];
