@@ -15,21 +15,27 @@ import { colors } from "../src/theme/theme";
 const PREVIEW_AUTH = false;
 
 function RootNavigator() {
-  const { token, loading, onboarded } = useAuth();
+  const { token, user, loading, onboarded } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
   useEffect(() => {
     if (PREVIEW_AUTH || loading) return;
     const inAuthGroup = segments[0] === "(auth)";
+    const inTeacherGroup = segments[0] === "(teacher)";
+    const isTeacher = user?.role === "teacher";
     if (token) {
-      // Logged in — keep out of the auth/onboarding screens.
-      if (inAuthGroup) router.replace("/(tabs)");
+      // Logged in — route by role and keep out of the auth/onboarding screens.
+      if (isTeacher && !inTeacherGroup) {
+        router.replace("/(teacher)");
+      } else if (!isTeacher && (inAuthGroup || inTeacherGroup)) {
+        router.replace("/(tabs)");
+      }
     } else if (!inAuthGroup) {
       // Not logged in: first-time users see onboarding, returners go to login.
       router.replace(onboarded ? "/(auth)/login" : "/(auth)/onboarding");
     }
-  }, [token, loading, onboarded, segments]);
+  }, [token, user, loading, onboarded, segments]);
 
   if (loading) {
     return (

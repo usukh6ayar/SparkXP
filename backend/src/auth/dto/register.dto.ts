@@ -39,14 +39,15 @@ export class RegisterDto {
   phone?: string;
 
   /**
-   * Role chosen at sign-up. Only student and teacher are allowed via the
-   * public register endpoint — admin/moderator roles are set by super_admin only.
+   * Role chosen at sign-up. Public register is locked to `student` only —
+   * teacher/admin/moderator roles are assigned by an admin (`PATCH /users/:id`).
+   * See PRODUCT_BRIEF.md (teacher = admin-assigned only).
    */
   @IsOptional()
-  @IsIn([UserRole.STUDENT, UserRole.TEACHER], {
-    message: 'Бүртгэлийн үед зөвхөн student эсвэл teacher сонгох боломжтой',
+  @IsIn([UserRole.STUDENT], {
+    message: 'Бүртгэлийн үед зөвхөн student сонгох боломжтой',
   })
-  role?: UserRole.STUDENT | UserRole.TEACHER;
+  role?: UserRole.STUDENT;
 
   @IsOptional()
   @IsIn([...MN_PROVINCES], { message: 'Аймаг/хот буруу байна' })
