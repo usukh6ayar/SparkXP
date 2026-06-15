@@ -263,33 +263,153 @@ Backend (NestJS API)
 
 ---
 
+### 🎯 Phase A12 — Байгууллагууд (Organizations) `[x]`
+
+**Commit:** `3669fe6`
+
+| Боломж | Дэлгэрэнгүй |
+|---|---|
+| `/organizations` хуудас | Бүх байгууллагын жагсаалт (хүснэгт) |
+| Байгууллага нэмэх/засах | Modal: нэр, төрөл (chip + free-text), аймаг, дүүрэг |
+| Байгууллага устгах | confirm dialog |
+| Төрлийн шүүлт | Сургууль / Компани / Хуулийн фирм dropdown |
+| Аймаг dropdown | 21 аймаг + Улаанбаатар (Монгол бүх аймаг) |
+| Дүүрэг dropdown | Улаанбаатар сонгосон үед 9 дүүрэг харагдана |
+| Sidebar | 🏢 **Байгууллага** nav item нэмэгдсэн |
+
+**Backend:** `GET/POST/PATCH/DELETE /organizations` endpoint-ууд раньш байсан, admin холбосон.
+
+---
+
+### 🎯 Phase A13 — Хэрэглэгчийн Хэрэглээ (Usage Monitor) `[x]`
+
+**Commit:** `3669fe6`
+
+| Боломж | Дэлгэрэнгүй |
+|---|---|
+| `/usage` хуудас | Хэрэглэгч бүрийн сарын AI хэрэглэх хүснэгт |
+| Summary карт | Нийт хэрэглэгч / AI хэрэглэсэн / Нийт voice мин / Нийт токен |
+| Хүснэгтийн багана | 🎙 Voice мин · 🎧 STT мин · 📖 Толь · 🤖 Токен · 🧠 Memory |
+| Идэвхтэй мэдээлэл | 0 биш утга primary өнгөөр харуулна |
+| Pagination | 50-аар хуваана, өмнөх/дараах товч |
+| Sidebar | 📊 **Хэрэглээ** nav item нэмэгдсэн |
+
+---
+
+### 🎯 Phase A14 — Даалгавар удирдлага (Assignments) `[x]`
+
+**Commit:** `3669fe6`
+
+Ангиудын (`/classes`) class detail modal-д **Даалгаварууд** tab нэмэгдсэн:
+
+| Боломж | Дэлгэрэнгүй |
+|---|---|
+| Сурагчид / Даалгаварууд tab | Modal дотор хоёр tab солигддог |
+| Даалгавар жагсаалт | төрөл (📚 Хичээл / ❓ Сорил), targetId, дуусах огноо |
+| Даалгавар нэмэх | Хичээл/Сорил сонгох dropdown, datetime-local due date |
+| Даалгавар устгах | confirm + `DELETE /assignments/:id` |
+| **Анги нэмэх** | PageHeader-т "Анги нэмэх" товч + modal нэмэгдсэн |
+
+**Backend:** `GET/POST/DELETE /assignments` endpoint-ууд раньш байсан.
+
+---
+
+### 🎯 Phase A15 — Visual Quiz Builder `[x]`
+
+**Commit:** `1257ddc`, `7a0eff3`
+
+JSON textarea-г **Google Forms шиг visual form builder**-аар солисон:
+
+| Боломж | Дэлгэрэнгүй |
+|---|---|
+| **Тоглоомын төрөл** | Mobile `soril.tsx`-тай тохирох 6 category |
+| **MCEditor** | Асуулт + 4 сонголт + радио товч (зөв хариулт) + оноо |
+| **FBEditor** | Өгүүлбэр (`___` зай) + хариулт input + оноо |
+| **WMEditor** | Англи↔Монгол хос (мөр нэмэх/устгах) + оноо |
+| Асуулт удирдлага | Нэмэх / Устгах / Scroll |
+| Category автомат | Холбох→word_match, Дүүргэх→fill_blank, бусад→multiple_choice |
+| Table badge | Quiz category badge (өнгөт) |
+| Validation | Хоосон талбар, хоосон сонголт шалгана |
+
+**6 тоглоомын category (mobile soril.tsx GAMES-тэй яг таарна):**
+
+| Value | Нэр | Question формат |
+|---|---|---|
+| `word_guess` | 👁 Үг таах | multiple_choice |
+| `listening` | 🎧 Сонсох | multiple_choice |
+| `grammar` | 📖 Дүрэм | multiple_choice |
+| `speed` | ⏱ Хурдан хариулт | multiple_choice |
+| `matching` | 🔗 Холбох | word_match |
+| `fill` | ✏️ Дүүргэх | fill_blank |
+
+**Backend нэмэлт:**
+- `Quiz` entity: `quiz_type` varchar column нэмэгдсэн
+- `CreateQuizDto`: `WordMatchQuestionDto`, `WordMatchPairDto`, `quizType` field, `word_match` discriminator
+- `QuizzesService`: `word_match` validate + score логик
+
+---
+
+### 🎯 Phase A16 — UI Polish `[x]`
+
+**Commit:** `f74c4b4`
+
+| Өөрчлөлт | Дэлгэрэнгүй |
+|---|---|
+| Sidebar "Сорил" → **"Quiz"** | Quizzes nav label |
+| Users: **"Тrofhy" → "Trophy"** | Хүснэгтийн баганын гарчгийн алдаа засагдсан |
+| AI Buddy: нэр нуусан | Карт дээр хувийн нэр (Болд, Сарнай) харагдахгүй — зөвхөн emoji + мэргэжил |
+| AI Buddy: "нэмэх" товч | "AI Buddy нэмэх" товч + "+" placeholder карт. Дарахад `buddies.ts` тайлбар гарна |
+| Lessons: медиа thumbnail | Хичээлийн хүснэгтэд зураг thumbnail — дарахад image/video бүрэн preview modal |
+| Lessons: "Засах" shortcut | Preview modal-аас шууд edit нээх |
+
+---
+
+### 🎯 Phase A17 — Cloud Deployment Тохиргоо `[x]`
+
+**Commit:** `bbec54c`
+
+| Өөрчлөлт | Файл |
+|---|---|
+| PostgreSQL SSL (`DB_SSL=true`) | `backend/src/config/typeorm.config.ts` |
+| Upstash Redis (`REDIS_URL`) | `backend/src/redis/redis.module.ts` |
+| `.env.example` шинэчлэгдсэн | `DB_SSL`, `REDIS_URL` comment-тэй |
+
+**Deployment зааврын дараалал:**
+1. Neon (PostgreSQL) → connection string → `DB_SSL=true`
+2. Upstash (Redis) → `REDIS_URL=rediss://...`
+3. Railway (Backend) → environment variables тохируулна
+4. Vercel (Admin) → `VITE_API_URL=https://your-railway-app.railway.app/api`
+
+---
+
 ## 📁 Одоогийн бүтэц
 
 ```
 admin/
-  index.html                  title: SparkXP Admin
+  index.html                       title: SparkXP Admin
   src/
-    api/client.ts             fetch wrapper (Bearer token, ApiError)
+    api/client.ts                  fetch wrapper (Bearer token, ApiError)
     auth/
-      AuthContext.tsx         login, logout, token (localStorage + memToken)
-      RequireAdmin.tsx        role guard
+      AuthContext.tsx              login, logout, token (localStorage + memToken)
+      RequireAdmin.tsx             role guard
     components/
-      Sidebar.tsx             navigation (Words/Lessons/Quizzes/Users/Classes/
-                              Leaderboard/AI Buddy/Monitor/Settings)
+      Sidebar.tsx                  navigation (11 item)
       Button / Input / Select / Badge / Table / Modal / PageHeader
-      FileUpload.tsx          drag-drop image/video upload
+      FileUpload.tsx               drag-drop image/video upload
     pages/
       login/LoginPage.tsx
-      words/WordsPage.tsx     CRUD + CSV/JSON import from device
-      lessons/LessonsPage.tsx CRUD + image/video upload
-      quizzes/QuizzesPage.tsx CRUD + questions editor
-      users/UsersPage.tsx     list + search + role + trophy viewer
-      classes/ClassesPage.tsx card layout + student roster
-      leaderboard/LeaderboardPage.tsx  scope + period tabs
-      buddy/AiBuddyPage.tsx   5 buddy stats
-      monitor/MonitorPage.tsx payments + plan CRUD + usage limits
-      settings/SettingsPage.tsx AI limits
-  .env.example                VITE_API_URL=http://localhost:3000/api
+      words/WordsPage.tsx          CRUD + CSV/JSON import
+      lessons/LessonsPage.tsx      CRUD + media upload + thumbnail preview
+      quizzes/QuizzesPage.tsx      Visual builder (MC/FB/WM) + 6 game categories
+      users/UsersPage.tsx          list + search + role + trophy viewer
+      classes/ClassesPage.tsx      карт + student roster + assignments tab + create
+      organizations/OrganizationsPage.tsx  CRUD + аймаг/дүүрэг
+      leaderboard/LeaderboardPage.tsx      scope + period tabs
+      buddy/AiBuddyPage.tsx        5 buddy stats (нэр нуусан) + add button
+      usage/UsagePage.tsx          per-user AI usage stats
+      monitor/MonitorPage.tsx      payments + plan CRUD + usage limits
+      settings/SettingsPage.tsx    AI limits
+  .env.example                     VITE_API_URL=http://localhost:3000/api
 ```
 
 ---
@@ -341,11 +461,9 @@ admin/
 - [ ] AI Dictionary endpoint — `GET /dictionary/:word` (DB cache → Gemini fallback)
 
 ### Admin dashboard (хийгдэх ёстой)
-- [ ] **Organizations** хуудас — байгууллага CRUD (`/organizations`)
-- [ ] **Usage monitor** — хэрэглэгч бүрийн voice/STT/dictionary/token хэрэглээний хүснэгт
 - [ ] **Cost dashboard** — plan-аар нэгтгэсэн сарын API зардлын тооцоо
-- [ ] **Assignment** удирдлага — класст даалгавар нэмэх/шалгах
-- [ ] Push notification — admin-аас бүх хэрэглэгчид мэдэгдэл явуулах
+- [ ] **Push notification** — admin-аас бүх хэрэглэгчид мэдэгдэл явуулах
+- [ ] **Quiz isPublished toggle** — хэрэглэгчдэд харагдах/нуух товч (Lessons-д аль хэдийн байна)
 
 ---
 
