@@ -198,6 +198,41 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
 
 ---
 
+## 📑 Doc-aligned backlog — Product Brief-ээс (coordinate)
+
+> Hustle Hive docx-ийн дагуу (`PRODUCT_BRIEF.md`) backend-д нэмэх ёстой зүйлс.
+> Эдгээр нь mobile (teacher + student) болон admin-д хамаатай тул **PR-ийн өмнө
+> хоёр dev тохиролцоно**. Ихэнх нь Phase 1.5 / Phase 3.
+
+**Teacher dashboard гүнзгийрүүлэлт** (mobile M5 🟡)
+- [ ] Assignment **completion tracking** — оноосон lesson/quiz-ийг хэн дуусгасан
+      (X/N), статус. (Assignment-д completion data, эсвэл шинэ progress query.)
+- [ ] Класс доторх **per-student quiz оноо** aggregate.
+- [ ] **Weak topics** — оюутны сул скилл/категори (quiz/SRS дататай тооцох).
+- [x] `GET /api/classes/:id/progress` (xpWeek/Month/Total+sparks) — бэлэн.
+
+**User профайл / plan** (mobile M6)
+- [ ] `User.level` (placement түвшин) + `User.plan` талбар.
+- [ ] Plan caps-ийг admin/DB-ээс тохируулах (app update-гүй) — Free/Standard/Premium.
+
+**AI usage metering + cap enforcement** (PRODUCT_BRIEF §5)
+- [ ] `AiUsage`-д: `voice_seconds`, `stt_seconds`, `dictionary_ai_count`,
+      `dictionary_cache_hit`, `ai_input/output_tokens`, `memory_storage_mb`,
+      `memory_retrieval_count`. Real-time per-user meter.
+- [ ] Voice cap (Standard 25 / Premium 50 мин) — 80%/95% warning, cap-д voice зогсоод text үргэлжлэх.
+- [ ] STT cap (75 / 100–120 мин) + VAD.
+
+**AI Dictionary module** (Gemini 2.5 Flash-Lite)
+- [ ] DB/cache-first lookup; Gemini зөвхөн шинэ үг/гүн тайлбар. 4-section, `max_output_tokens≈450–500`, grounding OFF, cache.
+
+**Voice AI** (Phase 3, AI Gateway-аар)
+- [ ] TTS (ElevenLabs Flash/Turbo) + STT (Scribe) — fallback: API унавал text mode.
+
+**Gamification tracking** (mobile Home/Profile placeholder-ийг live болгох)
+- [ ] Streak, daily-XP goal, lesson completion, badge — endpoint + `User`/log талбарууд.
+
+---
+
 ## 🔁 Тогтмол баримтлах зарчмууд (CLAUDE.md-ээс)
 
 - Бүх контент **DB-д**, hardcode хийхгүй

@@ -6,6 +6,7 @@ scale. Монгол хэл primary.
 
 > Тэмдэглэгээ: `[x]` дууссан · `[~]` хийгдэж байгаа · `[ ]` хийгээгүй
 > Backend roadmap: `ROADMAP.md` · Дүрэм: `CLAUDE.md`
+> **Бүтээгдэхүүний чиглэл / plan / cost guardrail: `PRODUCT_BRIEF.md`** (Hustle Hive docx нэгтгэл).
 
 ---
 
@@ -259,10 +260,65 @@ mockup-аар дахин зохион барьсан. Дизайны эх сур
       (app.json заасан). Брэнд icon үүсгэх.
 - [ ] **Фонт ачаалах** — Onest/Inter (`expo-font`).
 - [ ] **Lucide icon** руу шилжих (Ionicons-оос).
-- [ ] **Onboarding flow** (welcome → түвшин/зорилго) — хийгээгүй.
+- [x] **Onboarding flow** — 3 слайд carousel (skip, dots, mascot) + login/register
+      redesign (multi-step: мэдээлэл→байршил→амжилттай). main-д. *(mascot зураг түр
+      placeholder — `assets/onboarding/PROMPTS.md`-аар жинхэнийг солино.)*
 - [ ] **Бодит gamification дата** — streak, level, өдрийн XP зорилго, category
       progress, lesson completion, Profile stat (Хичээл/Сорил тоо) — бүгд одоо
       **placeholder** (backend tracking хэрэгтэй).
 - [ ] **Видео тоглуулагч** — жинхэнэ (`expo-video` + `content.videoUrl`).
 - [ ] **Soril тоглоомууд** — логик ("тун удахгүй").
 - [ ] (Сонголт) Home/Lessons/Chat-д premium gradient/depth давхарга.
+
+---
+
+## 🎯 Phase M5 — Багшийн хэсэг (role-based) `[ ]` — 👤 Усухбаяр
+
+> Шийдвэр: **role-оор tab бүхэлд солино** · teacher эрх зөвхөн admin-аас
+> (`PATCH /users/:id`) · MVP = анги + join code + roster + даалгавар оноох.
+> Backend бараг бэлэн (`PRODUCT_BRIEF.md` §6).
+
+**Role routing**
+- [ ] `app/_layout.tsx` gate — нэвтэрсний дараа `user.role`-оор: `teacher`→`/(teacher)`, бусад→`/(tabs)`.
+- [ ] Шинэ route group `app/(teacher)/` + энгийн `Tabs` (AI-төв байхгүй).
+- [ ] Register-ийг student-only болгох (backend DTO-той зэрэгцүүлж).
+
+**Mobile API давхарга** (бүгд backend-д бэлэн)
+- [ ] `src/api/classes.ts` — `getMyClasses` (`GET /classes`), `createClass` (`POST /classes`),
+      `getClass` (`GET /classes/:id`), `getClassStudents` (`GET /classes/:id/students`),
+      `getClassProgress` (`GET /classes/:id/progress` → оюутан бүрийн xpWeek/Month/Total+sparks).
+- [ ] `src/api/assignments.ts` — `createAssignment` (`POST /assignments`),
+      `getClassAssignments` (`GET /assignments?classId=`), `deleteAssignment` (`DELETE /assignments/:id`).
+
+**Дэлгэцүүд (🟢 одоо хийж болно)**
+- [ ] **Ангиуд** (`(teacher)/index.tsx`) — заадаг ангиуд (нэр, сурагч тоо, код) + "Анги үүсгэх".
+- [ ] **Ангийн дэлгэрэнгүй** (`(teacher)/class/[id].tsx`) — **элсэх кодын карт (Share)** ·
+      сурагчид (нэр + XP, progress-аас xpWeek/Total) · даалгаврууд (оноох/устгах).
+- [ ] **Даалгавар оноох** — төрөл (хичээл/сорил) → контент → due date → `POST /assignments`.
+- [ ] **Багшийн профайл** — нэр, "Багш" badge, сургууль/анги, гарах (student profile суурийг дахин ашиглах).
+- **DoD:** Багш нэвтэрч → анги үүсгэ → код хуваалцана → сурагч элснэ → roster+XP харна → даалгавар онооно.
+
+**🟡 Backend хэрэгтэй (дараа — `ROADMAP.md` coordinate)**
+- [ ] Даалгаврын **гүйцэтгэлийн төлөв** (хэн дуусгасан, X/N).
+- [ ] Сурагч бүрийн **quiz оноо** + **сул сэдвүүд** (weak topics).
+- [ ] Класснаас сурагч хасах UI (`DELETE /classes/:id/leave` бэлэн — багш талын endpoint тодруулах).
+
+---
+
+## 🎯 Phase M6 — Product-brief alignment (сурагч тал) `[ ]` — 👤 Усухбаяр
+
+> `PRODUCT_BRIEF.md`-д нийцүүлэх. Эрэмбэ: эхлээд хямд/одоо боломжтой.
+
+**Одоо / хямд**
+- [ ] **Home → "Үргэлжлүүлэх"** ганц гол үйлдэл (Duolingo-style), дараа нь secondary.
+- [ ] **Placement / level** сонголт (register эсвэл onboarding-д; User `level`).
+- [ ] **Оноосон даалгавраа харах** (сурагч) — `GET /api/assignments/my` бэлэн (хурдан ялалт).
+- [ ] Профайлд **English name санал + avatar**.
+- [ ] **Plan / limit badge** — одоогийн plan + Sparks тэнцэл (Sparks бэлэн).
+
+**Дараа (Phase 1.5+)**
+- [ ] Duolingo-style **lesson path** (одоогийн жагсаалтын оронд).
+- [ ] **Voice AI** speaking + cap UI (80%/95% warning → voice зогсох → reset+upgrade) — одоо "coming soon".
+- [ ] **Double-tap dictionary** (DB/cache эхэлж, дараа Gemini).
+- [ ] **Profession AI buddies** (Бишрэлт 5 buddy backend-д нэмсэн — mobile-д ил гаргах).
+- [ ] **Streak / badge** UI (backend tracking бэлэн болоход).
