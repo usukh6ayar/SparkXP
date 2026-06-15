@@ -5,12 +5,13 @@ import {
   ScrollView,
   StyleSheet,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing } from '../theme/theme';
 
 /**
- * Shared scrollable screen wrapper that handles the keyboard and padding.
- * Used by auth screens so the layout isn't duplicated. `centered` vertically
- * centers the content (login/register); turn off for top-aligned screens.
+ * Shared scrollable screen wrapper that handles safe-area insets, the keyboard
+ * and padding. Used by auth screens so the layout isn't duplicated. `centered`
+ * vertically centers the content (login/register); off for top-aligned screens.
  */
 export function Screen({
   children,
@@ -20,17 +21,19 @@ export function Screen({
   centered?: boolean;
 }) {
   return (
-    <KeyboardAvoidingView
-      style={styles.flex}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <ScrollView
-        contentContainerStyle={[styles.content, centered && styles.centered]}
-        keyboardShouldPersistTaps="handled"
+    <SafeAreaView style={styles.flex} edges={['top', 'bottom']}>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        {children}
-      </ScrollView>
-    </KeyboardAvoidingView>
+        <ScrollView
+          contentContainerStyle={[styles.content, centered && styles.centered]}
+          keyboardShouldPersistTaps="handled"
+        >
+          {children}
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 

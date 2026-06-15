@@ -18,6 +18,8 @@ interface Props {
   variant?: 'primary' | 'secondary' | 'ghost';
   size?: 'md' | 'lg';
   icon?: IconName;
+  /** Trailing icon shown after the label (e.g. arrow-forward). */
+  iconRight?: IconName;
   loading?: boolean;
   disabled?: boolean;
   fullWidth?: boolean;
@@ -31,6 +33,7 @@ export function Button({
   variant = 'primary',
   size = 'lg',
   icon,
+  iconRight,
   loading,
   disabled,
   fullWidth = true,
@@ -65,6 +68,9 @@ export function Button({
           <AppText variant="bodyStrong" color={fg} style={styles.label}>
             {label}
           </AppText>
+          {iconRight ? (
+            <Ionicons name={iconRight} size={size === 'lg' ? 20 : 18} color={fg} />
+          ) : null}
         </View>
       )}
     </Pressable>

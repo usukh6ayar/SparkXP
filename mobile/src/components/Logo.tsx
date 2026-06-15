@@ -6,29 +6,44 @@ const logoMark = require('../../assets/logo.png');
 
 /**
  * SparkXP logo: the running-fox brand mark above the "SparkXP" wordmark.
- * `lg` (default) is for the auth/splash screens; `md` for tighter headers.
+ * - `lg` (default) is for the auth/splash screens; `md` for tighter headers.
+ * - `wordmarkOnly` drops the fox mark + tagline (compact header use).
+ * - `align` controls horizontal alignment (default centered).
  */
-export function Logo({ size = 'lg' }: { size?: 'md' | 'lg' }) {
+export function Logo({
+  size = 'lg',
+  wordmarkOnly = false,
+  align = 'center',
+}: {
+  size?: 'md' | 'lg';
+  wordmarkOnly?: boolean;
+  align?: 'center' | 'left';
+}) {
   const big = size === 'lg';
   const mark = big ? 132 : 84;
   return (
-    <View style={styles.wrap}>
-      <Image
-        source={logoMark}
-        style={{ width: mark, height: mark }}
-        resizeMode="contain"
-        accessibilityLabel="SparkXP"
-      />
+    <View style={[styles.wrap, align === 'left' && styles.left]}>
+      {wordmarkOnly ? null : (
+        <Image
+          source={logoMark}
+          style={{ width: mark, height: mark }}
+          resizeMode="contain"
+          accessibilityLabel="SparkXP"
+        />
+      )}
       <Text style={[styles.word, { fontSize: big ? fontSize.xxl : fontSize.xl }]}>
         Spark<Text style={{ color: colors.primary }}>XP</Text>
       </Text>
-      {big ? <Text style={styles.tagline}>Суралц • Дадлага • Амжилт</Text> : null}
+      {big && !wordmarkOnly ? (
+        <Text style={styles.tagline}>Суралц • Дадлага • Амжилт</Text>
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   wrap: { alignItems: 'center' },
+  left: { alignItems: 'flex-start' },
   word: {
     fontWeight: '800',
     color: colors.navy,

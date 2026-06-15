@@ -9,17 +9,53 @@ const mn = {
   // Auth
   login: 'Нэвтрэх',
   register: 'Бүртгүүлэх',
-  email: 'Имэйл',
+  email: 'Имэйл хаяг',
   password: 'Нууц үг',
   fullName: 'Бүтэн нэр',
   province: 'Аймаг / Хот',
   district: 'Дүүрэг / Сум',
   logout: 'Гарах',
-  noAccount: 'Шинэ хэрэглэгч үү?',
+  noAccount: 'Бүртгэлгүй юу?',
   haveAccount: 'Бүртгэлтэй юу?',
   selectProvince: 'Аймаг/хот сонгох',
   selectDistrict: 'Дүүрэг сонгох',
   optional: 'заавал биш',
+
+  // Onboarding
+  skip: 'Алгасах',
+  onbNext: 'Дараах',
+  onbStart: 'Эхлэх',
+  onb1Title: 'SparkXP-т\nТавтай морил! 👋',
+  onb1Body: 'Англи хэлийг илүү хялбар, үр дүнтэй, тоглоом шиг сурах шинэ арга.',
+  onb2Title: 'XP цуглуулж\nтүвшингээ ахиулаарай',
+  onb2Body:
+    'Хичээл, дасгал бүрээс XP цуглуулж, цуграалаа хадгалан илүү их шагнал аваарай.',
+  onb3Title: 'AI найзтайгаа\nдадлага хий',
+  onb3Body:
+    'AI найз Spark таны яриа, бичиг, дуудлагаар англи хэлийг сайжруулахад тусална.',
+
+  // Login
+  welcomeBack: 'Тавтай морил! 👋',
+  loginSubtitle: 'Бүртгэлтэй хэрэглэгч бол нэвтэрч орно уу.',
+  rememberMe: 'Намайг санаарай',
+  forgotPassword: 'Нууц үгээ мартсан уу?',
+  orDivider: 'эсвэл',
+
+  // Register (multi-step)
+  registerSubtitle: 'Хувийн мэдээллээ оруулна уу.',
+  confirmPassword: 'Нууц үгээ баталгаажуулах',
+  passwordRules: 'Нууц үгийн шаардлага',
+  ruleMinLen: '8-аас дээш тэмдэгт',
+  ruleCase: 'Том жижиг латин үсэг орсон',
+  ruleNumber: 'Тоо эсвэл тэмдэгт орсон',
+  passwordMismatch: 'Нууц үг таарахгүй байна.',
+  locationTitle: 'Байршлаа сонгоно уу',
+  locationSubtitle: 'Энэ мэдээлэл таны дүн, чансаанд ашиглагдана.',
+  stepInfo: 'Мэдээлэл',
+  stepLocation: 'Байршил',
+  stepDone: 'Дуссан',
+  successTitle: 'Амжилттай!',
+  successBody: 'Бүртгэл амжилттай үүслээ.\nSparkXP-д тавтай морил! 🎉',
 
   // Home
   home: 'Нүүр',
