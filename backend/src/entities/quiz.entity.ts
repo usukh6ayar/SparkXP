@@ -24,6 +24,13 @@ export class Quiz extends BaseEntity {
   @Column({ type: 'jsonb', default: [] })
   questions: unknown[];
 
+  /**
+   * Quiz category displayed on the mobile home screen.
+   * 'multiple_choice' | 'fill_blank' | 'word_match'
+   */
+  @Column({ name: 'quiz_type', type: 'varchar', nullable: true, default: 'multiple_choice' })
+  quizType: string | null;
+
   /** XP awarded for a passing attempt. */
   @Column({ name: 'xp_reward', type: 'int', default: 0 })
   xpReward: number;

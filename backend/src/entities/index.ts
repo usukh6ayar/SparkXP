@@ -14,6 +14,7 @@ import { Message } from './message.entity';
 import { Payment } from './payment.entity';
 import { SparksLog } from './sparks-log.entity';
 import { LessonUnlock } from './lesson-unlock.entity';
+import { Notification } from './notification.entity';
 
 export {
   Organization,
@@ -31,6 +32,7 @@ export {
   Payment,
   SparksLog,
   LessonUnlock,
+  Notification,
 };
 
 /** Single list to feed TypeORM's `entities` option. */
@@ -50,4 +52,5 @@ export const entities = [
   Payment,
   SparksLog,
   LessonUnlock,
+  Notification,
 ];

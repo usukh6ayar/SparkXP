@@ -7,7 +7,6 @@ import {
   IsArray,
   ValidateNested,
   IsIn,
-  IsNumber,
   Min,
   ArrayNotEmpty,
   IsUUID,
@@ -55,7 +54,35 @@ export class FillBlankQuestionDto {
   points: number;
 }
 
-export type QuestionDto = MultipleChoiceQuestionDto | FillBlankQuestionDto;
+/** A single English ↔ Mongolian word pair used in word-match questions. */
+export class WordMatchPairDto {
+  @IsString()
+  left: string;
+
+  @IsString()
+  right: string;
+}
+
+/** Word-matching question — student matches left-column words to right-column. */
+export class WordMatchQuestionDto {
+  @IsIn(['word_match'])
+  type: 'word_match';
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => WordMatchPairDto)
+  @ArrayNotEmpty()
+  pairs: WordMatchPairDto[];
+
+  @IsInt()
+  @Min(1)
+  points: number;
+}
+
+export type QuestionDto =
+  | MultipleChoiceQuestionDto
+  | FillBlankQuestionDto
+  | WordMatchQuestionDto;
 
 export class CreateQuizDto {
   @IsString()
@@ -70,12 +97,13 @@ export class CreateQuizDto {
   level?: ContentLevel;
 
   /**
-   * Array of question objects. Each must have a `type` field that selects
-   * which DTO it is validated against (multiple_choice or fill_blank).
-   * Using a discriminator (instead of `@Type(() => Object)`) is required so
-   * that `whitelist: true` keeps each question's properties instead of
-   * stripping them down to an empty object.
+   * Quiz category shown on the mobile home screen.
+   * Values: 'multiple_choice' | 'fill_blank' | 'word_match'
    */
+  @IsOptional()
+  @IsString()
+  quizType?: string;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => Object, {
@@ -84,13 +112,13 @@ export class CreateQuizDto {
       subTypes: [
         { value: MultipleChoiceQuestionDto, name: 'multiple_choice' },
         { value: FillBlankQuestionDto, name: 'fill_blank' },
+        { value: WordMatchQuestionDto, name: 'word_match' },
       ],
     },
     keepDiscriminatorProperty: true,
   })
   questions: QuestionDto[];
 
-  /** XP awarded when a student passes (>= 50% score). */
   @IsOptional()
   @IsInt()
   @Min(0)
