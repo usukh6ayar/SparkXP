@@ -17,12 +17,16 @@ async function bootstrap() {
 
   app.setGlobalPrefix('api');
 
+  const allowedOrigins = [
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://localhost:5174',
+    // Production admin — set ADMIN_ORIGIN env var to your Vercel URL
+    config.get<string>('ADMIN_ORIGIN', ''),
+  ].filter(Boolean);
+
   app.enableCors({
-    origin: [
-      'http://localhost:5173',
-      'http://127.0.0.1:5173',
-      'http://localhost:5174',
-    ],
+    origin: allowedOrigins,
     credentials: true,
   });
 
