@@ -28,7 +28,14 @@ interface FbQuestion {
   points: number;
 }
 
-type StoredQuestion = McQuestion | FbQuestion;
+/** Shape we accept and store for a word-matching question. */
+interface WmQuestion {
+  type: 'word_match';
+  pairs: { left: string; right: string }[];
+  points: number;
+}
+
+type StoredQuestion = McQuestion | FbQuestion | WmQuestion;
 
 export interface QuizResult {
   score: number;       // correct points earned
@@ -102,8 +109,27 @@ export class QuizzesService {
         };
       }
 
+      if (q.type === 'word_match') {
+        const wm = q as Partial<WmQuestion>;
+        if (
+          !Array.isArray(wm.pairs) ||
+          wm.pairs.length < 2 ||
+          typeof wm.points !== 'number' ||
+          wm.points < 1
+        ) {
+          throw new BadRequestException(
+            `questions[${i}]: word_match requires pairs (≥2 pairs) and points (≥1)`,
+          );
+        }
+        return {
+          type: 'word_match' as const,
+          pairs: wm.pairs as { left: string; right: string }[],
+          points: wm.points,
+        };
+      }
+
       throw new BadRequestException(
-        `questions[${i}]: unknown type "${String((q as { type?: unknown }).type)}" — use multiple_choice or fill_blank`,
+        `questions[${i}]: unknown type "${String((q as { type?: unknown }).type)}" — use multiple_choice, fill_blank, or word_match`,
       );
     });
   }
@@ -187,6 +213,19 @@ export class QuizzesService {
         correct =
           typeof userAnswer === 'string' &&
           userAnswer.trim().toLowerCase() === q.answer.trim().toLowerCase();
+      } else if (q.type === 'word_match') {
+        // Mobile sends matched pairs as JSON string; full match = correct
+        try {
+          const submitted = typeof userAnswer === 'string' ? JSON.parse(userAnswer) : userAnswer;
+          if (Array.isArray(submitted)) {
+            const allMatch = (q as WmQuestion).pairs.every((pair) =>
+              submitted.some((s: { left: string; right: string }) =>
+                s.left === pair.left && s.right === pair.right,
+              ),
+            );
+            correct = allMatch;
+          }
+        } catch { correct = false; }
       }
 
       if (correct) earned += q.points;
