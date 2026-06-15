@@ -23,11 +23,11 @@ export interface LessonUnlock {
 }
 
 export function getLessons(token: string, params?: { level?: string; type?: string }): Promise<{ items: Lesson[]; total: number }> {
-  const q = new URLSearchParams();
-  if (params?.level) q.set('level', params.level);
-  if (params?.type) q.set('type', params.type);
-  q.set('isPublished', 'true');
-  return apiRequest<{ items: Lesson[]; total: number }>(`/lessons?${q}`, { token });
+  // Plain query string — React Native's URLSearchParams is unreliable.
+  let url = '/lessons?isPublished=true';
+  if (params?.level) url += `&level=${params.level}`;
+  if (params?.type) url += `&type=${params.type}`;
+  return apiRequest<{ items: Lesson[]; total: number }>(url, { token });
 }
 
 export function getLesson(id: string, token: string): Promise<Lesson> {
