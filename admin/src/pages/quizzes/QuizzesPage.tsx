@@ -46,10 +46,14 @@ interface Quiz {
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
+/** Mobile soril.tsx дахь GAMES массивтай тохирох category-ууд */
 const QUIZ_TYPES = [
-  { value: 'multiple_choice', label: '🔵 Олон сонголт', desc: 'А, Б, В, Г сонголтоос нэгийг сонгоно' },
-  { value: 'fill_blank',      label: '✏️ Нөхөх',         desc: 'Хоосон зайг нөхөж бичнэ' },
-  { value: 'word_match',      label: '🎯 Үг буудах',      desc: 'Үгийг тохирох орчуулгатай нь холбоно' },
+  { value: 'word_guess',  label: '👁 Үг таах',         desc: 'Зураг харж, зөв үгийг сонго',    questionType: 'multiple_choice' },
+  { value: 'listening',   label: '🎧 Сонсох',           desc: 'Аудио сонсож хариул',             questionType: 'multiple_choice' },
+  { value: 'grammar',     label: '📖 Дүрэм',            desc: 'Грамматик дасгал',                questionType: 'multiple_choice' },
+  { value: 'speed',       label: '⏱ Хурдан хариулт',   desc: 'Хугацаанд багтаа!',               questionType: 'multiple_choice' },
+  { value: 'matching',    label: '🔗 Холбох',           desc: 'Үг, зургийг холбо',               questionType: 'word_match'      },
+  { value: 'fill',        label: '✏️ Дүүргэх',          desc: 'Хоосон зайг нөх',                 questionType: 'fill_blank'      },
 ];
 
 const LEVEL_OPTIONS = [
@@ -58,16 +62,22 @@ const LEVEL_OPTIONS = [
   { value: 'c1', label: 'C1' }, { value: 'c2', label: 'C2' },
 ];
 
-const TYPE_COLORS: Record<string, 'blue' | 'green' | 'yellow'> = {
-  multiple_choice: 'blue',
-  fill_blank: 'green',
-  word_match: 'yellow',
+const TYPE_COLORS: Record<string, 'blue' | 'green' | 'yellow' | 'gray'> = {
+  word_guess: 'green',
+  listening:  'blue',
+  grammar:    'blue',
+  speed:      'yellow',
+  matching:   'yellow',
+  fill:       'green',
 };
 
 const TYPE_LABELS: Record<string, string> = {
-  multiple_choice: 'Олон сонголт',
-  fill_blank: 'Нөхөх',
-  word_match: 'Үг буудах',
+  word_guess: 'Үг таах',
+  listening:  'Сонсох',
+  grammar:    'Дүрэм',
+  speed:      'Хурдан хариулт',
+  matching:   'Холбох',
+  fill:       'Дүүргэх',
 };
 
 // ── Helpers to create blank questions ─────────────────────────────────────
@@ -82,9 +92,12 @@ function blankWM(): WMQuestion {
   return { type: 'word_match', pairs: [{ left: '', right: '' }, { left: '', right: '' }], points: 10 };
 }
 
-function blankFor(qt: string): Question {
-  if (qt === 'fill_blank') return blankFB();
-  if (qt === 'word_match') return blankWM();
+/** Returns a blank question of the right type based on the quiz category. */
+function blankFor(quizType: string): Question {
+  const def = QUIZ_TYPES.find(q => q.value === quizType);
+  const qType = def?.questionType ?? 'multiple_choice';
+  if (qType === 'fill_blank') return blankFB();
+  if (qType === 'word_match') return blankWM();
   return blankMC();
 }
 
@@ -284,7 +297,7 @@ interface QuizForm {
   questions: Question[];
 }
 
-const emptyForm = (qt = 'multiple_choice'): QuizForm => ({
+const emptyForm = (qt = 'word_guess'): QuizForm => ({
   title: '', level: 'a1', xpReward: 10, quizType: qt, questions: [blankFor(qt)],
 });
 
@@ -416,13 +429,7 @@ export default function QuizzesPage() {
         title="Quizzes"
         description={`Нийт: ${quizzes.length}`}
         action={
-          <div className="flex gap-2">
-            {QUIZ_TYPES.map(qt => (
-              <Button key={qt.value} onClick={() => openCreate(qt.value)} size="sm">
-                <Plus className="h-4 w-4" /> {qt.label}
-              </Button>
-            ))}
-          </div>
+          <Button onClick={() => openCreate()}><Plus className="h-4 w-4" /> Quiz нэмэх</Button>
         }
       />
 
@@ -458,22 +465,29 @@ export default function QuizzesPage() {
               />
             </div>
 
-            {/* Quiz type selector */}
+            {/* Quiz category — mobile soril.tsx-тай тохирно */}
             <div>
-              <p className="text-sm font-medium text-gray-700 mb-2">Quiz төрөл</p>
+              <p className="text-sm font-medium text-gray-700 mb-2">Тоглоомын төрөл</p>
               <div className="grid grid-cols-3 gap-2">
                 {QUIZ_TYPES.map(qt => (
                   <button
                     key={qt.value}
                     type="button"
-                    onClick={() => setForm(f => ({ ...f, quizType: qt.value }))}
-                    className={`rounded-xl border-2 p-3 text-left transition-all ${
+                    onClick={() => {
+                      // Switch category: reset questions to match the new type's default question format
+                      setForm(f => ({
+                        ...f,
+                        quizType: qt.value,
+                        questions: f.questions.length ? f.questions : [blankFor(qt.value)],
+                      }));
+                    }}
+                    className={`rounded-xl border-2 p-2.5 text-left transition-all ${
                       form.quizType === qt.value
                         ? 'border-primary bg-primary/5'
                         : 'border-gray-200 hover:border-gray-300'
                     }`}
                   >
-                    <p className="text-sm font-semibold">{qt.label}</p>
+                    <p className="text-sm font-semibold leading-tight">{qt.label}</p>
                     <p className="text-xs text-gray-400 mt-0.5 leading-tight">{qt.desc}</p>
                   </button>
                 ))}
