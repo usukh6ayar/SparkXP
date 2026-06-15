@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Pencil, Trash2, GripVertical, X } from 'lucide-react';
+import { Plus, Pencil, Trash2, GripVertical, X, Eye, EyeOff } from 'lucide-react';
 import { api } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
 import { Button } from '../../components/Button';
@@ -383,6 +383,11 @@ export default function QuizzesPage() {
     } finally { setSaving(false); }
   }
 
+  async function togglePublish(q: Quiz) {
+    await api.patch(`/quizzes/${q.id}`, { isPublished: !q.isPublished });
+    load();
+  }
+
   async function remove(id: string) {
     if (!confirm('Quiz устгах уу?')) return;
     await api.delete(`/quizzes/${id}`);
@@ -416,6 +421,15 @@ export default function QuizzesPage() {
       key: 'actions', header: '',
       render: (q: Quiz) => (
         <div className="flex gap-1 justify-end">
+          <Button
+            variant="ghost" size="sm"
+            title={q.isPublished ? 'Нуух' : 'Нийтлэх'}
+            onClick={() => togglePublish(q)}
+          >
+            {q.isPublished
+              ? <Eye className="h-4 w-4 text-green-500" />
+              : <EyeOff className="h-4 w-4 text-gray-400" />}
+          </Button>
           <Button variant="ghost" size="sm" onClick={() => openEdit(q)}><Pencil className="h-4 w-4" /></Button>
           <Button variant="ghost" size="sm" onClick={() => remove(q.id)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
         </div>

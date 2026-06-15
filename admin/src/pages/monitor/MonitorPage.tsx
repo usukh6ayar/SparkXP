@@ -1,5 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, TrendingDown } from 'lucide-react';
+
+const USD_TO_MNT = 3400; // approximate exchange rate
+
+function estimateMonthlyCostMnt(plan: Plan): number {
+  const voice = (plan.voiceMinutesLimit ?? 0) * 0.015 * USD_TO_MNT;
+  const stt   = (plan.sttMinutesLimit   ?? 0) * 0.016 * USD_TO_MNT;
+  const dict  = (plan.dictionaryAiLimit ?? 0) * 0.0005 * USD_TO_MNT;
+  const tok   = ((plan.aiTextTokensLimit ?? 0) / 1000) * 0.003 * USD_TO_MNT;
+  return Math.round(voice + stt + dict + tok);
+}
 import { api } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
 import { Badge } from '../../components/Badge';
@@ -185,6 +195,64 @@ export default function MonitorPage() {
       <h2 className="text-lg font-semibold text-gray-800 mb-3">Төлбөрийн жагсаалт</h2>
       <Table columns={paymentColumns} rows={payments} keyFn={(p) => p.id} empty="Төлбөр байхгүй" />
 
+      {/* Cost Dashboard */}
+      <div className="flex items-center gap-2 mt-10 mb-3">
+        <TrendingDown className="h-5 w-5 text-red-400" />
+        <h2 className="text-lg font-semibold text-gray-800">Зардлын тооцоо</h2>
+      </div>
+      <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm mb-8">
+        <p className="text-xs text-gray-400 mb-4">
+          * Ойролцоо тооцоол — 1 USD ≈ {USD_TO_MNT.toLocaleString()} ₮ &nbsp;·&nbsp;
+          🎙 TTS $0.015/мин &nbsp;·&nbsp; 🎧 STT $0.016/мин &nbsp;·&nbsp;
+          📖 Толь $0.0005/хүсэлт &nbsp;·&nbsp; 🤖 Токен $0.003/1k
+        </p>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100">
+                <th className="text-left pb-2 text-gray-500 font-medium">План</th>
+                <th className="text-right pb-2 text-gray-500 font-medium">Үнэ ₮/сар</th>
+                <th className="text-right pb-2 text-gray-500 font-medium">API зардал ₮/сар</th>
+                <th className="text-right pb-2 text-gray-500 font-medium">Ашиг ₮</th>
+                <th className="text-right pb-2 text-gray-500 font-medium">Маржин %</th>
+              </tr>
+            </thead>
+            <tbody>
+              {plans.length === 0 && (
+                <tr><td colSpan={5} className="py-4 text-center text-gray-400 text-sm">План оруулаагүй байна</td></tr>
+              )}
+              {plans.map(plan => {
+                const cost   = estimateMonthlyCostMnt(plan);
+                const price  = plan.priceAmount;
+                const profit = price - cost;
+                const margin = price > 0 ? Math.round((profit / price) * 100) : 0;
+                return (
+                  <tr key={plan.id} className="border-b border-gray-50 hover:bg-gray-50">
+                    <td className="py-2.5 font-medium">{plan.name}</td>
+                    <td className="py-2.5 text-right">{price.toLocaleString()}</td>
+                    <td className="py-2.5 text-right text-red-500">~{cost.toLocaleString()}</td>
+                    <td className={`py-2.5 text-right font-medium ${profit >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                      {profit.toLocaleString()}
+                    </td>
+                    <td className={`py-2.5 text-right font-bold ${
+                      margin >= 60 ? 'text-green-600' : margin >= 30 ? 'text-yellow-500' : 'text-red-500'
+                    }`}>
+                      {margin}%
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <CostHint emoji="🎙" label="AI Voice (TTS)" rate="$0.015 / мин" />
+          <CostHint emoji="🎧" label="Speech-to-Text" rate="$0.016 / мин" />
+          <CostHint emoji="📖" label="AI Толь" rate="$0.0005 / хүсэлт" />
+          <CostHint emoji="🤖" label="AI Токен" rate="$0.003 / 1k токен" />
+        </div>
+      </div>
+
       {/* Plan create modal */}
       {planModal && (
         <Modal title="Шинэ план нэмэх" onClose={() => setPlanModal(false)}>
@@ -304,6 +372,15 @@ function LimitBadge({ label, value, unit }: { label: string; value: number | nul
     <div className="text-xs text-gray-500">
       <span className="font-medium">{label}:</span>{' '}
       {value == null ? <span className="text-green-600">∞</span> : <span>{value} {unit}</span>}
+    </div>
+  );
+}
+
+function CostHint({ emoji, label, rate }: { emoji: string; label: string; rate: string }) {
+  return (
+    <div className="rounded-lg bg-gray-50 p-3">
+      <p className="text-xs text-gray-400">{emoji} {label}</p>
+      <p className="text-sm font-medium text-gray-700 mt-0.5">{rate}</p>
     </div>
   );
 }
