@@ -16,14 +16,18 @@ export const REDIS_CLIENT = 'REDIS_CLIENT';
     {
       provide: REDIS_CLIENT,
       inject: [ConfigService],
-      useFactory: (config: ConfigService) =>
-        new Redis({
-          host: config.get<string>('REDIS_HOST', 'localhost'),
-          port: config.get<number>('REDIS_PORT', 6379),
-          password: config.get<string>('REDIS_PASSWORD') || undefined,
-          // Don't crash the app if Redis is briefly unavailable; retry.
-          maxRetriesPerRequest: null,
-        }),
+      useFactory: (config: ConfigService) => {
+        const url = config.get<string>('REDIS_URL');
+        // Cloud Redis (Upstash etc.) supplies a full URL; local uses host/port.
+        return url
+          ? new Redis(url, { maxRetriesPerRequest: null, tls: url.startsWith('rediss://') ? {} : undefined })
+          : new Redis({
+              host: config.get<string>('REDIS_HOST', 'localhost'),
+              port: config.get<number>('REDIS_PORT', 6379),
+              password: config.get<string>('REDIS_PASSWORD') || undefined,
+              maxRetriesPerRequest: null,
+            });
+      },
     },
   ],
   exports: [REDIS_CLIENT],
