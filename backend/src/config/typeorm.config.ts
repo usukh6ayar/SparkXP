@@ -17,9 +17,9 @@ export function buildTypeOrmOptions(
     password: config.get<string>('DB_PASSWORD', 'postgres'),
     database: config.get<string>('DB_NAME', 'englishxp'),
     entities,
-    // Dev convenience: auto-create schema from entities. Disable in prod and
-    // use migrations instead.
     synchronize: config.get<string>('DB_SYNCHRONIZE') === 'true',
     logging: config.get<string>('DB_LOGGING') === 'true',
+    // Neon / Supabase / cloud PostgreSQL requires SSL
+    ssl: config.get<string>('DB_SSL') === 'true' ? { rejectUnauthorized: false } : false,
   };
 }
