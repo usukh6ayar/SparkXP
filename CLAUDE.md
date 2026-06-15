@@ -40,6 +40,8 @@ organizations (e.g. law firms). Owner: Hustle Hive LLC.
 - `/backend` — NestJS API (built — see "Current Status")
 - `/mobile` — React Native (Expo) app (started — Expo Router, see MOBILE_ROADMAP.md)
 - `CLAUDE.md` — this file (shared rules + project context)
+- `PRODUCT_BRIEF.md` — product vision, roles, MVP scope, **plan tiers + AI/voice
+  cost guardrails** (Hustle Hive docx нэгтгэл — read before plan/AI/limit work)
 - `ROADMAP.md` — backend task list and build phases
 - `MOBILE_ROADMAP.md` — mobile (frontend) task list + brand
 - `ROLES.md` — user types, roles (student/teacher/admin/super_admin) +
@@ -74,9 +76,14 @@ center = AI buddy image. Home/Lessons skills → Сонсгол `listening` · �
 `reading` · Нөхөх `fill` · Бичих `writing` (filter Lessons by `type`).
 Shared `/backend`: `LessonType` gained `reading`/`writing`/`fill`; `seed.ts`
 `synchronize:true`; `@types/multer` added; `API.md` updated — coordinate w/ Bishrelt.
+Onboarding (3-slide) + login/register redesign (multi-step) shipped to main.
+**Next (mobile):** teacher role-based section (Phase M5 — class/join-code/roster/
+assign; backend ready) + product-brief alignment (Phase M6 — level/English-name/
+avatar/"Continue Learning"/student assignments). Teacher role = admin-assigned only
+(public register locked to student). See `MOBILE_ROADMAP.md` + `PRODUCT_BRIEF.md`.
 **Pending:** app icon files missing; fonts (Onest/Inter) not loaded; Lucide
-migration; onboarding; real gamification data (streak/level/progress are
-placeholders); real video player. Full list: `MOBILE_ROADMAP.md`.
+migration; real gamification data (streak/level/progress are placeholders); real
+video player. Full list: `MOBILE_ROADMAP.md`.
 
 ### Backend folder layout
 
