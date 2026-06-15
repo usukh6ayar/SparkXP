@@ -10,20 +10,26 @@ import { colors } from "../src/theme/theme";
  * - Not logged in + not on an auth screen → go to login.
  * - Logged in + on an auth screen → go to the app (tabs).
  */
+// TEMP: when true, the auth gate stops redirecting so onboarding / login /
+// register can be browsed freely. Set false to restore normal behaviour.
+const PREVIEW_AUTH = false;
+
 function RootNavigator() {
-  const { token, loading } = useAuth();
+  const { token, loading, onboarded } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
   useEffect(() => {
-    if (loading) return;
+    if (PREVIEW_AUTH || loading) return;
     const inAuthGroup = segments[0] === "(auth)";
-    if (!token && !inAuthGroup) {
-      router.replace("/(auth)/login");
-    } else if (token && inAuthGroup) {
-      router.replace("/(tabs)");
+    if (token) {
+      // Logged in — keep out of the auth/onboarding screens.
+      if (inAuthGroup) router.replace("/(tabs)");
+    } else if (!inAuthGroup) {
+      // Not logged in: first-time users see onboarding, returners go to login.
+      router.replace(onboarded ? "/(auth)/login" : "/(auth)/onboarding");
     }
-  }, [token, loading, segments]);
+  }, [token, loading, onboarded, segments]);
 
   if (loading) {
     return (

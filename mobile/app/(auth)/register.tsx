@@ -1,47 +1,104 @@
 import { useState } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, Image, Pressable, StyleSheet } from 'react-native';
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/auth/AuthContext';
 import { ApiError } from '../../src/api/client';
+import * as authApi from '../../src/api/auth';
+import type { AuthResult } from '../../src/api/auth';
 import { t } from '../../src/i18n';
-import { spacing } from '../../src/theme/theme';
+import { spacing, colors, radius } from '../../src/theme/theme';
 import { MN_PROVINCES, UB_DISTRICTS } from '../../src/constants/locations';
 import { Screen } from '../../src/components/Screen';
-import { Logo } from '../../src/components/Logo';
+import { AppText } from '../../src/components/Text';
 import { TextField } from '../../src/components/TextField';
 import { SelectField } from '../../src/components/SelectField';
 import { Button } from '../../src/components/Button';
 import { FormError } from '../../src/components/FormError';
 import { AuthFooter } from '../../src/components/AuthFooter';
 
+const mapFox = require('../../assets/onboarding/map-fox.png');
+const successFox = require('../../assets/onboarding/success-fox.png');
+
+// A few confetti dots scattered behind the success mascot (decorative).
+const CONFETTI = [
+  { top: 0, left: 30, color: colors.primary },
+  { top: 20, right: 24, color: colors.xp },
+  { top: 70, left: 8, color: colors.sparks },
+  { top: 60, right: 6, color: colors.success },
+  { top: 110, left: 40, color: colors.streak },
+  { top: 120, right: 36, color: colors.primaryDark },
+];
+
+// Password requirement checks (mirrored in the rules card).
+const rules = {
+  minLen: (p: string) => p.length >= 8,
+  letterCase: (p: string) => /[a-z]/.test(p) && /[A-Z]/.test(p),
+  number: (p: string) => /[0-9]/.test(p) || /[^A-Za-z0-9]/.test(p),
+};
+
+/** One password-requirement row that turns green once satisfied. */
+function Rule({ ok, label }: { ok: boolean; label: string }) {
+  return (
+    <View style={styles.ruleRow}>
+      <Ionicons
+        name={ok ? 'checkmark-circle' : 'ellipse-outline'}
+        size={16}
+        color={ok ? colors.success : colors.textMuted}
+      />
+      <AppText variant="caption" color={ok ? colors.text : colors.textSecondary}>
+        {label}
+      </AppText>
+    </View>
+  );
+}
+
 export default function RegisterScreen() {
-  const { register } = useAuth();
+  const { applySession } = useAuth();
+  const router = useRouter();
+
+  const [step, setStep] = useState<0 | 1 | 2>(0); // info → location → success
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
   const [province, setProvince] = useState<string | undefined>();
   const [district, setDistrict] = useState<string | undefined>();
+  const [result, setResult] = useState<AuthResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // District applies only to Ulaanbaatar (only its districts are enumerated).
   const isUB = province === 'Улаанбаатар';
+  const passOk = rules.minLen(password) && rules.letterCase(password) && rules.number(password);
+  const infoValid = fullName.trim() && email.trim() && passOk && confirm === password;
 
   function onProvinceChange(value: string) {
     setProvince(value);
     if (value !== 'Улаанбаатар') setDistrict(undefined);
   }
 
-  async function onSubmit() {
+  function goInfoNext() {
+    setError(null);
+    if (!passOk) return setError(t('required'));
+    if (confirm !== password) return setError(t('passwordMismatch'));
+    setStep(1);
+  }
+
+  async function submit() {
     setError(null);
     setBusy(true);
     try {
-      await register({
+      // Create the account but don't persist the session yet — we show the
+      // success step first, then `applySession` on "Эхлэх" enters the app.
+      const res = await authApi.register({
         email: email.trim(),
         password,
         fullName: fullName.trim(),
         province,
         district: isUB ? district : undefined,
       });
+      setResult(res);
+      setStep(2);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : t('errorGeneric'));
     } finally {
@@ -49,53 +106,211 @@ export default function RegisterScreen() {
     }
   }
 
-  return (
-    <Screen centered>
-      <View style={styles.logo}>
-        <Logo size="md" />
-      </View>
+  function back() {
+    if (step === 1) setStep(0);
+    else router.replace('/(auth)/login');
+  }
 
-      <TextField label={t('fullName')} placeholder="Бат Болд" value={fullName} onChangeText={setFullName} />
-      <TextField
-        label={t('email')}
-        placeholder="name@email.com"
-        autoCapitalize="none"
-        keyboardType="email-address"
-        value={email}
-        onChangeText={setEmail}
-      />
-      <TextField
-        label={t('password')}
-        placeholder="дор хаяж 6 тэмдэгт"
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-      />
-      <SelectField
-        label={`${t('province')} (${t('optional')})`}
-        placeholder={t('selectProvince')}
-        value={province}
-        options={MN_PROVINCES}
-        onSelect={onProvinceChange}
-      />
-      {isUB ? (
-        <SelectField
-          label={`${t('district')} (${t('optional')})`}
-          placeholder={t('selectDistrict')}
-          value={district}
-          options={UB_DISTRICTS}
-          onSelect={setDistrict}
+  // ---- Step 3: success ----
+  if (step === 2) {
+    return (
+      <Screen centered>
+        <View style={styles.center}>
+          <View style={styles.checkCircle}>
+            <Ionicons name="checkmark" size={34} color={colors.white} />
+          </View>
+          <View style={styles.successArt}>
+            {CONFETTI.map(({ color, ...pos }, i) => (
+              <View key={i} style={[styles.confetti, pos, { backgroundColor: color }]} />
+            ))}
+            <Image source={successFox} style={styles.successFox} resizeMode="contain" />
+          </View>
+          <AppText variant="display" center color={colors.primary} style={styles.successTitle}>
+            {t('successTitle')}
+          </AppText>
+          <AppText variant="body" center color={colors.textSecondary}>
+            {t('successBody')}
+          </AppText>
+        </View>
+        <Button
+          label={t('onbStart')}
+          iconRight="arrow-forward"
+          onPress={() => result && applySession(result)}
+          style={styles.button}
         />
-      ) : null}
+      </Screen>
+    );
+  }
 
-      <FormError message={error} />
-      <Button label={t('register')} onPress={onSubmit} loading={busy} style={styles.button} />
-      <AuthFooter prompt={t('haveAccount')} linkLabel={t('login')} href="/(auth)/login" />
+  return (
+    <Screen>
+      <Pressable style={styles.back} onPress={back} hitSlop={8}>
+        <Ionicons name="chevron-back" size={26} color={colors.text} />
+      </Pressable>
+
+      {step === 0 ? (
+        <>
+          <AppText variant="h1" center style={styles.title}>
+            {t('register')}
+          </AppText>
+          <AppText variant="body" center color={colors.textSecondary} style={styles.subtitle}>
+            {t('registerSubtitle')}
+          </AppText>
+
+          <TextField
+            leftIcon="person-outline"
+            placeholder={t('fullName')}
+            value={fullName}
+            onChangeText={setFullName}
+          />
+          <TextField
+            leftIcon="mail-outline"
+            placeholder={t('email')}
+            autoCapitalize="none"
+            keyboardType="email-address"
+            value={email}
+            onChangeText={setEmail}
+          />
+          <TextField
+            leftIcon="lock-closed-outline"
+            placeholder={t('password')}
+            secureToggle
+            value={password}
+            onChangeText={setPassword}
+          />
+          <TextField
+            leftIcon="lock-closed-outline"
+            placeholder={t('confirmPassword')}
+            secureToggle
+            value={confirm}
+            onChangeText={setConfirm}
+          />
+
+          <View style={styles.rulesCard}>
+            <AppText variant="label" style={styles.rulesTitle}>
+              {t('passwordRules')}
+            </AppText>
+            <Rule ok={rules.minLen(password)} label={t('ruleMinLen')} />
+            <Rule ok={rules.letterCase(password)} label={t('ruleCase')} />
+            <Rule ok={rules.number(password)} label={t('ruleNumber')} />
+          </View>
+
+          <FormError message={error} />
+          <Button
+            label={t('continue')}
+            iconRight="arrow-forward"
+            onPress={goInfoNext}
+            disabled={!infoValid}
+            style={styles.button}
+          />
+          <AuthFooter prompt={t('haveAccount')} linkLabel={t('login')} href="/(auth)/login" />
+        </>
+      ) : (
+        <>
+          <AppText variant="h1" center style={styles.title}>
+            {t('locationTitle')}
+          </AppText>
+          <AppText variant="body" center color={colors.textSecondary} style={styles.subtitle}>
+            {t('locationSubtitle')}
+          </AppText>
+
+          <SelectField
+            label={t('province')}
+            placeholder={t('selectProvince')}
+            value={province}
+            options={MN_PROVINCES}
+            onSelect={onProvinceChange}
+          />
+          {isUB ? (
+            <SelectField
+              label={t('district')}
+              placeholder={t('selectDistrict')}
+              value={district}
+              options={UB_DISTRICTS}
+              onSelect={setDistrict}
+            />
+          ) : null}
+
+          <Image source={mapFox} style={styles.mapFox} resizeMode="contain" />
+
+          <FormError message={error} />
+          <Button
+            label={t('register')}
+            iconRight="arrow-forward"
+            onPress={submit}
+            loading={busy}
+            style={styles.button}
+          />
+
+          {/* Step progress: Мэдээлэл · Байршил · Дуссан */}
+          <View style={styles.stepper}>
+            {[t('stepInfo'), t('stepLocation'), t('stepDone')].map((label, i) => {
+              const active = i <= 1; // we're on the location (2nd) step
+              return (
+                <View key={label} style={styles.stepItem}>
+                  <View style={[styles.stepDot, active && styles.stepDotOn]} />
+                  <AppText
+                    variant="caption"
+                    color={i === 1 ? colors.primary : colors.textMuted}
+                  >
+                    {label}
+                  </AppText>
+                </View>
+              );
+            })}
+          </View>
+        </>
+      )}
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  logo: { alignItems: 'center', marginBottom: spacing.lg },
+  back: { alignSelf: 'flex-start', padding: spacing.xs, marginBottom: spacing.sm },
+  title: { marginTop: spacing.sm },
+  subtitle: { marginTop: spacing.xs, marginBottom: spacing.xl },
   button: { marginTop: spacing.sm },
+
+  // Password rules card
+  rulesCard: {
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  rulesTitle: { marginBottom: spacing.xs },
+  ruleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+
+  // Location
+  mapFox: { width: 150, height: 150, alignSelf: 'center', marginVertical: spacing.md },
+  stepper: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: spacing.xl,
+    paddingHorizontal: spacing.sm,
+  },
+  stepItem: { alignItems: 'center', gap: spacing.xs },
+  stepDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: colors.borderStrong,
+  },
+  stepDotOn: { backgroundColor: colors.primary },
+
+  // Success
+  center: { alignItems: 'center', gap: spacing.md },
+  successTitle: { marginTop: spacing.sm },
+  checkCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.success,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  successArt: { width: 220, height: 200, alignItems: 'center', justifyContent: 'center' },
+  successFox: { width: 180, height: 180 },
+  confetti: { position: 'absolute', width: 10, height: 10, borderRadius: 3 },
 });

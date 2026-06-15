@@ -25,8 +25,19 @@ import {
 type IconName = keyof typeof Ionicons.glyphMap;
 const banner = require("../../assets/soril-banner.png");
 
+// 3D glossy icon-ууд (assets/soril/README.md-г үз). PNG-ууд бэлэн болсон үед
+// доорх require мөрийг нээж, тухайн game-ийн `img`-д онооно. img байвал IconTile
+// зургийг, байхгүй бол Ionicons `icon`-ийг харуулна.
+// const imgTarget = require("../../assets/soril/game-target.png");
+// const imgHeadphones = require("../../assets/soril/game-headphones.png");
+// const imgBolt = require("../../assets/soril/game-bolt.png");
+// const imgLink = require("../../assets/soril/game-link.png");
+// const imgPuzzle = require("../../assets/soril/game-puzzle.png");
+// const imgBook = require("../../assets/soril/game-book.png");
+
 interface Game {
   icon: IconName;
+  img?: number; // require()'d 3D PNG (тайлбараас нээх)
   title: string;
   desc: string;
   tint: { bg: string; fg: string };
@@ -35,36 +46,42 @@ interface Game {
 const GAMES: Game[] = [
   {
     icon: "locate",
+    // img: imgTarget,
     title: "Үг ангууч",
     desc: "Зураг харж, зөв үгийг сонго.",
     tint: tints.purple,
   },
   {
     icon: "headset",
+    // img: imgHeadphones,
     title: "Сонсож барь",
     desc: "Аудио сонсож, зөв хариул.",
     tint: tints.blue,
   },
   {
     icon: "flash",
+    // img: imgBolt,
     title: "Хурдан бууд",
     desc: "Хугацаанд багтааж хариул!",
     tint: tints.amber,
   },
   {
     icon: "link",
+    // img: imgLink,
     title: "Холбож ял",
     desc: "Үг, зургийг зөв холбо.",
     tint: tints.teal,
   },
   {
     icon: "extension-puzzle",
+    // img: imgPuzzle,
     title: "Нөхөж дуусга",
     desc: "Хоосон зайг зөв нөх.",
     tint: tints.pink,
   },
   {
     icon: "book",
+    // img: imgBook,
     title: "Grammar Boss",
     desc: "Грамматик мэдлэгээ шалга.",
     tint: tints.green,
@@ -106,7 +123,7 @@ export default function SorilScreen() {
           Мэдлэгээ шалгаж, амжилтаа ахиулаарай!
         </AppText>
 
-        {/* Daily challenge hero — banner image as full background */}
+        {/* Daily challenge hero — banner image as background (same as Home) */}
         <ImageBackground
           source={banner}
           style={styles.hero}
@@ -176,29 +193,34 @@ export default function SorilScreen() {
               style={({ pressed }) => [styles.card, pressed && styles.pressed]}
               onPress={open}
             >
-              <View style={styles.cardTop}>
-                <IconTile
-                  icon={g.icon}
-                  bg={g.tint.bg}
-                  fg={g.tint.fg}
-                  size={52}
-                  iconSize={26}
-                />
-                <View style={styles.cardText}>
-                  <AppText variant="h3" numberOfLines={1}>
-                    {g.title}
-                  </AppText>
-                  <AppText variant="caption" numberOfLines={2}>
-                    {g.desc}
-                  </AppText>
+              <IconTile
+                icon={g.icon}
+                image={g.img}
+                bg={g.tint.bg}
+                fg={g.tint.fg}
+                size={56}
+                iconSize={28}
+              />
+              <View style={styles.cardBody}>
+                <AppText variant="h3" numberOfLines={1}>
+                  {g.title}
+                </AppText>
+                <AppText
+                  variant="caption"
+                  numberOfLines={2}
+                  style={styles.cardDesc}
+                >
+                  {g.desc}
+                </AppText>
+                <View style={styles.cardPill}>
+                  <Pill
+                    label="+10 XP"
+                    icon="flash"
+                    bg={tints.purple.bg}
+                    fg={colors.primary}
+                  />
                 </View>
               </View>
-              <Pill
-                label="+10 XP"
-                icon="flash"
-                bg={tints.purple.bg}
-                fg={colors.primary}
-              />
             </Pressable>
           ))}
         </View>
@@ -300,12 +322,12 @@ const styles = StyleSheet.create({
     borderRadius: radius.xl,
     padding: spacing.lg,
     overflow: "hidden",
-    minHeight: 210,
+    minHeight: 180,
     justifyContent: "center",
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primary, // зураг ачаалагдах хүртэлх fallback
   },
   heroImg: { borderRadius: radius.xl },
-  heroBody: { maxWidth: "60%" },
+  heroBody: { maxWidth: "62%" },
   heroPill: {
     flexDirection: "row",
     alignItems: "center",
@@ -357,14 +379,16 @@ const styles = StyleSheet.create({
   },
   card: {
     width: "48.5%",
+    flexDirection: "row",
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
     padding: spacing.md,
-    gap: spacing.md,
+    gap: spacing.sm,
     ...(elevation.sm as object),
   },
-  cardTop: { gap: spacing.sm },
-  cardText: { gap: 2 },
+  cardBody: { flex: 1, gap: 2 },
+  cardDesc: { marginBottom: spacing.sm },
+  cardPill: { alignSelf: "flex-start", marginTop: "auto" },
 
   // Progress path
   pathCard: {
