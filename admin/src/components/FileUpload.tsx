@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Upload, X, Image, Film } from 'lucide-react';
+import { X, Image, Film } from 'lucide-react';
 import { getToken } from '../api/client';
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api';

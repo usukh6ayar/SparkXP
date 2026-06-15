@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Plus } from 'lucide-react';
 import { api } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
 
@@ -33,6 +34,7 @@ const CARD_COLORS: Record<string, { bg: string; ring: string; badge: string }> =
 export default function AiBuddyPage() {
   const [buddies, setBuddies] = useState<Buddy[]>([]);
   const [stats, setStats] = useState<BuddyStat[]>([]);
+  const [showAddNote, setShowAddNote] = useState(false);
 
   useEffect(() => {
     api.get<Buddy[]>('/ai/buddies').then(setBuddies).catch(() => {});
@@ -41,13 +43,36 @@ export default function AiBuddyPage() {
 
   const statFor = (slug: string) => stats.find((s) => s.slug === slug);
 
-  // Total across all buddies
   const totalMessages = stats.reduce((s, x) => s + x.totalMessages, 0);
   const totalCostUsd = stats.reduce((s, x) => s + x.costMicroUsd, 0) / 1_000_000;
 
   return (
     <>
-      <PageHeader title="AI Buddy" description="Тусламжийн дүрүүд ба хэрэглээний статистик" />
+      <PageHeader
+        title="AI Buddy"
+        description="Тусламжийн дүрүүд ба хэрэглээний статистик"
+        action={
+          <button
+            onClick={() => setShowAddNote(true)}
+            className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary/90 transition-colors"
+          >
+            <Plus className="h-4 w-4" /> AI Buddy нэмэх
+          </button>
+        }
+      />
+
+      {/* Add note banner */}
+      {showAddNote && (
+        <div className="mb-6 rounded-xl border border-indigo-200 bg-indigo-50 px-5 py-4 text-sm text-indigo-800 flex items-start justify-between gap-4">
+          <div>
+            <p className="font-semibold mb-1">AI Buddy нэмэхэд backend дээр тохируулна</p>
+            <p className="text-indigo-600">
+              Шинэ buddy нэмэхийн тулд <span className="font-mono font-medium">backend/src/ai-gateway/buddies.ts</span> файлд slug, нэр, тайлбар, emoji, үнийн мэдээллийг нэмж, backend-г дахин deploy хийнэ.
+            </p>
+          </div>
+          <button onClick={() => setShowAddNote(false)} className="text-indigo-400 hover:text-indigo-700 text-lg leading-none shrink-0">✕</button>
+        </div>
+      )}
 
       {/* Summary stats */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 mb-8">
@@ -70,17 +95,14 @@ export default function AiBuddyPage() {
               key={buddy.slug}
               className={`rounded-2xl bg-gradient-to-br ${colors.bg} ring-1 ${colors.ring} p-6 shadow-sm`}
             >
-              {/* Header */}
-              <div className="flex items-start gap-4 mb-4">
+              {/* Header — emoji + title only, no personal name */}
+              <div className="flex items-center gap-4 mb-4">
                 <div className="text-5xl leading-none">{buddy.emoji}</div>
                 <div className="flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="text-xl font-bold text-gray-900">{buddy.name}</h3>
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${colors.badge}`}>
-                      {buddy.title}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-sm text-gray-600">{buddy.description}</p>
+                  <span className={`inline-block text-sm px-3 py-1 rounded-full font-semibold ${colors.badge}`}>
+                    {buddy.title}
+                  </span>
+                  <p className="mt-2 text-sm text-gray-600">{buddy.description}</p>
                 </div>
               </div>
 
@@ -124,6 +146,17 @@ export default function AiBuddyPage() {
             </div>
           );
         })}
+
+        {/* Add new buddy placeholder card */}
+        <button
+          onClick={() => setShowAddNote(true)}
+          className="rounded-2xl border-2 border-dashed border-gray-300 bg-gray-50 p-6 shadow-sm hover:border-primary hover:bg-primary/5 transition-colors flex flex-col items-center justify-center gap-3 min-h-[200px]"
+        >
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gray-200 text-gray-400 hover:bg-primary/10 transition-colors">
+            <Plus className="h-7 w-7" />
+          </div>
+          <p className="text-sm font-medium text-gray-500">AI Buddy нэмэх</p>
+        </button>
       </div>
 
       {/* Note */}

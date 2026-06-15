@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, X } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { api } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
 import { Badge } from '../../components/Badge';
