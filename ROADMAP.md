@@ -221,3 +221,19 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
 1. `bishrelt` + `usukhbayar` branch PR → `main` merge.
 2. Phase 3 (Voice AI, Premium, Sparks store өргөтгөл) эхлэх.
 3. QPay live API нэгтгэх — `.env.example`-д `QPAY_*` keys нэмнэ.
+
+---
+
+## 🔄 Mobile redesign-аас үүдсэн shared backend өөрчлөлт (2026-06-12)
+
+> Усухбаярын mobile redesign-ийн явцад `/backend`-д орсон жижиг өөрчлөлтүүд
+> (хоёр dev-д хамаатай — `git pull` хийхэд ирнэ):
+
+- **`LessonType` enum** (`common/enums`) — `reading`, `writing`, `fill` нэмсэн
+  (mobile 4 скилл: Сонсгол/Унших/Нөхөх/Бичих). `API.md` шинэчилсэн.
+- **`scripts/seed.ts`** — DataSource `synchronize: true` (дутуу хүснэгт автоматаар
+  үүснэ, ж: `plans`) + skill жишээ хичээл.
+- **`@types/multer`** dev-dependency нэмсэн (upload feature TS build засвар).
+- **Хийгдэх (mobile хэрэгцээ):** бодит **streak / level / daily-XP / lesson
+  completion** tracking endpoint (одоо mobile талд placeholder). Lesson `content`
+  jsonb-д **видео** shape (`videoUrl`, `segments`, `tip`) — admin бөглөнө.

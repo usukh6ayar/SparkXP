@@ -1,35 +1,32 @@
 import { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from 'react-native';
+import { View, StyleSheet, ScrollView, Pressable, Image, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/auth/AuthContext';
 import * as lessonsApi from '../../src/api/lessons';
 import type { Lesson } from '../../src/api/lessons';
 import { getQuizzes } from '../../src/api/quizzes';
 import { TopBar } from '../../src/components/TopBar';
+import { AppText } from '../../src/components/Text';
 import { Pill } from '../../src/components/Pill';
 import { Button } from '../../src/components/Button';
 import { Loading } from '../../src/components/Loading';
-import { colors, spacing, radius, fontSize, levelColor } from '../../src/theme/theme';
+import { getSkill } from '../../src/constants/skills';
+import { colors, spacing, radius, levelColor } from '../../src/theme/theme';
 
-type UnitState = 'done' | 'current' | 'locked';
-interface Unit {
-  n: number; icon: string; title: string; sub: string; tag: string; state: UnitState;
-}
+const banner = require('../../assets/home-banner.png');
 
-// Standard lesson activity path (presentational; per-unit progress isn't tracked yet).
-const UNITS: Unit[] = [
-  { n: 1, icon: '📖', title: 'Шинэ үгс', sub: 'Шинэ үг сурцгаая.', tag: '5 үг', state: 'done' },
-  { n: 2, icon: '🎧', title: 'Сонсож ойлгох', sub: 'Сонсож, зөв хариулцгаая.', tag: 'Дасгал', state: 'done' },
-  { n: 3, icon: '✏️', title: 'Бичиж дадлага хийх', sub: 'Зөв бичиж сурцгаая.', tag: 'Дасгал', state: 'current' },
-  { n: 4, icon: '🗣️', title: 'Ярианы дадлага', sub: 'Хичээлийн тухай ярилцъя.', tag: 'Яриа', state: 'locked' },
+interface Segment { title: string; time: string; locked?: boolean }
+
+// Видеоны бүлгүүд — `content.segments` байхгүй үед placeholder (admin бөглөнө).
+const MOCK_SEGMENTS: Segment[] = [
+  { title: 'Мэндчилгээний үгс', time: '02:15', locked: false },
+  { title: 'Танилцах хэллэгүүд', time: '01:45', locked: true },
+  { title: 'Гарын үг ашиглалт', time: '01:30', locked: true },
+  { title: 'Жишээ яриа', time: '01:15', locked: true },
 ];
-
-const STATE_COLOR: Record<UnitState, string> = {
-  done: colors.success,
-  current: colors.primary,
-  locked: colors.textMuted,
-};
+const DEFAULT_TIP = 'Хүмүүстэй уулзах үед эелдэг мэндлэх нь сайн харилцааны эхлэл болдог.';
 
 export default function LessonDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -62,19 +59,19 @@ export default function LessonDetailScreen() {
   function unlock() {
     if (!lesson) return;
     if ((user?.sparks ?? 0) < lesson.priceSparks) {
-      Alert.alert('Spark хүрэлцэхгүй', `Танд ${user?.sparks ?? 0} ✨ байна. Энэ хичээлд ${lesson.priceSparks} ✨ шаардлагатай.`);
+      Alert.alert('Очирхон хүрэлцэхгүй', `Танд ${user?.sparks ?? 0} 💎 байна. Энэ хичээлд ${lesson.priceSparks} 💎 шаардлагатай.`);
       return;
     }
-    Alert.alert('Хичээл нээх үү?', `${lesson.priceSparks} ✨ Очирхон зарцуулна`, [
+    Alert.alert('Хичээл нээх үү?', `${lesson.priceSparks} 💎 Очирхон зарцуулна`, [
       { text: 'Болих' },
       {
-        text: `Нээх (${lesson.priceSparks} ✨)`,
+        text: `Нээх (${lesson.priceSparks} 💎)`,
         onPress: async () => {
           setUnlocking(true);
           try {
             await lessonsApi.unlockLesson(id!, token!);
             setHasAccess(true);
-            Alert.alert('✅ Амжилттай', 'Хичээл нээгдлээ!');
+            Alert.alert('Амжилттай', 'Хичээл нээгдлээ!');
           } catch {
             Alert.alert('Алдаа', 'Нээхэд алдаа гарлаа.');
           } finally {
@@ -85,111 +82,136 @@ export default function LessonDetailScreen() {
     ]);
   }
 
-  if (loading) return <Loading />;
-  if (!lesson) return null;
-
-  const lvl = levelColor[lesson.level] ?? levelColor.a1;
-  const soon = () => Alert.alert('Тун удахгүй', 'Энэ хэсэг удахгүй нэмэгдэнэ. 🦊');
-
-  // Open the lesson's quiz (Сорил) if it has one.
   async function startTest() {
     try {
       const res = await getQuizzes(token!, { lessonId: id });
-      if (res.items.length > 0) {
-        router.push(`/quiz/${res.items[0].id}`);
-      } else {
-        Alert.alert('Сорил алга', 'Энэ хичээлд сорил хараахан байхгүй байна.');
-      }
+      if (res.items.length > 0) router.push(`/quiz/${res.items[0].id}`);
+      else Alert.alert('Сорил алга', 'Энэ хичээлд сорил хараахан байхгүй байна.');
     } catch {
       Alert.alert('Алдаа', 'Сорил ачаалахад алдаа гарлаа.');
     }
   }
 
+  const soon = () => Alert.alert('Тун удахгүй', 'Видео тоглуулагч удахгүй нэмэгдэнэ. 🦊');
+
+  if (loading) return <Loading />;
+  if (!lesson) return null;
+
+  const lvl = levelColor[lesson.level] ?? levelColor.a1;
+  const skill = getSkill(lesson.type);
+  const num = String(lesson.position ?? 1).padStart(2, '0');
+
+  const content = lesson.content as { duration?: string; segments?: Segment[]; tip?: string };
+  const duration = content?.duration ?? '06:45';
+  const segments = content?.segments?.length ? content.segments : MOCK_SEGMENTS;
+  const tip = content?.tip ?? DEFAULT_TIP;
+
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      <TopBar back streak={5} />
-      <ScrollView contentContainerStyle={styles.container}>
-        {/* Lesson header */}
+    <SafeAreaView style={styles.safe} edges={['top']}>
+      <TopBar back />
+      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+        {/* Header */}
         <View style={styles.head}>
-          <View style={styles.thumb}><Text style={styles.thumbEmoji}>🦊</Text></View>
-          <Text style={styles.title}>{lesson.title}</Text>
-        </View>
-        <View style={styles.metaRow}>
-          <Pill label={lesson.level.toUpperCase()} bg={lvl.bg} fg={lvl.fg} />
-          <Text style={styles.metaText}>{UNITS.length} хичээл</Text>
+          <View style={[styles.numBadge, { backgroundColor: skill.tint.bg }]}>
+            <AppText variant="h2" color={skill.tint.fg}>{num}</AppText>
+          </View>
+          <View style={{ flex: 1 }}>
+            <AppText variant="h2">{lesson.title}</AppText>
+            <View style={styles.metaRow}>
+              <Pill label={lesson.level.toUpperCase()} bg={lvl.bg} fg={lvl.fg} />
+              <Pill label={skill.label} icon={skill.icon} bg={skill.tint.bg} fg={skill.tint.fg} />
+            </View>
+          </View>
         </View>
 
-        {/* Pager */}
-        <View style={styles.pager}>
-          <Text style={styles.pagerArrow}>‹</Text>
-          <Text style={styles.pagerText}>1 / 1</Text>
-          <Text style={[styles.pagerArrow, { opacity: 0.4 }]}>›</Text>
-        </View>
+        {lesson.description ? (
+          <AppText variant="body" color={colors.textSecondary} style={styles.desc}>
+            {lesson.description}
+          </AppText>
+        ) : null}
 
         {!hasAccess ? (
-          /* Locked — preserve unlock logic */
+          /* Locked — unlock flow preserved */
           <View style={styles.lockedBox}>
-            <Text style={styles.lockedEmoji}>🔒</Text>
-            <Text style={styles.lockedTitle}>Хичээл түгжигдсэн</Text>
-            <Text style={styles.lockedSub}>Нээхийн тулд {lesson.priceSparks} ✨ Очирхон зарцуулна.</Text>
-            <Text style={styles.balance}>Таны үлдэгдэл: {user?.sparks ?? 0} ✨</Text>
+            <View style={styles.lockedIcon}>
+              <Ionicons name="lock-closed" size={28} color={colors.primary} />
+            </View>
+            <AppText variant="h3" style={styles.lockedTitle}>Хичээл түгжээтэй</AppText>
+            <AppText variant="body" color={colors.textSecondary} center>
+              Нээхийн тулд {lesson.priceSparks} 💎 Очирхон зарцуулна.
+            </AppText>
+            <View style={styles.balance}>
+              <Ionicons name="diamond" size={15} color={colors.sparks} />
+              <AppText variant="bodyStrong" color={colors.sparks}>Үлдэгдэл: {user?.sparks ?? 0}</AppText>
+            </View>
             <Button
-              label={unlocking ? 'Нээж байна...' : `Нээх  ${lesson.priceSparks} ✨`}
+              label={unlocking ? 'Нээж байна...' : `Нээх · ${lesson.priceSparks} 💎`}
+              icon="lock-open"
               onPress={unlock}
               disabled={unlocking}
-              style={{ marginTop: spacing.md, alignSelf: 'stretch' }}
+              style={{ marginTop: spacing.lg }}
             />
           </View>
         ) : (
           <>
-            {/* Unit path */}
-            {UNITS.map((u, i) => (
-              <View key={u.n} style={styles.unitRow}>
-                <View style={styles.rail}>
-                  <View style={[styles.node, { backgroundColor: STATE_COLOR[u.state] }]}>
-                    <Text style={styles.nodeText}>{u.n}</Text>
-                  </View>
-                  {i < UNITS.length - 1 && <View style={styles.connector} />}
-                </View>
-
-                <Pressable
-                  style={[
-                    styles.unitCard,
-                    u.state === 'current' && styles.unitCurrent,
-                    u.state === 'locked' && styles.unitLocked,
-                  ]}
-                  onPress={soon}
-                >
-                  <Text style={styles.unitIcon}>{u.state === 'locked' ? '🔒' : u.icon}</Text>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.unitTitle}>{u.title}</Text>
-                    <Text style={styles.unitSub}>{u.sub}</Text>
-                    <Pill label={u.tag} bg={colors.surfaceAlt} fg={colors.textMuted} />
-                  </View>
-                  <Text style={[styles.unitMark, { color: STATE_COLOR[u.state] }]}>
-                    {u.state === 'done' ? '✓' : u.state === 'current' ? '→' : '🔒'}
-                  </Text>
-                </Pressable>
+            {/* Video player (placeholder) */}
+            <Pressable style={styles.video} onPress={soon}>
+              <Image source={banner} style={styles.videoImg} resizeMode="cover" />
+              <View style={styles.videoScrim} />
+              <View style={styles.playBig}>
+                <Ionicons name="play" size={26} color={colors.white} style={{ marginLeft: 3 }} />
               </View>
-            ))}
+              <View style={styles.videoBar}>
+                <Ionicons name="play" size={16} color={colors.white} />
+                <AppText variant="caption" color={colors.white}>{segments[0].time}</AppText>
+                <View style={styles.scrubTrack}>
+                  <View style={styles.scrubFill} />
+                  <View style={styles.scrubThumb} />
+                </View>
+                <AppText variant="caption" color={colors.white}>{duration}</AppText>
+                <Ionicons name="scan-outline" size={16} color={colors.white} />
+              </View>
+            </Pressable>
 
-            {/* Fox banner */}
-            <View style={styles.banner}>
-              <Text style={styles.bannerFox}>🦊</Text>
-              <Text style={styles.bannerText}>
-                Тест өгөх эсвэл{'\n'}
-                <Text style={{ color: colors.primary, fontWeight: '800' }}>дараагийн хичээл</Text>
-              </Text>
+            {/* Segments */}
+            <AppText variant="h2" style={styles.section}>Хичээлийн агуулга</AppText>
+            {segments.map((s, i) => {
+              const active = i === 0;
+              return (
+                <Pressable
+                  key={i}
+                  style={[styles.segRow, active && styles.segActive]}
+                  onPress={active ? soon : undefined}
+                >
+                  <AppText variant="bodyStrong" color={active ? colors.primary : colors.text} style={styles.segTitle} numberOfLines={1}>
+                    {i + 1}. {s.title}
+                  </AppText>
+                  <AppText variant="caption" style={styles.segTime}>{s.time}</AppText>
+                  <Ionicons
+                    name={s.locked ? 'lock-closed' : 'checkmark-circle'}
+                    size={18}
+                    color={s.locked ? colors.textMuted : colors.primary}
+                  />
+                </Pressable>
+              );
+            })}
+
+            {/* Tip */}
+            <View style={styles.tip}>
+              <View style={styles.tipIcon}>
+                <Ionicons name="bulb" size={16} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <AppText variant="h3" style={styles.tipTitle}>Санамж</AppText>
+                <AppText variant="caption" color={colors.textSecondary}>{tip}</AppText>
+              </View>
             </View>
 
-            {/* Actions */}
-            <View style={styles.actions}>
-              <Button label="Буцах" variant="secondary" onPress={() => router.back()} style={{ flex: 1 }} />
-              <Button label="Тест өгөх" onPress={startTest} style={{ flex: 1 }} />
-            </View>
+            {/* CTA */}
+            <Button label="Тест өгөх" icon="arrow-forward" onPress={startTest} style={styles.cta} />
           </>
         )}
-        <View style={{ height: spacing.lg }} />
+        <View style={{ height: spacing.xl }} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -197,51 +219,62 @@ export default function LessonDetailScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
-  container: { paddingHorizontal: spacing.lg },
+  container: { paddingHorizontal: spacing.lg, paddingTop: spacing.xs },
   head: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  thumb: {
-    width: 56, height: 56, borderRadius: radius.md, backgroundColor: colors.primarySoft,
+  numBadge: { width: 56, height: 56, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
+  metaRow: { flexDirection: 'row', gap: spacing.xs, marginTop: spacing.xs },
+  desc: { marginTop: spacing.md },
+
+  // Video
+  video: {
+    height: 200, borderRadius: radius.xl, overflow: 'hidden', marginTop: spacing.lg, backgroundColor: colors.navy,
+  },
+  videoImg: { width: '100%', height: '100%' },
+  videoScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(20,16,48,0.18)' },
+  playBig: {
+    position: 'absolute', top: '50%', left: '50%', width: 56, height: 56, marginLeft: -28, marginTop: -28,
+    borderRadius: radius.full, backgroundColor: 'rgba(124,92,252,0.92)', alignItems: 'center', justifyContent: 'center',
+  },
+  videoBar: {
+    position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    paddingHorizontal: spacing.md, paddingVertical: spacing.sm, backgroundColor: 'rgba(20,16,48,0.45)',
+  },
+  scrubTrack: { flex: 1, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.3)', justifyContent: 'center' },
+  scrubFill: { width: '35%', height: 4, borderRadius: 2, backgroundColor: colors.white },
+  scrubThumb: { position: 'absolute', left: '35%', width: 11, height: 11, borderRadius: 6, backgroundColor: colors.white },
+
+  // Segments
+  section: { marginTop: spacing.xl, marginBottom: spacing.md },
+  segRow: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.sm,
+    borderWidth: 1, borderColor: colors.border,
+  },
+  segActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  segTitle: { flex: 1 },
+  segTime: { },
+
+  // Tip
+  tip: {
+    flexDirection: 'row', gap: spacing.md, alignItems: 'flex-start',
+    backgroundColor: colors.primarySoft, borderRadius: radius.lg, padding: spacing.md, marginTop: spacing.md,
+  },
+  tipIcon: {
+    width: 32, height: 32, borderRadius: radius.full, backgroundColor: colors.white,
     alignItems: 'center', justifyContent: 'center',
   },
-  thumbEmoji: { fontSize: 30 },
-  title: { fontSize: fontSize.xxl, fontWeight: '800', color: colors.navy, flex: 1 },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.sm },
-  metaText: { color: colors.textMuted, fontSize: fontSize.sm, fontWeight: '600' },
-  pager: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xl, marginVertical: spacing.lg },
-  pagerArrow: { fontSize: 28, color: colors.navy, fontWeight: '700' },
-  pagerText: { fontSize: fontSize.md, fontWeight: '800', color: colors.navy },
-  // Unit path
-  unitRow: { flexDirection: 'row', gap: spacing.md },
-  rail: { width: 40, alignItems: 'center' },
-  node: {
-    width: 36, height: 36, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center',
-    borderWidth: 3, borderColor: colors.white,
-  },
-  nodeText: { color: colors.white, fontWeight: '800', fontSize: fontSize.md },
-  connector: { flex: 1, width: 3, backgroundColor: colors.border, marginVertical: 2 },
-  unitCard: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    backgroundColor: colors.surfaceAlt, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.md,
-    borderWidth: 2, borderColor: 'transparent',
-  },
-  unitCurrent: { backgroundColor: '#FFF6EC', borderColor: colors.primary },
-  unitLocked: { opacity: 0.6 },
-  unitIcon: { fontSize: 28 },
-  unitTitle: { fontSize: fontSize.md, fontWeight: '800', color: colors.navy },
-  unitSub: { fontSize: fontSize.sm, color: colors.textMuted, marginVertical: 2 },
-  unitMark: { fontSize: fontSize.lg, fontWeight: '800' },
-  // Fox banner
-  banner: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    backgroundColor: colors.cream, borderRadius: radius.lg, padding: spacing.md, marginTop: spacing.sm, marginBottom: spacing.lg,
-  },
-  bannerFox: { fontSize: 44 },
-  bannerText: { fontSize: fontSize.md, fontWeight: '700', color: colors.navy, lineHeight: 22 },
-  actions: { flexDirection: 'row', gap: spacing.md },
+  tipTitle: { marginBottom: 2 },
+  cta: { marginTop: spacing.lg },
+
   // Locked
-  lockedBox: { backgroundColor: colors.surfaceAlt, borderRadius: radius.lg, padding: spacing.xl, alignItems: 'center' },
-  lockedEmoji: { fontSize: 48, marginBottom: spacing.md },
-  lockedTitle: { fontSize: fontSize.lg, fontWeight: '800', color: colors.navy, marginBottom: spacing.sm },
-  lockedSub: { fontSize: fontSize.md, color: colors.textMuted, textAlign: 'center', lineHeight: 22 },
-  balance: { marginTop: spacing.sm, color: colors.sparks, fontWeight: '700', fontSize: fontSize.md },
+  lockedBox: {
+    backgroundColor: colors.surface, borderRadius: radius.xl, padding: spacing.xl, alignItems: 'center',
+    marginTop: spacing.lg, borderWidth: 1, borderColor: colors.border,
+  },
+  lockedIcon: {
+    width: 56, height: 56, borderRadius: radius.full, backgroundColor: colors.primarySoft,
+    alignItems: 'center', justifyContent: 'center', marginBottom: spacing.md,
+  },
+  lockedTitle: { marginBottom: spacing.xs },
+  balance: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: spacing.md },
 });

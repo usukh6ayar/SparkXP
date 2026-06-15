@@ -200,16 +200,69 @@ SparkXP брэнд theme · дахин ашиглах компонентууд.
 
 ---
 
-## 🔄 Сүүлийн өөрчлөлтүүд (2026-06-09)
+## 🔄 UI/UX Redesign — Төлөв (2026-06-12)
 
-- **UI/UX redesign эхэлсэн** — design system шинэчилсэн (`theme.ts`: semantic
-  typography, тэнцвэртэй spacing/radius, elevation), шинэ дахин ашиглах
-  компонентууд (`Text`, `Card`, `SectionHeader`, `ProgressBar`, `IconTile`),
-  гол дэлгэцүүд (Home/Lessons/Soril/Profile/Leaderboard/Chat/Swipe) шинэчилсэн.
-  Брэндийн **шинэ чиглэл** Figma-д барина → `DESIGN_BRIEF.md` / `DESIGN_SYSTEM.md`.
-- **Home grid → хэлний 4 чадвар:** Сонсгол (`listening`) · Унших (`reading`) ·
-  Нөхөх (`fill`) · Бичих (`writing`). Box дарахад Lessons тухайн `type`-аар
-  шүүгдэнэ (`app/(tabs)/lessons.tsx` `type` param). Icon = Ionicons (одоохондоо;
-  Lucide руу шилжих нь дараагийн task).
-- **Backend (shared):** `LessonType`-д `reading`, `writing`, `fill` нэмсэн +
-  seed жишээ хичээл. `API.md` шинэчилсэн. → Бишрэлтэд мэдэгдэх.
+Брэндийг **бүрэн шинэ ягаан (purple) чиглэл** рүү шилжүүлж, гол дэлгэцүүдийг
+mockup-аар дахин зохион барьсан. Дизайны эх сурвалж: `DESIGN.md`,
+`DESIGN_PROMPT.md` (+ `DESIGN_BRIEF.md`, `SCREEN_SPECS.md`).
+
+### ✅ Хийгдсэн
+
+**Design system (`src/theme/theme.ts`)**
+- Ягаан палитр (`DESIGN.md`): primary `#6C3BFF`, gradient `#7A4DFF→#5A28F0`,
+  bg `#F8F8FC`, surface цагаан, surfaceAlt `#F2F3FA`.
+- Gamification өнгө: XP=алт `#F5A623` · Очирхон=цэнхэр алмаз `#38BDF8` ·
+  Streak=улбар `#FF8A00`.
+- Semantic typography (`display/h1/h2/h3/body/bodyStrong/label/caption/overline`),
+  spacing (4pt), radius (12/16/20/28), `elevation` (sm/md/float).
+
+**Шинэ/шинэчилсэн компонентууд (`src/components/`)**
+- `Text` (AppText), `Card`, `SectionHeader`, `ProgressBar`, `IconTile` (шинэ).
+- `Button`, `Pill`, `StatCard`, `TopBar`, `CustomTabBar` (шинэчилсэн).
+
+**Дэлгэцүүд (mockup-аар)**
+- **Home** — мэндчилгээ+badge, `home-banner.png` hero (ImageBackground),
+  "Давтах үгс" карт, 4 скилл grid, 3-stat карт.
+- **Lessons жагсаалт** — скилл-icon thumb, level filter (A1–C1), явц%/үнэ+цоож.
+- **Lesson detail** — дугаар толгой, **placeholder видео тоглуулагч**, segment
+  жагсаалт, Санамж, CTA (unlock/access логик хадгалсан).
+- **Soril** — header, `soril-banner.png` challenge hero, 6 тоглоомын grid,
+  "Амжилтын зам" node path.
+- **Profile** — gradient hero + glow avatar, premium XP, stat нүд, collectible
+  badge, түргэн цэс (8), gradient premium карт, гарах.
+- **Chat** — `buddy-menu.png` (Спарк avatar) buddy menu/empty/мессежид.
+- **Leaderboard, Swipe** — token-оор шинэчлэгдсэн.
+- **Bottom tab** — төвд AI Найз buddy зураг + glow + label (наалдсан).
+
+**Контент / навигаци**
+- Home/Lessons скилл: Сонсгол`listening` · Унших`reading` · Нөхөх`fill` ·
+  Бичих`writing` (Lessons `?type`-аар шүүнэ).
+
+**Assets** — дэлгэц тус бүрийн фолдер бүтэц (`assets/README.md`).
+Одоо байгаа: `home-banner.png`, `buddy-menu.png`, `soril-banner.png`, `logo.png`.
+
+**Backend (shared) + засвар**
+- `LessonType`-д `reading`/`writing`/`fill` нэмсэн + seed skill хичээл. `API.md`.
+- `seed.ts` DataSource `synchronize: true` (plans г.м хүснэгт автоматаар үүснэ).
+- `@types/multer` суулгасан (Бишрэлтийн upload feature build засвар).
+- **Bug fix:** `URLSearchParams` → энгийн query string (RN-д найдваргүй, Lessons
+  ачаалагдахгүй байсан). `.env` API IP шинэчилсэн (LAN IP өөрчлөгдсөн).
+
+### 🟦 Шийдвэрүүд
+- Брэнд: **ягаан + үнэг mascot хэвээр**, нэр **SparkXP** хэвээр.
+- Фонт: **Onest/Inter** (зөвлөмж) — *одоо системийн фонт, хараахан ачаалаагүй*.
+- Icon: **Lucide** (зөвлөмж) — *одоо Ionicons*.
+- Dark mode: **дараа**.
+
+### ⬜ Хийгдэх (TODO)
+- [ ] **App icon** — `icon.png`/`favicon.png`/`android-icon-*` файлууд **алга**
+      (app.json заасан). Брэнд icon үүсгэх.
+- [ ] **Фонт ачаалах** — Onest/Inter (`expo-font`).
+- [ ] **Lucide icon** руу шилжих (Ionicons-оос).
+- [ ] **Onboarding flow** (welcome → түвшин/зорилго) — хийгээгүй.
+- [ ] **Бодит gamification дата** — streak, level, өдрийн XP зорилго, category
+      progress, lesson completion, Profile stat (Хичээл/Сорил тоо) — бүгд одоо
+      **placeholder** (backend tracking хэрэгтэй).
+- [ ] **Видео тоглуулагч** — жинхэнэ (`expo-video` + `content.videoUrl`).
+- [ ] **Soril тоглоомууд** — логик ("тун удахгүй").
+- [ ] (Сонголт) Home/Lessons/Chat-д premium gradient/depth давхарга.

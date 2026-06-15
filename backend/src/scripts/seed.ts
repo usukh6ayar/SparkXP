@@ -278,7 +278,8 @@ async function main() {
     password: process.env.DB_PASSWORD ?? 'postgres',
     database: process.env.DB_NAME ?? 'englishxp',
     entities,
-    synchronize: false,
+    // Dev seed: create any missing tables from entities before inserting.
+    synchronize: true,
   });
   await ds.initialize();
   try {

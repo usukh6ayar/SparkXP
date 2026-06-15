@@ -64,14 +64,19 @@ organizations (e.g. law firms). Owner: Hustle Hive LLC.
 
 Next up: Content modules + Leaderboard + Sparks store (see ROADMAP.md).
 
-**Mobile UI/UX redesign in progress (2026-06-09).** New brand direction
-("Modern Mongol" — deep indigo + gold, Onest font, fox mascot kept) is being
-designed in Figma first — see `mobile/DESIGN_BRIEF.md` + `mobile/DESIGN_SYSTEM.md`.
-Code-side: design tokens + shared components refreshed; main screens redesigned.
-Home grid now shows the 4 language skills → Сонсгол `listening` · Унших `reading`
-· Нөхөх `fill` · Бичих `writing` (each filters the Lessons list by `type`).
-`LessonType` enum gained `reading`, `writing`, `fill` (shared `/backend` change —
-coordinate with Bishrelt; `API.md` updated).
+**Mobile UI/UX redesign — in progress (2026-06-12).** Brand moved to a new
+**purple** direction (primary `#6C3BFF`, gradient, gold XP / blue gem / orange
+streak), fox mascot + "SparkXP" name kept. Source: `mobile/DESIGN.md`,
+`DESIGN_PROMPT.md` (+ `DESIGN_BRIEF.md`, `SCREEN_SPECS.md`).
+Done: design tokens + shared components rebuilt; Home / Lessons (list+detail) /
+Soril / Profile / Chat / Leaderboard / Swipe redesigned to mockups; bottom tab
+center = AI buddy image. Home/Lessons skills → Сонсгол `listening` · Унших
+`reading` · Нөхөх `fill` · Бичих `writing` (filter Lessons by `type`).
+Shared `/backend`: `LessonType` gained `reading`/`writing`/`fill`; `seed.ts`
+`synchronize:true`; `@types/multer` added; `API.md` updated — coordinate w/ Bishrelt.
+**Pending:** app icon files missing; fonts (Onest/Inter) not loaded; Lucide
+migration; onboarding; real gamification data (streak/level/progress are
+placeholders); real video player. Full list: `MOBILE_ROADMAP.md`.
 
 ### Backend folder layout
 

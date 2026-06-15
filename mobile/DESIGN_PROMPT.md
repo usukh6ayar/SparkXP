@@ -1,115 +1,221 @@
-# SparkXP — UI Design Generation Prompts
+# SparkXP Mobile UI Design Prompt
 
-Use these with an AI design tool (Midjourney, v0.dev, Figma AI, Galileo, DALL·E,
-etc.). Paste the **Master style block** first, then append one **Screen** block.
-Based on the hand-drawn sketches + SparkXP brand.
+Design a world-class mobile application UI for SparkXP, a gamified English learning platform for Mongolian students.
 
----
+Design language should combine:
 
-## 🎨 Master style block (prepend to every screen prompt)
+- Duolingo motivation
+- Quizlet clarity
+- Apple cleanliness
+- Linear polish
+- Superhuman premium feel
 
-```
-Mobile app UI design, portrait, 1080x2340 (9:19.5). Modern, playful, gamified
-language-learning app in the style of Duolingo — friendly, rounded, colorful,
-encouraging.
+The UI must feel:
 
-App: "SparkXP", an English-learning app for Mongolian students.
-Mascot: a cute running orange fox with a sparkle (energetic, friendly).
-
-Brand colors:
-- Primary orange #F47B20 (buttons, XP, highlights)
-- Deep navy #182547 (text, headings)
-- Cream #FBF4E6 (warm surfaces)
-- Amber #FFB020 (Sparks/coins)
-- White #FFFFFF background, light grey #F6F7FB cards
-
-Style: big rounded corners (16–24px), soft shadows, thick friendly rounded
-sans-serif (like Feather/Nunito), bold headings, generous spacing, large
-tappable buttons with a 3D "pressed" bottom edge (Duolingo button style),
-flat cheerful illustrations, progress rings, XP/streak/coin badges.
-All UI text in MONGOLIAN (Cyrillic). High quality, clean, professional, no
-clutter. Flat vector style, not photorealistic.
-```
+- Modern
+- Premium
+- Friendly
+- Motivating
+- Spacious
+- Highly polished
 
 ---
 
-## 📱 Screen 1 — Home / Нүүр
+## Color Palette
 
-```
-Home screen. Top: SparkXP logo (running orange fox) on the left, a streak flame
-badge "🔥 5" and Sparks coin "✨ 120" on the right. Greeting "Сайн уу, Бат! 👋".
-A big progress bar / progress ring showing daily goal ("Өнөөдрийн зорилго").
-Below: a 2-column grid of large rounded category cards, each with a flat icon
-and label: "Хичээлүүд" (lessons, book icon), "Үг давтах" (review, cards icon),
-"Сорил" (quiz), "AI Найз" (fox/chat icon). A primary orange CTA button "Суралцаж эхлэх".
-Bottom tab bar with 4 icons: Нүүр (home), AI Найз (center, raised fox button),
-Quiz, Профайл. Cheerful, lots of orange and navy.
-```
+Primary Purple
 
-## 📱 Screen 2 — Lessons list / Хичээлүүд
+#6C3BFF
 
-```
-Lessons list screen. Header "Хичээлүүд". A vertical scrolling list of lesson
-cards, each card rounded with: a colorful thumbnail/illustration on the left,
-lesson title (e.g. "Амьтад", "Хоол хүнс", "Аялал") in navy bold, a short
-subtitle, a small level tag (A1/A2), and a progress bar or a lock icon for
-locked lessons (with a Sparks price "✨ 50"). Completed lessons show a green
-check. Duolingo-style learning-path feel. Clean white background.
-```
+Gradient
 
-## 📱 Screen 3 — Lesson detail / Хичээл
+#7A4DFF → #5A28F0
 
-```
-Lesson detail screen. Header with back arrow "‹" and lesson title, plus prev/
-next arrows "‹ 1/1 ›". A vertical list/path of 4 numbered lesson units (1, 2, 3,
-4) shown as rounded step nodes connected like a path (Duolingo skill path), each
-with an icon and a state (done = green check, current = orange highlight, locked
-= grey). Bottom: two big rounded buttons side by side — secondary "Буцах" and
-primary orange "Тест өгөх". Caption "Тест өгөх эсвэл дараагийн хичээл".
-Encouraging, game-like.
-```
+Success
 
-## 📱 Screen 4 — Сорил & games / Сорил
+#22C55E
 
-```
-Сорил & games screen ("Quiz & games" in MN = "Сорил"). Header "Сорил & тоглоомууд". A 2-column grid of large
-rounded game-mode cards, each with a fun flat icon and label: "Үг таах",
-"Сонсох", "Дүрэм", "Хурдан хариулт", "Холбох", "Дүүргэх". Each card a different
-bright brand-tinted color, with an XP reward badge "⚡ 10". Playful, arcade-like
-but clean. Fox mascot peeking in a corner.
-```
+Blue
 
-## 📱 Screen 5 — AI buddy / AI Найз
+#3B82F6
 
-```
-AI buddy screen. Header "AI Найз". Top: a row of friendly character avatars
-(the orange fox + a few other cute tutors) to choose from, with a "Бүгдийг
-харах" (see all) link. Below: a chat interface — assistant message bubbles on
-the left (cream), user bubbles on the right (orange), a text input at the bottom
-"Мессеж бичнэ үү..." with a send button. Warm, friendly, conversational.
-Speech bubbles rounded.
-```
+Orange
 
-## 📱 Screen 6 — Profile / Профайл
+#FF8A00
 
-```
-Profile screen. Header "Профайл". Top: large circular avatar, name "Бат Болд",
-location "Улаанбаатар, Сүхбаатар". A row of stat cards: "⚡ 1240 XP",
-"✨ 120 Очирхон", "🔥 5 өдөр". A leaderboard rank badge. A list of settings rows
-("Профайл засах", "Хэл", "Тусламж", "Гарах"). Achievements/badges row with
-fox-themed medals. Clean, rounded, brand colors.
-```
+Background
+
+#F8F8FC
+
+Cards
+
+#FFFFFF
 
 ---
 
-## 💡 Зөвлөмж
+## Typography
 
-- **Midjourney/DALL·E:** master block + 1 screen-ийг нийлүүлж нэг нэгээр нь өг.
-  Төгсгөлд `--ar 9:19.5 --style raw` (Midjourney) нэмж болно.
-- **v0.dev / Figma AI:** энэ prompt-уудыг шууд өгвөл бодит React/Figma frame
-  гаргана (код хүртэл). Манай brand theme (`src/theme/theme.ts`)-той тааруулна.
-- **Galileo AI / Uizard:** скетч зургаа + master block-ийг оруулж "Duolingo
-  style" гэж нэм.
-- Бүх дэлгэцэд **ижил мaccот (үнэг), өнгө, фонт** хадгалуулахын тулд master
-  block-ийг үргэлж эхэнд нь тавь.
-```
+Use Inter or SF Pro.
+
+Large bold headings.
+
+Strong hierarchy.
+
+Readable body text.
+
+High contrast.
+
+---
+
+## Design Rules
+
+1. Large white space.
+2. Soft shadows only.
+3. Rounded corners (20-32px).
+4. Premium card-based layout.
+5. Consistent spacing system.
+6. Gamification visible everywhere.
+7. Reward mechanics visually emphasized.
+8. Avoid clutter.
+9. Avoid outdated Android-style UI.
+10. Every screen should feel App Store featured quality.
+
+---
+
+## Home Screen
+
+Include:
+
+- Greeting section
+- Streak counter
+- Gems counter
+- Daily XP Goal card
+- Spark Fox mascot
+- Continue learning card
+- Learning categories
+- Stats overview
+- AI Friend section
+
+Visual priority:
+
+1. Daily Goal
+2. Continue Learning
+3. AI Friend
+
+---
+
+## Lessons Screen
+
+Include:
+
+- Category filters
+- CEFR filters
+- Lesson cards
+- Progress indicators
+- Lock states
+- Completion states
+
+Cards should feel interactive and rewarding.
+
+---
+
+## Lesson Detail Screen
+
+Include:
+
+- Hero illustration
+- Lesson information
+- Progress tracker
+- Lesson modules
+- Tips card
+- Next lesson CTA
+
+Primary CTA should dominate.
+
+---
+
+## Quiz Screen
+
+Include:
+
+- Progress at top
+- XP reward indicator
+- Timer
+- Question card
+- Answer cards
+
+Answer states:
+
+- Default
+- Selected
+- Correct
+- Incorrect
+
+Provide strong feedback animations.
+
+---
+
+## AI Friend Screen
+
+Spark Fox acts as an AI English tutor.
+
+Include:
+
+- Chat interface
+- Suggested prompts
+- Voice mode
+- Speaking practice
+
+Should feel similar to ChatGPT Voice and Duolingo Max.
+
+---
+
+## Profile Screen
+
+Include:
+
+- User profile
+- Level
+- XP Progress
+- Achievements
+- Learning stats
+- Premium card
+- Settings
+
+Achievements should be visually rich and collectible.
+
+---
+
+## Illustration Style
+
+Use:
+
+- High-quality 3D illustrations
+- Bright colors
+- Soft lighting
+- Premium gradients
+
+Mascot:
+
+Spark Fox
+
+Orange fox
+Purple hoodie
+Headphones
+
+Style similar to modern Duolingo-level mascot rendering.
+
+---
+
+## Output Requirements
+
+Create:
+
+- Pixel-perfect mobile UI
+- iPhone 16 Pro frame
+- Light theme
+- Production-ready design
+- Consistent design system
+- Premium startup quality
+
+The result should look ready for launch on the App Store and Google Play.
