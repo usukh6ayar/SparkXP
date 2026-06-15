@@ -110,7 +110,7 @@ export default function UsersPage() {
     { key: 'xp', header: 'XP', render: (u: User) => <span className="text-primary font-medium">⚡ {u.xp}</span> },
     { key: 'sparks', header: 'Sparks', render: (u: User) => <span className="text-amber font-medium">✨ {u.sparks}</span> },
     {
-      key: 'trophies', header: 'Тrofhy', render: (u: User) => {
+      key: 'trophies', header: 'Trophy', render: (u: User) => {
         const count = (u.trophies ?? []).length;
         return (
           <button

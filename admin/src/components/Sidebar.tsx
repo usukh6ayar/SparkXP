@@ -10,7 +10,7 @@ import { cn } from '../lib/utils';
 const nav = [
   { to: '/words',         label: 'Үгс',           icon: BookOpen },
   { to: '/lessons',       label: 'Хичээл',        icon: FileText },
-  { to: '/quizzes',       label: 'Сорил',         icon: HelpCircle },
+  { to: '/quizzes',       label: 'Quiz',           icon: HelpCircle },
   { to: '/users',         label: 'Хэрэглэгч',    icon: Users },
   { to: '/classes',       label: 'Ангиуд',        icon: GraduationCap },
   { to: '/organizations', label: 'Байгууллага',   icon: Building2 },

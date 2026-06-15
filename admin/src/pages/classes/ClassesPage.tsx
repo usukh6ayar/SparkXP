@@ -5,6 +5,7 @@ import { PageHeader } from '../../components/PageHeader';
 import { Badge } from '../../components/Badge';
 import { Modal } from '../../components/Modal';
 import { Button } from '../../components/Button';
+import { Input } from '../../components/Input';
 
 interface ClassRow {
   id: string;
@@ -48,6 +49,10 @@ interface AssignForm {
 export default function ClassesPage() {
   const [classes, setClasses] = useState<ClassRow[]>([]);
   const [search, setSearch] = useState('');
+  const [createModal, setCreateModal] = useState(false);
+  const [newClassName, setNewClassName] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState('');
   const [detail, setDetail] = useState<ClassRow | null>(null);
   const [tab, setTab] = useState<DetailTab>('students');
   const [students, setStudents] = useState<Student[]>([]);
@@ -66,6 +71,19 @@ export default function ClassesPage() {
     const data = await api.get<ClassRow[]>('/classes/all');
     setClasses(Array.isArray(data) ? data : []);
   }, []);
+
+  async function createClass() {
+    if (!newClassName.trim()) { setCreateError('Ангийн нэр оруулна уу'); return; }
+    setCreating(true); setCreateError('');
+    try {
+      await api.post('/classes', { name: newClassName.trim() });
+      setCreateModal(false);
+      setNewClassName('');
+      load();
+    } catch (e: unknown) {
+      setCreateError(e instanceof Error ? e.message : 'Алдаа гарлаа');
+    } finally { setCreating(false); }
+  }
 
   useEffect(() => { load(); }, [load]);
 
@@ -171,6 +189,11 @@ export default function ClassesPage() {
       <PageHeader
         title="Ангиуд"
         description={`Нийт: ${classes.length} анги`}
+        action={
+          <Button onClick={() => { setNewClassName(''); setCreateError(''); setCreateModal(true); }}>
+            <Plus className="h-4 w-4" /> Анги нэмэх
+          </Button>
+        }
       />
 
       <div className="mb-4">
@@ -225,6 +248,30 @@ export default function ClassesPage() {
             </div>
           ))}
         </div>
+      )}
+
+      {/* Create class modal */}
+      {createModal && (
+        <Modal title="Анги нэмэх" onClose={() => setCreateModal(false)}>
+          <div className="space-y-4">
+            <Input
+              label="Ангийн нэр"
+              value={newClassName}
+              onChange={(e) => setNewClassName(e.target.value)}
+              placeholder="жишээ: 10A анги, Мандах сургууль..."
+            />
+            <p className="text-xs text-gray-400">
+              Нэгдэх кодыг систем автоматаар үүсгэнэ. Эзэн багш нь admin хэрэглэгч болно.
+            </p>
+            {createError && <p className="text-sm text-red-500">{createError}</p>}
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="secondary" onClick={() => setCreateModal(false)}>Болих</Button>
+              <Button onClick={createClass} disabled={creating}>
+                {creating ? 'Үүсгэж байна...' : 'Үүсгэх'}
+              </Button>
+            </div>
+          </div>
+        </Modal>
       )}
 
       {/* Class detail modal */}

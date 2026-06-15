@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Pencil, Trash2, Eye, EyeOff } from 'lucide-react';
+import { Plus, Pencil, Trash2, Eye, EyeOff, Image, Film } from 'lucide-react';
 import { api } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
 import { Button } from '../../components/Button';
@@ -18,6 +18,7 @@ interface Lesson {
   isPublished: boolean;
   priceSparks: number;
   description?: string;
+  content?: { imageUrl?: string; videoUrl?: string };
 }
 
 const typeOptions = [
@@ -45,8 +46,9 @@ const emptyForm: LessonForm = {
 
 export default function LessonsPage() {
   const [lessons, setLessons] = useState<Lesson[]>([]);
-  const [modal, setModal] = useState<null | 'create' | 'edit'>(null);
+  const [modal, setModal] = useState<null | 'create' | 'edit' | 'preview'>(null);
   const [editing, setEditing] = useState<Lesson | null>(null);
+  const [preview, setPreview] = useState<Lesson | null>(null);
   const [form, setForm] = useState<LessonForm>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -63,11 +65,12 @@ export default function LessonsPage() {
     setForm({
       title: l.title, type: l.type, level: l.level, priceSparks: l.priceSparks,
       description: l.description ?? '',
-      imageUrl: (l as any).content?.imageUrl ?? '',
-      videoUrl: (l as any).content?.videoUrl ?? '',
+      imageUrl: l.content?.imageUrl ?? '',
+      videoUrl: l.content?.videoUrl ?? '',
     });
     setEditing(l); setError(''); setModal('edit');
   }
+  function openPreview(l: Lesson) { setPreview(l); setModal('preview'); }
 
   async function save() {
     if (!form.title.trim()) { setError('Гарчиг оруулна уу'); return; }
@@ -98,6 +101,28 @@ export default function LessonsPage() {
   }
 
   const columns = [
+    {
+      key: 'media', header: '',
+      render: (l: Lesson) => {
+        const img = l.content?.imageUrl;
+        const vid = l.content?.videoUrl;
+        if (img) return (
+          <button onClick={() => openPreview(l)} title="Зураг харах">
+            <img src={img} alt="" className="h-10 w-14 rounded object-cover border border-gray-200 hover:opacity-80 transition-opacity" />
+          </button>
+        );
+        if (vid) return (
+          <button onClick={() => openPreview(l)} title="Видео харах"
+            className="flex h-10 w-14 items-center justify-center rounded border border-gray-200 bg-gray-100 hover:bg-gray-200 transition-colors">
+            <Film className="h-4 w-4 text-gray-500" />
+          </button>
+        );
+        return <div className="h-10 w-14 rounded border border-dashed border-gray-200 bg-gray-50 flex items-center justify-center">
+          <Image className="h-4 w-4 text-gray-300" />
+        </div>;
+      },
+      className: 'w-16',
+    },
     { key: 'title', header: 'Гарчиг', render: (l: Lesson) => <span className="font-medium">{l.title}</span> },
     { key: 'type', header: 'Төрөл', render: (l: Lesson) => <Badge color="blue">{l.type}</Badge> },
     { key: 'level', header: 'Түвшин', render: (l: Lesson) => <Badge color="gray">{l.level.toUpperCase()}</Badge> },
@@ -131,7 +156,8 @@ export default function LessonsPage() {
       />
       <Table columns={columns} rows={lessons} keyFn={(l) => l.id} empty="Хичээл байхгүй" />
 
-      {modal && (
+      {/* Create / Edit modal */}
+      {(modal === 'create' || modal === 'edit') && (
         <Modal title={modal === 'create' ? 'Хичээл нэмэх' : 'Хичээл засах'} onClose={() => setModal(null)}>
           <div className="space-y-4">
             <Input label="Гарчиг" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
@@ -169,6 +195,42 @@ export default function LessonsPage() {
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="secondary" onClick={() => setModal(null)}>Болих</Button>
               <Button onClick={save} disabled={saving}>{saving ? 'Хадгалж байна...' : 'Хадгалах'}</Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Media preview modal */}
+      {modal === 'preview' && preview && (
+        <Modal title={preview.title} onClose={() => { setModal(null); setPreview(null); }}>
+          <div className="space-y-4">
+            {preview.content?.imageUrl && (
+              <div>
+                <p className="text-xs text-gray-400 mb-2 flex items-center gap-1"><Image className="h-3 w-3" /> Зураг</p>
+                <img
+                  src={preview.content.imageUrl}
+                  alt={preview.title}
+                  className="w-full rounded-xl border border-gray-200 object-contain max-h-80"
+                />
+              </div>
+            )}
+            {preview.content?.videoUrl && (
+              <div>
+                <p className="text-xs text-gray-400 mb-2 flex items-center gap-1"><Film className="h-3 w-3" /> Видео</p>
+                <video
+                  src={preview.content.videoUrl}
+                  controls
+                  className="w-full rounded-xl border border-gray-200 max-h-80"
+                />
+              </div>
+            )}
+            {!preview.content?.imageUrl && !preview.content?.videoUrl && (
+              <p className="text-sm text-gray-400 text-center py-6">Медиа файл байхгүй байна</p>
+            )}
+            <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
+              <Button onClick={() => { setModal(null); openEdit(preview); }}>
+                <Pencil className="h-4 w-4" /> Засах
+              </Button>
             </div>
           </div>
         </Modal>
