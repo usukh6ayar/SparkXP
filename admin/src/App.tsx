@@ -12,6 +12,8 @@ import SettingsPage from './pages/settings/SettingsPage';
 import LeaderboardPage from './pages/leaderboard/LeaderboardPage';
 import AiBuddyPage from './pages/buddy/AiBuddyPage';
 import ClassesPage from './pages/classes/ClassesPage';
+import OrganizationsPage from './pages/organizations/OrganizationsPage';
+import UsagePage from './pages/usage/UsagePage';
 
 export default function App() {
   return (
@@ -28,15 +30,17 @@ export default function App() {
             }
           >
             <Route index element={<Navigate to="/words" replace />} />
-            <Route path="/words"       element={<WordsPage />} />
-            <Route path="/lessons"     element={<LessonsPage />} />
-            <Route path="/quizzes"     element={<QuizzesPage />} />
-            <Route path="/users"       element={<UsersPage />} />
-            <Route path="/classes"     element={<ClassesPage />} />
-            <Route path="/leaderboard" element={<LeaderboardPage />} />
-            <Route path="/buddy"       element={<AiBuddyPage />} />
-            <Route path="/monitor"     element={<MonitorPage />} />
-            <Route path="/settings"    element={<SettingsPage />} />
+            <Route path="/words"         element={<WordsPage />} />
+            <Route path="/lessons"       element={<LessonsPage />} />
+            <Route path="/quizzes"       element={<QuizzesPage />} />
+            <Route path="/users"         element={<UsersPage />} />
+            <Route path="/classes"       element={<ClassesPage />} />
+            <Route path="/organizations" element={<OrganizationsPage />} />
+            <Route path="/leaderboard"   element={<LeaderboardPage />} />
+            <Route path="/buddy"         element={<AiBuddyPage />} />
+            <Route path="/usage"         element={<UsagePage />} />
+            <Route path="/monitor"       element={<MonitorPage />} />
+            <Route path="/settings"      element={<SettingsPage />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

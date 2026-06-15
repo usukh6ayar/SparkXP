@@ -2,20 +2,23 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import {
   BookOpen, FileText, HelpCircle, Users, BarChart2,
   Settings, LogOut, Zap, Trophy, Bot, GraduationCap,
+  Building2, Activity,
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { cn } from '../lib/utils';
 
 const nav = [
-  { to: '/words',       label: 'Үгс',         icon: BookOpen },
-  { to: '/lessons',     label: 'Хичээл',      icon: FileText },
-  { to: '/quizzes',     label: 'Сорил',       icon: HelpCircle },
-  { to: '/users',       label: 'Хэрэглэгч',  icon: Users },
-  { to: '/classes',     label: 'Ангиуд',      icon: GraduationCap },
-  { to: '/leaderboard', label: 'Leaderboard', icon: Trophy },
-  { to: '/buddy',       label: 'AI Buddy',    icon: Bot },
-  { to: '/monitor',     label: 'Монитор',     icon: BarChart2 },
-  { to: '/settings',    label: 'Тохиргоо',   icon: Settings },
+  { to: '/words',         label: 'Үгс',           icon: BookOpen },
+  { to: '/lessons',       label: 'Хичээл',        icon: FileText },
+  { to: '/quizzes',       label: 'Сорил',         icon: HelpCircle },
+  { to: '/users',         label: 'Хэрэглэгч',    icon: Users },
+  { to: '/classes',       label: 'Ангиуд',        icon: GraduationCap },
+  { to: '/organizations', label: 'Байгууллага',   icon: Building2 },
+  { to: '/leaderboard',   label: 'Leaderboard',   icon: Trophy },
+  { to: '/buddy',         label: 'AI Buddy',      icon: Bot },
+  { to: '/usage',         label: 'Хэрэглээ',      icon: Activity },
+  { to: '/monitor',       label: 'Монитор',       icon: BarChart2 },
+  { to: '/settings',      label: 'Тохиргоо',     icon: Settings },
 ];
 
 export function Sidebar() {
