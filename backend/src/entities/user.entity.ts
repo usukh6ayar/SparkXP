@@ -16,6 +16,7 @@ import { XpLog } from './xp-log.entity';
 import { AiUsage } from './ai-usage.entity';
 import { Message } from './message.entity';
 import { Payment } from './payment.entity';
+import { Plan } from './plan.entity';
 
 /**
  * Every person in the system — student, teacher, admin, super_admin — lives in
@@ -38,8 +39,21 @@ export class User extends BaseEntity {
   @Column({ name: 'full_name' })
   fullName: string;
 
+  /** Optional display name chosen at registration (e.g. "Bold123"). */
+  @Index({ unique: true, where: '"username" IS NOT NULL' })
+  @Column({ type: 'varchar', nullable: true })
+  username: string | null;
+
+  /** Phone number (Mongolian format: 8 digits). Used for teacher/student contact. */
+  @Column({ type: 'varchar', nullable: true })
+  phone: string | null;
+
   @Column({ type: 'enum', enum: UserRole, default: UserRole.STUDENT })
   role: UserRole;
+
+  /** Achievement trophies collected by the user (slug list). e.g. ["first_quiz", "streak_7"]. */
+  @Column({ type: 'jsonb', nullable: true })
+  trophies: string[] | null;
 
   // --- Gamification ---
   @Column({ type: 'int', default: 0 })
@@ -62,6 +76,21 @@ export class User extends BaseEntity {
   @Column({ type: 'varchar', default: 'MN' })
   country: string;
 
+  // --- Subscription plan ---
+  @ManyToOne(() => Plan, (plan) => plan.subscribers, {
+    nullable: true,
+    onDelete: 'SET NULL',
+  })
+  @JoinColumn({ name: 'plan_id' })
+  plan: Plan | null;
+
+  @Column({ name: 'plan_id', type: 'uuid', nullable: true })
+  planId: string | null;
+
+  /** When the active plan expires (null = no active plan). */
+  @Column({ name: 'plan_expires_at', type: 'timestamptz', nullable: true })
+  planExpiresAt: Date | null;
+
   // --- Org membership (null for individual learners) ---
   @ManyToOne(() => Organization, (org) => org.users, {
     nullable: true,
@@ -80,6 +109,35 @@ export class User extends BaseEntity {
   /** Classes this user teaches (teacher role). */
   @OneToMany(() => ClassEntity, (klass) => klass.teacher)
   taughtClasses: ClassEntity[];
+
+  // --- Per-period usage tracking (reset monthly by a scheduled job) ---
+  /** AI TTS voice seconds used in current billing period. */
+  @Column({ name: 'voice_seconds_used', type: 'int', default: 0 })
+  voiceSecondsUsed: number;
+
+  /** STT user speech seconds used in current billing period. */
+  @Column({ name: 'stt_seconds_used', type: 'int', default: 0 })
+  sttSecondsUsed: number;
+
+  /** Number of Gemini AI dictionary explanations generated this period. */
+  @Column({ name: 'dictionary_ai_count', type: 'int', default: 0 })
+  dictionaryAiCount: number;
+
+  /** AI text chat input tokens used this period. */
+  @Column({ name: 'ai_input_tokens', type: 'int', default: 0 })
+  aiInputTokens: number;
+
+  /** AI text chat output tokens used this period. */
+  @Column({ name: 'ai_output_tokens', type: 'int', default: 0 })
+  aiOutputTokens: number;
+
+  /** AI buddy memory storage used in MB. */
+  @Column({ name: 'memory_storage_mb', type: 'float', default: 0 })
+  memoryStorageMb: number;
+
+  /** When usage counters were last reset. */
+  @Column({ name: 'usage_reset_at', type: 'timestamptz', nullable: true })
+  usageResetAt: Date | null;
 
   // --- Activity relations ---
   @OneToMany(() => WordReview, (review) => review.user)

@@ -1,6 +1,7 @@
 /** Barrel of all entities — import from here when registering with TypeORM. */
 import { Organization } from './organization.entity';
 import { User } from './user.entity';
+import { Plan } from './plan.entity';
 import { ClassEntity } from './class.entity';
 import { Lesson } from './lesson.entity';
 import { Word } from './word.entity';
@@ -13,10 +14,12 @@ import { Message } from './message.entity';
 import { Payment } from './payment.entity';
 import { SparksLog } from './sparks-log.entity';
 import { LessonUnlock } from './lesson-unlock.entity';
+import { Notification } from './notification.entity';
 
 export {
   Organization,
   User,
+  Plan,
   ClassEntity,
   Lesson,
   Word,
@@ -29,12 +32,14 @@ export {
   Payment,
   SparksLog,
   LessonUnlock,
+  Notification,
 };
 
 /** Single list to feed TypeORM's `entities` option. */
 export const entities = [
   Organization,
   User,
+  Plan,
   ClassEntity,
   Lesson,
   Word,
@@ -47,4 +52,5 @@ export const entities = [
   Payment,
   SparksLog,
   LessonUnlock,
+  Notification,
 ];

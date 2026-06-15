@@ -9,15 +9,18 @@ import { WordsModule } from './words/words.module';
 import { LessonsModule } from './lessons/lessons.module';
 import { ReviewsModule } from './reviews/reviews.module';
 import { LeaderboardModule } from './leaderboard/leaderboard.module';
+import { QuizzesModule } from './quizzes/quizzes.module';
+import { XpModule } from './xp/xp.module';
+import { SparksModule } from './sparks/sparks.module';
+import { AiGatewayModule } from './ai-gateway/ai-gateway.module';
+import { HealthModule } from './health/health.module';
+import { OrganizationsModule } from './organizations/organizations.module';
+import { ClassesModule } from './classes/classes.module';
+import { AssignmentsModule } from './assignments/assignments.module';
+import { PaymentsModule } from './payments/payments.module';
+import { UploadModule } from './upload/upload.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
-/**
- * Root module. Wires up the three foundations:
- *  - ConfigModule  — loads .env, available everywhere.
- *  - TypeOrmModule — PostgreSQL connection + all entities.
- *  - RedisModule   — shared Redis client (cache/queue).
- *
- * Feature modules (auth, vocabulary, AI gateway, ...) get added here later.
- */
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -33,6 +36,17 @@ import { LeaderboardModule } from './leaderboard/leaderboard.module';
     LessonsModule,
     ReviewsModule,
     LeaderboardModule,
+    QuizzesModule,
+    XpModule,
+    SparksModule,
+    AiGatewayModule,
+    HealthModule,
+    OrganizationsModule,
+    ClassesModule,
+    AssignmentsModule,
+    PaymentsModule,
+    UploadModule,
+    NotificationsModule,
   ],
 })
 export class AppModule {}

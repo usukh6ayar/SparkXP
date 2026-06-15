@@ -27,6 +27,11 @@ export class CreateWordDto {
   @MaxLength(500)
   exampleSentence?: string;
 
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  exampleTranslation?: string;
+
   // URLs are stored as plain strings (CDN links). Kept simple — not validated
   // as strict URLs so relative/CDN paths are allowed.
   @IsOptional()

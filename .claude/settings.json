@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p /mnt/c/Users/Dell/Documents/EnglishXP/backend/src/users/dto)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(mkdir -p /mnt/c/Users/Dell/Documents/EnglishXP/backend/src/organizations/dto)",
+      "Bash(npm create *)",
+      "Bash(npx tailwindcss *)",
+      "Bash(rm -rf /mnt/c/Users/Dell/Documents/EnglishXP/admin/node_modules /mnt/c/Users/Dell/Documents/EnglishXP/admin/package-lock.json)",
+      "Bash(curl -s -X POST http://localhost:3000/api/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"admin@englishxp.mn\",\"password\":\"Admin1234!\"}')",
+      "Bash(curl -s http://localhost:3000/api/auth/me -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI0NjVlNzBkYS0yZWNjLTQ5MTAtYmJhZi1iMzE3NWI2NTMwNjMiLCJlbWFpbCI6ImFkbWluQGVuZ2xpc2h4cC5tbiIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc4MTA3MDI3MiwiZXhwIjoxNzgxNjc1MDcyfQ.mPCRn8NUrSo2oQ9Y6ZzvgISCLnngwSmP3DSsvGl8v-o')",
+      "Bash(curl -s -X POST http://localhost:3000/api/auth/login -H 'Content-Type: application/json' -H 'Origin: http://127.0.0.1:5173' -d '{\"email\":\"admin@englishxp.mn\",\"password\":\"Admin1234!\"}')",
+      "Bash(xargs ls -la)",
+      "Bash(xargs ls)"
+    ],
+    "additionalDirectories": [
+      "/mnt/c/Users/Dell/Documents/EnglishXP/backend/src/users",
+      "/mnt/c/Users/Dell/Documents/EnglishXP/backend/src/organizations",
+      "/mnt/c/Users/Dell/Documents/EnglishXP/admin/node_modules"
+    ]
+  }
+}

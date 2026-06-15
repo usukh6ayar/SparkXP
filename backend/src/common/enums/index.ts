@@ -7,6 +7,8 @@
 export enum UserRole {
   STUDENT = "student",
   TEACHER = "teacher",
+  /** Moderator = teacher-level + content management (create/edit lessons, words, quizzes). Set by super_admin only. */
+  MODERATOR = "moderator",
   ADMIN = "admin",
   SUPER_ADMIN = "super_admin",
 }
@@ -24,6 +26,9 @@ export enum LessonType {
   VOCABULARY = "vocabulary",
   GRAMMAR = "grammar",
   LISTENING = "listening",
+  READING = "reading",
+  WRITING = "writing",
+  FILL = "fill", // нөхөх даалгавар (fill-in-the-blank)
 }
 
 /** CEFR-style difficulty, reused by Lesson and Word. */

@@ -65,4 +65,34 @@ export class WordsService {
     const word = await this.findOne(id); // throws if missing
     await this.words.remove(word);
   }
+
+  /**
+   * Bulk-insert words, skipping any that already exist (same english + level).
+   * Returns counts of inserted vs skipped.
+   */
+  async bulkImport(
+    items: CreateWordDto[],
+  ): Promise<{ inserted: number; skipped: number }> {
+    let inserted = 0;
+    let skipped = 0;
+
+    // Process in batches of 100 to avoid query bloat
+    const BATCH = 100;
+    for (let i = 0; i < items.length; i += BATCH) {
+      const batch = items.slice(i, i + BATCH);
+      await Promise.all(
+        batch.map(async (dto) => {
+          const exists = await this.words.findOne({
+            where: { english: dto.english, level: dto.level ?? 'a1' as any },
+            select: { id: true },
+          });
+          if (exists) { skipped++; return; }
+          await this.words.save(this.words.create(dto));
+          inserted++;
+        }),
+      );
+    }
+
+    return { inserted, skipped };
+  }
 }

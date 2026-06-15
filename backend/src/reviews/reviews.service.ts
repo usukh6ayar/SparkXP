@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThanOrEqual } from 'typeorm';
+import { Repository, LessThanOrEqual, MoreThanOrEqual } from 'typeorm';
 import { WordReview } from '../entities/word-review.entity';
 import { Word } from '../entities/word.entity';
 import { computeSm2, initialSm2State } from './sm2';
@@ -79,5 +79,39 @@ export class ReviewsService {
     review.lastReviewedAt = now;
 
     return this.reviews.save(review);
+  }
+
+  /**
+   * Word stats for the swipe-learning UI.
+   * - `known`: words recalled at least once (repetitions >= 1) → "мэдэх үг".
+   * - `learning`: seen but not yet known (repetitions = 0).
+   */
+  async getStats(userId: string): Promise<{ known: number; learning: number }> {
+    const [known, learning] = await Promise.all([
+      this.reviews.count({ where: { userId, repetitions: MoreThanOrEqual(1) } }),
+      this.reviews.count({ where: { userId, repetitions: 0 } }),
+    ]);
+    return { known, learning };
+  }
+
+  /**
+   * Deck of words to learn (swipe): vocabulary the user does NOT yet know
+   * (no review yet, or repetitions = 0). Known words are excluded.
+   */
+  async getLearnQueue(userId: string, limit = 30): Promise<Word[]> {
+    const knownRows = await this.reviews.find({
+      where: { userId, repetitions: MoreThanOrEqual(1) },
+      select: { wordId: true },
+    });
+    const knownIds = knownRows.map((r) => r.wordId);
+
+    const qb = this.words
+      .createQueryBuilder('w')
+      .orderBy('w.created_at', 'ASC')
+      .take(limit);
+    if (knownIds.length > 0) {
+      qb.where('w.id NOT IN (:...knownIds)', { knownIds });
+    }
+    return qb.getMany();
   }
 }

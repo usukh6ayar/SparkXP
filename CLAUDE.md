@@ -16,6 +16,16 @@ organizations (e.g. law firms). Owner: Hustle Hive LLC.
 - Keep code simple, readable, well-documented. MVP first, scale later.
 - Avoid over-engineering. Write code a junior dev can read.
 
+### Work division (who owns what — avoid duplicate work!)
+
+- **Usukhbayar** → **Mobile app + student/user** features (`/mobile`, student-facing
+  backend). Branch: `usukhbayar`.
+- **Bishrelt** → **Admin web** dashboard (`/admin`) + admin-facing backend endpoints.
+  Branch: `bishrelt`.
+- The **backend (`/backend`) is shared** — whoever needs an endpoint adds it and
+  updates `API.md`. Don't both build the same module (this caused duplicate Phase 2
+  work before).
+
 ## Tech Stack
 
 - Mobile: React Native + Expo
@@ -28,9 +38,14 @@ organizations (e.g. law firms). Owner: Hustle Hive LLC.
 ## Repo Structure
 
 - `/backend` — NestJS API (built — see "Current Status")
-- `/mobile` — React Native (Expo) app (not started yet)
+- `/mobile` — React Native (Expo) app (started — Expo Router, see MOBILE_ROADMAP.md)
 - `CLAUDE.md` — this file (shared rules + project context)
-- `ROADMAP.md` — ordered task list and build phases
+- `ROADMAP.md` — backend task list and build phases
+- `MOBILE_ROADMAP.md` — mobile (frontend) task list + brand
+- `ROLES.md` — user types, roles (student/teacher/admin/super_admin) +
+  permissions matrix (read this to understand who can do what)
+- `API.md` — full backend endpoint reference (path, auth level, purpose)
+- `ADMIN_ROADMAP.md` — web admin dashboard plan (tech, phases, features)
 
 ---
 
@@ -48,6 +63,15 @@ organizations (e.g. law firms). Owner: Hustle Hive LLC.
 (`@Roles()` + `RolesGuard`). See `src/auth/` and `src/users/`.
 
 Next up: Content modules + Leaderboard + Sparks store (see ROADMAP.md).
+
+**Mobile UI/UX redesign in progress (2026-06-09).** New brand direction
+("Modern Mongol" — deep indigo + gold, Onest font, fox mascot kept) is being
+designed in Figma first — see `mobile/DESIGN_BRIEF.md` + `mobile/DESIGN_SYSTEM.md`.
+Code-side: design tokens + shared components refreshed; main screens redesigned.
+Home grid now shows the 4 language skills → Сонсгол `listening` · Унших `reading`
+· Нөхөх `fill` · Бичих `writing` (each filters the Lessons list by `type`).
+`LessonType` enum gained `reading`, `writing`, `fill` (shared `/backend` change —
+coordinate with Bishrelt; `API.md` updated).
 
 ### Backend folder layout
 
@@ -176,12 +200,32 @@ WordReview, XpLog, AiUsage, Message, Payment, SparksLog, LessonUnlock.
 - Comment non-obvious logic.
 - Validate all incoming data with DTOs + class-validator.
 - Write code a junior dev can read.
+- **DRY / less code.** Don't repeat yourself. If the same UI or logic appears
+  twice, extract it into a **reusable component** (mobile) or a shared
+  service/helper (backend) instead of copy-pasting. Prefer small, composable
+  pieces over big duplicated blocks.
+
+### Mobile (Expo) conventions
+
+- Reusable UI lives in `mobile/src/components/` (e.g. `Button`, `TextField`,
+  `SelectField`, `Logo`). Build a component once, reuse it everywhere — screens
+  should mostly compose components, not redefine styles.
+- Colors/spacing/type come from `mobile/src/theme/theme.ts` (no hardcoded hex
+  in screens). User-facing text comes from `mobile/src/i18n` (Mongolian first).
+- API calls go through `mobile/src/api/` (the `client.ts` fetch wrapper),
+  never raw `fetch` inside a screen.
+- Full plan + brand colors: see **MOBILE_ROADMAP.md**.
 
 ## Git Workflow (2-dev team)
 
+- **ALWAYS pull `main` BEFORE starting any task** (so you build on the other dev's
+  latest and don't duplicate/conflict). This is the #1 rule — do it every time:
+  ```bash
+  git checkout main && git pull origin main
+  git checkout <your-branch> && git merge main   # bring in their merged work
+  ```
 - `main` is always working/deployable. **Never push directly to `main`.**
-- One branch per task: `feature/...` or `fix/...` (e.g. `feature/auth`).
-- Before starting: `git checkout main && git pull origin main`.
+- One branch per dev/task: `usukhbayar`, `bishrelt`, or `feature/...` / `fix/...`.
 - Open a Pull Request, have the other dev review, then merge to `main`.
 - Keep PRs small and frequent. Split work by module to avoid conflicts.
 - `.env` is never committed (secrets). Update `.env.example` when adding new

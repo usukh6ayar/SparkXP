@@ -22,15 +22,15 @@ import { UserRole } from '../common/enums';
 
 /**
  * Lesson endpoints under /api/lessons.
- * Reads open to any logged-in user; writes admin-only (same pattern as words).
+ * GET routes are public (mobile app browses without auth).
+ * Write routes (POST/PATCH/DELETE) are admin-only.
  */
 @Controller('lessons')
-@UseGuards(JwtAuthGuard)
 export class LessonsController {
   constructor(private readonly lessonsService: LessonsService) {}
 
   @Post()
-  @UseGuards(RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
   create(@Body() dto: CreateLessonDto) {
     return this.lessonsService.create(dto);
@@ -47,7 +47,7 @@ export class LessonsController {
   }
 
   @Patch(':id')
-  @UseGuards(RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
   update(
     @Param('id', ParseUUIDPipe) id: string,
@@ -58,7 +58,7 @@ export class LessonsController {
 
   @Delete(':id')
   @HttpCode(204)
-  @UseGuards(RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
   remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.lessonsService.remove(id);

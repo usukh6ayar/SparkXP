@@ -10,6 +10,7 @@ import {
   UseGuards,
   ParseUUIDPipe,
   HttpCode,
+  BadRequestException,
 } from '@nestjs/common';
 import { WordsService } from './words.service';
 import { CreateWordDto } from './dto/create-word.dto';
@@ -28,15 +29,32 @@ import { UserRole } from '../common/enums';
  *   admin panel, never by students.
  */
 @Controller('words')
-@UseGuards(JwtAuthGuard) // every route needs a logged-in user
 export class WordsController {
   constructor(private readonly wordsService: WordsService) {}
 
   @Post()
-  @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
   create(@Body() dto: CreateWordDto) {
     return this.wordsService.create(dto);
+  }
+
+  /**
+   * Bulk import words from a JSON array.
+   * POST /api/words/bulk  { words: [...] }
+   * Returns { inserted, skipped } counts.
+   */
+  @Post('bulk')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  bulkImport(@Body('words') words: CreateWordDto[]) {
+    if (!Array.isArray(words) || words.length === 0) {
+      throw new BadRequestException('"words" массив шаардлагатай');
+    }
+    if (words.length > 50_000) {
+      throw new BadRequestException('Нэг удаад 50,000-аас дээш үг оруулах боломжгүй');
+    }
+    return this.wordsService.bulkImport(words);
   }
 
   @Get()
@@ -50,7 +68,7 @@ export class WordsController {
   }
 
   @Patch(':id')
-  @UseGuards(RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
   update(
     @Param('id', ParseUUIDPipe) id: string,
@@ -60,8 +78,8 @@ export class WordsController {
   }
 
   @Delete(':id')
-  @HttpCode(204) // no content on successful delete
-  @UseGuards(RolesGuard)
+  @HttpCode(204)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
   remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.wordsService.remove(id);
