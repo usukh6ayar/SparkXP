@@ -10,20 +10,32 @@ import { colors } from "../src/theme/theme";
  * - Not logged in + not on an auth screen → go to login.
  * - Logged in + on an auth screen → go to the app (tabs).
  */
+// TEMP: when true, the auth gate stops redirecting so onboarding / login /
+// register can be browsed freely. Set false to restore normal behaviour.
+const PREVIEW_AUTH = false;
+
 function RootNavigator() {
-  const { token, loading } = useAuth();
+  const { token, user, loading, onboarded } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
   useEffect(() => {
-    if (loading) return;
+    if (PREVIEW_AUTH || loading) return;
     const inAuthGroup = segments[0] === "(auth)";
-    if (!token && !inAuthGroup) {
-      router.replace("/(auth)/login");
-    } else if (token && inAuthGroup) {
-      router.replace("/(tabs)");
+    const inTeacherGroup = segments[0] === "(teacher)";
+    const isTeacher = user?.role === "teacher";
+    if (token) {
+      // Logged in — route by role and keep out of the auth/onboarding screens.
+      if (isTeacher && !inTeacherGroup) {
+        router.replace("/(teacher)");
+      } else if (!isTeacher && (inAuthGroup || inTeacherGroup)) {
+        router.replace("/(tabs)");
+      }
+    } else if (!inAuthGroup) {
+      // Not logged in: first-time users see onboarding, returners go to login.
+      router.replace(onboarded ? "/(auth)/login" : "/(auth)/onboarding");
     }
-  }, [token, loading, segments]);
+  }, [token, user, loading, onboarded, segments]);
 
   if (loading) {
     return (
@@ -51,6 +63,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
   },
 });

@@ -198,6 +198,41 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
 
 ---
 
+## 📑 Doc-aligned backlog — Product Brief-ээс (coordinate)
+
+> Hustle Hive docx-ийн дагуу (`PRODUCT_BRIEF.md`) backend-д нэмэх ёстой зүйлс.
+> Эдгээр нь mobile (teacher + student) болон admin-д хамаатай тул **PR-ийн өмнө
+> хоёр dev тохиролцоно**. Ихэнх нь Phase 1.5 / Phase 3.
+
+**Teacher dashboard гүнзгийрүүлэлт** (mobile M5 🟡)
+- [ ] Assignment **completion tracking** — оноосон lesson/quiz-ийг хэн дуусгасан
+      (X/N), статус. (Assignment-д completion data, эсвэл шинэ progress query.)
+- [ ] Класс доторх **per-student quiz оноо** aggregate.
+- [ ] **Weak topics** — оюутны сул скилл/категори (quiz/SRS дататай тооцох).
+- [x] `GET /api/classes/:id/progress` (xpWeek/Month/Total+sparks) — бэлэн.
+
+**User профайл / plan** (mobile M6)
+- [ ] `User.level` (placement түвшин) + `User.plan` талбар.
+- [ ] Plan caps-ийг admin/DB-ээс тохируулах (app update-гүй) — Free/Standard/Premium.
+
+**AI usage metering + cap enforcement** (PRODUCT_BRIEF §5)
+- [ ] `AiUsage`-д: `voice_seconds`, `stt_seconds`, `dictionary_ai_count`,
+      `dictionary_cache_hit`, `ai_input/output_tokens`, `memory_storage_mb`,
+      `memory_retrieval_count`. Real-time per-user meter.
+- [ ] Voice cap (Standard 25 / Premium 50 мин) — 80%/95% warning, cap-д voice зогсоод text үргэлжлэх.
+- [ ] STT cap (75 / 100–120 мин) + VAD.
+
+**AI Dictionary module** (Gemini 2.5 Flash-Lite)
+- [ ] DB/cache-first lookup; Gemini зөвхөн шинэ үг/гүн тайлбар. 4-section, `max_output_tokens≈450–500`, grounding OFF, cache.
+
+**Voice AI** (Phase 3, AI Gateway-аар)
+- [ ] TTS (ElevenLabs Flash/Turbo) + STT (Scribe) — fallback: API унавал text mode.
+
+**Gamification tracking** (mobile Home/Profile placeholder-ийг live болгох)
+- [ ] Streak, daily-XP goal, lesson completion, badge — endpoint + `User`/log талбарууд.
+
+---
+
 ## 🔁 Тогтмол баримтлах зарчмууд (CLAUDE.md-ээс)
 
 - Бүх контент **DB-д**, hardcode хийхгүй
@@ -221,3 +256,56 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
 1. `bishrelt` + `usukhbayar` branch PR → `main` merge.
 2. Phase 3 (Voice AI, Premium, Sparks store өргөтгөл) эхлэх.
 3. QPay live API нэгтгэх — `.env.example`-д `QPAY_*` keys нэмнэ.
+
+---
+
+## 🔄 Mobile redesign-аас үүдсэн shared backend өөрчлөлт (2026-06-12)
+
+> Усухбаярын mobile redesign-ийн явцад `/backend`-д орсон жижиг өөрчлөлтүүд
+> (хоёр dev-д хамаатай — `git pull` хийхэд ирнэ):
+
+- **`LessonType` enum** (`common/enums`) — `reading`, `writing`, `fill` нэмсэн
+  (mobile 4 скилл: Сонсгол/Унших/Нөхөх/Бичих). `API.md` шинэчилсэн.
+- **`scripts/seed.ts`** — DataSource `synchronize: true` (дутуу хүснэгт автоматаар
+  үүснэ, ж: `plans`) + skill жишээ хичээл.
+- **`@types/multer`** dev-dependency нэмсэн (upload feature TS build засвар).
+- **Хийгдэх (mobile хэрэгцээ):** бодит **streak / level / daily-XP / lesson
+  completion** tracking endpoint (одоо mobile талд placeholder). Lesson `content`
+  jsonb-д **видео** shape (`videoUrl`, `segments`, `tip`) — admin бөглөнө.
+
+---
+
+## ⚠️ Shared backend өөрчлөлт — Bishrelt АНХААР (2026-06-16)
+
+> Усухбаярын багш/auth ажлаас `/backend`-д орсон **хуваалцсан** өөрчлөлтүүд.
+> `git pull` хийгээд **`cd mobile && npm install`** (шинэ dependency). Дэлгэрэнгүй: `API.md`.
+
+**1. AUTH дахин зохион байгуулсан** (admin web-д НӨЛӨӨТЭЙ — гэхдээ эвдрэхгүй):
+- Бүртгэл одоо **`username` (заавал, давтагдашгүй)** + email шаардана.
+- **Нэвтрэлт `{ identifier, password }`** — `identifier` нь **username ЭСВЭЛ email**.
+  Хуучин `{ email, password }` body ажиллахаа болино → **admin login-ийг
+  `email`-ийн оронд `identifier` талбар руу шилжүүлэх** (утга нь email хэвээр болно).
+- Шинэ endpoint: `verify-otp`, `resend-otp`, `forgot-password`, `reset-password`.
+- Имэйл OTP-оор баталгаажна (register токен өгөхгүй → verify-otp токен өгнө).
+- `User.emailVerified` багана нэмэгдсэн. OTP нь Redis-д (10 мин TTL).
+- **`MailService` нь stub** (`src/mail/`) — dev-д код лог. Жинхэнэ SMTP/Resend-г энд залгана.
+- Public register `role`-г **зөвхөн `student`** болгож түгжсэн (teacher = admin олгоно).
+
+**2. Класст элсэх = багшийн зөвшөөрөлтэй:**
+- `POST /classes/join` → шууд элсэхгүй, **pending хүсэлт** үүсгэнэ.
+- Шинэ entity **`class_join_requests`** + endpoint: `GET /classes/:id/requests`,
+  `POST /classes/:id/requests/:studentId/approve`, `DELETE .../:studentId`.
+
+**3. Leaderboard `teacher` scope** нэмсэн — багшийн бүх ангийн сурагчид
+  (`?scope=teacher`). `LeaderboardModule` одоо `ClassEntity`-г import хийдэг.
+
+**4. `GET /organizations`** одоо **🔑 (нэвтэрсэн бүх хүнд нээлттэй)** — багш класс
+  үүсгэхдээ сургуулиа сонгоход. (POST/PATCH/DELETE хэвээр admin-only.)
+
+**5. Шинэ mobile dependency:** `expo-camera`, `react-native-svg`,
+  `react-native-qrcode-svg` (QR + scanner), `expo-image-picker` (avatar).
+  Pull хийсний дараа `npm install`.
+
+**6. Avatar:** `User.avatarUrl` багана нэмсэн. `PATCH /users/me`-д `avatarUrl`
+  (зургийн URL эсвэл `default:avN`), шинэ `POST /users/me/avatar` (зураг upload,
+  сурагчид нээлттэй). `/auth/me`/login user-д `avatarUrl` ирнэ.

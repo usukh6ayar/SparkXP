@@ -15,15 +15,22 @@
 
 | Method | Path | Auth | Тайлбар |
 |---|---|:---:|---|
-| POST | `/auth/register` | 🔓 | Бүртгүүлэх. Body: `{ email, password, fullName, province?, district? }` → `{ accessToken, user }` |
-| POST | `/auth/login` | 🔓 | Нэвтрэх. Body: `{ email, password }` → `{ accessToken, user }` |
+| POST | `/auth/register` | 🔓 | Бүртгүүлэх. Body: `{ username, email, password, fullName, province?, district? }` → `{ pendingVerification, email }` (токен ӨГӨХГҮЙ — OTP баталгаажуулна) |
+| POST | `/auth/verify-otp` | 🔓 | Body: `{ email, code }` → `{ accessToken, user }` (имэйл баталгаажуулж нэвтэрнэ) |
+| POST | `/auth/resend-otp` | 🔓 | Body: `{ email }` → код дахин илгээх |
+| POST | `/auth/login` | 🔓 | Нэвтрэх. Body: `{ identifier, password }` (**identifier = username ЭСВЭЛ email**) → `{ accessToken, user }` |
+| POST | `/auth/forgot-password` | 🔓 | Body: `{ email }` → сэргээх код имэйлдэнэ |
+| POST | `/auth/reset-password` | 🔓 | Body: `{ email, code, password }` → нууц үг солих |
 | GET | `/auth/me` | 🔑 | Одоогийн хэрэглэгч |
+
+> ⚠️ **Auth өөрчлөлт (2026-06):** бүртгэлд **username (заавал, давтагдашгүй)** + имэйл; нэвтрэлт **username-ээр** (admin/хуучин дансууд email-ээр хэвээр — `identifier` хоёуланг хүлээнэ). Имэйл OTP-оор баталгаажна, нууц үг имэйлээр сэргээнэ. **Email илгээлт одоо stub** (dev: код backend лог + Redis-д; жинхэнэ SMTP/Resend-г `MailService`-д залгана). Coordinate w/ Bishrelt.
 
 ## 👤 Users — `/api/users`
 
 | Method | Path | Auth | Тайлбар |
 |---|---|:---:|---|
-| PATCH | `/users/me` | 🔑 | Өөрийн профайл засах `{ fullName?, province?, district? }` |
+| PATCH | `/users/me` | 🔑 | Өөрийн профайл засах `{ fullName?, province?, district?, avatarUrl? }` (`avatarUrl` = зургийн URL эсвэл `default:avN`) |
+| POST | `/users/me/avatar` | 🔑 | Avatar зураг upload (multipart `file`, jpg/png/webp ≤5MB) → шинэчилсэн user |
 | GET | `/users/me/stats` | 🔑 | `{ xp, sparks }` |
 | GET | `/users` | 🛡️ | Хэрэглэгчийн жагсаалт (`?page&limit`) — passwordHash хасагдсан |
 | DELETE | `/users/:id` | 🛡️ | Хэрэглэгч устгах |
@@ -87,7 +94,7 @@
 
 | Method | Path | Auth | Тайлбар |
 |---|---|:---:|---|
-| GET | `/leaderboard` | 🔑 | `?period=weekly|monthly|all_time&scope=global|province|district|class|organization&classId?` → топ N + миний байр |
+| GET | `/leaderboard` | 🔑 | `?period=weekly|monthly|all_time&scope=global|province|district|class|organization|teacher&classId?` → топ N + миний байр. **`teacher` scope (2026-06):** багш→өөрийн бүх ангийн сурагчид; сурагч→элссэн ангийнхаа багшийн сурагчид |
 
 ---
 
@@ -97,7 +104,7 @@
 | Method | Path | Auth | Тайлбар |
 |---|---|:---:|---|
 | POST | `/organizations` | 🛡️ | Байгууллага үүсгэх |
-| GET | `/organizations` | 🛡️ | Жагсаалт |
+| GET | `/organizations` | 🔑 | Жагсаалт (багш класс үүсгэхэд сургуулиа сонгоход ашиглана) |
 | GET | `/organizations/:id` | 🔑 | Нэг |
 | PATCH | `/organizations/:id` | 🛡️ | Засах |
 | DELETE | `/organizations/:id` | 🛡️ | Устгах |
@@ -106,10 +113,17 @@
 | Method | Path | Auth | Тайлбар |
 |---|---|:---:|---|
 | POST | `/classes` | 👩‍🏫 | Класс үүсгэх (`join_code` гарна) |
-| POST | `/classes/join` | 🔑 | Оюутан `{ joinCode }`-оор элсэх |
+| POST | `/classes/join` | 🔑 | Оюутан `{ joinCode }`-оор **элсэх хүсэлт** илгээх → `{ status:'pending', className }` (багш зөвшөөрнө) |
 | GET | `/classes` | 🔑 | Класс жагсаалт |
-| GET | `/classes/:id` | 🔑 | Нэг класс |
+| GET | `/classes/:id` | 🔑 | Нэг класс (зөвшөөрөгдсөн roster) |
 | GET | `/classes/:id/students` | 👩‍🏫 | Класс доторх оюутнууд |
+| GET | `/classes/:id/requests` | 👩‍🏫 | **Хүлээгдэж буй элсэх хүсэлтүүд** |
+| POST | `/classes/:id/requests/:studentId/approve` | 👩‍🏫 | Хүсэлт **зөвшөөрөх** (roster-т нэмнэ) |
+| DELETE | `/classes/:id/requests/:studentId` | 👩‍🏫 | Хүсэлт **татгалзах** |
+
+> ⚠️ **Өөрчлөлт (2026-06-16):** `/classes/join` нь шууд элсүүлэхээ больж, **багшийн
+> зөвшөөрөл шаардсан pending хүсэлт** үүсгэдэг болсон (хэн ч кодоор шууд орохоос
+> сэргийлэв). Шинэ entity: `class_join_requests`. Coordinate w/ Bishrelt.
 
 ### Assignments — `/api/assignments`
 | Method | Path | Auth | Тайлбар |

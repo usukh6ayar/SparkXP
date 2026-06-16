@@ -1,9 +1,10 @@
-import { IsEmail, IsString } from 'class-validator';
+import { IsString } from 'class-validator';
 
-/** Body for POST /api/auth/login. */
+/** Body for POST /api/auth/login. `identifier` = username or email. */
 export class LoginDto {
-  @IsEmail({}, { message: 'Имэйл хаяг буруу байна' })
-  email: string;
+  /** Username (mobile) or email (admin / legacy) — either works. */
+  @IsString()
+  identifier: string;
 
   @IsString()
   password: string;

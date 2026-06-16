@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { buildTypeOrmOptions } from './config/typeorm.config';
 import { RedisModule } from './redis/redis.module';
+import { MailModule } from './mail/mail.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { WordsModule } from './words/words.module';
@@ -30,6 +31,7 @@ import { NotificationsModule } from './notifications/notifications.module';
       useFactory: buildTypeOrmOptions,
     }),
     RedisModule,
+    MailModule,
     UsersModule,
     AuthModule,
     WordsModule,

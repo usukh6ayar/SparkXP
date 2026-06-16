@@ -1,5 +1,5 @@
 /**
- * Thin fetch wrapper around the EnglishXP backend.
+ * Thin fetch wrapper around the SparkXP backend.
  *
  * - Base URL comes from EXPO_PUBLIC_API_URL (falls back to localhost for dev).
  *   On a real device use your machine's LAN IP, e.g. http://192.168.1.10:3000/api
@@ -54,5 +54,33 @@ export async function apiRequest<T>(
     throw new ApiError(res.status, message);
   }
 
+  return data as T;
+}
+
+/**
+ * Multipart upload (e.g. avatar image). Lets fetch set the multipart boundary —
+ * we must NOT set Content-Type ourselves. `file` is an RN file descriptor.
+ */
+export async function apiUpload<T>(
+  path: string,
+  file: { uri: string; name: string; type: string },
+  token: string,
+): Promise<T> {
+  const form = new FormData();
+  // RN FormData accepts this {uri,name,type} shape for file parts.
+  form.append('file', file as unknown as Blob);
+
+  const res = await fetch(`${BASE_URL}${path}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    const raw = (data as { message?: string | string[] } | null)?.message;
+    const message = Array.isArray(raw) ? raw.join(', ') : raw ?? 'Алдаа гарлаа';
+    throw new ApiError(res.status, message);
+  }
   return data as T;
 }

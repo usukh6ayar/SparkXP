@@ -40,6 +40,8 @@ organizations (e.g. law firms). Owner: Hustle Hive LLC.
 - `/backend` — NestJS API (built — see "Current Status")
 - `/mobile` — React Native (Expo) app (started — Expo Router, see MOBILE_ROADMAP.md)
 - `CLAUDE.md` — this file (shared rules + project context)
+- `PRODUCT_BRIEF.md` — product vision, roles, MVP scope, **plan tiers + AI/voice
+  cost guardrails** (Hustle Hive docx нэгтгэл — read before plan/AI/limit work)
 - `ROADMAP.md` — backend task list and build phases
 - `MOBILE_ROADMAP.md` — mobile (frontend) task list + brand
 - `ROLES.md` — user types, roles (student/teacher/admin/super_admin) +
@@ -64,14 +66,30 @@ organizations (e.g. law firms). Owner: Hustle Hive LLC.
 
 Next up: Content modules + Leaderboard + Sparks store (see ROADMAP.md).
 
-**Mobile UI/UX redesign in progress (2026-06-09).** New brand direction
-("Modern Mongol" — deep indigo + gold, Onest font, fox mascot kept) is being
-designed in Figma first — see `mobile/DESIGN_BRIEF.md` + `mobile/DESIGN_SYSTEM.md`.
-Code-side: design tokens + shared components refreshed; main screens redesigned.
-Home grid now shows the 4 language skills → Сонсгол `listening` · Унших `reading`
-· Нөхөх `fill` · Бичих `writing` (each filters the Lessons list by `type`).
-`LessonType` enum gained `reading`, `writing`, `fill` (shared `/backend` change —
-coordinate with Bishrelt; `API.md` updated).
+**Mobile UI/UX redesign — in progress (2026-06-12).** Brand moved to a new
+**purple** direction (primary `#6C3BFF`, gradient, gold XP / blue gem / orange
+streak), fox mascot + "SparkXP" name kept. Source: `mobile/DESIGN.md`,
+`DESIGN_PROMPT.md` (+ `DESIGN_BRIEF.md`, `SCREEN_SPECS.md`).
+Done: design tokens + shared components rebuilt; Home / Lessons (list+detail) /
+Soril / Profile / Chat / Leaderboard / Swipe redesigned to mockups; bottom tab
+center = AI buddy image. Home/Lessons skills → Сонсгол `listening` · Унших
+`reading` · Нөхөх `fill` · Бичих `writing` (filter Lessons by `type`).
+Shared `/backend`: `LessonType` gained `reading`/`writing`/`fill`; `seed.ts`
+`synchronize:true`; `@types/multer` added; `API.md` updated — coordinate w/ Bishrelt.
+Onboarding (3-slide) + login/register redesign shipped. **Teacher section (M5)
+DONE & merged:** role-based tabs → classes (school+name), join code + QR,
+approval-gated join (teacher approves requests), assign lessons/quizzes, teacher
+"Чансаа" leaderboard (`scope=teacher`). **Auth overhauled & merged:** required
+unique `username`, login by `identifier` (username **or** email), email-OTP
+verify + password reset (MailService is a **stub** — plug SMTP/Resend later).
+Student join-class (code/QR scanner) shipped. ⚠️ **Shared-backend changes that
+affect Bishrelt's admin (auth/classes/leaderboard/orgs) + new mobile deps are
+listed in `ROADMAP.md` → "Shared backend өөрчлөлт — Bishrelt АНХААР (2026-06-16)".**
+**Next (mobile):** product-brief alignment (Phase M6 — level/English-name/
+avatar/"Continue Learning"/student assignments). See `MOBILE_ROADMAP.md` + `PRODUCT_BRIEF.md`.
+**Pending:** app icon files missing; fonts (Onest/Inter) not loaded; Lucide
+migration; real gamification data (streak/level/progress are placeholders); real
+video player. Full list: `MOBILE_ROADMAP.md`.
 
 ### Backend folder layout
 

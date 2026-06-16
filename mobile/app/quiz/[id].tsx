@@ -199,7 +199,7 @@ export default function QuizScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.surface },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -235,7 +235,7 @@ const styles = StyleSheet.create({
   optionLabel: {
     width: 28, height: 28,
     borderRadius: 14,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceAlt,
     textAlign: 'center',
     lineHeight: 28,
     fontWeight: '700',
@@ -269,7 +269,7 @@ const styles = StyleSheet.create({
   },
   xpBadgeText: { color: colors.primary, fontWeight: '800', fontSize: fontSize.md },
   breakdownBox: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceAlt,
     borderRadius: radius.md,
     padding: spacing.md,
     gap: spacing.sm,

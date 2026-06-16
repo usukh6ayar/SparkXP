@@ -14,42 +14,44 @@
 import { Platform, TextStyle } from 'react-native';
 
 export const colors = {
-  // Brand
-  primary: '#F47B20', // orange (fox + "XP")
-  primaryDark: '#D9660F',
-  primaryPressed: '#C85D0E',
-  primarySoft: '#FDEBDA', // light orange tint (chips, highlights)
+  // Brand — premium purple (DESIGN.md)
+  primary: '#6C3BFF', // Primary 500
+  primaryDark: '#5A28F0', // Primary 600
+  primaryPressed: '#4B1ED8', // Primary 700
+  primarySoft: '#F1EEFF', // light purple tint (chips, highlights)
+  // Hero gradient stops (#7A4DFF → #6C3BFF → #5A28F0)
+  primaryGradient: ['#7A4DFF', '#6C3BFF', '#5A28F0'] as const,
 
-  navy: '#16213E', // brand navy — primary text + dark surfaces
-  navySoft: '#33406A',
+  navy: '#18244A', // deep ink — primary text / dark surfaces
+  navySoft: '#4A5578',
 
-  // Surfaces (light → dark)
-  background: '#FFFFFF', // app background
-  surface: '#F4F6FA', // subtle cards / inputs (cool)
-  surfaceAlt: '#EEF1F7', // pressed / nested surface
-  cream: '#FBF4E6', // warm accent surface
+  // Surfaces — off-white screen, white cards, gray nested (DESIGN.md)
+  background: '#F8F8FC', // app background
+  surface: '#FFFFFF', // cards / elevated surfaces (white)
+  surfaceAlt: '#F2F3FA', // secondary surface — inputs, chips, tracks
+  cream: '#FFF6E8', // warm accent surface
 
   // Text (high → low emphasis)
-  text: '#16213E', // navy — primary text
-  textSecondary: '#5B6478', // secondary copy
-  textMuted: '#8A91A3', // captions, hints, inactive
+  text: '#18244A', // primary text
+  textSecondary: '#5F698A', // secondary copy
+  textMuted: '#97A0B8', // captions, hints, inactive
   textOnDark: '#FFFFFF',
-  textOnDarkMuted: '#AEB6CC',
+  textOnDarkMuted: '#DCD7FF', // on-purple secondary
 
-  border: '#E6E9F0',
-  borderStrong: '#D5DAE5',
+  border: '#ECEEF5',
+  borderStrong: '#D7DCEC',
 
   // Semantic
-  success: '#1FA463',
-  successSoft: '#E6F6EE',
-  danger: '#E0383E',
-  dangerSoft: '#FCEBEC',
-  warning: '#E8A317',
+  success: '#22C55E',
+  successSoft: '#EAFBF0',
+  danger: '#EF4444',
+  dangerSoft: '#FEECEC',
+  warning: '#FF8A00', // orange (DESIGN.md)
 
   // Gamification
-  xp: '#F47B20', // XP in brand orange
-  sparks: '#F4A52A', // Sparks in amber
-  streak: '#F2542D', // streak flame red-orange
+  xp: '#F5A623', // XP — gold
+  sparks: '#38BDF8', // Очирхон / Gems — diamond blue
+  streak: '#FF8A00', // streak — orange (DESIGN.md)
 
   white: '#FFFFFF',
 };
@@ -66,11 +68,12 @@ export const spacing = {
 };
 
 /** Corner radii — restrained (10–20) for a premium, less "bubbly" feel. */
+/** Rounded corners (DESIGN.md: 12 / 20 / 28 / 32 — premium, soft). */
 export const radius = {
-  sm: 8,
-  md: 12,
-  lg: 16,
-  xl: 20,
+  sm: 12,
+  md: 16,
+  lg: 20, // cards
+  xl: 28, // hero / large cards
   full: 999,
 };
 
@@ -96,6 +99,8 @@ export const typography = {
   label: { fontSize: 13, lineHeight: 18, fontWeight: '600' as const, color: colors.text },
   /** Captions, hints, secondary metadata. */
   caption: { fontSize: 12, lineHeight: 16, fontWeight: '500' as const, color: colors.textMuted },
+  /** UPPERCASE eyebrow / tag label. */
+  overline: { fontSize: 11, lineHeight: 14, fontWeight: '700' as const, letterSpacing: 0.5, color: colors.textMuted },
 } satisfies Record<string, TextStyle>;
 
 /**
@@ -113,39 +118,52 @@ export const fontSize = {
 };
 
 /** Soft elevation presets (iOS shadow + Android elevation). */
+/** Soft shadows (DESIGN.md): cards 0 8 24 / 0.06 · floating 0 12 30 purple 0.20. */
 export const elevation = {
   none: {},
   sm: Platform.select({
     ios: {
-      shadowColor: colors.navy,
-      shadowOpacity: 0.06,
-      shadowRadius: 8,
-      shadowOffset: { width: 0, height: 2 },
+      shadowColor: '#1A1240',
+      shadowOpacity: 0.05,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 4 },
     },
     android: { elevation: 2 },
     default: {},
   }),
   md: Platform.select({
     ios: {
-      shadowColor: colors.navy,
-      shadowOpacity: 0.1,
-      shadowRadius: 16,
-      shadowOffset: { width: 0, height: 6 },
+      shadowColor: '#1A1240',
+      shadowOpacity: 0.07,
+      shadowRadius: 14,
+      shadowOffset: { width: 0, height: 8 },
     },
     android: { elevation: 5 },
+    default: {},
+  }),
+  // Floating elements (FAB / center tab) — soft purple glow.
+  float: Platform.select({
+    ios: {
+      shadowColor: colors.primary,
+      shadowOpacity: 0.2,
+      shadowRadius: 15,
+      shadowOffset: { width: 0, height: 12 },
+    },
+    android: { elevation: 10 },
     default: {},
   }),
 };
 
 /** Soft tint pairs (bg + foreground) for category / game / icon tiles. */
 export const tints = {
-  green: { bg: '#E7F6EC', fg: '#15924F' },
-  blue: { bg: '#E6F0FB', fg: '#2563EB' },
-  purple: { bg: '#F0EAFB', fg: '#7C3AED' },
-  amber: { bg: '#FEF3DA', fg: '#C9820B' },
-  pink: { bg: '#FCE8EE', fg: '#DB2777' },
-  teal: { bg: '#E2F5F2', fg: '#0D9488' },
-  orange: { bg: colors.primarySoft, fg: colors.primaryDark },
+  purple: { bg: '#F1EEFF', fg: '#6C3BFF' }, // listening / brand
+  green: { bg: '#EAFBF0', fg: '#22C55E' }, // reading / success
+  coral: { bg: '#FFF1E5', fg: '#FF8A00' }, // fill / streak
+  blue: { bg: '#EAF4FF', fg: '#3B82F6' }, // writing / info
+  amber: { bg: '#FFF7E3', fg: '#D97706' },
+  pink: { bg: '#FDECF5', fg: '#DB2777' },
+  teal: { bg: '#E8FBF7', fg: '#0F9D8A' },
+  orange: { bg: '#FFF1E5', fg: '#FF8A00' },
 };
 
 /** CEFR level tag colors (a1, a2, ...). */

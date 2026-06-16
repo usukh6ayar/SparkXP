@@ -21,6 +21,7 @@ const PERIODS: { key: Period; label: string }[] = [
   { key: 'all_time', label: 'Бүх цаг' },
 ];
 const SCOPES: { key: Scope; label: string }[] = [
+  { key: 'teacher', label: 'Анги' },
   { key: 'global', label: 'Глобал' },
   { key: 'province', label: 'Аймаг' },
   { key: 'district', label: 'Дүүрэг' },
@@ -144,7 +145,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   tabs: {
     flexDirection: 'row',
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceAlt,
     borderRadius: radius.full,
     padding: 4,
     marginHorizontal: spacing.lg,
@@ -153,7 +154,7 @@ const styles = StyleSheet.create({
   tab: { flex: 1, paddingVertical: spacing.sm, borderRadius: radius.full, alignItems: 'center' },
   tabActive: { backgroundColor: colors.primary },
   chips: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg, marginVertical: spacing.md },
-  chip: { paddingHorizontal: spacing.md, paddingVertical: 7, borderRadius: radius.full, backgroundColor: colors.surface },
+  chip: { paddingHorizontal: spacing.md, paddingVertical: 7, borderRadius: radius.full, backgroundColor: colors.surfaceAlt },
   chipActive: { backgroundColor: colors.navy },
   list: { paddingHorizontal: spacing.lg },
   meCard: {
@@ -167,15 +168,15 @@ const styles = StyleSheet.create({
   meXp: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   row: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    backgroundColor: colors.background, borderRadius: radius.md,
+    backgroundColor: colors.surface, borderRadius: radius.md,
     paddingVertical: spacing.sm, paddingHorizontal: spacing.md, marginBottom: spacing.sm,
     borderWidth: 1, borderColor: colors.border,
   },
   rowMe: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
   rankBadge: { width: 28, height: 28, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center' },
-  rankPlain: { backgroundColor: colors.surface },
+  rankPlain: { backgroundColor: colors.surfaceAlt },
   avatar: {
-    width: 36, height: 36, borderRadius: radius.full, backgroundColor: colors.surface,
+    width: 36, height: 36, borderRadius: radius.full, backgroundColor: colors.surfaceAlt,
     alignItems: 'center', justifyContent: 'center',
   },
   name: { flex: 1 },

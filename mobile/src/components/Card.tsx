@@ -41,9 +41,9 @@ export function Card({ children, onPress, variant = 'flat', padding = 'lg', styl
 }
 
 const styles = StyleSheet.create({
-  base: { borderRadius: radius.lg, backgroundColor: colors.background },
+  base: { borderRadius: radius.lg, backgroundColor: colors.surface },
   flat: { borderWidth: 1, borderColor: colors.border },
   raised: { ...(elevation.sm as object) },
-  filled: { backgroundColor: colors.surface },
+  filled: { backgroundColor: colors.surfaceAlt },
   pressed: { opacity: 0.9, transform: [{ scale: 0.99 }] },
 });

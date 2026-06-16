@@ -8,18 +8,26 @@ import {
 import * as SecureStore from 'expo-secure-store';
 import { ApiError } from '../api/client';
 import * as authApi from '../api/auth';
-import type { AuthUser, RegisterPayload } from '../api/auth';
+import type { AuthResult, AuthUser } from '../api/auth';
 
 const TOKEN_KEY = 'englishxp.token';
 const USER_KEY = 'englishxp.user';
+const ONBOARDED_KEY = 'englishxp.onboarded';
 
 interface AuthState {
   token: string | null;
   user: AuthUser | null;
   /** True while restoring the session on app start. */
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (payload: RegisterPayload) => Promise<void>;
+  /** Whether the user has finished the first-launch onboarding. */
+  onboarded: boolean;
+  /** Log in with username (or email) + password. */
+  login: (identifier: string, password: string) => Promise<void>;
+  /** Persist a session from an already-fetched result (e.g. after OTP verify). */
+  applySession: (result: AuthResult) => Promise<void>;
+  /** Replace the cached user (e.g. after editing profile / avatar). */
+  updateUser: (user: AuthUser) => Promise<void>;
+  completeOnboarding: () => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -34,6 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [onboarded, setOnboarded] = useState(false);
 
   useEffect(() => {
     restoreSession();
@@ -41,6 +50,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function restoreSession() {
     try {
+      // First-launch flag — drives whether we show onboarding before login.
+      setOnboarded((await SecureStore.getItemAsync(ONBOARDED_KEY)) === '1');
+
       const saved = await SecureStore.getItemAsync(TOKEN_KEY);
       if (!saved) return;
 
@@ -85,12 +97,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(result.user);
   }
 
-  async function login(email: string, password: string) {
-    await persist(await authApi.login(email, password));
+  async function login(identifier: string, password: string) {
+    await persist(await authApi.login(identifier, password));
   }
 
-  async function register(payload: RegisterPayload) {
-    await persist(await authApi.register(payload));
+  async function applySession(result: AuthResult) {
+    await persist(result);
+  }
+
+  async function updateUser(next: AuthUser) {
+    await SecureStore.setItemAsync(USER_KEY, JSON.stringify(next));
+    setUser(next);
+  }
+
+  async function completeOnboarding() {
+    await SecureStore.setItemAsync(ONBOARDED_KEY, '1');
+    setOnboarded(true);
   }
 
   async function logout() {
@@ -99,7 +121,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ token, user, loading, login, register, logout }}
+      value={{
+        token,
+        user,
+        loading,
+        onboarded,
+        login,
+        applySession,
+        updateUser,
+        completeOnboarding,
+        logout,
+      }}
     >
       {children}
     </AuthContext.Provider>

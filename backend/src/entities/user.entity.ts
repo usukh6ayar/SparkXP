@@ -36,6 +36,17 @@ export class User extends BaseEntity {
   @Column({ name: 'password_hash' })
   passwordHash: string;
 
+  /** Whether the email has been confirmed via OTP at registration. */
+  @Column({ name: 'email_verified', type: 'boolean', default: false })
+  emailVerified: boolean;
+
+  /**
+   * Avatar: either an uploaded image URL (`http…/uploads/…`) or a built-in
+   * default key (`default:avN`, resolved to a bundled image on the client).
+   */
+  @Column({ name: 'avatar_url', type: 'varchar', nullable: true })
+  avatarUrl: string | null;
+
   @Column({ name: 'full_name' })
   fullName: string;
 

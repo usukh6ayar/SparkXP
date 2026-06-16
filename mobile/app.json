@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "EnglishXP",
+    "name": "SparkXP",
     "slug": "englishxp",
     "scheme": "englishxp",
     "version": "1.0.0",
@@ -25,7 +25,13 @@
     },
     "plugins": [
       "expo-router",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Анги нэгдэх QR код уншихад камер ашиглана."
+        }
+      ]
     ]
   }
 }

@@ -1,20 +1,23 @@
-import { View, Text, Pressable, Image, StyleSheet } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import { colors, spacing, radius, fontSize } from '../theme/theme';
+import { View, Text, Pressable, Image, StyleSheet } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
+import { colors, spacing, fontSize } from "../theme/theme";
 
-const fox = require('../../assets/logo.png');
+const buddy = require("../../assets/buddy-menu.png");
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
 /** Icon (filled + outline) + label per tab route. The `chat` route is rendered
  *  as the raised center fox button instead of a normal tab. */
-const TAB_META: Record<string, { icon: IconName; iconOutline: IconName; label: string }> = {
-  index: { icon: 'home', iconOutline: 'home-outline', label: 'Нүүр' },
-  lessons: { icon: 'book', iconOutline: 'book-outline', label: 'Хичээл' },
-  soril: { icon: 'trophy', iconOutline: 'trophy-outline', label: 'Сорил' },
-  profile: { icon: 'person', iconOutline: 'person-outline', label: 'Профайл' },
+const TAB_META: Record<
+  string,
+  { icon: IconName; iconOutline: IconName; label: string }
+> = {
+  index: { icon: "home", iconOutline: "home-outline", label: "Нүүр" },
+  lessons: { icon: "book", iconOutline: "book-outline", label: "Хичээл" },
+  soril: { icon: "trophy", iconOutline: "trophy-outline", label: "Сорил" },
+  profile: { icon: "person", iconOutline: "person-outline", label: "Профайл" },
 };
 
 /**
@@ -25,12 +28,14 @@ export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
 
   return (
-    <View style={[styles.bar, { paddingBottom: (insets.bottom || spacing.sm) + 4 }]}>
+    <View
+      style={[styles.bar, { paddingBottom: (insets.bottom || spacing.sm) + 4 }]}
+    >
       {state.routes.map((route, index) => {
         const focused = state.index === index;
         const onPress = () => {
           const event = navigation.emit({
-            type: 'tabPress',
+            type: "tabPress",
             target: route.key,
             canPreventDefault: true,
           });
@@ -39,13 +44,22 @@ export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
           }
         };
 
-        // Center fox button (AI Найз / chat)
-        if (route.name === 'chat') {
+        // Center buddy button (AI Найз / chat) — image with glow + label, no bg
+        if (route.name === "chat") {
           return (
-            <Pressable key={route.key} style={styles.centerWrap} onPress={onPress}>
-              <View style={styles.centerBtn}>
-                <Image source={fox} style={styles.fox} resizeMode="contain" />
-              </View>
+            <Pressable
+              key={route.key}
+              style={styles.centerWrap}
+              onPress={onPress}
+            >
+              <Image
+                source={buddy}
+                style={styles.centerImg}
+                resizeMode="contain"
+              />
+              <Text style={[styles.label, focused && styles.labelActive]}>
+                AI Найз
+              </Text>
             </Pressable>
           );
         }
@@ -60,7 +74,9 @@ export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
               size={24}
               color={focused ? colors.primary : colors.textMuted}
             />
-            <Text style={[styles.label, focused && styles.labelActive]}>{meta.label}</Text>
+            <Text style={[styles.label, focused && styles.labelActive]}>
+              {meta.label}
+            </Text>
           </Pressable>
         );
       })}
@@ -70,33 +86,28 @@ export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
 
 const styles = StyleSheet.create({
   bar: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: colors.white,
     borderTopWidth: 1,
     borderTopColor: colors.border,
     paddingTop: spacing.sm,
   },
-  tab: { flex: 1, alignItems: 'center', gap: 2 },
+  tab: { flex: 1, alignItems: "center", gap: 2 },
   icon: { fontSize: 22 },
-  label: { fontSize: fontSize.xs, fontWeight: '700', color: colors.textMuted },
+  label: { fontSize: fontSize.xs, fontWeight: "700", color: colors.textMuted },
   labelActive: { color: colors.primary },
-  centerWrap: { flex: 1, alignItems: 'center' },
-  centerBtn: {
-    width: 62,
-    height: 62,
-    borderRadius: radius.full,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: -28, // lift above the bar
-    borderWidth: 4,
-    borderColor: colors.white,
+  centerWrap: { flex: 1, alignItems: "center" },
+  centerImg: {
+    width: 72,
+    height: 72,
+    marginTop: -30, // lift above the bar
+    marginBottom: 0,
+    // tight purple glow that hugs the circle (follows alpha on iOS)
     shadowColor: colors.primary,
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 5,
+    shadowOffset: { width: 0, height: 2 },
     elevation: 6,
   },
-  fox: { width: 46, height: 46 },
 });

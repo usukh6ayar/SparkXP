@@ -1,45 +1,48 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { View, StyleSheet, ScrollView, Pressable, Image, Modal, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../../src/auth/AuthContext';
 import * as usersApi from '../../src/api/users';
-import { getReviewStats } from '../../src/api/reviews';
 import { MN_PROVINCES as PROVINCES, UB_DISTRICTS } from '../../src/constants/locations';
 import { TopBar } from '../../src/components/TopBar';
 import { AppText } from '../../src/components/Text';
-import { Card } from '../../src/components/Card';
 import { Pill } from '../../src/components/Pill';
-import { IconTile } from '../../src/components/IconTile';
-import { StatCard } from '../../src/components/StatCard';
 import { SectionHeader } from '../../src/components/SectionHeader';
 import { TextField } from '../../src/components/TextField';
 import { SelectField } from '../../src/components/SelectField';
 import { Button } from '../../src/components/Button';
-import { colors, spacing, radius, tints } from '../../src/theme/theme';
+import { resolveAvatar } from '../../src/lib/avatar';
+import { colors, spacing, radius, tints, elevation } from '../../src/theme/theme';
 
 type IconName = keyof typeof Ionicons.glyphMap;
-const fox = require('../../assets/logo.png');
 
-const ACHIEVEMENTS: { icon: IconName; label: string; earned: boolean }[] = [
-  { icon: 'footsteps', label: 'Анхны алхам', earned: true },
-  { icon: 'flame', label: '7 хоног', earned: true },
-  { icon: 'headset', label: 'Сонсох мастер', earned: true },
-  { icon: 'trophy', label: 'Сорил мастер', earned: false },
-  { icon: 'ribbon', label: '100 хичээл', earned: false },
+const avatarImg = require('../../assets/buddy-menu.png');
+
+// TODO: бодит утгаар солих (lessons/quizzes completed, streak) — backend tracking.
+const STREAK = 8;
+const LESSONS_DONE = 23;
+const QUIZZES_DONE = 12;
+const LEVEL_SIZE = 1000;
+
+const ROLE_LABEL: Record<string, string> = {
+  student: 'Сурагч', teacher: 'Багш', admin: 'Админ', super_admin: 'Супер админ',
+};
+
+const ACHIEVEMENTS: { icon: IconName; label: string; tint: { bg: string; fg: string }; earned: boolean }[] = [
+  { icon: 'book', label: 'Анхны хичээл', tint: tints.purple, earned: true },
+  { icon: 'trophy', label: 'Шилдэг сурагч', tint: tints.amber, earned: true },
+  { icon: 'flash', label: '10 дараалал', tint: tints.blue, earned: true },
+  { icon: 'calendar', label: '7 хоног дараалал', tint: tints.green, earned: true },
+  { icon: 'diamond', label: '100 очирхон', tint: tints.purple, earned: false },
 ];
 
 export default function ProfileScreen() {
   const { user, token, logout } = useAuth();
   const router = useRouter();
   const [editing, setEditing] = useState(false);
-  const [known, setKnown] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (!token) return;
-    getReviewStats(token).then((s) => setKnown(s.known)).catch(() => {});
-  }, [token]);
 
   const soon = () => Alert.alert('Тун удахгүй', 'Энэ хэсэг удахгүй нэмэгдэнэ.');
   const confirmLogout = () =>
@@ -48,83 +51,154 @@ export default function ProfileScreen() {
       { text: 'Гарах', style: 'destructive', onPress: logout },
     ]);
 
+  const xp = user?.xp ?? 0;
+  const sparks = user?.sparks ?? 0;
+  const level = Math.floor(xp / LEVEL_SIZE) + 1;
+  const inLevel = xp % LEVEL_SIZE;
+  const pct = Math.round((inLevel / LEVEL_SIZE) * 100);
+
+  const STATS = [
+    { icon: 'book' as IconName, value: LESSONS_DONE, label: 'Хичээл', tint: tints.purple },
+    { icon: 'trophy' as IconName, value: QUIZZES_DONE, label: 'Сорил', tint: tints.green },
+    { icon: 'flame' as IconName, value: STREAK, label: 'Өдөр дараалал', tint: tints.blue },
+    { icon: 'diamond' as IconName, value: sparks, label: 'Очирхон', tint: tints.amber },
+  ];
+
+  const QUICK: { icon: IconName; label: string; tint: { bg: string; fg: string }; onPress: () => void }[] = [
+    { icon: 'person', label: 'Миний мэдээлэл', tint: tints.blue, onPress: () => setEditing(true) },
+    { icon: 'stats-chart', label: 'Миний ахиц', tint: tints.pink, onPress: () => router.push('/leaderboard') },
+    { icon: 'bookmark', label: 'Хадгалсан', tint: tints.green, onPress: soon },
+    { icon: 'notifications', label: 'Мэдэгдэл', tint: tints.orange, onPress: soon },
+    { icon: 'gift', label: 'Шагналууд', tint: tints.purple, onPress: soon },
+    { icon: 'time', label: 'Сүүлийн үзсэн', tint: tints.blue, onPress: soon },
+    { icon: 'heart', label: 'Дуртай', tint: tints.pink, onPress: soon },
+    { icon: 'settings', label: 'Тохиргоо', tint: tints.teal, onPress: soon },
+  ];
+
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <TopBar title="Профайл" streak={5} />
-      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-        {/* Profile header */}
-        <View style={styles.profileCard}>
-          <Image source={fox} style={styles.avatar} resizeMode="contain" />
-          <View style={styles.profileInfo}>
-            <AppText variant="h2" numberOfLines={1}>{user?.fullName}</AppText>
-            <AppText variant="caption" numberOfLines={1} style={styles.email}>{user?.email}</AppText>
-            <Pill label="A2 түвшин" bg={colors.primarySoft} fg={colors.primaryDark} />
+    <View style={styles.root}>
+      <SafeAreaView style={styles.safe} edges={['top']}>
+        <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+          {/* Header */}
+          <View style={styles.header}>
+            <AppText variant="h1">Профайл</AppText>
+            <View style={styles.diamondBadge}>
+              <Ionicons name="diamond" size={16} color={colors.sparks} />
+              <AppText variant="label" color={colors.text}>{sparks}</AppText>
+            </View>
           </View>
-          <Pressable style={styles.editBtn} onPress={() => setEditing(true)} hitSlop={8}>
-            <Ionicons name="create-outline" size={20} color={colors.textSecondary} />
-          </Pressable>
-        </View>
 
-        {/* Stats */}
-        <View style={styles.statsRow}>
-          <StatCard icon="flash" label="XP" value={user?.xp ?? 0} color={colors.xp} bg={tints.orange.bg} />
-          <StatCard icon="sparkles" label="Очирхон" value={user?.sparks ?? 0} color={colors.sparks} bg={colors.cream} />
-          <StatCard icon="flame" label="Цуврал" value="5" color={colors.streak} bg={colors.dangerSoft} />
-        </View>
+          {/* Profile hero — gradient panel + glowing avatar */}
+          <LinearGradient colors={['#FFFFFF', '#F4EEFF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
+            <View style={styles.avatarOuter}>
+              <View style={styles.avatarGlow} />
+              <Pressable onPress={() => router.push('/avatar')}>
+                <LinearGradient colors={['#8A5BFF', '#6C3BFF']} style={styles.avatarRing}>
+                  <Image source={resolveAvatar(user?.avatarUrl) ?? avatarImg} style={styles.avatar} resizeMode="cover" />
+                </LinearGradient>
+              </Pressable>
+              <Pressable style={styles.editBtn} onPress={() => router.push('/avatar')} hitSlop={6}>
+                <Ionicons name="camera" size={13} color={colors.white} />
+              </Pressable>
+            </View>
 
-        {/* Known words */}
-        <Card onPress={() => router.push('/swipe')} padding="md" style={styles.rowCard}>
-          <IconTile icon="library" bg={tints.green.bg} fg={tints.green.fg} />
-          <View style={{ flex: 1 }}>
-            <AppText variant="h3">Мэдэх үг</AppText>
-            <AppText variant="caption">Дарж шинэ үг сур</AppText>
-          </View>
-          <AppText variant="h2" color={colors.success}>{known ?? '—'}</AppText>
-        </Card>
-
-        {/* Leaderboard banner */}
-        <Pressable
-          style={({ pressed }) => [styles.leaderboard, pressed && styles.pressed]}
-          onPress={() => router.push('/leaderboard')}
-        >
-          <IconTile icon="podium" bg="rgba(255,255,255,0.12)" fg={colors.sparks} />
-          <View style={{ flex: 1 }}>
-            <AppText variant="h3" color={colors.white}>Дэлхийн чансаа</AppText>
-            <AppText variant="caption" color={colors.textOnDarkMuted}>Таны байр · Top 12%</AppText>
-          </View>
-          <AppText variant="h2" color={colors.white}>#1284</AppText>
-          <Ionicons name="chevron-forward" size={18} color={colors.textOnDarkMuted} />
-        </Pressable>
-
-        {/* Achievements */}
-        <SectionHeader title="Амжилтын тэмдэг" actionLabel="Бүгд" onAction={soon} style={styles.section} />
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.achRow}>
-          {ACHIEVEMENTS.map((a) => (
-            <View key={a.label} style={styles.achItem}>
-              <View style={[styles.achBadge, !a.earned && styles.achBadgeLocked]}>
-                <Ionicons
-                  name={a.earned ? a.icon : 'lock-closed'}
-                  size={26}
-                  color={a.earned ? colors.sparks : colors.textMuted}
+            <View style={styles.heroInfo}>
+              <View style={styles.nameRow}>
+                <AppText variant="h2" numberOfLines={1}>{user?.fullName}</AppText>
+                <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
+              </View>
+              <Pill label={ROLE_LABEL[user?.role ?? 'student'] ?? 'Сурагч'} bg={colors.primarySoft} fg={colors.primaryDark} />
+              <View style={styles.levelRow}>
+                <Ionicons name="star" size={15} color={colors.xp} />
+                <AppText variant="bodyStrong">Түвшин {level}</AppText>
+              </View>
+              {/* Premium XP progress */}
+              <View style={styles.xpTrack}>
+                <LinearGradient
+                  colors={['#9A6DFF', '#6C3BFF']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={[styles.xpFill, { width: `${Math.max(pct, 4)}%` }]}
                 />
               </View>
-              <AppText variant="caption" center numberOfLines={2} style={styles.achLabel}>{a.label}</AppText>
+              <AppText variant="caption" style={styles.levelXp}>{inLevel} / {LEVEL_SIZE} XP</AppText>
             </View>
-          ))}
+          </LinearGradient>
+
+          {/* Stats — colorful elevated cells */}
+          <View style={styles.statsCard}>
+            {STATS.map((s) => (
+              <View key={s.label} style={[styles.statCell, { backgroundColor: s.tint.bg }]}>
+                <View style={[styles.statIcon, { backgroundColor: colors.white }]}>
+                  <Ionicons name={s.icon} size={20} color={s.tint.fg} />
+                </View>
+                <AppText variant="h3" style={styles.statValue}>{s.value}</AppText>
+                <AppText variant="caption" center numberOfLines={2}>{s.label}</AppText>
+              </View>
+            ))}
+          </View>
+
+          {/* Achievements — large collectible badges */}
+          <SectionHeader title="Миний амжилтууд" actionLabel="Бүгдийг харах ›" onAction={soon} style={styles.section} />
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.achRow}>
+            {ACHIEVEMENTS.map((a) => (
+              <View key={a.label} style={styles.achItem}>
+                {a.earned ? (
+                  <LinearGradient colors={['#FFFFFF', a.tint.bg]} style={[styles.achBadge, styles.achEarned]}>
+                    <Ionicons name={a.icon} size={32} color={a.tint.fg} />
+                  </LinearGradient>
+                ) : (
+                  <View style={[styles.achBadge, styles.achLocked]}>
+                    <Ionicons name="lock-closed" size={28} color={colors.textMuted} />
+                  </View>
+                )}
+                <AppText variant="caption" center numberOfLines={2} style={styles.achLabel}>{a.label}</AppText>
+              </View>
+            ))}
+          </ScrollView>
+
+          {/* Quick menu — premium soft cards */}
+          <SectionHeader title="Түргэн цэс" style={styles.section} />
+          <View style={styles.quickGrid}>
+            {QUICK.map((q) => (
+              <Pressable key={q.label} style={({ pressed }) => [styles.quickItem, pressed && styles.pressed]} onPress={q.onPress}>
+                <View style={[styles.quickIcon, { backgroundColor: q.tint.bg }]}>
+                  <Ionicons name={q.icon} size={22} color={q.tint.fg} />
+                </View>
+                <AppText variant="caption" center numberOfLines={1} style={styles.quickLabel}>{q.label}</AppText>
+              </Pressable>
+            ))}
+          </View>
+
+          {/* Premium banner — gradient feature card */}
+          <Pressable onPress={soon} style={({ pressed }) => pressed && styles.pressed}>
+            <LinearGradient colors={['#7A4DFF', '#5A28F0']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.premium}>
+              <View style={styles.premGlow} pointerEvents="none" />
+              <View style={{ flex: 1 }}>
+                <View style={styles.premiumTitleRow}>
+                  <AppText style={styles.crown}>👑</AppText>
+                  <AppText variant="h3" color={colors.white}>SparkXP Premium</AppText>
+                </View>
+                <AppText variant="caption" color="rgba(255,255,255,0.85)" style={styles.premiumSub}>
+                  Давуу эрх, илүү их боломжууд
+                </AppText>
+                <View style={styles.premiumBtn}>
+                  <AppText variant="bodyStrong" color={colors.primary}>Дэлгэрэнгүй →</AppText>
+                </View>
+              </View>
+              <AppText style={styles.treasure}>💎</AppText>
+            </LinearGradient>
+          </Pressable>
+
+          {/* Logout */}
+          <Pressable style={styles.logout} onPress={confirmLogout} hitSlop={8}>
+            <Ionicons name="log-out-outline" size={18} color={colors.danger} />
+            <AppText variant="bodyStrong" color={colors.danger}>Гарах</AppText>
+          </Pressable>
+
+          <View style={{ height: 120 }} />
         </ScrollView>
-
-        {/* Settings list */}
-        <SectionHeader title="Тохиргоо" style={styles.section} />
-        <Card padding={0} style={styles.list}>
-          <Row icon="globe-outline" label="Хэл" value="Монгол" onPress={soon} />
-          <Row icon="notifications-outline" label="Мэдэгдэл" onPress={soon} />
-          <Row icon="help-circle-outline" label="Тусламж" onPress={soon} />
-          <Row icon="information-circle-outline" label="Бидний тухай" onPress={soon} />
-          <Row icon="log-out-outline" label="Гарах" onPress={confirmLogout} danger last />
-        </Card>
-
-        <View style={{ height: 110 }} />
-      </ScrollView>
+      </SafeAreaView>
 
       <EditProfileModal
         visible={editing}
@@ -132,23 +206,7 @@ export default function ProfileScreen() {
         initialName={user?.fullName ?? ''}
         token={token}
       />
-    </SafeAreaView>
-  );
-}
-
-function Row({
-  icon, label, value, onPress, danger, last,
-}: {
-  icon: IconName; label: string; value?: string; onPress: () => void; danger?: boolean; last?: boolean;
-}) {
-  const fg = danger ? colors.danger : colors.text;
-  return (
-    <Pressable style={[styles.row, !last && styles.rowBorder]} onPress={onPress}>
-      <Ionicons name={icon} size={20} color={danger ? colors.danger : colors.textSecondary} />
-      <AppText variant="bodyStrong" color={fg} style={{ flex: 1 }}>{label}</AppText>
-      {value ? <AppText variant="caption">{value}</AppText> : null}
-      {!danger ? <Ionicons name="chevron-forward" size={16} color={colors.borderStrong} /> : null}
-    </Pressable>
+    </View>
   );
 }
 
@@ -203,37 +261,95 @@ function EditProfileModal({
   );
 }
 
+const PURPLE_SHADOW = {
+  shadowColor: colors.primary,
+  shadowOpacity: 0.18,
+  shadowRadius: 20,
+  shadowOffset: { width: 0, height: 10 },
+  elevation: 6,
+};
+
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
+  root: { flex: 1, backgroundColor: colors.background },
+  safe: { flex: 1 },
   container: { paddingHorizontal: spacing.lg, paddingTop: spacing.xs },
-  profileCard: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    backgroundColor: colors.cream, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.lg,
+
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  diamondBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: colors.surface, paddingHorizontal: spacing.md, paddingVertical: 8, borderRadius: radius.full,
+    ...(elevation.sm as object),
   },
-  avatar: { width: 60, height: 60 },
-  profileInfo: { flex: 1, gap: 4 },
-  email: { marginBottom: 2 },
+
+  // Hero
+  hero: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.lg,
+    borderRadius: radius.xl, padding: spacing.lg, marginTop: spacing.lg,
+    ...PURPLE_SHADOW,
+  },
+  avatarOuter: { width: 100, height: 100, alignItems: 'center', justifyContent: 'center' },
+  avatarGlow: {
+    position: 'absolute', top: -8, left: -8, width: 116, height: 116, borderRadius: 58,
+    backgroundColor: 'rgba(124,77,255,0.25)',
+  },
+  avatarRing: {
+    width: 100, height: 100, borderRadius: 50, alignItems: 'center', justifyContent: 'center', padding: 4,
+  },
+  avatar: { width: 92, height: 92, borderRadius: 46, backgroundColor: '#EEE6FF' },
   editBtn: {
-    width: 36, height: 36, borderRadius: radius.md, backgroundColor: colors.background,
-    alignItems: 'center', justifyContent: 'center',
+    position: 'absolute', right: -2, bottom: -2, width: 30, height: 30, borderRadius: 15,
+    backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 3, borderColor: colors.white,
   },
-  statsRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.lg },
-  rowCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.lg },
-  leaderboard: {
+  heroInfo: { flex: 1, gap: spacing.xs },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  levelRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
+  xpTrack: { height: 12, borderRadius: 6, backgroundColor: '#E4DBFF', overflow: 'hidden', marginTop: 4 },
+  xpFill: { height: 12, borderRadius: 6 },
+  levelXp: { alignSelf: 'flex-end', marginTop: 3 },
+
+  // Stats
+  section: { marginTop: spacing.xxl },
+  statsCard: {
+    flexDirection: 'row', gap: spacing.sm, backgroundColor: colors.surface,
+    borderRadius: radius.xl, padding: spacing.sm, marginTop: spacing.xl, ...(elevation.md as object),
+  },
+  statCell: { flex: 1, borderRadius: radius.lg, paddingVertical: spacing.md, paddingHorizontal: 4, alignItems: 'center', gap: 4 },
+  statIcon: { width: 40, height: 40, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center', ...(elevation.sm as object) },
+  statValue: { marginTop: 2 },
+
+  // Achievements
+  achRow: { gap: spacing.md, paddingRight: spacing.lg, paddingVertical: spacing.xs },
+  achItem: { alignItems: 'center', width: 84 },
+  achBadge: { width: 74, height: 74, borderRadius: radius.lg, alignItems: 'center', justifyContent: 'center' },
+  achEarned: { borderWidth: 1, borderColor: 'rgba(124,77,255,0.15)', ...(elevation.sm as object) },
+  achLocked: { backgroundColor: colors.surfaceAlt },
+  achLabel: { marginTop: spacing.sm },
+
+  // Quick menu
+  quickGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: spacing.md },
+  quickItem: {
+    width: '23%', aspectRatio: 0.86, backgroundColor: colors.surface, borderRadius: radius.lg,
+    alignItems: 'center', justifyContent: 'center', gap: spacing.sm, paddingHorizontal: 2,
+    ...(elevation.sm as object),
+  },
+  quickIcon: { width: 44, height: 44, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center' },
+  quickLabel: { marginTop: 2 },
+
+  // Premium
+  premium: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    backgroundColor: colors.navy, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.xs,
+    borderRadius: radius.xl, padding: spacing.lg, marginTop: spacing.xxl, overflow: 'hidden',
+    ...PURPLE_SHADOW, shadowOpacity: 0.3,
   },
-  pressed: { opacity: 0.9, transform: [{ scale: 0.99 }] },
-  section: { marginTop: spacing.lg },
-  achRow: { gap: spacing.md, paddingRight: spacing.lg },
-  achItem: { alignItems: 'center', width: 72 },
-  achBadge: {
-    width: 60, height: 60, borderRadius: radius.full, backgroundColor: colors.cream,
-    alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: colors.sparks,
-  },
-  achBadgeLocked: { backgroundColor: colors.surface, borderColor: colors.border },
-  achLabel: { marginTop: spacing.xs },
-  list: {},
-  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.md, paddingVertical: 14 },
-  rowBorder: { borderBottomWidth: 1, borderBottomColor: colors.border },
+  premGlow: { position: 'absolute', top: -40, right: -20, width: 160, height: 160, borderRadius: 80, backgroundColor: 'rgba(255,255,255,0.12)' },
+  premiumTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  crown: { fontSize: 18 },
+  premiumSub: { marginTop: 4, marginBottom: spacing.md },
+  premiumBtn: { alignSelf: 'flex-start', backgroundColor: colors.white, borderRadius: radius.md, paddingVertical: 10, paddingHorizontal: spacing.lg },
+  treasure: { fontSize: 52 },
+
+  logout: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: spacing.xxl },
+
+  pressed: { opacity: 0.92, transform: [{ scale: 0.99 }] },
 });

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
+import { View, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,105 +9,170 @@ import { TopBar } from '../../src/components/TopBar';
 import { AppText } from '../../src/components/Text';
 import { Card } from '../../src/components/Card';
 import { Pill } from '../../src/components/Pill';
+import { IconTile } from '../../src/components/IconTile';
+import { ProgressBar } from '../../src/components/ProgressBar';
 import { Loading } from '../../src/components/Loading';
-import { colors, spacing, radius, levelColor, tints } from '../../src/theme/theme';
+import { SKILL, getSkill } from '../../src/constants/skills';
+import { colors, spacing, radius, levelColor } from '../../src/theme/theme';
 
 interface LessonItem {
   id: string;
   title: string;
   description: string | null;
   level: string;
+  type: string;
   priceSparks: number;
 }
 
-const TINT_LIST = [tints.green, tints.amber, tints.blue, tints.purple, tints.pink, tints.teal];
+const LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1'];
 
-/** Скилл төрлийн нэр (Home grid-ээс ирэх `type` param). */
-const TYPE_LABEL: Record<string, string> = {
-  listening: 'Сонсгол',
-  reading: 'Унших',
-  fill: 'Нөхөх',
-  writing: 'Бичих',
-  grammar: 'Дүрэм',
-  vocabulary: 'Үгсийн сан',
-};
+// TODO: бодит явц (backend lesson-completion tracking) ороогүй — түр placeholder.
+const MOCK_PROGRESS = [1, 0.75, 0, 0.4, 0, 0.2];
 
 export default function LessonsScreen() {
   const { token } = useAuth();
   const router = useRouter();
   const { type } = useLocalSearchParams<{ type?: string }>();
+  const [level, setLevel] = useState<string | null>(null);
   const [lessons, setLessons] = useState<LessonItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setLoading(true);
-    const q = new URLSearchParams({ limit: '50', isPublished: 'true' });
-    if (type) q.set('type', type);
-    apiRequest<{ items: LessonItem[] }>(`/lessons?${q}`, { token })
+    // Plain query string — React Native's URLSearchParams is unreliable.
+    let url = '/lessons?limit=50&isPublished=true';
+    if (type) url += `&type=${type}`;
+    if (level) url += `&level=${level.toLowerCase()}`;
+    apiRequest<{ items: LessonItem[] }>(url, { token })
       .then((r) => setLessons(r.items))
-      .catch(() => {})
+      .catch((e) => {
+        console.warn('Lessons load failed:', e?.message ?? e);
+        setLessons([]);
+      })
       .finally(() => setLoading(false));
-  }, [token, type]);
+  }, [token, type, level]);
 
-  if (loading) return <Loading />;
-
-  const title = type ? TYPE_LABEL[type] ?? 'Хичээлүүд' : 'Хичээлүүд';
+  const title = type ? SKILL[type]?.label ?? 'Хичээлүүд' : 'Хичээлүүд';
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <TopBar title={title} back />
+      <TopBar title={title} back={!!type} />
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-        {lessons.map((l, i) => {
-          const locked = l.priceSparks > 0;
-          const lvl = levelColor[l.level] ?? levelColor.a1;
-          const tint = TINT_LIST[i % TINT_LIST.length];
-          return (
-            <Card key={l.id} onPress={() => router.push(`/lesson/${l.id}`)} padding="md" style={styles.card}>
-              <View style={[styles.thumb, { backgroundColor: tint.bg }]}>
-                <AppText variant="h2" color={tint.fg}>{i + 1}</AppText>
-              </View>
+        <AppText variant="caption" style={styles.subtitle}>
+          Сонголт хийж, хичээлээ үргэлжлүүлээрэй.
+        </AppText>
 
-              <View style={styles.info}>
-                <AppText variant="h3" numberOfLines={1}>{l.title}</AppText>
-                {l.description ? (
-                  <AppText variant="caption" numberOfLines={1} style={styles.desc}>{l.description}</AppText>
-                ) : null}
-                <View style={styles.meta}>
-                  <Pill label={l.level.toUpperCase()} bg={lvl.bg} fg={lvl.fg} />
-                  {locked ? (
-                    <Pill label={String(l.priceSparks)} icon="sparkles" bg={colors.cream} fg={colors.sparks} />
-                  ) : (
-                    <Pill label="Үнэгүй" bg={colors.successSoft} fg={colors.success} />
-                  )}
-                </View>
-              </View>
+        {/* Level filter */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterRow}
+        >
+          <FilterChip label="Бүх түвшин" active={level === null} onPress={() => setLevel(null)} />
+          {LEVELS.map((lv) => (
+            <FilterChip key={lv} label={lv} active={level === lv} onPress={() => setLevel(lv)} />
+          ))}
+        </ScrollView>
 
-              <Ionicons
-                name={locked ? 'lock-closed' : 'chevron-forward'}
-                size={18}
-                color={locked ? colors.textMuted : colors.borderStrong}
-              />
-            </Card>
-          );
-        })}
-        {lessons.length === 0 ? (
+        {loading ? (
+          <Loading />
+        ) : lessons.length === 0 ? (
           <AppText variant="body" color={colors.textMuted} center style={styles.empty}>
-            Хичээл алга. Admin-аас нэмнэ.
+            Энэ түвшний хичээл алга 🦊
           </AppText>
-        ) : null}
+        ) : (
+          lessons.map((l, i) => (
+            <LessonCard key={l.id} lesson={l} progress={MOCK_PROGRESS[i % MOCK_PROGRESS.length]} onPress={() => router.push(`/lesson/${l.id}`)} />
+          ))
+        )}
         <View style={{ height: 110 }} />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
+function FilterChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+  return (
+    <Pressable style={[styles.chip, active && styles.chipActive]} onPress={onPress}>
+      <AppText variant="label" color={active ? colors.white : colors.textSecondary}>{label}</AppText>
+    </Pressable>
+  );
+}
+
+function LessonCard({ lesson, progress, onPress }: { lesson: LessonItem; progress: number; onPress: () => void }) {
+  const locked = lesson.priceSparks > 0;
+  const skill = getSkill(lesson.type);
+  const lvl = levelColor[lesson.level] ?? levelColor.a1;
+
+  return (
+    <Card onPress={onPress} padding="md" style={styles.card}>
+      <IconTile icon={skill.icon} bg={skill.tint.bg} fg={skill.tint.fg} size={56} iconSize={26} />
+
+      <View style={styles.info}>
+        <AppText variant="h3" numberOfLines={1}>{lesson.title}</AppText>
+        {lesson.description ? (
+          <AppText variant="caption" numberOfLines={2} style={styles.desc}>{lesson.description}</AppText>
+        ) : null}
+        <View style={styles.meta}>
+          <Pill label={lesson.level.toUpperCase()} bg={lvl.bg} fg={lvl.fg} />
+          <Pill label={skill.label} icon={skill.icon} bg={skill.tint.bg} fg={skill.tint.fg} />
+        </View>
+      </View>
+
+      {/* Right: price+lock (locked) or progress (unlocked) */}
+      <View style={styles.right}>
+        {locked ? (
+          <>
+            <View style={styles.priceRow}>
+              <Ionicons name="diamond" size={14} color={colors.sparks} />
+              <AppText variant="bodyStrong" color={colors.sparks}>{lesson.priceSparks}</AppText>
+            </View>
+            <Ionicons name="lock-closed" size={16} color={colors.textMuted} style={styles.lock} />
+          </>
+        ) : progress >= 1 ? (
+          <>
+            <View style={styles.doneCircle}>
+              <Ionicons name="checkmark" size={16} color={colors.white} />
+            </View>
+            <AppText variant="caption" color={colors.primary} style={styles.pct}>100%</AppText>
+          </>
+        ) : (
+          <>
+            <AppText variant="bodyStrong" color={skill.tint.fg}>{Math.round(progress * 100)}%</AppText>
+            <ProgressBar value={progress} color={skill.tint.fg} height={5} style={styles.miniBar} />
+          </>
+        )}
+      </View>
+    </Card>
+  );
+}
+
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   container: { paddingHorizontal: spacing.lg, paddingTop: spacing.xs },
-  card: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.sm },
-  thumb: { width: 52, height: 52, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
+  subtitle: { marginBottom: spacing.md },
+  filterRow: { gap: spacing.sm, paddingBottom: spacing.lg, paddingRight: spacing.lg },
+  chip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
+    borderRadius: radius.full,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  card: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.md },
   info: { flex: 1, gap: 4 },
   desc: { marginBottom: 2 },
-  meta: { flexDirection: 'row', gap: spacing.xs },
+  meta: { flexDirection: 'row', gap: spacing.xs, flexWrap: 'wrap' },
+  right: { width: 60, alignItems: 'center', justifyContent: 'center', gap: 6 },
+  priceRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  lock: {},
+  doneCircle: {
+    width: 30, height: 30, borderRadius: radius.full, backgroundColor: colors.primary,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  pct: {},
+  miniBar: { width: 52 },
   empty: { marginTop: spacing.xxl },
 });

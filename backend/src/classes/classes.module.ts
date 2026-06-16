@@ -2,13 +2,14 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ClassEntity } from '../entities/class.entity';
 import { User } from '../entities/user.entity';
+import { ClassJoinRequest } from '../entities/class-join-request.entity';
 import { ClassesService } from './classes.service';
 import { ClassesController } from './classes.controller';
 
 /** Teacher classes + student enrollment (join codes). Exports the service so
  *  the Assignments module can verify class ownership. */
 @Module({
-  imports: [TypeOrmModule.forFeature([ClassEntity, User])],
+  imports: [TypeOrmModule.forFeature([ClassEntity, User, ClassJoinRequest])],
   controllers: [ClassesController],
   providers: [ClassesService],
   exports: [ClassesService],
