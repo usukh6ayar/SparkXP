@@ -14,9 +14,11 @@ import { SectionHeader } from '../../src/components/SectionHeader';
 import { TextField } from '../../src/components/TextField';
 import { SelectField } from '../../src/components/SelectField';
 import { Button } from '../../src/components/Button';
+import { resolveAvatar } from '../../src/lib/avatar';
 import { colors, spacing, radius, tints, elevation } from '../../src/theme/theme';
 
 type IconName = keyof typeof Ionicons.glyphMap;
+
 const avatarImg = require('../../assets/buddy-menu.png');
 
 // TODO: бодит утгаар солих (lessons/quizzes completed, streak) — backend tracking.
@@ -90,11 +92,13 @@ export default function ProfileScreen() {
           <LinearGradient colors={['#FFFFFF', '#F4EEFF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
             <View style={styles.avatarOuter}>
               <View style={styles.avatarGlow} />
-              <LinearGradient colors={['#8A5BFF', '#6C3BFF']} style={styles.avatarRing}>
-                <Image source={avatarImg} style={styles.avatar} resizeMode="contain" />
-              </LinearGradient>
-              <Pressable style={styles.editBtn} onPress={() => setEditing(true)} hitSlop={6}>
-                <Ionicons name="pencil" size={13} color={colors.white} />
+              <Pressable onPress={() => router.push('/avatar')}>
+                <LinearGradient colors={['#8A5BFF', '#6C3BFF']} style={styles.avatarRing}>
+                  <Image source={resolveAvatar(user?.avatarUrl) ?? avatarImg} style={styles.avatar} resizeMode="cover" />
+                </LinearGradient>
+              </Pressable>
+              <Pressable style={styles.editBtn} onPress={() => router.push('/avatar')} hitSlop={6}>
+                <Ionicons name="camera" size={13} color={colors.white} />
               </Pressable>
             </View>
 

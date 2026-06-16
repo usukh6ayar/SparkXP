@@ -125,6 +125,14 @@ const mn = {
   save: 'Хадгалах',
   saving: 'Хадгалж байна...',
 
+  // Avatar
+  avatarTitle: 'Профайл зураг',
+  editAvatar: 'Зураг солих',
+  chooseFromPhotos: 'Зургаа сонгох',
+  defaultAvatars: 'Бэлэн зургууд',
+  uploading: 'Хуулж байна...',
+  photoPermission: 'Зураг сонгоход зөвшөөрөл хэрэгтэй.',
+
   // Lessons / Sparks
   lessons: 'Хичээлүүд',
   unlock: 'Нээх',
