@@ -41,10 +41,14 @@ export function getMyClasses(token: string): Promise<MyClasses> {
 }
 
 /** POST /classes — teacher creates a class (join code auto-generated). */
-export function createClass(name: string, token: string): Promise<ClassSummary> {
+export function createClass(
+  name: string,
+  organizationId: string,
+  token: string,
+): Promise<ClassSummary> {
   return apiRequest<ClassSummary>('/classes', {
     method: 'POST',
-    body: { name },
+    body: { name, organizationId },
     token,
   });
 }

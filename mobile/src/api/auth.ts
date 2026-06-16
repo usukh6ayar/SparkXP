@@ -4,10 +4,12 @@ import { apiRequest } from './client';
 export interface AuthUser {
   id: string;
   email: string;
+  username: string | null;
   fullName: string;
   role: string;
   xp: number;
   sparks: number;
+  emailVerified: boolean;
 }
 
 export interface AuthResult {
@@ -16,6 +18,7 @@ export interface AuthResult {
 }
 
 export interface RegisterPayload {
+  username: string;
   email: string;
   password: string;
   fullName: string;
@@ -23,19 +26,48 @@ export interface RegisterPayload {
   district?: string;
 }
 
-/** POST /api/auth/login */
-export function login(email: string, password: string): Promise<AuthResult> {
-  return apiRequest<AuthResult>('/auth/login', {
+/** POST /api/auth/register — creates an unverified account + emails an OTP. */
+export function register(
+  payload: RegisterPayload,
+): Promise<{ pendingVerification: true; email: string }> {
+  return apiRequest('/auth/register', { method: 'POST', body: payload });
+}
+
+/** POST /api/auth/verify-otp — confirm the email → returns a session. */
+export function verifyOtp(email: string, code: string): Promise<AuthResult> {
+  return apiRequest<AuthResult>('/auth/verify-otp', {
     method: 'POST',
-    body: { email, password },
+    body: { email, code },
   });
 }
 
-/** POST /api/auth/register */
-export function register(payload: RegisterPayload): Promise<AuthResult> {
-  return apiRequest<AuthResult>('/auth/register', {
+/** POST /api/auth/resend-otp — re-send the verification code. */
+export function resendOtp(email: string): Promise<{ ok: true }> {
+  return apiRequest('/auth/resend-otp', { method: 'POST', body: { email } });
+}
+
+/** POST /api/auth/login — username (or email) + password. */
+export function login(identifier: string, password: string): Promise<AuthResult> {
+  return apiRequest<AuthResult>('/auth/login', {
     method: 'POST',
-    body: payload,
+    body: { identifier, password },
+  });
+}
+
+/** POST /api/auth/forgot-password — email a reset code. */
+export function forgotPassword(email: string): Promise<{ ok: true }> {
+  return apiRequest('/auth/forgot-password', { method: 'POST', body: { email } });
+}
+
+/** POST /api/auth/reset-password — set a new password with the emailed code. */
+export function resetPassword(
+  email: string,
+  code: string,
+  password: string,
+): Promise<{ ok: true }> {
+  return apiRequest('/auth/reset-password', {
+    method: 'POST',
+    body: { email, code, password },
   });
 }
 

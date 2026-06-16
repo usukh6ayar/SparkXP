@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   View,
   ScrollView,
@@ -13,11 +13,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/auth/AuthContext';
 import * as classesApi from '../../src/api/classes';
 import type { ClassSummary } from '../../src/api/classes';
+import { getOrganizations, type Organization } from '../../src/api/organizations';
 import { ApiError } from '../../src/api/client';
 import { t } from '../../src/i18n';
 import { AppText } from '../../src/components/Text';
 import { ClassCard } from '../../src/components/ClassCard';
 import { TextField } from '../../src/components/TextField';
+import { SelectField } from '../../src/components/SelectField';
 import { Button } from '../../src/components/Button';
 import { colors, spacing, radius } from '../../src/theme/theme';
 
@@ -28,8 +30,15 @@ export default function TeacherClassesScreen() {
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [name, setName] = useState('');
+  const [orgs, setOrgs] = useState<Organization[]>([]);
+  const [schoolName, setSchoolName] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Schools the teacher can attach a class to (super-admin managed list).
+  useEffect(() => {
+    if (token) getOrganizations(token).then(setOrgs).catch(() => {});
+  }, [token]);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -51,13 +60,15 @@ export default function TeacherClassesScreen() {
   );
 
   async function onCreate() {
-    if (!token || !name.trim()) return;
+    const org = orgs.find((o) => o.name === schoolName);
+    if (!token || !name.trim() || !org) return;
     setError(null);
     setBusy(true);
     try {
-      const created = await classesApi.createClass(name.trim(), token);
+      const created = await classesApi.createClass(name.trim(), org.id, token);
       setModalOpen(false);
       setName('');
+      setSchoolName(undefined);
       await load();
       router.push(`/(teacher)/class/${created.id}`);
     } catch (e) {
@@ -117,19 +128,35 @@ export default function TeacherClassesScreen() {
             <AppText variant="h2" style={{ marginBottom: spacing.lg }}>
               {t('createClass')}
             </AppText>
+            <SelectField
+              label={t('school')}
+              placeholder={t('selectSchool')}
+              value={schoolName}
+              options={orgs.map((o) => o.name)}
+              onSelect={setSchoolName}
+            />
             <TextField
               label={t('className')}
               placeholder={t('classNamePlaceholder')}
               value={name}
               onChangeText={setName}
-              autoFocus
             />
+            {orgs.length === 0 ? (
+              <AppText variant="caption" color={colors.textSecondary} style={{ marginBottom: spacing.sm }}>
+                {t('noSchools')}
+              </AppText>
+            ) : null}
             {error ? (
               <AppText variant="caption" color={colors.danger} style={{ marginBottom: spacing.sm }}>
                 {error}
               </AppText>
             ) : null}
-            <Button label={t('createClass')} onPress={onCreate} loading={busy} disabled={!name.trim()} />
+            <Button
+              label={t('createClass')}
+              onPress={onCreate}
+              loading={busy}
+              disabled={!name.trim() || !schoolName}
+            />
           </Pressable>
         </Pressable>
       </Modal>

@@ -3,7 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, SelectQueryBuilder } from 'typeorm';
 import { XpLog } from '../entities/xp-log.entity';
 import { User } from '../entities/user.entity';
-import { LeaderboardScope } from '../common/enums';
+import { ClassEntity } from '../entities/class.entity';
+import { LeaderboardScope, UserRole } from '../common/enums';
 import { QueryLeaderboardDto } from './dto/query-leaderboard.dto';
 import { periodStart } from './period';
 
@@ -42,6 +43,8 @@ export class LeaderboardService {
   constructor(
     @InjectRepository(XpLog)
     private readonly xpLogs: Repository<XpLog>,
+    @InjectRepository(ClassEntity)
+    private readonly classes: Repository<ClassEntity>,
   ) {}
 
   async getLeaderboard(
@@ -51,9 +54,12 @@ export class LeaderboardService {
     const since = periodStart(query.period);
 
     // Resolve which concrete scope value to filter by (the user's own province,
-    // district, org, or a given class). Returns null if the scope can't be
-    // satisfied (e.g. user has no province) → empty leaderboard.
-    const scopeValue = this.resolveScopeValue(user, query);
+    // district, org, a given class, or the teacher that owns their class).
+    // Returns null if the scope can't be satisfied → empty leaderboard.
+    const scopeValue =
+      query.scope === LeaderboardScope.TEACHER
+        ? await this.resolveTeacherId(user)
+        : this.resolveScopeValue(user, query);
     if (scopeValue === null && query.scope !== LeaderboardScope.GLOBAL) {
       return {
         period: query.period,
@@ -124,6 +130,18 @@ export class LeaderboardService {
           { v: scopeValue },
         );
         break;
+      case LeaderboardScope.TEACHER:
+        // Students enrolled in any class owned by this teacher. Subquery (not a
+        // join) so a student in two of the teacher's classes isn't counted twice.
+        qb.andWhere(
+          `u.id IN (
+            SELECT cs.student_id FROM class_students cs
+            INNER JOIN classes c ON c.id = cs.class_id
+            WHERE c.teacher_id = :v
+          )`,
+          { v: scopeValue },
+        );
+        break;
       case LeaderboardScope.GLOBAL:
       default:
         break; // no extra filter
@@ -153,6 +171,23 @@ export class LeaderboardService {
       default:
         return null; // global needs no value
     }
+  }
+
+  /**
+   * The teacher id whose student group to rank. A teacher sees their own
+   * students (their id); a student sees their teacher's students (the teacher
+   * of their most recently joined class). Null → empty leaderboard.
+   */
+  private async resolveTeacherId(user: User): Promise<string | null> {
+    if (user.role === UserRole.TEACHER) return user.id;
+
+    const klass = await this.classes
+      .createQueryBuilder('c')
+      .innerJoin('c.students', 's', 's.id = :uid', { uid: user.id })
+      .where('c.teacher_id IS NOT NULL')
+      .orderBy('c.created_at', 'DESC')
+      .getOne();
+    return klass?.teacherId ?? null;
   }
 
   /**

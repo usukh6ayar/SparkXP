@@ -112,6 +112,8 @@ export enum LeaderboardScope {
   DISTRICT = "district",
   CLASS = "class",
   ORGANIZATION = "organization",
+  /** Students across all classes owned by one teacher. */
+  TEACHER = "teacher",
 }
 
 /**

@@ -25,6 +25,17 @@ export class UsersService {
     return this.users.findOne({ where: { email } });
   }
 
+  findByUsername(username: string): Promise<User | null> {
+    return this.users.findOne({ where: { username } });
+  }
+
+  /** Find by username or email (case used by login: one field, either kind). */
+  findByUsernameOrEmail(identifier: string): Promise<User | null> {
+    return this.users.findOne({
+      where: [{ username: identifier }, { email: identifier }],
+    });
+  }
+
   findById(id: string): Promise<User | null> {
     return this.users.findOne({ where: { id } });
   }
@@ -36,11 +47,22 @@ export class UsersService {
     username?: string | null;
     phone?: string | null;
     role?: UserRole;
+    emailVerified?: boolean;
     province?: string | null;
     district?: string | null;
   }): Promise<User> {
     const user = this.users.create(data);
     return this.users.save(user);
+  }
+
+  /** Mark a user's email as verified (after a correct OTP). */
+  async markEmailVerified(id: string): Promise<void> {
+    await this.users.update(id, { emailVerified: true });
+  }
+
+  /** Set a new password hash (password reset). */
+  async setPasswordHash(id: string, passwordHash: string): Promise<void> {
+    await this.users.update(id, { passwordHash });
   }
 
   async updateProfile(id: string, dto: UpdateProfileDto): Promise<SafeUser> {

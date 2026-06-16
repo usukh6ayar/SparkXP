@@ -8,7 +8,7 @@ import {
 import * as SecureStore from 'expo-secure-store';
 import { ApiError } from '../api/client';
 import * as authApi from '../api/auth';
-import type { AuthResult, AuthUser, RegisterPayload } from '../api/auth';
+import type { AuthResult, AuthUser } from '../api/auth';
 
 const TOKEN_KEY = 'englishxp.token';
 const USER_KEY = 'englishxp.user';
@@ -21,9 +21,9 @@ interface AuthState {
   loading: boolean;
   /** Whether the user has finished the first-launch onboarding. */
   onboarded: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (payload: RegisterPayload) => Promise<void>;
-  /** Persist a session from an already-fetched result (e.g. multi-step signup). */
+  /** Log in with username (or email) + password. */
+  login: (identifier: string, password: string) => Promise<void>;
+  /** Persist a session from an already-fetched result (e.g. after OTP verify). */
   applySession: (result: AuthResult) => Promise<void>;
   completeOnboarding: () => Promise<void>;
   logout: () => Promise<void>;
@@ -95,12 +95,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(result.user);
   }
 
-  async function login(email: string, password: string) {
-    await persist(await authApi.login(email, password));
-  }
-
-  async function register(payload: RegisterPayload) {
-    await persist(await authApi.register(payload));
+  async function login(identifier: string, password: string) {
+    await persist(await authApi.login(identifier, password));
   }
 
   async function applySession(result: AuthResult) {
@@ -124,7 +120,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loading,
         onboarded,
         login,
-        register,
         applySession,
         completeOnboarding,
         logout,
