@@ -224,6 +224,21 @@ export default function HomeScreen() {
           />
         </View>
 
+        {/* Join a class (code or QR) */}
+        <Pressable
+          style={({ pressed }) => [styles.joinCard, pressed && styles.pressed]}
+          onPress={() => router.push("/join")}
+        >
+          <View style={styles.joinIcon}>
+            <Ionicons name="qr-code" size={22} color={colors.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <AppText variant="h3">Анги нэгдэх</AppText>
+            <AppText variant="caption">Багшийн өгсөн код эсвэл QR-аар</AppText>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={colors.borderStrong} />
+        </Pressable>
+
         {/* Learn categories */}
         <SectionHeader
           title="Юу сурах вэ?"
@@ -404,6 +419,24 @@ const styles = StyleSheet.create({
   },
   reviewBody: { flex: 1, gap: 4 },
   reviewSub: { marginBottom: spacing.sm },
+  joinCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginTop: spacing.md,
+    ...(elevation.sm as object),
+  },
+  joinIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: radius.full,
+    backgroundColor: colors.primarySoft,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   reviewBtn: {
     alignSelf: "flex-start",
     backgroundColor: colors.primary,

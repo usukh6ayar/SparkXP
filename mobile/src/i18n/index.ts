@@ -115,8 +115,11 @@ const mn = {
   // Teacher
   teacherClasses: 'Миний ангиуд',
   createClass: 'Анги үүсгэх',
+  school: 'Сургууль',
+  selectSchool: 'Сургууль сонгох',
+  noSchools: 'Сургууль бүртгэгдээгүй байна. Админд хандана уу.',
   className: 'Ангийн нэр',
-  classNamePlaceholder: 'Жишээ: 9-р анги, Англи хэл',
+  classNamePlaceholder: 'Жишээ: 10А, 11Б',
   noClasses: 'Одоогоор анги алга',
   noClassesHint: 'Анги үүсгээд элсэх кодоо сурагчдадаа хуваалцаарай.',
   joinCode: 'Элсэх код',
@@ -144,6 +147,21 @@ const mn = {
   deleteAssignment: 'Даалгавар устгах?',
   teacher: 'Багш',
   teacherProfile: 'Багшийн профайл',
+
+  // Student — join a class
+  joinClass: 'Анги нэгдэх',
+  joinClassSubtitle: 'Багшаас авсан кодоо оруулах эсвэл QR-аа уншуулна уу.',
+  enterCode: 'Элсэх код',
+  enterCodePlaceholder: 'Жишээ: ABC123',
+  joinBtn: 'Нэгдэх',
+  scanQr: 'QR код уншуулах',
+  scanHint: 'QR кодыг хүрээн дотор байрлуулна уу',
+  cameraNeeded: 'QR уншихад камерын зөвшөөрөл хэрэгтэй.',
+  grantPermission: 'Зөвшөөрөл өгөх',
+  invalidCode: 'Буруу QR/код байна',
+  joinPending: 'Хүсэлт илгээгдлээ! ⏳',
+  joinPendingHint: 'Багш зөвшөөрсний дараа та ангид нэгдэнэ.',
+  cancel: 'Болих',
 
   // Common
   back: 'Буцах',

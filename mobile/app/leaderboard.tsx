@@ -21,6 +21,7 @@ const PERIODS: { key: Period; label: string }[] = [
   { key: 'all_time', label: 'Бүх цаг' },
 ];
 const SCOPES: { key: Scope; label: string }[] = [
+  { key: 'teacher', label: 'Анги' },
   { key: 'global', label: 'Глобал' },
   { key: 'province', label: 'Аймаг' },
   { key: 'district', label: 'Дүүрэг' },

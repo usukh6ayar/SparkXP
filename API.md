@@ -87,7 +87,7 @@
 
 | Method | Path | Auth | Тайлбар |
 |---|---|:---:|---|
-| GET | `/leaderboard` | 🔑 | `?period=weekly|monthly|all_time&scope=global|province|district|class|organization&classId?` → топ N + миний байр |
+| GET | `/leaderboard` | 🔑 | `?period=weekly|monthly|all_time&scope=global|province|district|class|organization|teacher&classId?` → топ N + миний байр. **`teacher` scope (2026-06):** багш→өөрийн бүх ангийн сурагчид; сурагч→элссэн ангийнхаа багшийн сурагчид |
 
 ---
 
@@ -97,7 +97,7 @@
 | Method | Path | Auth | Тайлбар |
 |---|---|:---:|---|
 | POST | `/organizations` | 🛡️ | Байгууллага үүсгэх |
-| GET | `/organizations` | 🛡️ | Жагсаалт |
+| GET | `/organizations` | 🔑 | Жагсаалт (багш класс үүсгэхэд сургуулиа сонгоход ашиглана) |
 | GET | `/organizations/:id` | 🔑 | Нэг |
 | PATCH | `/organizations/:id` | 🛡️ | Засах |
 | DELETE | `/organizations/:id` | 🛡️ | Устгах |

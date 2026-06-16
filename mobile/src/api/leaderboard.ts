@@ -1,7 +1,7 @@
 import { apiRequest } from './client';
 
 export type Period = 'weekly' | 'monthly' | 'all_time';
-export type Scope = 'global' | 'province' | 'district';
+export type Scope = 'global' | 'province' | 'district' | 'organization' | 'teacher';
 
 export interface LeaderboardEntry {
   rank: number;
