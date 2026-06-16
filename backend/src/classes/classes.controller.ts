@@ -2,10 +2,12 @@ import {
   Controller,
   Get,
   Post,
+  Delete,
   Body,
   Param,
   UseGuards,
   ParseUUIDPipe,
+  HttpCode,
 } from '@nestjs/common';
 import { ClassesService } from './classes.service';
 import { CreateClassDto } from './dto/create-class.dto';
@@ -36,10 +38,37 @@ export class ClassesController {
     return this.classesService.create(dto, user);
   }
 
-  /** Student enrolls into a class with its join code. */
+  /** Student requests to join a class with its join code (needs teacher approval). */
   @Post('join')
   join(@CurrentUser() user: User, @Body() dto: JoinClassDto) {
     return this.classesService.join(dto.joinCode, user);
+  }
+
+  /** Pending join requests of a class (teacher of the class / admin only). */
+  @Get(':id/requests')
+  getRequests(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string) {
+    return this.classesService.getJoinRequests(id, user);
+  }
+
+  /** Approve a pending request — enroll the student (teacher / admin). */
+  @Post(':id/requests/:studentId/approve')
+  approve(
+    @CurrentUser() user: User,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('studentId', ParseUUIDPipe) studentId: string,
+  ) {
+    return this.classesService.approveRequest(id, studentId, user);
+  }
+
+  /** Reject a pending request (teacher / admin). */
+  @Delete(':id/requests/:studentId')
+  @HttpCode(204)
+  reject(
+    @CurrentUser() user: User,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('studentId', ParseUUIDPipe) studentId: string,
+  ) {
+    return this.classesService.rejectRequest(id, studentId, user);
   }
 
   /** Admin: all classes with teacher info and student count. */

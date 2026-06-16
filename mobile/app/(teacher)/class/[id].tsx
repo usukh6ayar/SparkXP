@@ -8,12 +8,13 @@ import * as classesApi from '../../../src/api/classes';
 import * as assignmentsApi from '../../../src/api/assignments';
 import { getLessons } from '../../../src/api/lessons';
 import { getQuizzes } from '../../../src/api/quizzes';
-import type { ClassDetail } from '../../../src/api/classes';
+import type { ClassDetail, ClassStudent } from '../../../src/api/classes';
 import type { Assignment } from '../../../src/api/assignments';
 import { t } from '../../../src/i18n';
 import { AppText } from '../../../src/components/Text';
 import { JoinCodeCard } from '../../../src/components/JoinCodeCard';
 import { StudentRow } from '../../../src/components/StudentRow';
+import { RequestRow } from '../../../src/components/RequestRow';
 import { AssignmentRow } from '../../../src/components/AssignmentRow';
 import { Button } from '../../../src/components/Button';
 import { Card } from '../../../src/components/Card';
@@ -24,20 +25,24 @@ export default function ClassDetailScreen() {
   const { token } = useAuth();
   const router = useRouter();
   const [detail, setDetail] = useState<ClassDetail | null>(null);
+  const [requests, setRequests] = useState<ClassStudent[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [titles, setTitles] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const [actingId, setActingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!token || !id) return;
     try {
-      const [d, a, lessons, quizzes] = await Promise.all([
+      const [d, reqs, a, lessons, quizzes] = await Promise.all([
         classesApi.getClass(id, token),
+        classesApi.getJoinRequests(id, token),
         assignmentsApi.getClassAssignments(id, token),
         getLessons(token),
         getQuizzes(token),
       ]);
       setDetail(d);
+      setRequests(reqs);
       setAssignments(a);
       // Map lesson/quiz id → title so assignment rows can show a readable name.
       const map: Record<string, string> = {};
@@ -54,6 +59,37 @@ export default function ClassDetailScreen() {
       load();
     }, [load]),
   );
+
+  async function onApprove(studentId: string) {
+    if (!token || !id) return;
+    setActingId(studentId);
+    try {
+      await classesApi.approveRequest(id, studentId, token);
+      await load();
+    } finally {
+      setActingId(null);
+    }
+  }
+
+  function onReject(studentId: string) {
+    Alert.alert(t('rejectRequestConfirm'), '', [
+      { text: t('back'), style: 'cancel' },
+      {
+        text: t('reject'),
+        style: 'destructive',
+        onPress: async () => {
+          if (!token || !id) return;
+          setActingId(studentId);
+          try {
+            await classesApi.rejectRequest(id, studentId, token);
+            await load();
+          } finally {
+            setActingId(null);
+          }
+        },
+      },
+    ]);
+  }
 
   function confirmDelete(assignmentId: string) {
     Alert.alert(t('deleteAssignment'), '', [
@@ -92,6 +128,27 @@ export default function ClassDetailScreen() {
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <JoinCodeCard code={detail.joinCode} className={detail.name} />
+
+        {/* Pending join requests — teacher approves before enrollment */}
+        {requests.length > 0 ? (
+          <>
+            <View style={styles.sectionHead}>
+              <AppText variant="h2">{t('joinRequests')}</AppText>
+              <AppText variant="caption" color={colors.streak}>{requests.length}</AppText>
+            </View>
+            <Card variant="raised" padding="md">
+              {requests.map((r) => (
+                <RequestRow
+                  key={r.id}
+                  name={r.fullName}
+                  busy={actingId === r.id}
+                  onApprove={() => onApprove(r.id)}
+                  onReject={() => onReject(r.id)}
+                />
+              ))}
+            </Card>
+          </>
+        ) : null}
 
         {/* Students */}
         <View style={styles.sectionHead}>

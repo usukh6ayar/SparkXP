@@ -106,10 +106,17 @@
 | Method | Path | Auth | Тайлбар |
 |---|---|:---:|---|
 | POST | `/classes` | 👩‍🏫 | Класс үүсгэх (`join_code` гарна) |
-| POST | `/classes/join` | 🔑 | Оюутан `{ joinCode }`-оор элсэх |
+| POST | `/classes/join` | 🔑 | Оюутан `{ joinCode }`-оор **элсэх хүсэлт** илгээх → `{ status:'pending', className }` (багш зөвшөөрнө) |
 | GET | `/classes` | 🔑 | Класс жагсаалт |
-| GET | `/classes/:id` | 🔑 | Нэг класс |
+| GET | `/classes/:id` | 🔑 | Нэг класс (зөвшөөрөгдсөн roster) |
 | GET | `/classes/:id/students` | 👩‍🏫 | Класс доторх оюутнууд |
+| GET | `/classes/:id/requests` | 👩‍🏫 | **Хүлээгдэж буй элсэх хүсэлтүүд** |
+| POST | `/classes/:id/requests/:studentId/approve` | 👩‍🏫 | Хүсэлт **зөвшөөрөх** (roster-т нэмнэ) |
+| DELETE | `/classes/:id/requests/:studentId` | 👩‍🏫 | Хүсэлт **татгалзах** |
+
+> ⚠️ **Өөрчлөлт (2026-06-16):** `/classes/join` нь шууд элсүүлэхээ больж, **багшийн
+> зөвшөөрөл шаардсан pending хүсэлт** үүсгэдэг болсон (хэн ч кодоор шууд орохоос
+> сэргийлэв). Шинэ entity: `class_join_requests`. Coordinate w/ Bishrelt.
 
 ### Assignments — `/api/assignments`
 | Method | Path | Auth | Тайлбар |

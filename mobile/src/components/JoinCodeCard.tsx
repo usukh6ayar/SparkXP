@@ -1,14 +1,20 @@
 import { View, Pressable, Share, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import QRCode from 'react-native-qrcode-svg';
 import { AppText } from './Text';
 import { t } from '../i18n';
+import { buildJoinLink } from '../lib/joinLink';
 import { colors, spacing, radius, elevation } from '../theme/theme';
 
-/** Prominent join-code panel with a Share button — the way teachers add students. */
+/**
+ * Prominent join panel: a QR code + the human-typable code, with a Share
+ * button — the ways teachers add students. The QR encodes the join code so a
+ * future student scanner can read it directly (students can also type it).
+ */
 export function JoinCodeCard({ code, className }: { code: string; className?: string }) {
   async function onShare() {
     await Share.share({
-      message: `${className ? className + ' — ' : ''}SparkXP анги нэгдэх код: ${code}`,
+      message: `${className ? className + ' — ' : ''}SparkXP анги нэгдэх код: ${code}\n${buildJoinLink(code)}`,
     });
   }
 
@@ -17,12 +23,18 @@ export function JoinCodeCard({ code, className }: { code: string; className?: st
       <AppText variant="overline" color={colors.textOnDarkMuted}>
         {t('joinCode').toUpperCase()}
       </AppText>
+
+      <View style={styles.qrBox}>
+        <QRCode value={buildJoinLink(code)} size={140} backgroundColor="transparent" color={colors.navy} />
+      </View>
+
       <AppText variant="display" color={colors.white} style={styles.code}>
         {code}
       </AppText>
       <AppText variant="caption" color={colors.textOnDarkMuted} style={styles.hint}>
         {t('joinCodeHint')}
       </AppText>
+
       <Pressable
         style={({ pressed }) => [styles.btn, pressed && styles.pressed]}
         onPress={onShare}
@@ -44,7 +56,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     ...(elevation.float as object),
   },
-  code: { letterSpacing: 6, marginTop: 4 },
+  qrBox: {
+    backgroundColor: colors.white,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginTop: spacing.md,
+  },
+  code: { letterSpacing: 6, marginTop: spacing.md },
   hint: { textAlign: 'center', marginTop: 4, marginBottom: spacing.lg },
   btn: {
     flexDirection: 'row',

@@ -58,3 +58,40 @@ export function getClass(id: string, token: string): Promise<ClassDetail> {
 export function getClassStudents(id: string, token: string): Promise<ClassStudent[]> {
   return apiRequest<ClassStudent[]>(`/classes/${id}/students`, { token });
 }
+
+/** POST /classes/join — student requests to join (needs teacher approval). */
+export function requestJoinClass(
+  joinCode: string,
+  token: string,
+): Promise<{ status: 'pending'; className: string }> {
+  return apiRequest('/classes/join', { method: 'POST', body: { joinCode }, token });
+}
+
+/** GET /classes/:id/requests — pending join requests (teacher/admin only). */
+export function getJoinRequests(id: string, token: string): Promise<ClassStudent[]> {
+  return apiRequest<ClassStudent[]>(`/classes/${id}/requests`, { token });
+}
+
+/** POST /classes/:id/requests/:studentId/approve — enroll a pending student. */
+export function approveRequest(
+  classId: string,
+  studentId: string,
+  token: string,
+): Promise<ClassDetail> {
+  return apiRequest<ClassDetail>(
+    `/classes/${classId}/requests/${studentId}/approve`,
+    { method: 'POST', token },
+  );
+}
+
+/** DELETE /classes/:id/requests/:studentId — reject a pending request. */
+export function rejectRequest(
+  classId: string,
+  studentId: string,
+  token: string,
+): Promise<void> {
+  return apiRequest<void>(`/classes/${classId}/requests/${studentId}`, {
+    method: 'DELETE',
+    token,
+  });
+}
