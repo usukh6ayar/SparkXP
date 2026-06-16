@@ -16,4 +16,10 @@ export class UpdateProfileDto {
   @IsString()
   @IsIn([...UB_DISTRICTS])
   district?: string;
+
+  /** Image URL or a `default:avN` key (set when picking a default avatar). */
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  avatarUrl?: string;
 }

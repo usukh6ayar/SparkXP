@@ -73,6 +73,14 @@ export class UsersService {
     return this.sanitize(saved);
   }
 
+  /** Set the user's avatar (uploaded URL or default key) and return them. */
+  async setAvatar(id: string, avatarUrl: string): Promise<SafeUser> {
+    const user = await this.users.findOne({ where: { id } });
+    if (!user) throw new NotFoundException('Хэрэглэгч олдсонгүй');
+    user.avatarUrl = avatarUrl;
+    return this.sanitize(await this.users.save(user));
+  }
+
   getStats(user: User): { xp: number; sparks: number } {
     return { xp: user.xp, sparks: user.sparks };
   }

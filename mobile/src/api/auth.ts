@@ -10,6 +10,7 @@ export interface AuthUser {
   xp: number;
   sparks: number;
   emailVerified: boolean;
+  avatarUrl: string | null;
 }
 
 export interface AuthResult {

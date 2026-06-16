@@ -37,6 +37,7 @@ export interface PublicUser {
   xp: number;
   sparks: number;
   emailVerified: boolean;
+  avatarUrl: string | null;
 }
 
 @Injectable()
@@ -177,6 +178,7 @@ export class AuthService {
       xp: user.xp,
       sparks: user.sparks,
       emailVerified: user.emailVerified,
+      avatarUrl: user.avatarUrl,
     };
   }
 }

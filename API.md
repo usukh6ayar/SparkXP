@@ -29,7 +29,8 @@
 
 | Method | Path | Auth | Тайлбар |
 |---|---|:---:|---|
-| PATCH | `/users/me` | 🔑 | Өөрийн профайл засах `{ fullName?, province?, district? }` |
+| PATCH | `/users/me` | 🔑 | Өөрийн профайл засах `{ fullName?, province?, district?, avatarUrl? }` (`avatarUrl` = зургийн URL эсвэл `default:avN`) |
+| POST | `/users/me/avatar` | 🔑 | Avatar зураг upload (multipart `file`, jpg/png/webp ≤5MB) → шинэчилсэн user |
 | GET | `/users/me/stats` | 🔑 | `{ xp, sparks }` |
 | GET | `/users` | 🛡️ | Хэрэглэгчийн жагсаалт (`?page&limit`) — passwordHash хасагдсан |
 | DELETE | `/users/:id` | 🛡️ | Хэрэглэгч устгах |

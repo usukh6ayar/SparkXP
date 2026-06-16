@@ -25,6 +25,8 @@ interface AuthState {
   login: (identifier: string, password: string) => Promise<void>;
   /** Persist a session from an already-fetched result (e.g. after OTP verify). */
   applySession: (result: AuthResult) => Promise<void>;
+  /** Replace the cached user (e.g. after editing profile / avatar). */
+  updateUser: (user: AuthUser) => Promise<void>;
   completeOnboarding: () => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -103,6 +105,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await persist(result);
   }
 
+  async function updateUser(next: AuthUser) {
+    await SecureStore.setItemAsync(USER_KEY, JSON.stringify(next));
+    setUser(next);
+  }
+
   async function completeOnboarding() {
     await SecureStore.setItemAsync(ONBOARDED_KEY, '1');
     setOnboarded(true);
@@ -121,6 +128,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         onboarded,
         login,
         applySession,
+        updateUser,
         completeOnboarding,
         logout,
       }}

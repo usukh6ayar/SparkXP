@@ -303,4 +303,9 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
   үүсгэхдээ сургуулиа сонгоход. (POST/PATCH/DELETE хэвээр admin-only.)
 
 **5. Шинэ mobile dependency:** `expo-camera`, `react-native-svg`,
-  `react-native-qrcode-svg` (QR + scanner). Pull хийсний дараа `npm install`.
+  `react-native-qrcode-svg` (QR + scanner), `expo-image-picker` (avatar).
+  Pull хийсний дараа `npm install`.
+
+**6. Avatar:** `User.avatarUrl` багана нэмсэн. `PATCH /users/me`-д `avatarUrl`
+  (зургийн URL эсвэл `default:avN`), шинэ `POST /users/me/avatar` (зураг upload,
+  сурагчид нээлттэй). `/auth/me`/login user-д `avatarUrl` ирнэ.

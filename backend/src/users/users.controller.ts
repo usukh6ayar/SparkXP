@@ -1,17 +1,27 @@
 import {
   Controller,
   Get,
+  Post,
   Patch,
   Delete,
   Body,
   Param,
   Query,
+  Req,
   ParseUUIDPipe,
   UseGuards,
+  UseInterceptors,
+  UploadedFile,
   HttpCode,
   HttpStatus,
+  BadRequestException,
   ForbiddenException,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { join, extname } from 'path';
+import { randomUUID } from 'crypto';
+import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -20,6 +30,15 @@ import { UserRole } from '../common/enums';
 import { User } from '../entities/user.entity';
 import { UsersService } from './users.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+
+const AVATAR_EXT = ['.jpg', '.jpeg', '.png', '.webp'];
+const AVATAR_MAX = 5 * 1024 * 1024; // 5 MB
+
+const avatarStorage = diskStorage({
+  destination: join(process.cwd(), 'uploads'),
+  filename: (_req, file, cb) =>
+    cb(null, `${randomUUID()}${extname(file.originalname).toLowerCase()}`),
+});
 
 @Controller('users')
 @UseGuards(JwtAuthGuard)
@@ -36,6 +55,25 @@ export class UsersController {
   @Get('me/stats')
   getStats(@CurrentUser() user: User) {
     return this.usersService.getStats(user);
+  }
+
+  /** Current user: upload a custom avatar image (jpg/png/webp, ≤5 MB). */
+  @Post('me/avatar')
+  @UseInterceptors(
+    FileInterceptor('file', { storage: avatarStorage, limits: { fileSize: AVATAR_MAX } }),
+  )
+  uploadAvatar(
+    @CurrentUser() user: User,
+    @UploadedFile() file: Express.Multer.File,
+    @Req() req: Request,
+  ) {
+    if (!file) throw new BadRequestException('Зураг илгээгдээгүй байна');
+    if (!AVATAR_EXT.includes(extname(file.filename).toLowerCase())) {
+      throw new BadRequestException('Зөвхөн зураг (jpg/png/webp) оруулна уу');
+    }
+    const host = req.get('host') ?? 'localhost:3000';
+    const url = `${req.protocol}://${host}/uploads/${file.filename}`;
+    return this.usersService.setAvatar(user.id, url);
   }
 
   /** Admin: list all users with pagination. */
