@@ -272,3 +272,35 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
 - **Хийгдэх (mobile хэрэгцээ):** бодит **streak / level / daily-XP / lesson
   completion** tracking endpoint (одоо mobile талд placeholder). Lesson `content`
   jsonb-д **видео** shape (`videoUrl`, `segments`, `tip`) — admin бөглөнө.
+
+---
+
+## ⚠️ Shared backend өөрчлөлт — Bishrelt АНХААР (2026-06-16)
+
+> Усухбаярын багш/auth ажлаас `/backend`-д орсон **хуваалцсан** өөрчлөлтүүд.
+> `git pull` хийгээд **`cd mobile && npm install`** (шинэ dependency). Дэлгэрэнгүй: `API.md`.
+
+**1. AUTH дахин зохион байгуулсан** (admin web-д НӨЛӨӨТЭЙ — гэхдээ эвдрэхгүй):
+- Бүртгэл одоо **`username` (заавал, давтагдашгүй)** + email шаардана.
+- **Нэвтрэлт `{ identifier, password }`** — `identifier` нь **username ЭСВЭЛ email**.
+  Хуучин `{ email, password }` body ажиллахаа болино → **admin login-ийг
+  `email`-ийн оронд `identifier` талбар руу шилжүүлэх** (утга нь email хэвээр болно).
+- Шинэ endpoint: `verify-otp`, `resend-otp`, `forgot-password`, `reset-password`.
+- Имэйл OTP-оор баталгаажна (register токен өгөхгүй → verify-otp токен өгнө).
+- `User.emailVerified` багана нэмэгдсэн. OTP нь Redis-д (10 мин TTL).
+- **`MailService` нь stub** (`src/mail/`) — dev-д код лог. Жинхэнэ SMTP/Resend-г энд залгана.
+- Public register `role`-г **зөвхөн `student`** болгож түгжсэн (teacher = admin олгоно).
+
+**2. Класст элсэх = багшийн зөвшөөрөлтэй:**
+- `POST /classes/join` → шууд элсэхгүй, **pending хүсэлт** үүсгэнэ.
+- Шинэ entity **`class_join_requests`** + endpoint: `GET /classes/:id/requests`,
+  `POST /classes/:id/requests/:studentId/approve`, `DELETE .../:studentId`.
+
+**3. Leaderboard `teacher` scope** нэмсэн — багшийн бүх ангийн сурагчид
+  (`?scope=teacher`). `LeaderboardModule` одоо `ClassEntity`-г import хийдэг.
+
+**4. `GET /organizations`** одоо **🔑 (нэвтэрсэн бүх хүнд нээлттэй)** — багш класс
+  үүсгэхдээ сургуулиа сонгоход. (POST/PATCH/DELETE хэвээр admin-only.)
+
+**5. Шинэ mobile dependency:** `expo-camera`, `react-native-svg`,
+  `react-native-qrcode-svg` (QR + scanner). Pull хийсний дараа `npm install`.
