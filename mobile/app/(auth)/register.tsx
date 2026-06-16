@@ -57,20 +57,24 @@ export default function RegisterScreen() {
   const { applySession } = useAuth();
   const router = useRouter();
 
-  const [step, setStep] = useState<0 | 1 | 2>(0); // info → location → success
+  type Step = 'info' | 'location' | 'otp' | 'success';
+  const [step, setStep] = useState<Step>('info'); // info → location → otp → success
+  const [username, setUsername] = useState('');
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [province, setProvince] = useState<string | undefined>();
   const [district, setDistrict] = useState<string | undefined>();
+  const [code, setCode] = useState('');
   const [result, setResult] = useState<AuthResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const isUB = province === 'Улаанбаатар';
   const passOk = rules.minLen(password) && rules.letterCase(password) && rules.number(password);
-  const infoValid = fullName.trim() && email.trim() && passOk && confirm === password;
+  const usernameOk = /^[a-zA-Z0-9_]{3,30}$/.test(username.trim());
+  const infoValid = usernameOk && fullName.trim() && email.trim() && passOk && confirm === password;
 
   function onProvinceChange(value: string) {
     setProvince(value);
@@ -81,24 +85,23 @@ export default function RegisterScreen() {
     setError(null);
     if (!passOk) return setError(t('required'));
     if (confirm !== password) return setError(t('passwordMismatch'));
-    setStep(1);
+    setStep('location');
   }
 
+  // Location → create the (unverified) account; backend emails an OTP.
   async function submit() {
     setError(null);
     setBusy(true);
     try {
-      // Create the account but don't persist the session yet — we show the
-      // success step first, then `applySession` on "Эхлэх" enters the app.
-      const res = await authApi.register({
+      await authApi.register({
+        username: username.trim(),
         email: email.trim(),
         password,
         fullName: fullName.trim(),
         province,
         district: isUB ? district : undefined,
       });
-      setResult(res);
-      setStep(2);
+      setStep('otp');
     } catch (e) {
       setError(e instanceof ApiError ? e.message : t('errorGeneric'));
     } finally {
@@ -106,13 +109,40 @@ export default function RegisterScreen() {
     }
   }
 
+  // OTP → verify the email, get a session, then show success.
+  async function verify() {
+    setError(null);
+    setBusy(true);
+    try {
+      const res = await authApi.verifyOtp(email.trim(), code.trim());
+      setResult(res);
+      setStep('success');
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : t('errorGeneric'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function resend() {
+    setError(null);
+    try {
+      await authApi.resendOtp(email.trim());
+      setError(t('otpResent'));
+    } catch {
+      // ignore — backend always returns ok
+    }
+  }
+
   function back() {
-    if (step === 1) setStep(0);
+    setError(null);
+    if (step === 'otp') setStep('location');
+    else if (step === 'location') setStep('info');
     else router.replace('/(auth)/login');
   }
 
-  // ---- Step 3: success ----
-  if (step === 2) {
+  // ---- success ----
+  if (step === 'success') {
     return (
       <Screen centered>
         <View style={styles.center}>
@@ -148,7 +178,7 @@ export default function RegisterScreen() {
         <Ionicons name="chevron-back" size={26} color={colors.text} />
       </Pressable>
 
-      {step === 0 ? (
+      {step === 'info' ? (
         <>
           <AppText variant="h1" center style={styles.title}>
             {t('register')}
@@ -157,6 +187,14 @@ export default function RegisterScreen() {
             {t('registerSubtitle')}
           </AppText>
 
+          <TextField
+            leftIcon="at-outline"
+            placeholder={t('username')}
+            autoCapitalize="none"
+            autoCorrect={false}
+            value={username}
+            onChangeText={setUsername}
+          />
           <TextField
             leftIcon="person-outline"
             placeholder={t('fullName')}
@@ -205,7 +243,7 @@ export default function RegisterScreen() {
           />
           <AuthFooter prompt={t('haveAccount')} linkLabel={t('login')} href="/(auth)/login" />
         </>
-      ) : (
+      ) : step === 'location' ? (
         <>
           <AppText variant="h1" center style={styles.title}>
             {t('locationTitle')}
@@ -260,6 +298,39 @@ export default function RegisterScreen() {
             })}
           </View>
         </>
+      ) : (
+        <>
+          <AppText variant="h1" center style={styles.title}>
+            {t('otpTitle')}
+          </AppText>
+          <AppText variant="body" center color={colors.textSecondary} style={styles.subtitle}>
+            {t('otpSentTo')} {email}
+          </AppText>
+
+          <TextField
+            leftIcon="key-outline"
+            placeholder={t('otpCode')}
+            keyboardType="number-pad"
+            maxLength={6}
+            value={code}
+            onChangeText={setCode}
+          />
+
+          <FormError message={error} />
+          <Button
+            label={t('verify')}
+            iconRight="checkmark"
+            onPress={verify}
+            loading={busy}
+            disabled={code.trim().length !== 6}
+            style={styles.button}
+          />
+          <Pressable onPress={resend} hitSlop={6} style={styles.resend}>
+            <AppText variant="bodyStrong" color={colors.primary}>
+              {t('resendOtp')}
+            </AppText>
+          </Pressable>
+        </>
       )}
     </Screen>
   );
@@ -281,6 +352,7 @@ const styles = StyleSheet.create({
   },
   rulesTitle: { marginBottom: spacing.xs },
   ruleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  resend: { alignSelf: 'center', marginTop: spacing.lg },
 
   // Location
   mapFox: { width: 150, height: 150, alignSelf: 'center', marginVertical: spacing.md },

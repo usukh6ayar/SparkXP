@@ -40,6 +40,25 @@ const mn = {
   rememberMe: 'Намайг санаарай',
   forgotPassword: 'Нууц үгээ мартсан уу?',
   orDivider: 'эсвэл',
+  username: 'Нэвтрэх нэр',
+  usernamePlaceholder: 'жишээ: bataa_2010',
+
+  // OTP / email verification
+  otpTitle: 'Имэйлээ баталгаажуулна уу',
+  otpSentTo: 'Бид код илгээсэн:',
+  otpCode: 'Баталгаажуулах код',
+  verify: 'Баталгаажуулах',
+  resendOtp: 'Код дахин илгээх',
+  otpResent: 'Код дахин илгээгдлээ',
+
+  // Forgot / reset password
+  forgotTitle: 'Нууц үг сэргээх',
+  forgotSubtitle: 'Бүртгэлтэй имэйлээ оруулна уу — бид код илгээнэ.',
+  sendCode: 'Код илгээх',
+  newPassword: 'Шинэ нууц үг',
+  resetPassword: 'Нууц үг солих',
+  resetDone: 'Нууц үг шинэчлэгдлээ! ✓',
+  backToLogin: 'Нэвтрэх рүү буцах',
 
   // Register (multi-step)
   registerSubtitle: 'Хувийн мэдээллээ оруулна уу.',

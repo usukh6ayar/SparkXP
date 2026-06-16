@@ -36,6 +36,10 @@ export class User extends BaseEntity {
   @Column({ name: 'password_hash' })
   passwordHash: string;
 
+  /** Whether the email has been confirmed via OTP at registration. */
+  @Column({ name: 'email_verified', type: 'boolean', default: false })
+  emailVerified: boolean;
+
   @Column({ name: 'full_name' })
   fullName: string;
 

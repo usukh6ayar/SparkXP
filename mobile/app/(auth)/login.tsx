@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { View, Image, Pressable, StyleSheet } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useAuth } from '../../src/auth/AuthContext';
 import { ApiError } from '../../src/api/client';
 import { t } from '../../src/i18n';
@@ -18,7 +19,8 @@ const fox = require('../../assets/onboarding/onb-welcome.png');
 
 export default function LoginScreen() {
   const { login } = useAuth();
-  const [email, setEmail] = useState('');
+  const router = useRouter();
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [remember, setRemember] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +30,7 @@ export default function LoginScreen() {
     setError(null);
     setBusy(true);
     try {
-      await login(email.trim(), password); // auth gate redirects on success
+      await login(username.trim(), password); // auth gate redirects on success
     } catch (e) {
       setError(e instanceof ApiError ? e.message : t('errorGeneric'));
     } finally {
@@ -49,12 +51,12 @@ export default function LoginScreen() {
       </AppText>
 
       <TextField
-        leftIcon="mail-outline"
-        placeholder={t('email')}
+        leftIcon="person-outline"
+        placeholder={t('username')}
         autoCapitalize="none"
-        keyboardType="email-address"
-        value={email}
-        onChangeText={setEmail}
+        autoCorrect={false}
+        value={username}
+        onChangeText={setUsername}
       />
       <TextField
         leftIcon="lock-closed-outline"
@@ -66,7 +68,7 @@ export default function LoginScreen() {
 
       <View style={styles.row}>
         <Checkbox checked={remember} onToggle={() => setRemember((v) => !v)} label={t('rememberMe')} />
-        <Pressable onPress={soon} hitSlop={6}>
+        <Pressable onPress={() => router.push('/(auth)/forgot')} hitSlop={6}>
           <AppText variant="caption" color={colors.primary}>
             {t('forgotPassword')}
           </AppText>

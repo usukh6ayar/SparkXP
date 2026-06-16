@@ -11,6 +11,13 @@ import { MN_PROVINCES, UserRole } from '../../common/enums';
 
 /** Body for POST /api/auth/register. Validated by the global ValidationPipe. */
 export class RegisterDto {
+  /** Unique handle chosen at sign-up — used to log in. */
+  @IsString()
+  @MinLength(3)
+  @MaxLength(30)
+  @Matches(/^[a-zA-Z0-9_]+$/, { message: 'Username зөвхөн үсэг, тоо, _ агуулна' })
+  username: string;
+
   @IsEmail({}, { message: 'Имэйл хаяг буруу байна' })
   email: string;
 
@@ -24,24 +31,9 @@ export class RegisterDto {
   @MaxLength(100)
   fullName: string;
 
-  /** Display username chosen at registration (e.g. "Bold123"). */
-  @IsOptional()
-  @IsString()
-  @MinLength(3)
-  @MaxLength(30)
-  @Matches(/^[a-zA-Z0-9_]+$/, { message: 'Username зөвхөн үсэг, тоо, _ агуулна' })
-  username?: string;
-
-  /** Phone number (Mongolian 8-digit or international format). */
-  @IsOptional()
-  @IsString()
-  @MaxLength(20)
-  phone?: string;
-
   /**
    * Role chosen at sign-up. Public register is locked to `student` only —
    * teacher/admin/moderator roles are assigned by an admin (`PATCH /users/:id`).
-   * See PRODUCT_BRIEF.md (teacher = admin-assigned only).
    */
   @IsOptional()
   @IsIn([UserRole.STUDENT], {

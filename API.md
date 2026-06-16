@@ -15,9 +15,15 @@
 
 | Method | Path | Auth | Тайлбар |
 |---|---|:---:|---|
-| POST | `/auth/register` | 🔓 | Бүртгүүлэх. Body: `{ email, password, fullName, province?, district? }` → `{ accessToken, user }` |
-| POST | `/auth/login` | 🔓 | Нэвтрэх. Body: `{ email, password }` → `{ accessToken, user }` |
+| POST | `/auth/register` | 🔓 | Бүртгүүлэх. Body: `{ username, email, password, fullName, province?, district? }` → `{ pendingVerification, email }` (токен ӨГӨХГҮЙ — OTP баталгаажуулна) |
+| POST | `/auth/verify-otp` | 🔓 | Body: `{ email, code }` → `{ accessToken, user }` (имэйл баталгаажуулж нэвтэрнэ) |
+| POST | `/auth/resend-otp` | 🔓 | Body: `{ email }` → код дахин илгээх |
+| POST | `/auth/login` | 🔓 | Нэвтрэх. Body: `{ identifier, password }` (**identifier = username ЭСВЭЛ email**) → `{ accessToken, user }` |
+| POST | `/auth/forgot-password` | 🔓 | Body: `{ email }` → сэргээх код имэйлдэнэ |
+| POST | `/auth/reset-password` | 🔓 | Body: `{ email, code, password }` → нууц үг солих |
 | GET | `/auth/me` | 🔑 | Одоогийн хэрэглэгч |
+
+> ⚠️ **Auth өөрчлөлт (2026-06):** бүртгэлд **username (заавал, давтагдашгүй)** + имэйл; нэвтрэлт **username-ээр** (admin/хуучин дансууд email-ээр хэвээр — `identifier` хоёуланг хүлээнэ). Имэйл OTP-оор баталгаажна, нууц үг имэйлээр сэргээнэ. **Email илгээлт одоо stub** (dev: код backend лог + Redis-д; жинхэнэ SMTP/Resend-г `MailService`-д залгана). Coordinate w/ Bishrelt.
 
 ## 👤 Users — `/api/users`
 

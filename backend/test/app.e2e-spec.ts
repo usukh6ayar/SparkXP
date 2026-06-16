@@ -38,13 +38,15 @@ async function registerAndLogin(
   email: string,
   password = 'Test1234!',
 ): Promise<string> {
+  // username derived from the (unique) email local-part. Login doesn't require
+  // email verification, so register → login still yields a usable token.
   await request(app.getHttpServer())
     .post('/api/auth/register')
-    .send({ email, password, fullName: 'Test User' });
+    .send({ username: email.split('@')[0], email, password, fullName: 'Test User' });
 
   const res = await request(app.getHttpServer())
     .post('/api/auth/login')
-    .send({ email, password });
+    .send({ identifier: email, password });
 
   return res.body.accessToken as string;
 }
@@ -57,18 +59,18 @@ describe('Auth', () => {
   beforeAll(async () => { app = await createApp(); });
   afterAll(async () => { await app.close(); });
 
-  it('POST /api/auth/register → 201', async () => {
+  it('POST /api/auth/register → 201 (pending verification)', async () => {
     const res = await request(app.getHttpServer())
       .post('/api/auth/register')
-      .send({ email: 'auth_test@test.mn', password: 'Test1234!', fullName: 'Auth Test' });
+      .send({ username: 'auth_test', email: 'auth_test@test.mn', password: 'Test1234!', fullName: 'Auth Test' });
     expect(res.status).toBe(201);
-    expect(res.body).toHaveProperty('accessToken');
+    expect(res.body).toHaveProperty('pendingVerification', true);
   });
 
-  it('POST /api/auth/login → 200 with token', async () => {
+  it('POST /api/auth/login → 200 with token (username or email)', async () => {
     const res = await request(app.getHttpServer())
       .post('/api/auth/login')
-      .send({ email: 'auth_test@test.mn', password: 'Test1234!' });
+      .send({ identifier: 'auth_test', password: 'Test1234!' });
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('accessToken');
   });
