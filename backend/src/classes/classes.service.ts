@@ -8,6 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ClassEntity } from '../entities/class.entity';
 import { User } from '../entities/user.entity';
+import { ClassJoinRequest } from '../entities/class-join-request.entity';
 import { UserRole } from '../common/enums';
 import { sanitizeUser, SafeUser } from '../common/utils/sanitize-user';
 import { CreateClassDto } from './dto/create-class.dto';
@@ -42,6 +43,8 @@ export class ClassesService {
     private readonly classes: Repository<ClassEntity>,
     @InjectRepository(User)
     private readonly users: Repository<User>,
+    @InjectRepository(ClassJoinRequest)
+    private readonly requests: Repository<ClassJoinRequest>,
   ) {}
 
   /** Create a class owned by `teacher`, with a freshly generated join code. */
@@ -92,25 +95,98 @@ export class ClassesService {
     return this.toDetail(klass);
   }
 
-  /** Enroll the current user into a class by its join code. */
-  async join(joinCode: string, user: User): Promise<ClassDetail> {
+  /**
+   * Request to join a class by its code. The student is NOT enrolled yet — a
+   * pending request is created and the teacher must approve it. This stops
+   * anyone who happens to know the code from silently joining.
+   */
+  async join(
+    joinCode: string,
+    user: User,
+  ): Promise<{ status: 'pending'; className: string }> {
     const code = joinCode.trim().toUpperCase();
     const klass = await this.classes.findOne({
       where: { joinCode: code },
-      relations: { students: true, organization: true },
+      relations: { students: true },
     });
     if (!klass) throw new NotFoundException('Ийм кодтой анги олдсонгүй');
 
+    if (klass.teacherId === user.id) {
+      throw new ConflictException('Та энэ ангийн багш байна');
+    }
     if (klass.students.some((s) => s.id === user.id)) {
       throw new ConflictException('Та энэ ангид аль хэдийн элссэн байна');
     }
 
-    klass.students.push(user);
-    await this.classes.save(klass);
+    const existing = await this.requests.findOne({
+      where: { classId: klass.id, studentId: user.id },
+    });
+    if (existing) {
+      throw new ConflictException('Хүсэлт илгээгдсэн, багшийн зөвшөөрлийг хүлээнэ үү');
+    }
 
-    await this.inheritOrgLocation(user, klass);
+    await this.requests.save(
+      this.requests.create({ classId: klass.id, studentId: user.id }),
+    );
+    return { status: 'pending', className: klass.name };
+  }
 
-    return this.toDetail(klass);
+  /** Pending join requests for a class (teacher of the class / admin only). */
+  async getJoinRequests(classId: string, user: User): Promise<SafeUser[]> {
+    const klass = await this.classes.findOne({ where: { id: classId } });
+    if (!klass) throw new NotFoundException('Анги олдсонгүй');
+    this.assertTeacherOrAdmin(klass, user);
+
+    const reqs = await this.requests.find({
+      where: { classId },
+      relations: { student: true },
+      order: { createdAt: 'ASC' },
+    });
+    return reqs.map((r) => sanitizeUser(r.student));
+  }
+
+  /** Approve a pending request: enroll the student and drop the request. */
+  async approveRequest(
+    classId: string,
+    studentId: string,
+    user: User,
+  ): Promise<ClassDetail> {
+    const klass = await this.classes.findOne({
+      where: { id: classId },
+      relations: { students: true, organization: true },
+    });
+    if (!klass) throw new NotFoundException('Анги олдсонгүй');
+    this.assertTeacherOrAdmin(klass, user);
+
+    const req = await this.requests.findOne({ where: { classId, studentId } });
+    if (!req) throw new NotFoundException('Хүсэлт олдсонгүй');
+
+    const student = await this.users.findOne({ where: { id: studentId } });
+    if (!student) throw new NotFoundException('Сурагч олдсонгүй');
+
+    if (!klass.students.some((s) => s.id === studentId)) {
+      klass.students.push(student);
+      await this.classes.save(klass);
+      await this.inheritOrgLocation(student, klass);
+    }
+    await this.requests.remove(req);
+
+    return this.findOneWithAccess(classId, user);
+  }
+
+  /** Reject (delete) a pending request without enrolling the student. */
+  async rejectRequest(
+    classId: string,
+    studentId: string,
+    user: User,
+  ): Promise<void> {
+    const klass = await this.classes.findOne({ where: { id: classId } });
+    if (!klass) throw new NotFoundException('Анги олдсонгүй');
+    this.assertTeacherOrAdmin(klass, user);
+
+    const req = await this.requests.findOne({ where: { classId, studentId } });
+    if (!req) throw new NotFoundException('Хүсэлт олдсонгүй');
+    await this.requests.remove(req);
   }
 
   /** The student roster of a class (teacher of the class or admin only). */
@@ -149,6 +225,13 @@ export class ClassesService {
 
   private isAdmin(user: User): boolean {
     return user.role === UserRole.ADMIN || user.role === UserRole.SUPER_ADMIN;
+  }
+
+  /** Throw unless the user is this class's teacher or an admin. */
+  private assertTeacherOrAdmin(klass: ClassEntity, user: User): void {
+    if (!this.isAdmin(user) && klass.teacherId !== user.id) {
+      throw new ForbiddenException('Зөвхөн ангийн багш энэ үйлдлийг хийнэ');
+    }
   }
 
   /** Shape a loaded class (with relations) into a hash-free response object. */
