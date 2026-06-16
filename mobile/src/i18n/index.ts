@@ -42,6 +42,7 @@ const mn = {
   orDivider: 'эсвэл',
   username: 'Нэвтрэх нэр',
   usernamePlaceholder: 'жишээ: bataa_2010',
+  usernameOrEmail: 'Нэвтрэх нэр эсвэл имэйл',
 
   // OTP / email verification
   otpTitle: 'Имэйлээ баталгаажуулна уу',

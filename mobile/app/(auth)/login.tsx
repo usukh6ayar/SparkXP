@@ -52,7 +52,7 @@ export default function LoginScreen() {
 
       <TextField
         leftIcon="person-outline"
-        placeholder={t('username')}
+        placeholder={t('usernameOrEmail')}
         autoCapitalize="none"
         autoCorrect={false}
         value={username}
