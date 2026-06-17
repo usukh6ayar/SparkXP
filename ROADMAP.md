@@ -204,6 +204,10 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
 > Эдгээр нь mobile (teacher + student) болон admin-д хамаатай тул **PR-ийн өмнө
 > хоёр dev тохиролцоно**. Ихэнх нь Phase 1.5 / Phase 3.
 
+> ✅ **Энэ циклд хийгдсэн (2026-06, доорх "Bishrelt АНХААР"-т дэлгэрэнгүй):**
+> auth overhaul (username + email OTP + reset), класст элсэх зөвшөөрөл,
+> **Leaderboard `teacher` scope**, **`User.avatarUrl` + avatar upload**.
+
 **Teacher dashboard гүнзгийрүүлэлт** (mobile M5 🟡)
 - [ ] Assignment **completion tracking** — оноосон lesson/quiz-ийг хэн дуусгасан
       (X/N), статус. (Assignment-д completion data, эсвэл шинэ progress query.)
@@ -212,6 +216,7 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
 - [x] `GET /api/classes/:id/progress` (xpWeek/Month/Total+sparks) — бэлэн.
 
 **User профайл / plan** (mobile M6)
+- [x] `User.avatarUrl` + avatar upload (`POST /users/me/avatar`) — бэлэн.
 - [ ] `User.level` (placement түвшин) + `User.plan` талбар.
 - [ ] Plan caps-ийг admin/DB-ээс тохируулах (app update-гүй) — Free/Standard/Premium.
 

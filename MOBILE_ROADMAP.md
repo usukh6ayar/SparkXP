@@ -183,21 +183,28 @@ mobile/
 
 ## 📌 Дараагийн алхам
 
-✅ **Дууссан (main-д):** M0 Foundation · M1 Auth (login/register) · Home ·
-SparkXP брэнд theme · дахин ашиглах компонентууд.
+✅ **Дууссан (main-д merged):**
+- M0 Foundation · M1 Auth · M2 (Review/Lessons/Quiz/Chat) · M3 (Leaderboard/Profile/Sparks)
+- **Brand redesign** (purple) бүх дэлгэцэд
+- **Onboarding** (3-slide) + login/register redesign
+- **Auth overhaul:** username + email **OTP** баталгаажуулалт, нууц үг сэргээх, username/email login
+- **M5 Багшийн хэсэг:** role tabs · анги (сургууль+нэр) · join code + QR · **элсэх зөвшөөрөл** · даалгавар · багшийн чансаа
+- **Сурагч:** анги нэгдэх (код/**QR scanner**) · **avatar** (upload + default)
 
-✅ **Бишрэлт дууссан (`bishrelt` branch-д):** Quiz · AI chat · Profile · Lesson detail + unlock · API modules
+**🔜 Үлдсэн ажил (эрэмбээр):**
 
-**Одоо үлдсэн ажил:**
-
-| Dev | Branch | Дараагийн дэлгэц |
+| # | Ажил | Хамаарал |
 | --- | --- | --- |
-| **Усухбаяр** | `usukhbayar` | M2 **Review (SRS)** → Lessons жагсаалт → M3 Leaderboard |
-| **Бишрэлт** | `bishrelt` | M4 Өнгөлгөө (skeleton, error state, pull-to-refresh) |
+| 1 | Home **"Үргэлжлүүлэх"** + сурагчийн **оноосон даалгавар** харах (`/assignments/mine` бэлэн) | mobile |
+| 2 | **Placement/level** сонголт + English name | mobile + `User.level` backend |
+| 3 | **Plan/limit badge** профайлд | mobile + plan backend |
+| 4 | M4 **Өнгөлгөө** — skeleton, error/empty, pull-to-refresh, app icon, фонт ачаалах | mobile |
+| 5 | Багшийн 🟡: даалгаврын **гүйцэтгэл / quiz оноо / weak topics** | backend (coordinate) |
+| 6 | **Voice AI** speaking + cap UI · **double-tap dictionary** · Duolingo lesson path | Phase 1.5+ |
+| 7 | **Streak / badge / level** бодит дата (одоо placeholder) | backend tracking |
 
-> Усухбаяр **Lessons жагсаалт** дэлгэц хийхдээ `app/lesson/[id].tsx` руу navigate хийвэл
-> Бишрэлтийн lesson detail + unlock дэлгэц автоматаар ажиллана.
-3. Дараа нь M1 (auth дэлгэц) → M2 (суралцах) → M3 (gamification).
+> Backend талын дэлгэрэнгүй (completion tracking, usage metering, AI dictionary,
+> voice, plan caps г.м): `ROADMAP.md` → "Doc-aligned backlog".
 
 ---
 
@@ -272,53 +279,54 @@ mockup-аар дахин зохион барьсан. Дизайны эх сур
 
 ---
 
-## 🎯 Phase M5 — Багшийн хэсэг (role-based) `[ ]` — 👤 Усухбаяр
+## 🎯 Phase M5 — Багшийн хэсэг (role-based) `[x]` — 👤 Усухбаяр ✅
 
 > Шийдвэр: **role-оор tab бүхэлд солино** · teacher эрх зөвхөн admin-аас
-> (`PATCH /users/:id`) · MVP = анги + join code + roster + даалгавар оноох.
-> Backend бараг бэлэн (`PRODUCT_BRIEF.md` §6).
+> (`PATCH /users/:id`). **Бүгд main-д merge хийгдсэн.**
 
 **Role routing**
-- [ ] `app/_layout.tsx` gate — нэвтэрсний дараа `user.role`-оор: `teacher`→`/(teacher)`, бусад→`/(tabs)`.
-- [ ] Шинэ route group `app/(teacher)/` + энгийн `Tabs` (AI-төв байхгүй).
-- [ ] Register-ийг student-only болгох (backend DTO-той зэрэгцүүлж).
+- [x] `app/_layout.tsx` gate — `user.role`-оор: `teacher`→`/(teacher)`, бусад→`/(tabs)`.
+- [x] Шинэ route group `app/(teacher)/` + энгийн `Tabs`.
+- [x] Register-ийг **student-only** болгож түгжсэн.
 
-**Mobile API давхарга** (бүгд backend-д бэлэн)
-- [ ] `src/api/classes.ts` — `getMyClasses` (`GET /classes`), `createClass` (`POST /classes`),
-      `getClass` (`GET /classes/:id`), `getClassStudents` (`GET /classes/:id/students`),
-      `getClassProgress` (`GET /classes/:id/progress` → оюутан бүрийн xpWeek/Month/Total+sparks).
-- [ ] `src/api/assignments.ts` — `createAssignment` (`POST /assignments`),
-      `getClassAssignments` (`GET /assignments?classId=`), `deleteAssignment` (`DELETE /assignments/:id`).
+**Mobile API давхарга**
+- [x] `src/api/classes.ts` (getMyClasses/createClass/getClass/getClassStudents + join requests).
+- [x] `src/api/assignments.ts` (create/getClassAssignments/delete).
 
-**Дэлгэцүүд (🟢 одоо хийж болно)**
-- [ ] **Ангиуд** (`(teacher)/index.tsx`) — заадаг ангиуд (нэр, сурагч тоо, код) + "Анги үүсгэх".
-- [ ] **Ангийн дэлгэрэнгүй** (`(teacher)/class/[id].tsx`) — **элсэх кодын карт (Share)** ·
-      сурагчид (нэр + XP, progress-аас xpWeek/Total) · даалгаврууд (оноох/устгах).
-- [ ] **Даалгавар оноох** — төрөл (хичээл/сорил) → контент → due date → `POST /assignments`.
-- [ ] **Багшийн профайл** — нэр, "Багш" badge, сургууль/анги, гарах (student profile суурийг дахин ашиглах).
-- **DoD:** Багш нэвтэрч → анги үүсгэ → код хуваалцана → сурагч элснэ → roster+XP харна → даалгавар онооно.
+**Дэлгэцүүд**
+- [x] **Ангиуд** — заадаг ангиуд + "Анги үүсгэх" (**сургууль сонгож** + нэр 10А/11Б).
+- [x] **Ангийн дэлгэрэнгүй** — элсэх код + **QR**, сурагчид (XP), даалгаврууд (оноох/устгах),
+      **элсэх хүсэлт зөвшөөрөх/татгалзах**.
+- [x] **Даалгавар оноох** — хичээл/сорил + due date.
+- [x] **Багшийн "Чансаа" таб** — `scope=teacher` (өөрийн сурагчид).
+- [x] **Багшийн профайл** — "Багш" badge, гарах.
 
 **🟡 Backend хэрэгтэй (дараа — `ROADMAP.md` coordinate)**
 - [ ] Даалгаврын **гүйцэтгэлийн төлөв** (хэн дуусгасан, X/N).
 - [ ] Сурагч бүрийн **quiz оноо** + **сул сэдвүүд** (weak topics).
-- [ ] Класснаас сурагч хасах UI (`DELETE /classes/:id/leave` бэлэн — багш талын endpoint тодруулах).
+- [ ] Класснаас сурагч хасах UI.
 
 ---
 
-## 🎯 Phase M6 — Product-brief alignment (сурагч тал) `[ ]` — 👤 Усухбаяр
+## 🎯 Phase M6 — Product-brief alignment (сурагч тал) `[~]` — 👤 Усухбаяр
 
 > `PRODUCT_BRIEF.md`-д нийцүүлэх. Эрэмбэ: эхлээд хямд/одоо боломжтой.
 
-**Одоо / хямд**
-- [ ] **Home → "Үргэлжлүүлэх"** ганц гол үйлдэл (Duolingo-style), дараа нь secondary.
-- [ ] **Placement / level** сонголт (register эсвэл onboarding-д; User `level`).
-- [ ] **Оноосон даалгавраа харах** (сурагч) — `GET /api/assignments/my` бэлэн (хурдан ялалт).
-- [ ] Профайлд **English name санал + avatar**.
-- [ ] **Plan / limit badge** — одоогийн plan + Sparks тэнцэл (Sparks бэлэн).
+**Хийгдсэн ✅**
+- [x] **Анги нэгдэх** — код оруулах эсвэл **QR уншуулах** (camera), pending хүсэлт.
+- [x] **Профайл зураг (avatar)** — gallery-аас upload + бэлэн зургуудаас сонгох.
+- [x] **Auth шинэчлэл** — username + email OTP баталгаажуулалт, нууц үг сэргээх.
+
+**Дараагийн (хямд / одоо боломжтой)**
+- [ ] **Home → "Үргэлжлүүлэх"** ганц гол үйлдэл (Duolingo-style).
+- [ ] **Placement / level** сонголт (onboarding/register; `User.level` — backend хэрэгтэй).
+- [ ] **Оноосон даалгавраа харах** (сурагч) — `GET /api/assignments/mine` бэлэн (хурдан ялалт).
+- [ ] Профайлд **English name** санал.
+- [ ] **Plan / limit badge** — одоогийн plan + лимит харуулах.
 
 **Дараа (Phase 1.5+)**
-- [ ] Duolingo-style **lesson path** (одоогийн жагсаалтын оронд).
-- [ ] **Voice AI** speaking + cap UI (80%/95% warning → voice зогсох → reset+upgrade) — одоо "coming soon".
+- [ ] Duolingo-style **lesson path** (жагсаалтын оронд).
+- [ ] **Voice AI** speaking + cap UI (80%/95% warning → voice зогсох → reset+upgrade).
 - [ ] **Double-tap dictionary** (DB/cache эхэлж, дараа Gemini).
-- [ ] **Profession AI buddies** (Бишрэлт 5 buddy backend-д нэмсэн — mobile-д ил гаргах).
+- [ ] **Profession AI buddies**-ийг mobile-д ил гаргах.
 - [ ] **Streak / badge** UI (backend tracking бэлэн болоход).
