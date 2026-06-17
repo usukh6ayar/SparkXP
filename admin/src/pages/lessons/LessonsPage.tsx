@@ -18,16 +18,53 @@ interface Lesson {
   isPublished: boolean;
   priceSparks: number;
   description?: string;
-  content?: { imageUrl?: string; videoUrl?: string };
+  content?: { imageUrl?: string; videoUrl?: string; topic?: string };
 }
 
 const typeOptions = [
   { value: 'vocabulary', label: 'Үгийн сан' },
-  { value: 'grammar', label: 'Дүрэм' },
-  { value: 'listening', label: 'Сонсгол' },
-  { value: 'reading', label: 'Унших' },
-  { value: 'writing', label: 'Бичих' },
-  { value: 'fill', label: 'Нөхөх' },
+  { value: 'grammar',    label: 'Дүрэм' },
+  { value: 'listening',  label: 'Сонсгол' },
+  { value: 'reading',    label: 'Унших' },
+  { value: 'writing',    label: 'Бичих' },
+  { value: 'fill',       label: 'Нөхөх' },
+];
+
+const topicOptions = [
+  { value: '',                   label: '— Сонгох —' },
+  // Харилцаа
+  { value: 'greetings',          label: '👋 Мэндчилгэ' },
+  { value: 'introductions',      label: '🙋 Танилцуулга' },
+  { value: 'dialogue',           label: '💬 Харилцан яриа' },
+  { value: 'phone',              label: '📞 Утасны яриа' },
+  { value: 'requests',           label: '🙏 Санал, хүсэлт' },
+  // Дүрэм
+  { value: 'articles',           label: '📌 Article (a, an, the)' },
+  { value: 'tenses',             label: '⏰ Цаг үе (Tenses)' },
+  { value: 'questions',          label: '❓ Асуулт (Questions)' },
+  { value: 'negation',           label: '🚫 Үгүйсгэл (Negation)' },
+  { value: 'prepositions',       label: '📍 Угтвар үг (Prepositions)' },
+  { value: 'adjectives',         label: '🎨 Тэмдэг нэр (Adjectives)' },
+  { value: 'comparatives',       label: '📊 Харьцуулал (Comparatives)' },
+  // Үгийн сан — сэдэвчилсэн
+  { value: 'family',             label: '👨‍👩‍👧 Гэр бүл' },
+  { value: 'food',               label: '🍎 Хоол хүнс' },
+  { value: 'animals',            label: '🐶 Амьтад' },
+  { value: 'weather',            label: '🌤 Цаг агаар' },
+  { value: 'places',             label: '🗺 Байршил, чиглэл' },
+  { value: 'jobs',               label: '💼 Ажил мэргэжил' },
+  { value: 'sports',             label: '⚽ Спорт, хобби' },
+  { value: 'body',               label: '🫀 Биеийн эрхтэн' },
+  { value: 'time',               label: '📅 Цаг, огноо' },
+  { value: 'numbers',            label: '🔢 Тоо, тоолол' },
+  { value: 'colors',             label: '🌈 Өнгө, хэлбэр' },
+  { value: 'clothing',           label: '👕 Хувцас' },
+  { value: 'travel',             label: '✈️ Аялал' },
+  { value: 'health',             label: '🏥 Эрүүл мэнд' },
+  { value: 'school',             label: '🏫 Сургууль, боловсрол' },
+  { value: 'technology',         label: '💻 Технологи' },
+  { value: 'business',           label: '📈 Бизнес' },
+  { value: 'nature',             label: '🌿 Байгаль' },
 ];
 const levelOptions = [
   { value: 'a1', label: 'A1' }, { value: 'a2', label: 'A2' },
@@ -37,11 +74,11 @@ const levelOptions = [
 
 interface LessonForm {
   title: string; type: string; level: string; priceSparks: number;
-  description: string; imageUrl: string; videoUrl: string;
+  description: string; imageUrl: string; videoUrl: string; topic: string;
 }
 const emptyForm: LessonForm = {
   title: '', type: 'vocabulary', level: 'a1', priceSparks: 0,
-  description: '', imageUrl: '', videoUrl: '',
+  description: '', imageUrl: '', videoUrl: '', topic: '',
 };
 
 export default function LessonsPage() {
@@ -67,6 +104,7 @@ export default function LessonsPage() {
       description: l.description ?? '',
       imageUrl: l.content?.imageUrl ?? '',
       videoUrl: l.content?.videoUrl ?? '',
+      topic: l.content?.topic ?? '',
     });
     setEditing(l); setError(''); setModal('edit');
   }
@@ -76,10 +114,11 @@ export default function LessonsPage() {
     if (!form.title.trim()) { setError('Гарчиг оруулна уу'); return; }
     setSaving(true); setError('');
     try {
-      const { description, imageUrl, videoUrl, ...rest } = form;
+      const { description, imageUrl, videoUrl, topic, ...rest } = form;
       const content: Record<string, string> = {};
       if (imageUrl) content.imageUrl = imageUrl;
       if (videoUrl) content.videoUrl = videoUrl;
+      if (topic) content.topic = topic;
       const payload = { ...rest, description: description || undefined, content, isPublished: true };
       if (modal === 'create') await api.post('/lessons', payload);
       else if (editing) await api.patch(`/lessons/${editing.id}`, payload);
@@ -153,6 +192,12 @@ export default function LessonsPage() {
               <Select label="Төрөл" options={typeOptions} value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} />
               <Select label="Түвшин" options={levelOptions} value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value })} />
             </div>
+            <Select
+              label="Хичээлийн агуулга"
+              options={topicOptions}
+              value={form.topic}
+              onChange={(e) => setForm({ ...form, topic: e.target.value })}
+            />
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium text-gray-700">Тайлбар / Контент</label>
               <textarea
