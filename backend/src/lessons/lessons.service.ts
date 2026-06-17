@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, IsNull } from 'typeorm';
 import { Lesson } from '../entities/lesson.entity';
 import { CreateLessonDto } from './dto/create-lesson.dto';
 import { UpdateLessonDto } from './dto/update-lesson.dto';
@@ -35,6 +35,9 @@ export class LessonsService {
     if (query.type) where.type = query.type;
     if (query.level) where.level = query.level;
     if (query.isPublished !== undefined) where.isPublished = query.isPublished;
+    // Default list shows only top-level lessons; `parentId` fetches a parent's
+    // "deeper" sub-lessons (shown inside the lesson detail screen).
+    where.parentLessonId = query.parentId ?? IsNull();
 
     const [items, total] = await this.lessons.findAndCount({
       where,

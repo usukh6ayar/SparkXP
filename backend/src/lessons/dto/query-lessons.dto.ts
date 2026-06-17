@@ -4,6 +4,7 @@ import {
   IsEnum,
   IsBoolean,
   IsInt,
+  IsUUID,
   Min,
   Max,
 } from 'class-validator';
@@ -14,6 +15,14 @@ export class QueryLessonsDto {
   @IsOptional()
   @IsEnum(LessonType)
   type?: LessonType;
+
+  /**
+   * Filter by parent lesson. Omitted = only top-level lessons (the main list).
+   * Set = the "deeper" sub-lessons of that parent.
+   */
+  @IsOptional()
+  @IsUUID()
+  parentId?: string;
 
   @IsOptional()
   @IsEnum(ContentLevel)
