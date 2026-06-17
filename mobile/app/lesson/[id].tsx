@@ -8,6 +8,7 @@ import { useAuth } from '../../src/auth/AuthContext';
 import * as lessonsApi from '../../src/api/lessons';
 import type { Lesson } from '../../src/api/lessons';
 import { getQuizzes, type Quiz } from '../../src/api/quizzes';
+import { setLastLesson } from '../../src/lib/lastLesson';
 import { TopBar } from '../../src/components/TopBar';
 import { AppText } from '../../src/components/Text';
 import { Pill } from '../../src/components/Pill';
@@ -56,6 +57,8 @@ export default function LessonDetailScreen() {
         setHasAccess(access.hasAccess);
         setQuizzes(qz.items);
         setDone(savedDone === '1');
+        // Remember as the "Continue" lesson on Home.
+        setLastLesson({ id: l.id, title: l.title, thumbnailUrl: l.thumbnailUrl, type: l.type, level: l.level });
       } catch {
         Alert.alert('Алдаа', 'Хичээл ачаалахад алдаа гарлаа.');
         router.back();
