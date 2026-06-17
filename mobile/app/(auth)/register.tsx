@@ -30,6 +30,21 @@ const CONFETTI = [
   { top: 120, right: 36, color: colors.primaryDark },
 ];
 
+// Placement levels (CEFR) with a short Mongolian hint.
+const LEVELS: { value: string; label: string; desc: string }[] = [
+  { value: 'a1', label: 'A1 — Анхан', desc: 'Шинээр эхэлж байна' },
+  { value: 'a2', label: 'A2 — Бага', desc: 'Энгийн өгүүлбэр ойлгоно' },
+  { value: 'b1', label: 'B1 — Дунд', desc: 'Өдөр тутмын яриа' },
+  { value: 'b2', label: 'B2 — Ахисан', desc: 'Чөлөөтэй харилцана' },
+  { value: 'c1', label: 'C1 — Гүнзгий', desc: 'Бараг төгс' },
+];
+
+// Suggested English names (student can reshuffle / keep blank).
+const ENGLISH_NAMES = [
+  'Alex', 'Bella', 'Chris', 'Daisy', 'Ethan', 'Grace', 'Henry', 'Ivy',
+  'Jack', 'Kate', 'Leo', 'Mia', 'Noah', 'Olivia', 'Ryan', 'Sophia', 'Tom', 'Zoe',
+];
+
 // Password requirement checks (mirrored in the rules card).
 const rules = {
   minLen: (p: string) => p.length >= 8,
@@ -57,8 +72,8 @@ export default function RegisterScreen() {
   const { applySession } = useAuth();
   const router = useRouter();
 
-  type Step = 'info' | 'location' | 'otp' | 'success';
-  const [step, setStep] = useState<Step>('info'); // info → location → otp → success
+  type Step = 'info' | 'location' | 'placement' | 'otp' | 'success';
+  const [step, setStep] = useState<Step>('info'); // info → location → placement → otp → success
   const [username, setUsername] = useState('');
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -66,6 +81,8 @@ export default function RegisterScreen() {
   const [confirm, setConfirm] = useState('');
   const [province, setProvince] = useState<string | undefined>();
   const [district, setDistrict] = useState<string | undefined>();
+  const [level, setLevel] = useState<string | undefined>();
+  const [englishName, setEnglishName] = useState('');
   const [code, setCode] = useState('');
   const [result, setResult] = useState<AuthResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -88,7 +105,7 @@ export default function RegisterScreen() {
     setStep('location');
   }
 
-  // Location → create the (unverified) account; backend emails an OTP.
+  // Placement → create the (unverified) account; backend emails an OTP.
   async function submit() {
     setError(null);
     setBusy(true);
@@ -98,6 +115,8 @@ export default function RegisterScreen() {
         email: email.trim(),
         password,
         fullName: fullName.trim(),
+        level,
+        englishName: englishName.trim() || undefined,
         province,
         district: isUB ? district : undefined,
       });
@@ -134,9 +153,14 @@ export default function RegisterScreen() {
     }
   }
 
+  function suggestName() {
+    setEnglishName(ENGLISH_NAMES[Math.floor(Math.random() * ENGLISH_NAMES.length)]);
+  }
+
   function back() {
     setError(null);
-    if (step === 'otp') setStep('location');
+    if (step === 'otp') setStep('placement');
+    else if (step === 'placement') setStep('location');
     else if (step === 'location') setStep('info');
     else router.replace('/(auth)/login');
   }
@@ -273,30 +297,66 @@ export default function RegisterScreen() {
 
           <FormError message={error} />
           <Button
+            label={t('continue')}
+            iconRight="arrow-forward"
+            onPress={() => setStep('placement')}
+            style={styles.button}
+          />
+        </>
+      ) : step === 'placement' ? (
+        <>
+          <AppText variant="h1" center style={styles.title}>{t('placementTitle')}</AppText>
+          <AppText variant="body" center color={colors.textSecondary} style={styles.subtitle}>
+            {t('placementSubtitle')}
+          </AppText>
+
+          {LEVELS.map((lv) => {
+            const active = level === lv.value;
+            return (
+              <Pressable
+                key={lv.value}
+                style={[styles.levelRow, active && styles.levelRowOn]}
+                onPress={() => setLevel(lv.value)}
+              >
+                <View style={{ flex: 1 }}>
+                  <AppText variant="bodyStrong" color={active ? colors.primary : colors.text}>{lv.label}</AppText>
+                  <AppText variant="caption">{lv.desc}</AppText>
+                </View>
+                <Ionicons
+                  name={active ? 'radio-button-on' : 'radio-button-off'}
+                  size={20}
+                  color={active ? colors.primary : colors.borderStrong}
+                />
+              </Pressable>
+            );
+          })}
+
+          {/* English name (optional, with suggest) */}
+          <View style={styles.nameRow}>
+            <View style={{ flex: 1 }}>
+              <TextField
+                leftIcon="happy-outline"
+                label={t('englishName')}
+                placeholder="Alex"
+                autoCapitalize="words"
+                value={englishName}
+                onChangeText={setEnglishName}
+              />
+            </View>
+            <Pressable style={styles.diceBtn} onPress={suggestName}>
+              <Ionicons name="dice" size={20} color={colors.primary} />
+            </Pressable>
+          </View>
+
+          <FormError message={error} />
+          <Button
             label={t('register')}
             iconRight="arrow-forward"
             onPress={submit}
             loading={busy}
+            disabled={!level}
             style={styles.button}
           />
-
-          {/* Step progress: Мэдээлэл · Байршил · Дуссан */}
-          <View style={styles.stepper}>
-            {[t('stepInfo'), t('stepLocation'), t('stepDone')].map((label, i) => {
-              const active = i <= 1; // we're on the location (2nd) step
-              return (
-                <View key={label} style={styles.stepItem}>
-                  <View style={[styles.stepDot, active && styles.stepDotOn]} />
-                  <AppText
-                    variant="caption"
-                    color={i === 1 ? colors.primary : colors.textMuted}
-                  >
-                    {label}
-                  </AppText>
-                </View>
-              );
-            })}
-          </View>
         </>
       ) : (
         <>
@@ -353,6 +413,19 @@ const styles = StyleSheet.create({
   rulesTitle: { marginBottom: spacing.xs },
   ruleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   resend: { alignSelf: 'center', marginTop: spacing.lg },
+
+  // Placement
+  levelRow: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+    backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.sm,
+    borderWidth: 1, borderColor: colors.border,
+  },
+  levelRowOn: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  nameRow: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm, marginTop: spacing.sm },
+  diceBtn: {
+    width: 52, height: 52, borderRadius: radius.md, backgroundColor: colors.primarySoft,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 2,
+  },
 
   // Location
   mapFox: { width: 150, height: 150, alignSelf: 'center', marginVertical: spacing.md },
