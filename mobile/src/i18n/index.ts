@@ -173,6 +173,7 @@ const mn = {
   noDueDate: 'Хугацаагүй',
   assign: 'Оноох',
   deleteAssignment: 'Даалгавар устгах?',
+  delete: 'Устгах',
   teacher: 'Багш',
   teacherProfile: 'Багшийн профайл',
 

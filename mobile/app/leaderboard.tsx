@@ -12,6 +12,7 @@ import {
 } from '../src/api/leaderboard';
 import { TopBar } from '../src/components/TopBar';
 import { AppText } from '../src/components/Text';
+import { Avatar } from '../src/components/Avatar';
 import { Loading } from '../src/components/Loading';
 import { colors, spacing, radius } from '../src/theme/theme';
 
@@ -127,9 +128,7 @@ function Row({ entry, isMe }: { entry: LeaderboardEntry; isMe: boolean }) {
       <View style={[styles.rankBadge, medalColor ? { backgroundColor: medalColor } : styles.rankPlain]}>
         <AppText variant="label" color={medalColor ? colors.white : colors.textSecondary}>{entry.rank}</AppText>
       </View>
-      <View style={styles.avatar}>
-        <Ionicons name="person" size={16} color={colors.textSecondary} />
-      </View>
+      <Avatar avatarUrl={entry.avatarUrl} name={entry.fullName} size={36} />
       <AppText variant="bodyStrong" style={styles.name} numberOfLines={1}>
         {entry.fullName}{isMe ? ' (Та)' : ''}
       </AppText>

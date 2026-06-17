@@ -5,9 +5,11 @@ export interface ClassStudent {
   id: string;
   fullName: string;
   email: string;
+  username?: string | null;
   role: string;
   xp: number;
   sparks: number;
+  avatarUrl?: string | null;
   province?: string | null;
   district?: string | null;
 }

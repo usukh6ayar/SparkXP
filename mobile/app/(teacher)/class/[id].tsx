@@ -18,7 +18,21 @@ import { RequestRow } from '../../../src/components/RequestRow';
 import { AssignmentRow } from '../../../src/components/AssignmentRow';
 import { Button } from '../../../src/components/Button';
 import { Card } from '../../../src/components/Card';
-import { colors, spacing } from '../../../src/theme/theme';
+import { colors, spacing, radius } from '../../../src/theme/theme';
+
+/** Section title with an optional count badge. */
+function SectionTitle({ title, count, tint }: { title: string; count?: number; tint?: string }) {
+  return (
+    <View style={styles.sectionHead}>
+      <AppText variant="h2">{title}</AppText>
+      {count != null ? (
+        <View style={[styles.countBadge, tint ? { backgroundColor: tint } : null]}>
+          <AppText variant="label" color={tint ? colors.white : colors.textSecondary}>{count}</AppText>
+        </View>
+      ) : null}
+    </View>
+  );
+}
 
 export default function ClassDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -44,7 +58,6 @@ export default function ClassDetailScreen() {
       setDetail(d);
       setRequests(reqs);
       setAssignments(a);
-      // Map lesson/quiz id → title so assignment rows can show a readable name.
       const map: Record<string, string> = {};
       lessons.items.forEach((l) => (map[l.id] = l.title));
       quizzes.items.forEach((q) => (map[q.id] = q.title));
@@ -95,7 +108,7 @@ export default function ClassDetailScreen() {
     Alert.alert(t('deleteAssignment'), '', [
       { text: t('back'), style: 'cancel' },
       {
-        text: t('deleteAssignment'),
+        text: t('delete'),
         style: 'destructive',
         onPress: async () => {
           if (!token) return;
@@ -114,33 +127,33 @@ export default function ClassDetailScreen() {
     );
   }
 
+  // Roster ranked by XP for a leaderboard-like feel.
+  const ranked = [...detail.students].sort((a, b) => b.xp - a.xp);
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.topbar}>
-        <Pressable onPress={() => router.back()} hitSlop={8}>
-          <Ionicons name="chevron-back" size={26} color={colors.text} />
+        <Pressable onPress={() => router.back()} hitSlop={8} style={styles.backBtn}>
+          <Ionicons name="chevron-back" size={24} color={colors.text} />
         </Pressable>
-        <AppText variant="h3" numberOfLines={1} style={styles.topTitle}>
-          {detail.name}
-        </AppText>
-        <View style={{ width: 26 }} />
+        <AppText variant="h3" numberOfLines={1} style={styles.topTitle}>{detail.name}</AppText>
+        <View style={{ width: 36 }} />
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <JoinCodeCard code={detail.joinCode} className={detail.name} />
 
-        {/* Pending join requests — teacher approves before enrollment */}
+        {/* Pending join requests (highlighted) */}
         {requests.length > 0 ? (
           <>
-            <View style={styles.sectionHead}>
-              <AppText variant="h2">{t('joinRequests')}</AppText>
-              <AppText variant="caption" color={colors.streak}>{requests.length}</AppText>
-            </View>
-            <Card variant="raised" padding="md">
+            <SectionTitle title={t('joinRequests')} count={requests.length} tint={colors.streak} />
+            <Card variant="raised" padding="md" style={styles.requestCard}>
               {requests.map((r) => (
                 <RequestRow
                   key={r.id}
                   name={r.fullName}
+                  username={r.username}
+                  avatarUrl={r.avatarUrl}
                   busy={actingId === r.id}
                   onApprove={() => onApprove(r.id)}
                   onReject={() => onReject(r.id)}
@@ -151,29 +164,29 @@ export default function ClassDetailScreen() {
         ) : null}
 
         {/* Students */}
-        <View style={styles.sectionHead}>
-          <AppText variant="h2">{t('students')}</AppText>
-          <AppText variant="caption">
-            {detail.students.length} {t('studentCount')}
-          </AppText>
-        </View>
-        {detail.students.length === 0 ? (
+        <SectionTitle title={t('students')} count={detail.students.length} />
+        {ranked.length === 0 ? (
           <Card variant="filled">
             <AppText variant="bodyStrong" center>{t('noStudents')}</AppText>
             <AppText variant="caption" center style={{ marginTop: 4 }}>{t('noStudentsHint')}</AppText>
           </Card>
         ) : (
           <Card variant="raised" padding="md">
-            {detail.students.map((s) => (
-              <StudentRow key={s.id} name={s.fullName} xp={s.xp} />
+            {ranked.map((s, i) => (
+              <StudentRow
+                key={s.id}
+                rank={i + 1}
+                name={s.fullName}
+                username={s.username}
+                avatarUrl={s.avatarUrl}
+                xp={s.xp}
+              />
             ))}
           </Card>
         )}
 
         {/* Assignments */}
-        <View style={styles.sectionHead}>
-          <AppText variant="h2">{t('assignments')}</AppText>
-        </View>
+        <SectionTitle title={t('assignments')} count={assignments.length || undefined} />
         {assignments.length === 0 ? (
           <Card variant="filled">
             <AppText variant="bodyStrong" center>{t('noAssignments')}</AppText>
@@ -210,16 +223,20 @@ const styles = StyleSheet.create({
   topbar: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
   },
-  topTitle: { flex: 1, textAlign: 'center' },
-  content: { paddingHorizontal: spacing.lg, gap: spacing.md, paddingBottom: spacing.xl },
-  sectionHead: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: spacing.md,
+  backBtn: {
+    width: 36, height: 36, borderRadius: radius.full, backgroundColor: colors.surface,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: colors.border,
   },
+  topTitle: { flex: 1, textAlign: 'center' },
+  content: { paddingHorizontal: spacing.lg, gap: spacing.sm, paddingBottom: spacing.xl },
+  sectionHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.lg, marginBottom: spacing.xs },
+  countBadge: {
+    minWidth: 22, paddingHorizontal: 7, height: 22, borderRadius: radius.full,
+    backgroundColor: colors.surfaceAlt, alignItems: 'center', justifyContent: 'center',
+  },
+  requestCard: { borderWidth: 1, borderColor: colors.streak },
 });

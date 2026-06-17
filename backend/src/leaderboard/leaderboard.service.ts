@@ -13,6 +13,8 @@ export interface LeaderboardEntry {
   rank: number;
   userId: string;
   fullName: string;
+  username: string | null;
+  avatarUrl: string | null;
   province: string | null;
   district: string | null;
   xp: number;
@@ -73,6 +75,8 @@ export class LeaderboardService {
     const rows = await this.baseQuery(query.scope, scopeValue, since)
       .select('u.id', 'userId')
       .addSelect('u.fullName', 'fullName')
+      .addSelect('u.username', 'username')
+      .addSelect('u.avatarUrl', 'avatarUrl')
       .addSelect('u.province', 'province')
       .addSelect('u.district', 'district')
       .addSelect('SUM(x.amount)', 'xp')
@@ -85,6 +89,8 @@ export class LeaderboardService {
       rank: i + 1,
       userId: r.userId,
       fullName: r.fullName,
+      username: r.username ?? null,
+      avatarUrl: r.avatarUrl ?? null,
       province: r.province,
       district: r.district,
       xp: Number(r.xp),
@@ -205,6 +211,8 @@ export class LeaderboardService {
     const rows = await this.baseQuery(scope, scopeValue, since)
       .select('u.id', 'userId')
       .addSelect('u.fullName', 'fullName')
+      .addSelect('u.username', 'username')
+      .addSelect('u.avatarUrl', 'avatarUrl')
       .addSelect('u.province', 'province')
       .addSelect('u.district', 'district')
       .addSelect('SUM(x.amount)', 'xp')
@@ -217,6 +225,8 @@ export class LeaderboardService {
       rank: i + 1,
       userId: r.userId,
       fullName: r.fullName,
+      username: r.username ?? null,
+      avatarUrl: r.avatarUrl ?? null,
       province: r.province,
       district: r.district,
       xp: Number(r.xp),
