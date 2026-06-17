@@ -12,7 +12,9 @@ import Anthropic from '@anthropic-ai/sdk';
 import { randomUUID } from 'crypto';
 import { Message } from '../entities/message.entity';
 import { AiUsage } from '../entities/ai-usage.entity';
+import { AiBuddy } from '../entities/ai-buddy.entity';
 import { MessageRole, AiUsageType } from '../common/enums';
+import { CreateBuddyDto, UpdateBuddyDto } from './dto/create-buddy.dto';
 import { REDIS_CLIENT } from '../redis/redis.module';
 import type Redis from 'ioredis';
 
@@ -43,6 +45,8 @@ export class AiGatewayService implements OnModuleInit {
     private readonly messages: Repository<Message>,
     @InjectRepository(AiUsage)
     private readonly aiUsages: Repository<AiUsage>,
+    @InjectRepository(AiBuddy)
+    private readonly buddies: Repository<AiBuddy>,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
 
@@ -205,17 +209,56 @@ export class AiGatewayService implements OnModuleInit {
     return updated;
   }
 
+  /** Return all active buddies from DB; auto-seed from buddies.ts on first run. */
+  async findAllBuddies(): Promise<AiBuddy[]> {
+    const count = await this.buddies.count();
+    if (count === 0) await this.seedBuddies();
+    return this.buddies.find({ where: { isActive: true }, order: { sortOrder: 'ASC', createdAt: 'ASC' } });
+  }
+
+  private async seedBuddies(): Promise<void> {
+    const { AI_BUDDIES } = await import('./buddies');
+    const rows = AI_BUDDIES.map((b, i) =>
+      this.buddies.create({
+        slug: b.slug, name: b.name, title: b.title,
+        description: b.description, emoji: b.emoji,
+        systemPrompt: b.systemPrompt,
+        extraMessagesAmount: b.pricing.extraMessagesAmount,
+        extraMessagesCost: b.pricing.extraMessagesCost,
+        voiceMinuteCost: b.pricing.voiceMinuteCost,
+        isActive: true, sortOrder: i,
+      }),
+    );
+    await this.buddies.save(rows);
+    this.logger.log(`Seeded ${rows.length} AI buddies from buddies.ts`);
+  }
+
+  async createBuddy(dto: CreateBuddyDto): Promise<AiBuddy> {
+    const buddy = this.buddies.create(dto);
+    return this.buddies.save(buddy);
+  }
+
+  async updateBuddy(slug: string, dto: UpdateBuddyDto): Promise<AiBuddy> {
+    const buddy = await this.buddies.findOneOrFail({ where: { slug } });
+    Object.assign(buddy, dto);
+    return this.buddies.save(buddy);
+  }
+
+  async removeBuddy(slug: string): Promise<void> {
+    const buddy = await this.buddies.findOneOrFail({ where: { slug } });
+    await this.buddies.remove(buddy);
+  }
+
   /**
-   * Admin: usage stats per AI buddy character.
-   * Counts ai_usages rows where metadata->>'buddySlug' matches each buddy.
+   * Admin: usage stats per AI buddy.
    * Returns 0 until mobile implements buddy selection (metadata not yet set).
    */
   async getBuddyStats(): Promise<
     { slug: string; totalMessages: number; totalTokens: number; costMicroUsd: number }[]
   > {
-    const { AI_BUDDIES } = await import('./buddies');
+    const activeBuddies = await this.buddies.find({ where: { isActive: true } });
     return Promise.all(
-      AI_BUDDIES.map(async (buddy) => {
+      activeBuddies.map(async (buddy) => {
         const row = await this.aiUsages
           .createQueryBuilder('a')
           .select('COUNT(*)::int', 'totalMessages')

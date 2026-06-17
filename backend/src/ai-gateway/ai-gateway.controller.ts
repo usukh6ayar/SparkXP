@@ -7,6 +7,7 @@ import {
   ParseUUIDPipe,
   UseGuards,
   Patch,
+  Delete,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -17,6 +18,7 @@ import { User } from '../entities/user.entity';
 import { AiGatewayService } from './ai-gateway.service';
 import { ChatDto } from './dto/chat.dto';
 import { UpdateLimitsDto } from './dto/update-limits.dto';
+import { CreateBuddyDto, UpdateBuddyDto } from './dto/create-buddy.dto';
 
 @Controller('ai')
 @UseGuards(JwtAuthGuard)
@@ -46,11 +48,34 @@ export class AiGatewayController {
     return this.aiGateway.updateLimits(dto);
   }
 
-  /** Public: list all AI buddy character definitions + pricing. */
+  /** List all active AI buddy characters (auto-seeds from buddies.ts if DB is empty). */
   @Get('buddies')
-  async getBuddies() {
-    const { AI_BUDDIES } = await import('./buddies');
-    return AI_BUDDIES.map(({ systemPrompt: _, ...rest }) => rest);
+  getBuddies() {
+    return this.aiGateway.findAllBuddies();
+  }
+
+  /** Admin: create a new AI buddy. */
+  @Post('buddies')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  createBuddy(@Body() dto: CreateBuddyDto) {
+    return this.aiGateway.createBuddy(dto);
+  }
+
+  /** Admin: update an existing AI buddy by slug. */
+  @Patch('buddies/:slug')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  updateBuddy(@Param('slug') slug: string, @Body() dto: UpdateBuddyDto) {
+    return this.aiGateway.updateBuddy(slug, dto);
+  }
+
+  /** Admin: delete an AI buddy by slug. */
+  @Delete('buddies/:slug')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  removeBuddy(@Param('slug') slug: string) {
+    return this.aiGateway.removeBuddy(slug);
   }
 
   /** Admin: usage stats per AI buddy (message count, tokens, cost). */
