@@ -36,9 +36,18 @@ export default function TeacherClassesScreen() {
   const [error, setError] = useState<string | null>(null);
 
   // Schools the teacher can attach a class to (super-admin managed list).
-  useEffect(() => {
+  const loadOrgs = useCallback(() => {
     if (token) getOrganizations(token).then(setOrgs).catch(() => {});
   }, [token]);
+  useEffect(() => {
+    loadOrgs();
+  }, [loadOrgs]);
+
+  // Refetch schools when opening the modal so a just-added school shows up.
+  function openCreate() {
+    loadOrgs();
+    setModalOpen(true);
+  }
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -87,7 +96,7 @@ export default function TeacherClassesScreen() {
             {t('teacher')} · {user?.fullName ?? ''}
           </AppText>
         </View>
-        <Pressable style={styles.addBtn} onPress={() => setModalOpen(true)}>
+        <Pressable style={styles.addBtn} onPress={openCreate}>
           <Ionicons name="add" size={24} color={colors.white} />
         </Pressable>
       </View>
@@ -103,7 +112,7 @@ export default function TeacherClassesScreen() {
           <AppText variant="body" center color={colors.textSecondary}>
             {t('noClassesHint')}
           </AppText>
-          <Button label={t('createClass')} icon="add" onPress={() => setModalOpen(true)} style={styles.emptyBtn} />
+          <Button label={t('createClass')} icon="add" onPress={openCreate} style={styles.emptyBtn} />
         </View>
       ) : (
         <ScrollView
