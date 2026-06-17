@@ -133,6 +133,13 @@ const mn = {
   uploading: 'Хуулж байна...',
   photoPermission: 'Зураг сонгоход зөвшөөрөл хэрэгтэй.',
 
+  // Assignments (student)
+  myAssignments: 'Миний даалгаврууд',
+  noAssignmentsStudent: 'Танд оноосон даалгавар алга',
+  noAssignmentsStudentHint: 'Багш даалгавар оноовол энд харагдана.',
+  dueLabel: 'Дуусах',
+  overdue: 'Хугацаа хэтэрсэн',
+
   // Lessons / Sparks
   lessons: 'Хичээлүүд',
   unlock: 'Нээх',

@@ -239,6 +239,21 @@ export default function HomeScreen() {
           <Ionicons name="chevron-forward" size={20} color={colors.borderStrong} />
         </Pressable>
 
+        {/* My assignments */}
+        <Pressable
+          style={({ pressed }) => [styles.joinCard, pressed && styles.pressed]}
+          onPress={() => router.push("/assignments")}
+        >
+          <View style={[styles.joinIcon, { backgroundColor: tints.green.bg }]}>
+            <Ionicons name="clipboard" size={22} color={tints.green.fg} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <AppText variant="h3">Миний даалгаврууд</AppText>
+            <AppText variant="caption">Багшийн оноосон хичээл, сорил</AppText>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={colors.borderStrong} />
+        </Pressable>
+
         {/* Learn categories */}
         <SectionHeader
           title="Юу сурах вэ?"
