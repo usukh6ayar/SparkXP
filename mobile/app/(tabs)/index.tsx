@@ -82,7 +82,8 @@ const CATS: {
 export default function HomeScreen() {
   const { user, token } = useAuth();
   const router = useRouter();
-  const firstName = user?.fullName?.split(" ")[0] ?? "";
+  const firstName =
+    user?.englishName?.trim() || (user?.fullName?.split(" ")[0] ?? "");
 
   const [xp, setXp] = useState(user?.xp ?? 0);
   const [sparks, setSparks] = useState(user?.sparks ?? 0);

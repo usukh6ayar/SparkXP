@@ -11,6 +11,8 @@ export interface AuthUser {
   sparks: number;
   emailVerified: boolean;
   avatarUrl: string | null;
+  level: string | null;
+  englishName: string | null;
 }
 
 export interface AuthResult {
@@ -23,6 +25,8 @@ export interface RegisterPayload {
   email: string;
   password: string;
   fullName: string;
+  level?: string;
+  englishName?: string;
   province?: string;
   district?: string;
 }

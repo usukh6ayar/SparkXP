@@ -48,6 +48,8 @@ export class UsersService {
     phone?: string | null;
     role?: UserRole;
     emailVerified?: boolean;
+    level?: string | null;
+    englishName?: string | null;
     province?: string | null;
     district?: string | null;
   }): Promise<User> {

@@ -74,6 +74,9 @@ const mn = {
   stepInfo: 'Мэдээлэл',
   stepLocation: 'Байршил',
   stepDone: 'Дуссан',
+  placementTitle: 'Түвшингээ сонгоно уу',
+  placementSubtitle: 'Танд тохирох хичээлийг санал болгоход ашиглана.',
+  englishName: 'Англи нэр (заавал биш)',
   successTitle: 'Амжилттай!',
   successBody: 'Бүртгэл амжилттай үүслээ.\nSparkXP-д тавтай морил! 🎉',
 

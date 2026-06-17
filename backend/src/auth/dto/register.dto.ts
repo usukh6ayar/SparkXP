@@ -41,6 +41,18 @@ export class RegisterDto {
   })
   role?: UserRole.STUDENT;
 
+  /** Placement / CEFR level (a1..c2). */
+  @IsOptional()
+  @IsString()
+  @MaxLength(5)
+  level?: string;
+
+  /** Optional English name. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  englishName?: string;
+
   @IsOptional()
   @IsIn([...MN_PROVINCES], { message: 'Аймаг/хот буруу байна' })
   province?: string;
