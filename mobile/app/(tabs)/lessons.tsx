@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { View, StyleSheet, ScrollView, Pressable } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { View, StyleSheet, ScrollView, Pressable, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -36,28 +36,45 @@ export default function LessonsScreen() {
   const [level, setLevel] = useState<string | null>(null);
   const [lessons, setLessons] = useState<LessonItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    setLoading(true);
+  const load = useCallback(async () => {
     // Plain query string — React Native's URLSearchParams is unreliable.
     let url = '/lessons?limit=50&isPublished=true';
     if (type) url += `&type=${type}`;
     if (level) url += `&level=${level.toLowerCase()}`;
-    apiRequest<{ items: LessonItem[] }>(url, { token })
-      .then((r) => setLessons(r.items))
-      .catch((e) => {
-        console.warn('Lessons load failed:', e?.message ?? e);
-        setLessons([]);
-      })
-      .finally(() => setLoading(false));
+    try {
+      const r = await apiRequest<{ items: LessonItem[] }>(url, { token });
+      setLessons(r.items);
+    } catch (e) {
+      console.warn('Lessons load failed:', (e as Error)?.message ?? e);
+      setLessons([]);
+    }
   }, [token, type, level]);
+
+  useEffect(() => {
+    setLoading(true);
+    load().finally(() => setLoading(false));
+  }, [load]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  }, [load]);
 
   const title = type ? SKILL[type]?.label ?? 'Хичээлүүд' : 'Хичээлүүд';
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <TopBar title={title} back={!!type} />
-      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.container}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+        }
+      >
         <AppText variant="caption" style={styles.subtitle}>
           Сонголт хийж, хичээлээ үргэлжлүүлээрэй.
         </AppText>
