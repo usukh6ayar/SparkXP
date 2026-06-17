@@ -32,6 +32,26 @@ const ROLE_LABEL: Record<string, string> = {
   student: 'Сурагч', teacher: 'Багш', admin: 'Админ', super_admin: 'Супер админ',
 };
 
+/** A usage / limit row with a thin progress bar (turns red when over). */
+function UsageBar({ label, used, limit, unit }: { label: string; used: number; limit: number; unit: string }) {
+  const pct = limit > 0 ? Math.min(used / limit, 1) : 0;
+  const over = used >= limit;
+  const u = unit ? ` ${unit}` : '';
+  return (
+    <View style={{ gap: 4 }}>
+      <View style={styles.usageTop}>
+        <AppText variant="caption" color={colors.textSecondary}>{label}</AppText>
+        <AppText variant="caption" color={over ? colors.danger : colors.textSecondary}>
+          {used}{u} / {limit}{u}
+        </AppText>
+      </View>
+      <View style={styles.usageTrack}>
+        <View style={[styles.usageFill, { width: `${Math.max(pct * 100, 3)}%`, backgroundColor: over ? colors.danger : colors.primary }]} />
+      </View>
+    </View>
+  );
+}
+
 const ACHIEVEMENTS: { icon: IconName; label: string; tint: { bg: string; fg: string }; earned: boolean }[] = [
   { icon: 'book', label: 'Анхны хичээл', tint: tints.purple, earned: true },
   { icon: 'trophy', label: 'Шилдэг сурагч', tint: tints.amber, earned: true },
@@ -45,10 +65,12 @@ export default function ProfileScreen() {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [classes, setClasses] = useState<{ id: string; name: string; teacherName: string | null }[]>([]);
+  const [plan, setPlan] = useState<usersApi.PlanInfo | null>(null);
 
-  // Enrolled classes (+ which teacher) — refetched on focus.
-  const loadClasses = useCallback(async () => {
+  // Enrolled classes (+ which teacher) and plan — refetched on focus.
+  const loadProfile = useCallback(async () => {
     if (!token) return;
+    usersApi.getMyPlan(token).then(setPlan).catch(() => {});
     try {
       const mine = await classesApi.getMyClasses(token);
       const details = await Promise.all(mine.enrolled.map((c) => classesApi.getClass(c.id, token)));
@@ -60,8 +82,8 @@ export default function ProfileScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      loadClasses();
-    }, [loadClasses]),
+      loadProfile();
+    }, [loadProfile]),
   );
 
   const soon = () => Alert.alert('Тун удахгүй', 'Энэ хэсэг удахгүй нэмэгдэнэ.');
@@ -157,6 +179,41 @@ export default function ProfileScreen() {
               </View>
             ))}
           </View>
+
+          {/* Plan / limits */}
+          {plan ? (
+            <View style={styles.planCard}>
+              <View style={styles.planTop}>
+                <View style={{ flex: 1 }}>
+                  <AppText variant="overline" color={colors.textSecondary}>МИНИЙ БАГЦ</AppText>
+                  <AppText variant="h3">{plan.planName}</AppText>
+                </View>
+                <View style={[styles.planBadge, { backgroundColor: plan.isFree ? colors.surfaceAlt : colors.xp }]}>
+                  <Ionicons name={plan.isFree ? 'leaf' : 'star'} size={12} color={plan.isFree ? colors.textSecondary : colors.white} />
+                  <AppText variant="caption" color={plan.isFree ? colors.textSecondary : colors.white}>
+                    {plan.isFree ? 'Үнэгүй' : 'Premium'}
+                  </AppText>
+                </View>
+              </View>
+              {plan.limits ? (
+                <View style={styles.planUsage}>
+                  {plan.limits.voiceMinutes != null ? (
+                    <UsageBar label="AI яриа" used={plan.usage.voiceMinutes} limit={plan.limits.voiceMinutes} unit="мин" />
+                  ) : null}
+                  {plan.limits.dictionaryAi != null ? (
+                    <UsageBar label="Толь бичиг" used={plan.usage.dictionaryAi} limit={plan.limits.dictionaryAi} unit="" />
+                  ) : null}
+                  {plan.limits.memoryMb != null ? (
+                    <UsageBar label="Санах ой" used={plan.usage.memoryMb} limit={plan.limits.memoryMb} unit="MB" />
+                  ) : null}
+                </View>
+              ) : (
+                <AppText variant="caption" color={colors.textSecondary} style={{ marginTop: 6 }}>
+                  Premium багцаар AI яриа, толь бичиг зэрэг илүү боломжийг нээгээрэй.
+                </AppText>
+              )}
+            </View>
+          ) : null}
 
           {/* Achievements — large collectible badges */}
           <SectionHeader title="Миний амжилтууд" actionLabel="Бүгдийг харах ›" onAction={soon} style={styles.section} />
@@ -356,6 +413,19 @@ const styles = StyleSheet.create({
 
   // Stats
   section: { marginTop: spacing.xxl },
+  planCard: {
+    backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.lg,
+    marginTop: spacing.lg, borderWidth: 1, borderColor: colors.border,
+  },
+  planTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  planBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: spacing.sm, paddingVertical: 4, borderRadius: radius.full,
+  },
+  planUsage: { marginTop: spacing.md, gap: spacing.sm },
+  usageTop: { flexDirection: 'row', justifyContent: 'space-between' },
+  usageTrack: { height: 6, borderRadius: 3, backgroundColor: colors.surfaceAlt, overflow: 'hidden' },
+  usageFill: { height: 6, borderRadius: 3 },
   joinEmpty: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
     backgroundColor: colors.primarySoft, borderRadius: radius.lg, padding: spacing.md,
