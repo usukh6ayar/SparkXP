@@ -1,10 +1,19 @@
-import { IsString } from 'class-validator';
+import { IsString, IsOptional } from 'class-validator';
 
-/** Body for POST /api/auth/login. `identifier` = username or email. */
+/**
+ * Body for POST /api/auth/login. Accepts `identifier` (username or email).
+ * `email` is kept as a legacy alias so the admin web (which still sends
+ * `{ email }`) keeps working — service resolves `identifier ?? email`.
+ */
 export class LoginDto {
-  /** Username (mobile) or email (admin / legacy) — either works. */
+  @IsOptional()
   @IsString()
-  identifier: string;
+  identifier?: string;
+
+  /** Legacy alias for `identifier` (admin web). */
+  @IsOptional()
+  @IsString()
+  email?: string;
 
   @IsString()
   password: string;
