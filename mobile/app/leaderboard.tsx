@@ -129,9 +129,14 @@ function Row({ entry, isMe }: { entry: LeaderboardEntry; isMe: boolean }) {
         <AppText variant="label" color={medalColor ? colors.white : colors.textSecondary}>{entry.rank}</AppText>
       </View>
       <Avatar avatarUrl={entry.avatarUrl} name={entry.fullName} size={36} />
-      <AppText variant="bodyStrong" style={styles.name} numberOfLines={1}>
-        {entry.fullName}{isMe ? ' (Та)' : ''}
-      </AppText>
+      <View style={styles.name}>
+        <AppText variant="bodyStrong" numberOfLines={1}>
+          {entry.fullName}{isMe ? ' (Та)' : ''}
+        </AppText>
+        {entry.username ? (
+          <AppText variant="caption" numberOfLines={1}>@{entry.username}</AppText>
+        ) : null}
+      </View>
       <View style={styles.xp}>
         <Ionicons name="flash" size={13} color={colors.xp} />
         <AppText variant="bodyStrong" color={colors.primary}>{entry.xp}</AppText>

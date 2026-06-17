@@ -84,7 +84,10 @@ export default function TeacherLeaderboardScreen() {
                   <AppText variant="label" color={medal ? colors.white : colors.textSecondary}>{e.rank}</AppText>
                 </View>
                 <Avatar avatarUrl={e.avatarUrl} name={e.fullName} size={36} />
-                <AppText variant="bodyStrong" style={styles.name} numberOfLines={1}>{e.fullName}</AppText>
+                <View style={styles.name}>
+                  <AppText variant="bodyStrong" numberOfLines={1}>{e.fullName}</AppText>
+                  {e.username ? <AppText variant="caption" numberOfLines={1}>@{e.username}</AppText> : null}
+                </View>
                 <View style={styles.xp}>
                   <Ionicons name="flash" size={13} color={colors.xp} />
                   <AppText variant="bodyStrong" color={colors.primary}>{e.xp}</AppText>
