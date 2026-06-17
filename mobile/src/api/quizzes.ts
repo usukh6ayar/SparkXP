@@ -16,6 +16,7 @@ export interface Quiz {
   xpReward: number;
   isPublished: boolean;
   lessonId: string | null;
+  category: string | null;
   questions: QuizQuestion[];
 }
 
