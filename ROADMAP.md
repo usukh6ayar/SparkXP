@@ -314,3 +314,7 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
 **6. Avatar:** `User.avatarUrl` багана нэмсэн. `PATCH /users/me`-д `avatarUrl`
   (зургийн URL эсвэл `default:avN`), шинэ `POST /users/me/avatar` (зураг upload,
   сурагчид нээлттэй). `/auth/me`/login user-д `avatarUrl` ирнэ.
+
+> 📋 **Bishrelt-д зориулсан дэлгэрэнгүй ажлын төлөвлөгөө** (хичээл→quiz урсгал,
+> thumbnail/parentLessonId/quiz-category admin холболт, lesson progress г.м):
+> **`BISHRELT_PLAN.md`**.
