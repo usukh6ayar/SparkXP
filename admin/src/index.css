@@ -4,7 +4,8 @@
 
 @layer base {
   body {
-    @apply bg-gray-50 text-gray-900 antialiased;
+    background-color: #F8F8FC;
+    @apply text-gray-900 antialiased;
     font-family: Inter, system-ui, sans-serif;
   }
 }

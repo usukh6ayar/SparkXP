@@ -8,18 +8,18 @@ import { useAuth } from '../auth/AuthContext';
 import { cn } from '../lib/utils';
 
 const nav = [
-  { to: '/words',         label: 'Үгс',           icon: BookOpen },
-  { to: '/lessons',       label: 'Хичээл',        icon: FileText },
-  { to: '/quizzes',       label: 'Quiz',           icon: HelpCircle },
-  { to: '/users',         label: 'Хэрэглэгч',    icon: Users },
-  { to: '/classes',       label: 'Ангиуд',        icon: GraduationCap },
-  { to: '/organizations', label: 'Байгууллага',   icon: Building2 },
-  { to: '/leaderboard',   label: 'Leaderboard',   icon: Trophy },
-  { to: '/buddy',         label: 'AI Buddy',      icon: Bot },
-  { to: '/usage',         label: 'Хэрэглээ',      icon: Activity },
-  { to: '/notifications', label: 'Мэдэгдэл',      icon: Bell },
-  { to: '/monitor',       label: 'Монитор',       icon: BarChart2 },
-  { to: '/settings',      label: 'Тохиргоо',     icon: Settings },
+  { to: '/words',         label: 'Үгс',          icon: BookOpen },
+  { to: '/lessons',       label: 'Хичээл',       icon: FileText },
+  { to: '/quizzes',       label: 'Quiz',          icon: HelpCircle },
+  { to: '/users',         label: 'Хэрэглэгч',   icon: Users },
+  { to: '/classes',       label: 'Ангиуд',       icon: GraduationCap },
+  { to: '/organizations', label: 'Байгууллага',  icon: Building2 },
+  { to: '/leaderboard',   label: 'Leaderboard',  icon: Trophy },
+  { to: '/buddy',         label: 'AI Buddy',     icon: Bot },
+  { to: '/usage',         label: 'Хэрэглээ',     icon: Activity },
+  { to: '/notifications', label: 'Мэдэгдэл',     icon: Bell },
+  { to: '/monitor',       label: 'Монитор',      icon: BarChart2 },
+  { to: '/settings',      label: 'Тохиргоо',    icon: Settings },
 ];
 
 export function Sidebar() {
@@ -32,29 +32,34 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="flex h-screen w-56 flex-col bg-navy text-white">
-      {/* Logo */}
-      <div className="flex items-center gap-2 px-5 py-5 border-b border-white/10">
-        <Zap className="h-6 w-6 text-amber" />
-        <span className="text-lg font-bold tracking-tight">SparkXP Admin</span>
+    <aside className="flex h-screen w-56 flex-col bg-sidebar text-white">
+      {/* Logo — purple gradient strip */}
+      <div
+        className="flex items-center gap-2.5 px-5 py-5 border-b border-white/10"
+        style={{ background: 'linear-gradient(135deg, #7A4DFF22 0%, transparent 100%)' }}
+      >
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary shadow-lg shadow-primary/40">
+          <Zap className="h-4 w-4 text-white" />
+        </div>
+        <span className="text-base font-bold tracking-tight">SparkXP Admin</span>
       </div>
 
       {/* Nav links */}
-      <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+      <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-0.5">
         {nav.map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}
             className={({ isActive }) =>
               cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150',
                 isActive
-                  ? 'bg-primary text-white'
-                  : 'text-white/70 hover:bg-white/10 hover:text-white',
+                  ? 'bg-primary text-white shadow-md shadow-primary/30'
+                  : 'text-white/60 hover:bg-white/8 hover:text-white',
               )
             }
           >
-            <Icon className="h-4 w-4" />
+            <Icon className="h-4 w-4 shrink-0" />
             {label}
           </NavLink>
         ))}
@@ -62,13 +67,13 @@ export function Sidebar() {
 
       {/* User + logout */}
       <div className="border-t border-white/10 px-4 py-4">
-        <p className="text-xs text-white/50 truncate">{user?.email}</p>
-        <p className="text-sm font-medium truncate">{user?.fullName}</p>
+        <p className="text-xs text-white/40 truncate mb-0.5">{user?.email}</p>
+        <p className="text-sm font-semibold truncate text-white/90">{user?.fullName}</p>
         <button
           onClick={handleLogout}
-          className="mt-3 flex items-center gap-2 text-xs text-white/60 hover:text-white transition-colors"
+          className="mt-3 flex items-center gap-2 text-xs text-white/50 hover:text-white transition-colors"
         >
-          <LogOut className="h-4 w-4" /> Гарах
+          <LogOut className="h-3.5 w-3.5" /> Гарах
         </button>
       </div>
     </aside>
