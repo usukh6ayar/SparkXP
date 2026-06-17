@@ -6,6 +6,7 @@ export interface Lesson {
   description: string | null;
   type: string;
   level: string;
+  thumbnailUrl: string | null;
   content: Record<string, unknown>;
   position: number;
   isPublished: boolean;
