@@ -104,6 +104,11 @@ export class CreateQuizDto {
   @IsString()
   quizType?: string;
 
+  /** Topic category for grouping a lesson's quizzes (e.g. "Дүрэм", "Үг"). */
+  @IsOptional()
+  @IsString()
+  category?: string;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => Object, {

@@ -22,21 +22,19 @@
 
 ### Хийх ажил
 **Backend** (shared)
-- [ ] `Quiz.category` (varchar, nullable) багана нэмэх + `CreateQuizDto`-д талбар.
+- [x] `Quiz.category` (varchar, nullable) багана + `CreateQuizDto` талбар (Усухбаяр хийсэн).
 - [ ] (дараа) **Lesson completion tracking** — quiz "тэнцсэн"-ийг per-user бүртгэх
       (`QuizCompletion` эсвэл XpLog-оос), `GET /lessons/:id/progress` (тэнцсэн/нийт quiz → %).
 - [x] Quiz submit → `% + breakdown {questionIndex, correct, points}` (**зөв хариулт буцаадаггүй** ✅).
 - [x] Quiz `lessonId`-тэй (хичээлийн quiz-ууд).
 
-**Admin web** (Bishrelt)
-- [ ] Quiz form-д **category** талбар нэмэх.
+**Admin web** (Bishrelt) — ⬅️ **ҮЛДСЭН ажил**
+- [ ] Quiz form-д **category** талбар нэмэх (backend бэлэн).
 
-**Mobile — хичээлийн дэлгэц** (`app/lesson/[id].tsx`) — *Усухбаяр хийж болзошгүй,
-тохиролцоно*
-- [ ] Видео дээр + доор: lesson-ийн quiz-уудыг **категориор бүлэглэж** жагсаах.
-- [ ] Хичээл дуустал quiz 🔒, "Хичээл үзсэн" товчоор unlock.
-- [ ] Quiz дээр дарвал одоогийн **quiz дэлгэц** (`app/quiz/[id].tsx`) — дараалсан
-      хариулт → % + зөв/буруу (зөв хариулт нуугдсан, аль хэдийн бэлэн).
+**Mobile — хичээлийн дэлгэц** (`app/lesson/[id].tsx`) — [x] Усухбаяр хийсэн
+- [x] Видео доор: lesson-ийн quiz-уудыг **категориор бүлэглэж** жагсаасан.
+- [x] Хичээл дуустал quiz 🔒, **"Хичээл үзсэн ✓"** товчоор unlock (AsyncStorage-д хадгална).
+- [x] Quiz дээр дарвал **quiz дэлгэц** → дараалсан хариулт → % + зөв/буруу (зөв хариулт нуугдсан).
 
 > **Quiz-таах дэлгэц аль хэдийн ажилладаг** (дараалал → submit → үр дүн). Гол шинэ
 > ажил = хичээлийн дэлгэцэд quiz-уудыг unlock/категори-жагсаалтаар харуулах.

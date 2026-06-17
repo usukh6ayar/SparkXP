@@ -31,6 +31,13 @@ export class Quiz extends BaseEntity {
   @Column({ name: 'quiz_type', type: 'varchar', nullable: true, default: 'multiple_choice' })
   quizType: string | null;
 
+  /**
+   * Topic category for grouping a lesson's quizzes on the lesson screen
+   * (e.g. "Дүрэм", "Үг", "Сонсгол"). Admin-set, free text.
+   */
+  @Column({ type: 'varchar', nullable: true })
+  category: string | null;
+
   /** XP awarded for a passing attempt. */
   @Column({ name: 'xp_reward', type: 'int', default: 0 })
   xpReward: number;
