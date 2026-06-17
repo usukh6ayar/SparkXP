@@ -285,21 +285,6 @@ export default function HomeScreen() {
           />
         </View>
 
-        {/* Join a class (code or QR) */}
-        <Pressable
-          style={({ pressed }) => [styles.joinCard, pressed && styles.pressed]}
-          onPress={() => router.push("/join")}
-        >
-          <View style={styles.joinIcon}>
-            <Ionicons name="qr-code" size={22} color={colors.primary} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <AppText variant="h3">Анги нэгдэх</AppText>
-            <AppText variant="caption">Багшийн өгсөн код эсвэл QR-аар</AppText>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color={colors.borderStrong} />
-        </Pressable>
-
         {/* My assignments */}
         <Pressable
           style={({ pressed }) => [styles.joinCard, pressed && styles.pressed]}

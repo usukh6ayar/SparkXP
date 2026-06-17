@@ -1,11 +1,12 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { View, StyleSheet, ScrollView, Pressable, Image, Modal, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../../src/auth/AuthContext';
 import * as usersApi from '../../src/api/users';
+import * as classesApi from '../../src/api/classes';
 import { MN_PROVINCES as PROVINCES, UB_DISTRICTS } from '../../src/constants/locations';
 import { TopBar } from '../../src/components/TopBar';
 import { AppText } from '../../src/components/Text';
@@ -43,6 +44,25 @@ export default function ProfileScreen() {
   const { user, token, logout } = useAuth();
   const router = useRouter();
   const [editing, setEditing] = useState(false);
+  const [classes, setClasses] = useState<{ id: string; name: string; teacherName: string | null }[]>([]);
+
+  // Enrolled classes (+ which teacher) — refetched on focus.
+  const loadClasses = useCallback(async () => {
+    if (!token) return;
+    try {
+      const mine = await classesApi.getMyClasses(token);
+      const details = await Promise.all(mine.enrolled.map((c) => classesApi.getClass(c.id, token)));
+      setClasses(details.map((d) => ({ id: d.id, name: d.name, teacherName: d.teacher?.fullName ?? null })));
+    } catch {
+      // ignore
+    }
+  }, [token]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadClasses();
+    }, [loadClasses]),
+  );
 
   const soon = () => Alert.alert('Тун удахгүй', 'Энэ хэсэг удахгүй нэмэгдэнэ.');
   const confirmLogout = () =>
@@ -169,6 +189,32 @@ export default function ProfileScreen() {
               </Pressable>
             ))}
           </View>
+
+          {/* My classes — which teacher's class the student joined */}
+          <SectionHeader
+            title="Миний ангиуд"
+            actionLabel="Анги нэгдэх ›"
+            onAction={() => router.push('/join')}
+            style={styles.section}
+          />
+          {classes.length === 0 ? (
+            <Pressable style={styles.joinEmpty} onPress={() => router.push('/join')}>
+              <Ionicons name="add-circle-outline" size={20} color={colors.primary} />
+              <AppText variant="body" color={colors.textSecondary}>Анги нэгдээгүй байна — нэгдэх</AppText>
+            </Pressable>
+          ) : (
+            classes.map((c) => (
+              <View key={c.id} style={styles.classRow}>
+                <View style={styles.classIcon}>
+                  <Ionicons name="people" size={18} color={colors.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <AppText variant="bodyStrong" numberOfLines={1}>{c.name}</AppText>
+                  {c.teacherName ? <AppText variant="caption">Багш: {c.teacherName}</AppText> : null}
+                </View>
+              </View>
+            ))
+          )}
 
           {/* Premium banner — gradient feature card */}
           <Pressable onPress={soon} style={({ pressed }) => pressed && styles.pressed}>
@@ -310,6 +356,19 @@ const styles = StyleSheet.create({
 
   // Stats
   section: { marginTop: spacing.xxl },
+  joinEmpty: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    backgroundColor: colors.primarySoft, borderRadius: radius.lg, padding: spacing.md,
+  },
+  classRow: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+    backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.sm,
+    borderWidth: 1, borderColor: colors.border,
+  },
+  classIcon: {
+    width: 40, height: 40, borderRadius: radius.full, backgroundColor: colors.primarySoft,
+    alignItems: 'center', justifyContent: 'center',
+  },
   statsCard: {
     flexDirection: 'row', gap: spacing.sm, backgroundColor: colors.surface,
     borderRadius: radius.xl, padding: spacing.sm, marginTop: spacing.xl, ...(elevation.md as object),
