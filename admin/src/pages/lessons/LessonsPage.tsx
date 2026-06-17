@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Pencil, Trash2, Eye, EyeOff, Image, Film } from 'lucide-react';
+import { Plus, Pencil, Trash2, Image, Film } from 'lucide-react';
 import { api } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
 import { Button } from '../../components/Button';
@@ -80,18 +80,13 @@ export default function LessonsPage() {
       const content: Record<string, string> = {};
       if (imageUrl) content.imageUrl = imageUrl;
       if (videoUrl) content.videoUrl = videoUrl;
-      const payload = { ...rest, description: description || undefined, content };
+      const payload = { ...rest, description: description || undefined, content, isPublished: true };
       if (modal === 'create') await api.post('/lessons', payload);
       else if (editing) await api.patch(`/lessons/${editing.id}`, payload);
       setModal(null); load();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Алдаа гарлаа');
     } finally { setSaving(false); }
-  }
-
-  async function togglePublish(l: Lesson) {
-    await api.patch(`/lessons/${l.id}`, { isPublished: !l.isPublished });
-    load();
   }
 
   async function remove(id: string) {
@@ -131,15 +126,8 @@ export default function LessonsPage() {
         l.priceSparks > 0 ? <span className="text-amber font-medium">✨ {l.priceSparks}</span> : <span className="text-gray-400">Үнэгүй</span>,
     },
     {
-      key: 'status', header: 'Статус', render: (l: Lesson) =>
-        <Badge color={l.isPublished ? 'green' : 'gray'}>{l.isPublished ? 'Нийтлэгдсэн' : 'Ноорог'}</Badge>,
-    },
-    {
       key: 'actions', header: '', render: (l: Lesson) => (
         <div className="flex gap-1 justify-end">
-          <Button variant="ghost" size="sm" onClick={() => togglePublish(l)} title={l.isPublished ? 'Нуух' : 'Нийтлэх'}>
-            {l.isPublished ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-          </Button>
           <Button variant="ghost" size="sm" onClick={() => openEdit(l)}><Pencil className="h-4 w-4" /></Button>
           <Button variant="ghost" size="sm" onClick={() => remove(l.id)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
         </div>
