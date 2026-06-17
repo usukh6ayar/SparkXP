@@ -99,7 +99,10 @@ export class AuthService {
 
   /** Verify credentials (username OR email) and return a fresh token. */
   async login(dto: LoginDto): Promise<AuthResult> {
-    const user = await this.usersService.findByUsernameOrEmail(dto.identifier.trim());
+    const identifier = (dto.identifier ?? dto.email ?? '').trim();
+    const user = identifier
+      ? await this.usersService.findByUsernameOrEmail(identifier)
+      : null;
     // Same error whether the identifier or password is wrong — don't leak which.
     if (!user || !(await bcrypt.compare(dto.password, user.passwordHash))) {
       throw new UnauthorizedException('Нэвтрэх нэр эсвэл нууц үг буруу байна');
