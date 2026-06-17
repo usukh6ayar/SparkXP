@@ -18,6 +18,10 @@ export class Lesson extends BaseEntity {
   @Column()
   title: string;
 
+  /** Banner/thumbnail image URL shown on the lessons list (admin requires it). */
+  @Column({ name: 'thumbnail_url', type: 'varchar', nullable: true })
+  thumbnailUrl: string | null;
+
   @Column({ type: 'text', nullable: true })
   description: string | null;
 
@@ -52,6 +56,18 @@ export class Lesson extends BaseEntity {
 
   @Column({ name: 'organization_id', type: 'uuid', nullable: true })
   organizationId: string | null;
+
+  /**
+   * Parent lesson. Null = top-level lesson (shown in the lessons list). Set =
+   * a "deeper / гүнзгийрүүлэх" sub-lesson shown inside the parent's detail
+   * screen (often paid via priceSparks).
+   */
+  @ManyToOne(() => Lesson, { nullable: true, onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'parent_lesson_id' })
+  parent: Lesson | null;
+
+  @Column({ name: 'parent_lesson_id', type: 'uuid', nullable: true })
+  parentLessonId: string | null;
 
   @OneToMany(() => Word, (word) => word.lesson)
   words: Word[];

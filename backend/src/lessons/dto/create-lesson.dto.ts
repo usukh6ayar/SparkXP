@@ -22,6 +22,17 @@ export class CreateLessonDto {
   @MaxLength(1000)
   description?: string;
 
+  /** Banner/thumbnail image URL (admin form requires it; ~1200×600 image). */
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  thumbnailUrl?: string;
+
+  /** Set = this is a "deeper" sub-lesson under the given parent lesson. */
+  @IsOptional()
+  @IsUUID()
+  parentLessonId?: string;
+
   @IsEnum(LessonType)
   type: LessonType;
 
