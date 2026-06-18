@@ -9,6 +9,7 @@ import { Modal } from '../../components/Modal';
 import { Input } from '../../components/Input';
 import { Select } from '../../components/Select';
 import { FileUpload } from '../../components/FileUpload';
+import { ImageCropUpload } from '../../components/ImageCropUpload';
 
 interface Lesson {
   id: string;
@@ -213,8 +214,7 @@ export default function LessonsPage() {
               />
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <FileUpload
-                accept="image"
+              <ImageCropUpload
                 label="Зураг (заавал биш)"
                 value={form.imageUrl}
                 onChange={(url) => setForm({ ...form, imageUrl: url })}

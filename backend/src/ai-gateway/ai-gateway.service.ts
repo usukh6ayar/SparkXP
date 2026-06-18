@@ -13,6 +13,7 @@ import { randomUUID } from 'crypto';
 import { Message } from '../entities/message.entity';
 import { AiUsage } from '../entities/ai-usage.entity';
 import { AiBuddy } from '../entities/ai-buddy.entity';
+import { User } from '../entities/user.entity';
 import { MessageRole, AiUsageType } from '../common/enums';
 import { CreateBuddyDto, UpdateBuddyDto } from './dto/create-buddy.dto';
 import { REDIS_CLIENT } from '../redis/redis.module';
@@ -47,6 +48,8 @@ export class AiGatewayService implements OnModuleInit {
     private readonly aiUsages: Repository<AiUsage>,
     @InjectRepository(AiBuddy)
     private readonly buddies: Repository<AiBuddy>,
+    @InjectRepository(User)
+    private readonly usersRepo: Repository<User>,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
 
@@ -103,6 +106,17 @@ export class AiGatewayService implements OnModuleInit {
       throw new ForbiddenException(
         `Өдрийн токений хязгаар хэтэрлээ (${limits.dailyTokenLimit} токен/өдөр)`,
       );
+    }
+
+    // --- Plan-based monthly token limit ---
+    const user = await this.usersRepo.findOne({ where: { id: userId }, relations: ['plan'] });
+    if (user?.plan && user.plan.aiTextTokensLimit !== null) {
+      const usedK = Math.ceil((user.aiInputTokens + user.aiOutputTokens) / 1000);
+      if (usedK >= user.plan.aiTextTokensLimit) {
+        throw new ForbiddenException(
+          `Сарын AI токений хязгаар хэтэрлээ (${user.plan.aiTextTokensLimit}K токен/сар)`,
+        );
+      }
     }
 
     // --- Load conversation history (newest N, then reverse for chronological order) ---
@@ -183,6 +197,12 @@ export class AiGatewayService implements OnModuleInit {
       .incrby(tokKey, totalTokens)
       .expire(tokKey, 90_000)
       .exec();
+
+    // --- Increment monthly usage counters on User ---
+    if (user) {
+      await this.usersRepo.increment({ id: userId }, 'aiInputTokens', promptTokens);
+      await this.usersRepo.increment({ id: userId }, 'aiOutputTokens', completionTokens);
+    }
 
     return { conversationId: convId, reply, tokensUsed: { prompt: promptTokens, completion: completionTokens } };
   }
