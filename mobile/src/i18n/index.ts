@@ -74,6 +74,9 @@ const mn = {
   stepInfo: 'Мэдээлэл',
   stepLocation: 'Байршил',
   stepDone: 'Дуссан',
+  placementTitle: 'Түвшингээ сонгоно уу',
+  placementSubtitle: 'Танд тохирох хичээлийг санал болгоход ашиглана.',
+  englishName: 'Англи нэр (заавал биш)',
   successTitle: 'Амжилттай!',
   successBody: 'Бүртгэл амжилттай үүслээ.\nSparkXP-д тавтай морил! 🎉',
 
@@ -133,6 +136,13 @@ const mn = {
   uploading: 'Хуулж байна...',
   photoPermission: 'Зураг сонгоход зөвшөөрөл хэрэгтэй.',
 
+  // Assignments (student)
+  myAssignments: 'Миний даалгаврууд',
+  noAssignmentsStudent: 'Танд оноосон даалгавар алга',
+  noAssignmentsStudentHint: 'Багш даалгавар оноовол энд харагдана.',
+  dueLabel: 'Дуусах',
+  overdue: 'Хугацаа хэтэрсэн',
+
   // Lessons / Sparks
   lessons: 'Хичээлүүд',
   unlock: 'Нээх',
@@ -173,6 +183,7 @@ const mn = {
   noDueDate: 'Хугацаагүй',
   assign: 'Оноох',
   deleteAssignment: 'Даалгавар устгах?',
+  delete: 'Устгах',
   teacher: 'Багш',
   teacherProfile: 'Багшийн профайл',
 

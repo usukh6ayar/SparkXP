@@ -12,6 +12,7 @@ import {
 } from '../src/api/leaderboard';
 import { TopBar } from '../src/components/TopBar';
 import { AppText } from '../src/components/Text';
+import { Avatar } from '../src/components/Avatar';
 import { Loading } from '../src/components/Loading';
 import { colors, spacing, radius } from '../src/theme/theme';
 
@@ -127,12 +128,15 @@ function Row({ entry, isMe }: { entry: LeaderboardEntry; isMe: boolean }) {
       <View style={[styles.rankBadge, medalColor ? { backgroundColor: medalColor } : styles.rankPlain]}>
         <AppText variant="label" color={medalColor ? colors.white : colors.textSecondary}>{entry.rank}</AppText>
       </View>
-      <View style={styles.avatar}>
-        <Ionicons name="person" size={16} color={colors.textSecondary} />
+      <Avatar avatarUrl={entry.avatarUrl} name={entry.fullName} size={36} />
+      <View style={styles.name}>
+        <AppText variant="bodyStrong" numberOfLines={1}>
+          {entry.fullName}{isMe ? ' (Та)' : ''}
+        </AppText>
+        {entry.username ? (
+          <AppText variant="caption" numberOfLines={1}>@{entry.username}</AppText>
+        ) : null}
       </View>
-      <AppText variant="bodyStrong" style={styles.name} numberOfLines={1}>
-        {entry.fullName}{isMe ? ' (Та)' : ''}
-      </AppText>
       <View style={styles.xp}>
         <Ionicons name="flash" size={13} color={colors.xp} />
         <AppText variant="bodyStrong" color={colors.primary}>{entry.xp}</AppText>

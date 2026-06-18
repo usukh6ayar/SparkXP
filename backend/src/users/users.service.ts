@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../entities/user.entity';
+import { Plan } from '../entities/plan.entity';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { sanitizeUser, SafeUser } from '../common/utils/sanitize-user';
 import { UserRole } from '../common/enums';
@@ -9,12 +10,61 @@ import { UserRole } from '../common/enums';
 // Re-export so existing imports of SafeUser from this module keep working.
 export { SafeUser };
 
+/** The user's plan + current usage, for the profile "plan / limit" card. */
+export interface PlanInfo {
+  isFree: boolean;
+  planName: string;
+  expiresAt: Date | null;
+  limits: {
+    voiceMinutes: number | null;
+    sttMinutes: number | null;
+    dictionaryAi: number | null;
+    aiTextTokensK: number | null;
+    memoryMb: number | null;
+  } | null;
+  usage: {
+    voiceMinutes: number;
+    sttMinutes: number;
+    dictionaryAi: number;
+    memoryMb: number;
+  };
+}
+
 @Injectable()
 export class UsersService {
   constructor(
     @InjectRepository(User)
     private readonly users: Repository<User>,
+    @InjectRepository(Plan)
+    private readonly plans: Repository<Plan>,
   ) {}
+
+  /** Current plan + usage for the logged-in user (Free if no active plan). */
+  async getPlanInfo(user: User): Promise<PlanInfo> {
+    const plan = user.planId
+      ? await this.plans.findOne({ where: { id: user.planId } })
+      : null;
+    return {
+      isFree: !plan,
+      planName: plan?.name ?? 'Үнэгүй',
+      expiresAt: user.planExpiresAt,
+      limits: plan
+        ? {
+            voiceMinutes: plan.voiceMinutesLimit,
+            sttMinutes: plan.sttMinutesLimit,
+            dictionaryAi: plan.dictionaryAiLimit,
+            aiTextTokensK: plan.aiTextTokensLimit,
+            memoryMb: plan.memoryMbLimit,
+          }
+        : null,
+      usage: {
+        voiceMinutes: Math.round(user.voiceSecondsUsed / 60),
+        sttMinutes: Math.round(user.sttSecondsUsed / 60),
+        dictionaryAi: user.dictionaryAiCount,
+        memoryMb: Math.round(user.memoryStorageMb),
+      },
+    };
+  }
 
   /** Strip the password hash before a user is returned over the API. */
   private sanitize(user: User): SafeUser {
@@ -48,6 +98,8 @@ export class UsersService {
     phone?: string | null;
     role?: UserRole;
     emailVerified?: boolean;
+    level?: string | null;
+    englishName?: string | null;
     province?: string | null;
     district?: string | null;
   }): Promise<User> {

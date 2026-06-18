@@ -1,13 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import {
-  View,
-  ScrollView,
-  Modal,
-  Pressable,
-  StyleSheet,
-  ActivityIndicator,
-} from 'react-native';
+import { View, ScrollView, Modal, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/auth/AuthContext';
@@ -17,11 +11,13 @@ import { getOrganizations, type Organization } from '../../src/api/organizations
 import { ApiError } from '../../src/api/client';
 import { t } from '../../src/i18n';
 import { AppText } from '../../src/components/Text';
+import { Avatar } from '../../src/components/Avatar';
 import { ClassCard } from '../../src/components/ClassCard';
+import { SectionHeader } from '../../src/components/SectionHeader';
 import { TextField } from '../../src/components/TextField';
 import { SelectField } from '../../src/components/SelectField';
 import { Button } from '../../src/components/Button';
-import { colors, spacing, radius } from '../../src/theme/theme';
+import { colors, spacing, radius, elevation } from '../../src/theme/theme';
 
 export default function TeacherClassesScreen() {
   const { token, user } = useAuth();
@@ -35,10 +31,18 @@ export default function TeacherClassesScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Schools the teacher can attach a class to (super-admin managed list).
-  useEffect(() => {
+  const loadOrgs = useCallback(() => {
     if (token) getOrganizations(token).then(setOrgs).catch(() => {});
   }, [token]);
+  useEffect(() => {
+    loadOrgs();
+  }, [loadOrgs]);
+
+  function openCreate() {
+    loadOrgs();
+    setError(null);
+    setModalOpen(true);
+  }
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -46,13 +50,12 @@ export default function TeacherClassesScreen() {
       const mine = await classesApi.getMyClasses(token);
       setClasses(mine.teaching);
     } catch {
-      // keep whatever we had; surfaced on next action
+      // keep last
     } finally {
       setLoading(false);
     }
   }, [token]);
 
-  // Refetch whenever the tab regains focus (e.g. after creating a class).
   useFocusEffect(
     useCallback(() => {
       load();
@@ -78,56 +81,70 @@ export default function TeacherClassesScreen() {
     }
   }
 
+  const schoolOf = (id: string | null) => orgs.find((o) => o.id === id)?.name ?? null;
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <View style={styles.header}>
-        <View>
-          <AppText variant="h1">{t('teacherClasses')}</AppText>
-          <AppText variant="caption">
-            {t('teacher')} · {user?.fullName ?? ''}
-          </AppText>
-        </View>
-        <Pressable style={styles.addBtn} onPress={() => setModalOpen(true)}>
-          <Ionicons name="add" size={24} color={colors.white} />
-        </Pressable>
-      </View>
-
-      {loading ? (
-        <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.xxl }} />
-      ) : classes.length === 0 ? (
-        <View style={styles.empty}>
-          <Ionicons name="people-outline" size={56} color={colors.textMuted} />
-          <AppText variant="h3" center style={{ marginTop: spacing.md }}>
-            {t('noClasses')}
-          </AppText>
-          <AppText variant="body" center color={colors.textSecondary}>
-            {t('noClassesHint')}
-          </AppText>
-          <Button label={t('createClass')} icon="add" onPress={() => setModalOpen(true)} style={styles.emptyBtn} />
-        </View>
-      ) : (
-        <ScrollView
-          contentContainerStyle={styles.list}
-          showsVerticalScrollIndicator={false}
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        {/* Gradient hero */}
+        <LinearGradient
+          colors={colors.primaryGradient}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.hero}
         >
-          {classes.map((c) => (
-            <ClassCard
-              key={c.id}
-              name={c.name}
-              joinCode={c.joinCode}
-              onPress={() => router.push(`/(teacher)/class/${c.id}`)}
-            />
-          ))}
-        </ScrollView>
-      )}
+          <View style={styles.heroTop}>
+            <Avatar avatarUrl={user?.avatarUrl} name={user?.fullName} size={48} />
+            <View style={{ flex: 1 }}>
+              <AppText variant="overline" color={colors.textOnDarkMuted}>БАГШИЙН САМБАР</AppText>
+              <AppText variant="h2" color={colors.white} numberOfLines={1}>{user?.fullName ?? ''}</AppText>
+            </View>
+          </View>
+          <View style={styles.heroStats}>
+            <Ionicons name="people" size={15} color={colors.white} />
+            <AppText variant="label" color={colors.white}>{classes.length} анги</AppText>
+          </View>
+          <Pressable style={styles.heroBtn} onPress={openCreate}>
+            <Ionicons name="add" size={18} color={colors.primary} />
+            <AppText variant="bodyStrong" color={colors.primary}>{t('createClass')}</AppText>
+          </Pressable>
+        </LinearGradient>
 
-      {/* Create-class modal */}
+        {loading ? (
+          <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.xxl }} />
+        ) : classes.length === 0 ? (
+          <View style={styles.empty}>
+            <View style={styles.emptyIcon}>
+              <Ionicons name="school-outline" size={40} color={colors.primary} />
+            </View>
+            <AppText variant="h3" center style={{ marginTop: spacing.md }}>{t('noClasses')}</AppText>
+            <AppText variant="body" center color={colors.textSecondary} style={{ marginTop: 2 }}>
+              {t('noClassesHint')}
+            </AppText>
+          </View>
+        ) : (
+          <View style={styles.list}>
+            <SectionHeader title={t('teacherClasses')} />
+            {classes.map((c) => (
+              <ClassCard
+                key={c.id}
+                name={c.name}
+                school={schoolOf(c.organizationId)}
+                joinCode={c.joinCode}
+                onPress={() => router.push(`/(teacher)/class/${c.id}`)}
+              />
+            ))}
+          </View>
+        )}
+        <View style={{ height: spacing.xxl }} />
+      </ScrollView>
+
+      {/* Create-class bottom sheet */}
       <Modal visible={modalOpen} transparent animationType="slide" onRequestClose={() => setModalOpen(false)}>
         <Pressable style={styles.backdrop} onPress={() => setModalOpen(false)}>
           <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
-            <AppText variant="h2" style={{ marginBottom: spacing.lg }}>
-              {t('createClass')}
-            </AppText>
+            <View style={styles.sheetHandle} />
+            <AppText variant="h2" style={{ marginBottom: spacing.lg }}>{t('createClass')}</AppText>
             <SelectField
               label={t('school')}
               placeholder={t('selectSchool')}
@@ -147,12 +164,11 @@ export default function TeacherClassesScreen() {
               </AppText>
             ) : null}
             {error ? (
-              <AppText variant="caption" color={colors.danger} style={{ marginBottom: spacing.sm }}>
-                {error}
-              </AppText>
+              <AppText variant="caption" color={colors.danger} style={{ marginBottom: spacing.sm }}>{error}</AppText>
             ) : null}
             <Button
               label={t('createClass')}
+              iconRight="arrow-forward"
               onPress={onCreate}
               loading={busy}
               disabled={!name.trim() || !schoolName}
@@ -166,31 +182,40 @@ export default function TeacherClassesScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xs,
-    paddingBottom: spacing.md,
+  scroll: { paddingBottom: spacing.lg },
+  hero: {
+    margin: spacing.lg,
+    borderRadius: radius.xl,
+    padding: spacing.xl,
+    gap: spacing.md,
+    ...(elevation.float as object),
   },
-  addBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.md,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
+  heroTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  heroStats: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    paddingHorizontal: spacing.md, paddingVertical: 5, borderRadius: radius.full,
   },
-  list: { paddingHorizontal: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxl },
-  empty: { alignItems: 'center', paddingHorizontal: spacing.xl, marginTop: spacing.xxxl, gap: 4 },
-  emptyBtn: { marginTop: spacing.lg, alignSelf: 'stretch' },
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  heroBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm,
+    backgroundColor: colors.white, borderRadius: radius.md, paddingVertical: 12,
+  },
+  list: { paddingHorizontal: spacing.lg, gap: spacing.md },
+  empty: { alignItems: 'center', paddingHorizontal: spacing.xl, marginTop: spacing.xxl },
+  emptyIcon: {
+    width: 80, height: 80, borderRadius: radius.full, backgroundColor: colors.primarySoft,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  backdrop: { flex: 1, backgroundColor: 'rgba(15,10,40,0.45)', justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: colors.surface,
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,
     padding: spacing.xl,
     paddingBottom: spacing.xxl,
+  },
+  sheetHandle: {
+    width: 40, height: 4, borderRadius: 2, backgroundColor: colors.borderStrong,
+    alignSelf: 'center', marginBottom: spacing.lg,
   },
 });

@@ -1,189 +1,192 @@
 # EnglishXP (SparkXP) — Хэрэглэгчийн роль ба эрх
 
-> Энэ файл нь системийн **хэрэглэгчийн төрөл, роль, эрх**-ийг дэлгэрэнгүй
-> тайлбарласан лавлах. Хоёр dev (тус тусын Claude)-ийн **хуваалцсан ойлголт**.
-> Кодын дүрэм/контекст: `CLAUDE.md` · Ажлын төлөвлөгөө: `ROADMAP.md`,
-> `MOBILE_ROADMAP.md`.
+> Системийн **хэрэглэгчийн төрөл, роль, эрх** — хэн юу **харах**, юу **хийх**
+> боломжтойн лавлах. Хоёр dev (тус тусын Claude)-ийн хуваалцсан ойлголт.
+> Код дүрэм: `CLAUDE.md` · Бүтээгдэхүүн: `PRODUCT_BRIEF.md` · API: `API.md`.
+> Сүүлд шинэчилсэн: **2026-06-17** (auth overhaul + teacher хэсэг хэрэгжсэн).
 
 ---
 
-## 🎯 Зорилго ба хэн ашиглах вэ
+## 🎯 Хэрэглэгчийн төрөл (audience)
 
-Гамшгийн англи хэл сурах **геймжүүлсэн** апп (Монгол оюутнууд primary).
-Эзэмшигч: **Hustle Hive LLC**.
-
-Нэг апп, **олон төрлийн хэрэглэгч** — `Organization` (нээлттэй `type` талбар) нь:
+Нэг апп, олон төрлийн хэрэглэгч. `Organization` (нээлттэй `type` талбар):
 
 | Audience | Тайлбар |
 |---|---|
-| **Дан оюутан** | Англи сурах хувь хүн (байгууллагагүй, `organizationId = null`) |
-| **Сургууль** | Багш + сурагчид (класс, даалгавартай) |
-| **Байгууллага** | Хуулийн фирм, компани — ажилтнууддаа сургах |
+| **Дан суралцагч** | Хувь хүн, байгууллагагүй (`organizationId = null`) |
+| **Сургууль** | Багш + сурагчид (класс, даалгавар, join code) |
+| **Байгууллага** | Хуулийн фирм, компани — ажилтнаа сургах |
 
-Байршил (`province`/`district`)-аар **орон нутгийн leaderboard** (аймаг/дүүрэг).
-
----
-
-## 🎭 Роль (UserRole)
-
-Нэг `User` хүснэгт, `role` enum талбараар эрх ялгана. Код:
-`backend/src/common/enums` → `UserRole` (`student | teacher | admin | super_admin`).
-Хамгаалалт: `@Roles(...)` + `RolesGuard` (`backend/src/auth/`).
+Байршил (`province`/`district`) болон `organizationId`-аар **орон нутгийн /
+сургуулийн leaderboard** боломжтой.
 
 ---
 
-## 1. 👨‍🎓 `student` — Оюутан (гол хэрэглэгч)
+## 🎭 Роль (UserRole) — 5 төрөл
 
-**Хэн:** Англи сурч буй оюутан/сурагч. Шинэ бүртгэл default-оор `student`.
+Нэг `User` хүснэгт, `role` enum талбараар эрх ялгана
+(`backend/src/common/enums` → `UserRole`). Хамгаалалт: `@Roles(...)` + `RolesGuard`.
 
-**Хариуцлага / юу хийдэг:**
-- Үг, хичээл, дүрэм, сонсгол сурах
-- **Сорил** (quiz) өгч оноо авах
-- **Үг давтах** (SM-2 spaced repetition)
-- **AI Найз**-тай ярих (англи дадлага)
-- **XP** цуглуулах (насан туршийн прогресс) + **Очирхон** (Sparks, зарцуулагддаг)
-- **Leaderboard** дээр өрсөлдөх (global / аймаг / дүүрэг / класс)
+| Role | Хүн | Платформ |
+|---|---|---|
+| `student` | Суралцагч (гол хэрэглэгч) | Mobile |
+| `teacher` | Багш — анги/даалгавар удирдана | Mobile (role-based tab) |
+| `moderator` | Контент бичигч (teacher + контент CRUD) | Web admin |
+| `admin` | Контент/хэрэглэгч/систем удирдагч | Web admin |
+| `super_admin` | Платформын эзэн | Web admin |
+
+> **Шинэ бүртгэл үргэлж `student`.** teacher/moderator/admin эрхийг **admin
+> олгоно** (`PATCH /users/:id`; moderator/admin/super_admin-г зөвхөн super_admin).
+
+---
+
+## 1. 👨‍🎓 `student` — Суралцагч (гол хэрэглэгч)
+
+**Хэн:** Англи сурч буй хүн. Бүртгэл default-оор student.
+
+**Юу ХАРАХ вэ (mobile дэлгэцүүд):**
+- **Нүүр** — мэндчилгээ, өдрийн зорилго, давтах үгс, **"Анги нэгдэх"**, скилл grid, статистик
+- **Хичээлүүд** — зураг-банер картууд (level filter, прогресс, pull-to-refresh)
+- **Хичээл дэлгэрэнгүй** — видео + (дараа) "Гүнзгийрүүлэх" үнэтэй хичээл
+- **Сорил** (quiz) · **Үг давтах** (SRS карт) · **AI Найз** (chat)
+- **Чансаа (Leaderboard)** — scope: **Анги** (багшийн сурагчид) · Глобал · Аймаг · Дүүрэг; долоо хоног/сар/бүх цаг; өөрийн байр
+- **Профайл** — нэр, **avatar (зураг upload / бэлэн зургаас)**, XP/Очирхон, гарах
+- **Анги нэгдэх** — код бичих эсвэл **QR уншуулах**
+
+**Юу ХИЙХ боломжтой:**
+- Үг/хичээл/дүрэм/сонсгол сурах, **сорил өгч оноо авах**
+- **XP** цуглуулах (насан туршийн) + **Очирхон/Sparks** (зарцуулагддаг)
+- AI Найз-тай ярих (дадлага)
 - Spark-аар **хичээл нээх** (`priceSparks`)
-- `join_code`-оор **класст элсэх** (сургуулийн оюутан)
+- **Анги нэгдэх хүсэлт** илгээх (код/QR) → **багш зөвшөөрнө** (шууд элсэхгүй)
+- Өөрт **оноосон даалгавар** харах (`/assignments/mine`)
+- Профайл/avatar засах, leaderboard-д өрсөлдөх
 
-**Эрх (endpoints):**
-- `POST /auth/register`, `/auth/login`, `GET /auth/me`
-- `PATCH /users/me`, `GET /users/me/stats`
-- `GET /words`, `/lessons`, `/quizzes` (зөвхөн унших)
-- `GET /reviews/due`, `POST /reviews/:wordId`
-- `POST /quizzes/:id/submit`
-- `POST /ai/chat`
-- `GET /leaderboard`
-- `POST /lessons/:id/unlock`, `GET /lessons/:id/access`
-- `POST /classes/join` (Phase 2)
+**Эрх (endpoints):** `auth/register|verify-otp|resend-otp|login|forgot-password|reset-password|me` ·
+`PATCH /users/me` · `POST /users/me/avatar` · `GET /words|lessons|quizzes` (унших) ·
+`reviews/*` · `POST /quizzes/:id/submit` · `POST /ai/chat` · `GET /leaderboard` ·
+`POST /lessons/:id/unlock`, `GET /lessons/:id/access` · `POST /classes/join` · `GET /assignments/mine`
 
-**Mobile дэлгэц:** Нүүр · Хичээлүүд · Сорил · AI Найз · Профайл · Хичээл дэлгэрэнгүй · Үг давтах
-
-**Чадахгүй:** контент үүсгэх/засах, бусдын мэдээлэл харах, класс үүсгэх.
+**ЧАДАХГҮЙ:** контент үүсгэх/засах, бусдын дата харах, класс үүсгэх.
 
 ---
 
-## 2. 👩‍🏫 `teacher` — Багш (Phase 2)
+## 2. 👩‍🏫 `teacher` — Багш ✅ (хэрэгжсэн)
 
-**Хэн:** Сургууль/байгууллагын багш, ангиа удирддаг.
+**Хэн:** Сургууль/байгууллагын багш. Эрхийг **admin олгоно** (бүртгэлээр болохгүй).
+Нэвтрэхэд role-оор **багшийн tab** руу автоматаар орно.
 
-**Хариуцлага / юу хийдэг:**
-- **Класс үүсгэх** + `join_code` гаргах
-- Оюутнуудаа удирдах (класст хэн байгаа)
-- **Даалгавар** (Assignment) өгөх — хичээл/сорилыг класст оноох, due date-тэй
-- Оюутны **прогресс/статистик** харах (teacher dashboard)
+**Юу ХАРАХ вэ (багшийн tab):**
+- **Ангиуд** — заадаг ангиуд (сургууль + нэр), "Анги үүсгэх"
+- **Ангийн дэлгэрэнгүй** — **элсэх код + QR (Share)**, сурагчид (XP), даалгаврууд,
+  **элсэх хүсэлтүүд (зөвшөөрөх/татгалзах)**
+- **Чансаа** — зөвхөн **өөрийн сурагчид** (бүх ангиа нийлүүлж, XP-ээр)
+- **Профайл** — "Багш" badge, гарах
 
-**Эрх (endpoints, Phase 2):**
-- `POST /classes` (класс үүсгэх), `GET /classes` (өөрийн класс)
-- `POST /assignments` (даалгавар оноох)
-- Класс доторх оюутны прогресс унших
-- + бүх `student`-ийн уншлагын эрх
+**Юу ХИЙХ боломжтой:**
+- **Анги үүсгэх** (сургууль сонгож + нэр: 10А/11Б) → join code + QR гарна
+- Сурагчийн **элсэх хүсэлтийг зөвшөөрөх/татгалзах** (хэн ч кодоор шууд орохгүй)
+- **Даалгавар оноох** (хичээл/сорил + due date), устгах
+- Сурагчдынхаа **XP/чансаа** харах
+- + бүх `student`-ийн суралцах эрх
 
-**Платформ:** teacher dashboard (web эсвэл mobile-д tab) — Phase 2.
+**Эрх:** `POST /classes` · `GET /classes` · `GET /classes/:id` · `/classes/:id/students` ·
+`/classes/:id/requests` + `.../approve` + reject · `POST/GET/DELETE /assignments` ·
+`GET /leaderboard?scope=teacher`
 
-**Чадахгүй:** глобал контент (үг/хичээл) удирдах (энэ нь admin), бусад класс/багшийн дата.
-
----
-
-## 3. 🛠️ `admin` — Контент/систем удирдагч
-
-**Хэн:** Контент бичигч, байгууллагын ажилтан. **Web admin panel**-аар ажиллана.
-
-**Хариуцлага / юу хийдэг:**
-- **Контент CRUD:** Үг, Хичээл, Сорил нэмэх/засах/устгах · publish · `priceSparks`
-  · Сорилын `questions` (jsonb) засах
-- **Хэрэглэгч удирдах:** жагсаалт, хайх, **role өөрчлөх**, устгах
-- (Phase 2) Байгууллага, класс удирдах
-- **Монитор:** AI зарцуулалт/зардал (AiUsage), Payments, Leaderboard
-- **Plan limit** тохируулах (AI token, voice минут, Spark rate) — DB/Redis-ээс,
-  **app update-гүйгээр** (CLAUDE.md core rule)
-
-**Эрх (endpoints, `@Roles(ADMIN, SUPER_ADMIN)`):**
-- `POST/PATCH/DELETE /words`, `/lessons`, `/quizzes`
-- `GET /users`, `PATCH /users/:id` (role), `DELETE /users/:id`
-- `PATCH /ai/limits` (plan limit)
-- (Phase 2) `/organizations`, `/classes`, `/assignments`, `/payments` удирдах
-
-**Платформ:** **Web admin dashboard** (тусдаа app, ижил backend API — `/admin`).
-
-**Чадахгүй:** бусад admin-г удирдах, систем тохиргоо (энэ нь super_admin).
+**ЧАДАХГҮЙ:** глобал контент (үг/хичээл/сорил) CRUD, бусад багшийн анги/сурагч.
 
 ---
 
-## 4. 👑 `super_admin` — Систем эзэн
+## 3. 🧩 `moderator` — Контент бичигч
 
-**Хэн:** Платформын эзэн/гол админ (Hustle Hive).
+**Хэн:** Хичээл/контент бэлтгэгч. **super_admin олгоно.**
 
-**Хариуцлага / юу хийдэг:**
-- **Бүх `admin`-ийн эрх**, дээр нь:
-- **Бусад admin-г үүсгэх/удирдах** (role олгох)
-- **Систем тохиргоо** (бүх байгууллагын plan, лимит)
-- Бүх байгууллага/дата хооронд хандах (cross-org)
+**Юу ХИЙХ:** `teacher`-ийн эрх + **контент CRUD** (Lessons / Words / Quizzes
+нэмэх/засах/устгах, publish, `priceSparks`, thumbnail). Web admin-аар.
+
+**ЧАДАХГҮЙ:** хэрэглэгчийн role өөрчлөх, plan/систем тохиргоо, бусад admin удирдах.
+
+---
+
+## 4. 🛠️ `admin` — Контент/хэрэглэгч/систем удирдагч
+
+**Хэн:** Байгууллагын админ. **Web admin panel** (`/admin`). Email-ээр нэвтэрнэ.
+
+**Юу ХАРАХ/ХИЙХ:**
+- **Контент CRUD:** Үг, Хичээл (+ thumbnail, parent/гүнзгийрүүлэх), Сорил
+- **Хэрэглэгч удирдах:** жагсаалт, хайх, **role өөрчлөх** (teacher болгох), устгах
+- **Байгууллага / класс / даалгавар / Payments** удирдах
+- **Монитор:** AI зарцуулалт/зардал (AiUsage), Payments, Leaderboard (`/leaderboard/top`)
+- **Plan limit** (AI token/voice минут/Spark rate) — DB/Redis-ээс, **app update-гүйгээр**
+
+**Эрх (`@Roles(ADMIN, SUPER_ADMIN)` голчлон):** `POST/PATCH/DELETE /words|lessons|quizzes` ·
+`GET /users` · `DELETE /users/:id` · `/organizations`, `/classes`, `/assignments`, `/payments` ·
+`PATCH /ai/limits` · `POST /upload`
+
+**ЧАДАХГҮЙ:** бусад admin удирдах, role-г admin/super_admin болгох (→ super_admin).
+
+---
+
+## 5. 👑 `super_admin` — Систем эзэн
+
+**Хэн:** Платформын эзэн (Hustle Hive).
+
+**Юу ХИЙХ:** **Бүх admin эрх** + дараах:
+- Бусад **admin/moderator/teacher үүсгэх/role олгох** (`PATCH /users/:id`)
+- **Сургууль (Organization) бүртгэх** (гэрээтэй сургуулийг жагсаалтад нэмэх)
+- Систем/бүх байгууллагын **plan, лимит, тохиргоо**, cross-org хандалт
 
 **Эрх:** бүх endpoint, хязгааргүй.
-
-**Платформ:** Web admin dashboard (өргөтгөсөн эрхтэй).
 
 ---
 
 ## 📊 Эрхийн матриц
 
-| Үйлдэл | student | teacher | admin | super_admin |
-|---|:---:|:---:|:---:|:---:|
-| Бүртгүүлэх / нэвтрэх | ✅ | ✅ | ✅ | ✅ |
-| Контент **унших** (үг/хичээл/сорил) | ✅ | ✅ | ✅ | ✅ |
-| Сорил өгөх, үг давтах, XP цуглуулах | ✅ | ✅ | ✅ | ✅ |
-| AI Найз-тай ярих | ✅ | ✅ | ✅ | ✅ |
-| Spark-аар хичээл нээх | ✅ | ✅ | ✅ | ✅ |
-| Класс үүсгэх, даалгавар өгөх | ❌ | ✅ | ✅ | ✅ |
-| Класст оюутны прогресс харах | ❌ | ✅(өөрийн) | ✅ | ✅ |
-| Контент **CRUD** (нэмэх/засах/устгах) | ❌ | ❌ | ✅ | ✅ |
-| Хэрэглэгч удирдах (role өөрчлөх, устгах) | ❌ | ❌ | ✅ | ✅ |
-| Plan limit / AI лимит тохируулах | ❌ | ❌ | ✅ | ✅ |
-| Монитор (AI зардал, Payments) | ❌ | ❌ | ✅ | ✅ |
-| **Бусад admin удирдах**, систем тохиргоо | ❌ | ❌ | ❌ | ✅ |
+| Үйлдэл | student | teacher | moderator | admin | super_admin |
+|---|:---:|:---:|:---:|:---:|:---:|
+| Бүртгүүлэх / нэвтрэх (username/email) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Контент **унших**, сорил, XP, AI, Spark | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Анги нэгдэх (хүсэлт) | ✅ | — | — | — | — |
+| Анги үүсгэх, даалгавар, **хүсэлт зөвшөөрөх** | ❌ | ✅ | ✅ | ✅ | ✅ |
+| Өөрийн сурагчдын чансаа | ❌ | ✅ | ✅ | ✅ | ✅ |
+| Контент **CRUD** (хичээл/үг/сорил) | ❌ | ❌ | ✅ | ✅ | ✅ |
+| Хэрэглэгч удирдах (устгах, role) | ❌ | ❌ | ❌ | ✅ | ✅ |
+| Plan/AI лимит, Payments, монитор | ❌ | ❌ | ❌ | ✅ | ✅ |
+| **admin/teacher role олгох**, Сургууль бүртгэх, систем | ❌ | ❌ | ❌ | ❌ | ✅ |
 
-> `teacher` нь `student`-ийн бүх **уншлага/суралцах** эрхтэй + класс удирдлага.
-> `admin`/`super_admin` нь голдуу **web panel**-аар (mobile-аар суралцах нь сонголт).
+> `teacher`/`moderator` нь `student`-ийн бүх **суралцах** эрхтэй.
+> `admin`/`super_admin` голдуу **web panel**-аар.
 
 ---
 
 ## 🔧 Код дахь хэрэгжилт
 
-- **Enum:** `backend/src/common/enums` → `UserRole`.
-- **Хамгаалах:**
+- **Enum:** `UserRole` (`student | teacher | moderator | admin | super_admin`).
+- **Хамгаалалт:**
   ```ts
-  @UseGuards(JwtAuthGuard, RolesGuard)   // эхэлж токен, дараа нь role
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
-  @Post('words')   // зөвхөн admin/super_admin
   ```
-- **JWT payload:** `{ sub: userId, email, role }` — `JwtStrategy` хэрэглэгчийг ачаална.
-- **`@Roles` байхгүй бол** нэвтэрсэн хэн ч хандана (зөвхөн `JwtAuthGuard`).
-- Шинэ хэрэглэгч default `role = student`. Role-ийг **admin/super_admin** өөрчилнө
-  (`PATCH /users/:id`) — өөрөө өөрийгөө дэвшүүлэхгүй.
+  `@Roles` байхгүй бол нэвтэрсэн хэн ч хандана (зөвхөн `JwtAuthGuard`).
+- **Нэвтрэлт:** `{ identifier, password }` — `identifier` нь **username ЭСВЭЛ email**
+  (`email` талбар хуучин admin-д хэвээр). Бүртгэл → **email OTP** баталгаажуулалт.
+- **JWT payload:** `{ sub, email, role }`. Шинэ хэрэглэгч default `student`.
+- **Mobile routing:** нэвтэрсний дараа `role`-оор — `teacher` → багшийн tab, бусад → student tab.
 
 ---
 
-## 🔁 Үндсэн урсгалууд (user flows)
+## 🔁 Үндсэн урсгалууд
 
-**Оюутан:** бүртгүүлэх → (сургуулийн бол `join_code`-оор класст элсэх) → хичээл
-үзэх/сорил өгөх → XP/Очирхон цуглуулах → leaderboard өрсөлдөх → Spark-аар хичээл
-нээх → AI-тай дадлага хийх.
-
-**Багш (Phase 2):** нэвтрэх → класс үүсгэх → `join_code` оюутнуудад өгөх →
-даалгавар оноох → прогресс хянах.
-
-**Admin:** web panel-д нэвтрэх → үг/хичээл/сорил нэмэх (publish) → хэрэглэгч
-удирдах → AI зардал/Payments хянах → plan limit тохируулах.
-
-**Super_admin:** admin-уудыг үүсгэх/удирдах → систем/байгууллагын тохиргоо.
+- **Суралцагч:** бүртгүүл (username+email → OTP) → (сургуулийнх бол **код/QR-аар анги нэгдэх хүсэлт** → багш зөвшөөрнө) → хичээл/сорил → XP/Очирхон → чансаа → Spark-аар хичээл нээх → AI дадлага → даалгавраа гүйцэтгэх.
+- **Багш:** admin багшаар томилно → нэвтэр → анги үүсгэ (сургууль+нэр) → код/QR хуваалц → **хүсэлт зөвшөөр** → даалгавар оноо → сурагчдынхаа чансаа хян.
+- **Moderator/Admin:** web panel → хичээл/үг/сорил нэмэх (thumbnail, publish) → (admin) хэрэглэгч/role/AI лимит/Payments.
+- **Super_admin:** сургууль бүртгэх → багш/admin томилох → систем тохиргоо.
 
 ---
 
-## 📈 Scale (хэдэн хэрэглэгч)
+## 📈 Scale
 
-Тогтсон дээд хязгааргүй — **MVP-ээс өргөжихөөр** зохиосон:
-- Одоо: Postgres query (мянга мянган хэрэглэгч).
-- Өргөжвөл: Redis cache / leaderboard ZSET (стэк-д бэлэн), plan limit.
-- Multi-org: сургууль/компани бүр олон зуун хэрэглэгчтэй.
-- UUID PK, indexed query, append-only ledger (XpLog/SparksLog) — найдвартай.
+UUID PK, indexed query, append-only ledger (XpLog/SparksLog). Одоо Postgres
+query (мянга мянган хэрэглэгч); өргөжвөл Redis cache / leaderboard ZSET (бэлэн),
+plan limit, multi-org (сургууль/компани бүр олон зуун хэрэглэгч).

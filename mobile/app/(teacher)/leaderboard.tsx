@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/auth/AuthContext';
 import { getLeaderboard, type Period, type LeaderboardResult } from '../../src/api/leaderboard';
 import { AppText } from '../../src/components/Text';
+import { Avatar } from '../../src/components/Avatar';
 import { t } from '../../src/i18n';
 import { colors, spacing, radius } from '../../src/theme/theme';
 
@@ -82,7 +83,11 @@ export default function TeacherLeaderboardScreen() {
                 <View style={[styles.rankBadge, medal ? { backgroundColor: medal } : styles.rankPlain]}>
                   <AppText variant="label" color={medal ? colors.white : colors.textSecondary}>{e.rank}</AppText>
                 </View>
-                <AppText variant="bodyStrong" style={styles.name} numberOfLines={1}>{e.fullName}</AppText>
+                <Avatar avatarUrl={e.avatarUrl} name={e.fullName} size={36} />
+                <View style={styles.name}>
+                  <AppText variant="bodyStrong" numberOfLines={1}>{e.fullName}</AppText>
+                  {e.username ? <AppText variant="caption" numberOfLines={1}>@{e.username}</AppText> : null}
+                </View>
                 <View style={styles.xp}>
                   <Ionicons name="flash" size={13} color={colors.xp} />
                   <AppText variant="bodyStrong" color={colors.primary}>{e.xp}</AppText>

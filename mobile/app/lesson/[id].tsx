@@ -1,12 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { View, StyleSheet, ScrollView, Pressable, Image, Alert } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../../src/auth/AuthContext';
 import * as lessonsApi from '../../src/api/lessons';
 import type { Lesson } from '../../src/api/lessons';
-import { getQuizzes } from '../../src/api/quizzes';
+import { getQuizzes, type Quiz } from '../../src/api/quizzes';
+import { setLastLesson } from '../../src/lib/lastLesson';
 import { TopBar } from '../../src/components/TopBar';
 import { AppText } from '../../src/components/Text';
 import { Pill } from '../../src/components/Pill';
@@ -35,18 +37,28 @@ export default function LessonDetailScreen() {
 
   const [lesson, setLesson] = useState<Lesson | null>(null);
   const [hasAccess, setHasAccess] = useState(false);
+  const [quizzes, setQuizzes] = useState<Quiz[]>([]);
+  const [done, setDone] = useState(false); // lesson watched → quizzes unlocked
   const [loading, setLoading] = useState(true);
   const [unlocking, setUnlocking] = useState(false);
+
+  const doneKey = `lesson_done:${id}`;
 
   useEffect(() => {
     (async () => {
       try {
-        const [l, access] = await Promise.all([
+        const [l, access, qz, savedDone] = await Promise.all([
           lessonsApi.getLesson(id!, token!),
           lessonsApi.checkAccess(id!, token!),
+          getQuizzes(token!, { lessonId: id }),
+          AsyncStorage.getItem(doneKey),
         ]);
         setLesson(l);
         setHasAccess(access.hasAccess);
+        setQuizzes(qz.items);
+        setDone(savedDone === '1');
+        // Remember as the "Continue" lesson on Home.
+        setLastLesson({ id: l.id, title: l.title, thumbnailUrl: l.thumbnailUrl, type: l.type, level: l.level });
       } catch {
         Alert.alert('Алдаа', 'Хичээл ачаалахад алдаа гарлаа.');
         router.back();
@@ -55,6 +67,18 @@ export default function LessonDetailScreen() {
       }
     })();
   }, [id]);
+
+  // Re-read the watched flag when returning to the screen (e.g. after a quiz).
+  useFocusEffect(
+    useCallback(() => {
+      AsyncStorage.getItem(doneKey).then((v) => setDone(v === '1'));
+    }, [doneKey]),
+  );
+
+  async function markDone() {
+    await AsyncStorage.setItem(doneKey, '1');
+    setDone(true);
+  }
 
   function unlock() {
     if (!lesson) return;
@@ -82,17 +106,18 @@ export default function LessonDetailScreen() {
     ]);
   }
 
-  async function startTest() {
-    try {
-      const res = await getQuizzes(token!, { lessonId: id });
-      if (res.items.length > 0) router.push(`/quiz/${res.items[0].id}`);
-      else Alert.alert('Сорил алга', 'Энэ хичээлд сорил хараахан байхгүй байна.');
-    } catch {
-      Alert.alert('Алдаа', 'Сорил ачаалахад алдаа гарлаа.');
-    }
-  }
-
   const soon = () => Alert.alert('Тун удахгүй', 'Видео тоглуулагч удахгүй нэмэгдэнэ. 🦊');
+
+  // Group the lesson's quizzes by category for the unlocked quiz list.
+  function groupByCategory(items: Quiz[]): { category: string; quizzes: Quiz[] }[] {
+    const map = new Map<string, Quiz[]>();
+    for (const q of items) {
+      const cat = q.category?.trim() || 'Сорил';
+      if (!map.has(cat)) map.set(cat, []);
+      map.get(cat)!.push(q);
+    }
+    return [...map.entries()].map(([category, quizzes]) => ({ category, quizzes }));
+  }
 
   if (loading) return <Loading />;
   if (!lesson) return null;
@@ -207,8 +232,52 @@ export default function LessonDetailScreen() {
               </View>
             </View>
 
-            {/* CTA */}
-            <Button label="Тест өгөх" icon="arrow-forward" onPress={startTest} style={styles.cta} />
+            {/* Quizzes — unlocked once the lesson is marked watched */}
+            <View style={styles.quizHead}>
+              <AppText variant="h2">Сорил</AppText>
+              {!done ? <Ionicons name="lock-closed" size={16} color={colors.textMuted} /> : null}
+            </View>
+
+            {!done ? (
+              <View style={styles.quizLocked}>
+                <View style={styles.lockedIcon}>
+                  <Ionicons name="play-circle" size={28} color={colors.primary} />
+                </View>
+                <AppText variant="bodyStrong" center>Хичээлээ үзэж дуусга</AppText>
+                <AppText variant="caption" center color={colors.textSecondary} style={{ marginTop: 2 }}>
+                  Дуусгасны дараа сорилууд нээгдэнэ.
+                </AppText>
+                <Button label="Хичээл үзсэн ✓" icon="checkmark" onPress={markDone} style={{ marginTop: spacing.md, alignSelf: 'stretch' }} />
+              </View>
+            ) : quizzes.length === 0 ? (
+              <View style={styles.quizEmpty}>
+                <AppText variant="body" center color={colors.textMuted}>Энэ хичээлд сорил алга 🦊</AppText>
+              </View>
+            ) : (
+              groupByCategory(quizzes).map((group) => (
+                <View key={group.category} style={styles.catGroup}>
+                  <AppText variant="overline" color={colors.textSecondary} style={styles.catLabel}>
+                    {group.category.toUpperCase()}
+                  </AppText>
+                  {group.quizzes.map((q) => (
+                    <Pressable
+                      key={q.id}
+                      style={({ pressed }) => [styles.quizRow, pressed && styles.quizRowPressed]}
+                      onPress={() => router.push(`/quiz/${q.id}`)}
+                    >
+                      <View style={styles.quizIcon}>
+                        <Ionicons name="help-circle" size={20} color={colors.primary} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <AppText variant="bodyStrong" numberOfLines={1}>{q.title}</AppText>
+                        <AppText variant="caption">{q.questions?.length ?? 0} асуулт · {q.xpReward} XP</AppText>
+                      </View>
+                      <Ionicons name="chevron-forward" size={18} color={colors.borderStrong} />
+                    </Pressable>
+                  ))}
+                </View>
+              ))
+            )}
           </>
         )}
         <View style={{ height: spacing.xl }} />
@@ -265,6 +334,28 @@ const styles = StyleSheet.create({
   },
   tipTitle: { marginBottom: 2 },
   cta: { marginTop: spacing.lg },
+
+  // Quizzes
+  quizHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.xl, marginBottom: spacing.md },
+  quizLocked: {
+    backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.lg, alignItems: 'center',
+    borderWidth: 1, borderColor: colors.border,
+  },
+  quizEmpty: {
+    backgroundColor: colors.surfaceAlt, borderRadius: radius.lg, padding: spacing.lg,
+  },
+  catGroup: { marginBottom: spacing.md },
+  catLabel: { marginBottom: spacing.sm },
+  quizRow: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+    backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.sm,
+    borderWidth: 1, borderColor: colors.border,
+  },
+  quizRowPressed: { opacity: 0.9, transform: [{ scale: 0.99 }] },
+  quizIcon: {
+    width: 40, height: 40, borderRadius: radius.full, backgroundColor: colors.primarySoft,
+    alignItems: 'center', justifyContent: 'center',
+  },
 
   // Locked
   lockedBox: {

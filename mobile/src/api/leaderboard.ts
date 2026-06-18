@@ -7,6 +7,8 @@ export interface LeaderboardEntry {
   rank: number;
   userId: string;
   fullName: string;
+  username: string | null;
+  avatarUrl: string | null;
   province: string | null;
   district: string | null;
   xp: number;

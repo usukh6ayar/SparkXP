@@ -18,6 +18,25 @@ export function getStats(token: string): Promise<UserStats> {
   return apiRequest<UserStats>('/users/me/stats', { token });
 }
 
+export interface PlanInfo {
+  isFree: boolean;
+  planName: string;
+  expiresAt: string | null;
+  limits: {
+    voiceMinutes: number | null;
+    sttMinutes: number | null;
+    dictionaryAi: number | null;
+    aiTextTokensK: number | null;
+    memoryMb: number | null;
+  } | null;
+  usage: { voiceMinutes: number; sttMinutes: number; dictionaryAi: number; memoryMb: number };
+}
+
+/** GET /users/me/plan — current plan + usage for the profile plan card. */
+export function getMyPlan(token: string): Promise<PlanInfo> {
+  return apiRequest<PlanInfo>('/users/me/plan', { token });
+}
+
 export function updateProfile(
   payload: UpdateProfilePayload,
   token: string,

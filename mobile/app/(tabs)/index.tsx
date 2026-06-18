@@ -8,12 +8,15 @@ import {
   RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { LinearGradient } from "expo-linear-gradient";
+import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../src/auth/AuthContext";
 import { getStats } from "../../src/api/users";
 import { getDue } from "../../src/api/reviews";
+import { getLessons } from "../../src/api/lessons";
 import { apiRequest } from "../../src/api/client";
+import { getLastLesson, type LastLesson } from "../../src/lib/lastLesson";
 import { AppText } from "../../src/components/Text";
 import { ProgressBar } from "../../src/components/ProgressBar";
 import { SectionHeader } from "../../src/components/SectionHeader";
@@ -79,12 +82,14 @@ const CATS: {
 export default function HomeScreen() {
   const { user, token } = useAuth();
   const router = useRouter();
-  const firstName = user?.fullName?.split(" ")[0] ?? "";
+  const firstName =
+    user?.englishName?.trim() || (user?.fullName?.split(" ")[0] ?? "");
 
   const [xp, setXp] = useState(user?.xp ?? 0);
   const [sparks, setSparks] = useState(user?.sparks ?? 0);
   const [due, setDue] = useState(0);
   const [counts, setCounts] = useState<Record<string, number>>({});
+  const [cont, setCont] = useState<{ lesson: LastLesson; resume: boolean } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
@@ -94,7 +99,7 @@ export default function HomeScreen() {
         getStats(token),
         getDue(token),
         apiRequest<{ items: { type: string }[] }>(
-          "/lessons?limit=200&isPublished=true",
+          "/lessons?limit=100&isPublished=true",
           { token },
         ),
       ]);
@@ -114,6 +119,33 @@ export default function HomeScreen() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // "Continue learning": the last opened lesson, else the first lesson.
+  const loadContinue = useCallback(async () => {
+    if (!token) return;
+    const last = await getLastLesson();
+    if (last) {
+      setCont({ lesson: last, resume: true });
+      return;
+    }
+    try {
+      const r = await getLessons(token);
+      const f = r.items[0];
+      setCont(
+        f
+          ? { lesson: { id: f.id, title: f.title, thumbnailUrl: f.thumbnailUrl, type: f.type, level: f.level }, resume: false }
+          : null,
+      );
+    } catch {
+      // ignore
+    }
+  }, [token]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadContinue();
+    }, [loadContinue]),
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -161,6 +193,35 @@ export default function HomeScreen() {
             />
           </View>
         </View>
+
+        {/* Continue learning — primary action */}
+        {cont ? (
+          <Pressable
+            style={({ pressed }) => [styles.continueCard, pressed && styles.pressed]}
+            onPress={() => router.push(`/lesson/${cont.lesson.id}`)}
+          >
+            {cont.lesson.thumbnailUrl ? (
+              <ImageBackground source={{ uri: cont.lesson.thumbnailUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+            ) : (
+              <LinearGradient colors={colors.primaryGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
+            )}
+            <LinearGradient
+              colors={["rgba(18,10,40,0.80)", "rgba(18,10,40,0.30)"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={StyleSheet.absoluteFill}
+            />
+            <View style={styles.continueBody}>
+              <AppText variant="overline" color={colors.textOnDarkMuted}>
+                {cont.resume ? "ҮРГЭЛЖЛҮҮЛЭХ" : "СУРАЛЦАЖ ЭХЛЭХ"}
+              </AppText>
+              <AppText variant="h2" color={colors.white} numberOfLines={2}>{cont.lesson.title}</AppText>
+            </View>
+            <View style={styles.continuePlay}>
+              <Ionicons name="play" size={22} color={colors.primary} style={{ marginLeft: 3 }} />
+            </View>
+          </Pressable>
+        ) : null}
 
         {/* Daily goal hero — banner image as full background */}
         <ImageBackground
@@ -224,17 +285,17 @@ export default function HomeScreen() {
           />
         </View>
 
-        {/* Join a class (code or QR) */}
+        {/* My assignments */}
         <Pressable
           style={({ pressed }) => [styles.joinCard, pressed && styles.pressed]}
-          onPress={() => router.push("/join")}
+          onPress={() => router.push("/assignments")}
         >
-          <View style={styles.joinIcon}>
-            <Ionicons name="qr-code" size={22} color={colors.primary} />
+          <View style={[styles.joinIcon, { backgroundColor: tints.green.bg }]}>
+            <Ionicons name="clipboard" size={22} color={tints.green.fg} />
           </View>
           <View style={{ flex: 1 }}>
-            <AppText variant="h3">Анги нэгдэх</AppText>
-            <AppText variant="caption">Багшийн өгсөн код эсвэл QR-аар</AppText>
+            <AppText variant="h3">Миний даалгаврууд</AppText>
+            <AppText variant="caption">Багшийн оноосон хичээл, сорил</AppText>
           </View>
           <Ionicons name="chevron-forward" size={20} color={colors.borderStrong} />
         </Pressable>
@@ -385,6 +446,29 @@ const styles = StyleSheet.create({
   },
   badgeTop: { flexDirection: "row", alignItems: "center", gap: 5 },
 
+  continueCard: {
+    height: 132,
+    borderRadius: radius.xl,
+    overflow: "hidden",
+    marginTop: spacing.lg,
+    backgroundColor: colors.navy,
+    justifyContent: "flex-end",
+    ...(elevation.md as object),
+  },
+  continueBody: { padding: spacing.lg, paddingRight: 80, gap: 2 },
+  continuePlay: {
+    position: "absolute",
+    right: spacing.lg,
+    top: "50%",
+    marginTop: -26,
+    width: 52,
+    height: 52,
+    borderRadius: radius.full,
+    backgroundColor: colors.white,
+    alignItems: "center",
+    justifyContent: "center",
+    ...(elevation.sm as object),
+  },
   hero: {
     borderRadius: radius.xl,
     padding: spacing.lg,

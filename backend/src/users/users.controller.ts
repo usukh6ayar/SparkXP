@@ -57,6 +57,12 @@ export class UsersController {
     return this.usersService.getStats(user);
   }
 
+  /** Current user: subscription plan + usage (for the profile plan card). */
+  @Get('me/plan')
+  getPlan(@CurrentUser() user: User) {
+    return this.usersService.getPlanInfo(user);
+  }
+
   /** Current user: upload a custom avatar image (jpg/png/webp, ≤5 MB). */
   @Post('me/avatar')
   @UseInterceptors(

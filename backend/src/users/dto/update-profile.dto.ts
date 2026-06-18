@@ -22,4 +22,16 @@ export class UpdateProfileDto {
   @IsString()
   @MaxLength(300)
   avatarUrl?: string;
+
+  /** Placement / CEFR level (a1..c2). */
+  @IsOptional()
+  @IsString()
+  @MaxLength(5)
+  level?: string;
+
+  /** English name the student goes by. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  englishName?: string;
 }

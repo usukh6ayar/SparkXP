@@ -47,6 +47,14 @@ export class User extends BaseEntity {
   @Column({ name: 'avatar_url', type: 'varchar', nullable: true })
   avatarUrl: string | null;
 
+  /** Placement / CEFR level chosen at sign-up (e.g. 'a1'..'c1'). */
+  @Column({ type: 'varchar', nullable: true })
+  level: string | null;
+
+  /** Optional English name the student goes by in the app. */
+  @Column({ name: 'english_name', type: 'varchar', nullable: true })
+  englishName: string | null;
+
   @Column({ name: 'full_name' })
   fullName: string;
 
