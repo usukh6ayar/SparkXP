@@ -14,7 +14,7 @@ export class SchedulerService {
   ) {}
 
   /** Reset all per-period usage counters on the 1st of each month at midnight UB time. */
-  @Cron('0 0 1 * *', { timeZone: 'Asia/Ulaanbaatar' })
+  @Cron('0 0 1 * *', { name: 'monthly-usage-reset', timeZone: 'Asia/Ulaanbaatar' })
   async resetMonthlyUsage() {
     this.logger.log('Monthly usage reset — starting...');
     const result = await this.users
