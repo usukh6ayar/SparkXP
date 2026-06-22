@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { ImageIcon, Plus, Pencil, Sparkles, Trash2, Upload } from 'lucide-react';
+import { ImageIcon, Plus, Pencil, Sparkles, Trash2, Upload, BarChart2 } from 'lucide-react';
 import { api, getToken } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
 import { Button } from '../../components/Button';
@@ -148,12 +148,31 @@ interface WordStats {
   duplicates: number;
 }
 
+interface WordStat {
+  wordId: string;
+  english: string;
+  wrong: number;
+  correct: number;
+  saved: number;
+  learners: number;
+  difficulty: number;
+}
+interface WordAnalytics {
+  topForgotten: WordStat[];
+  topSaved: WordStat[];
+  topKnown: WordStat[];
+  hardest: WordStat[];
+  avgSaveRate: number;
+}
+
 export default function WordsPage() {
   const [words, setWords] = useState<Word[]>([]);
   const [levelFilter, setLevelFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [search, setSearch] = useState('');
   const [stats, setStats] = useState<WordStats | null>(null);
+  const [analytics, setAnalytics] = useState<WordAnalytics | null>(null);
+  const [showAnalytics, setShowAnalytics] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
   const [modal, setModal] = useState<null | 'create' | 'edit' | 'import'>(null);
@@ -184,6 +203,12 @@ export default function WordsPage() {
   }, [levelFilter, statusFilter, search]);
 
   useEffect(() => { load(); }, [load]);
+
+  function toggleAnalytics() {
+    const next = !showAnalytics;
+    setShowAnalytics(next);
+    if (next && !analytics) api.get<WordAnalytics>('/words/analytics').then(setAnalytics).catch(() => {});
+  }
 
   function toggleSelect(id: string) {
     setSelected((s) => {
@@ -470,6 +495,9 @@ export default function WordsPage() {
         description={`Нийт: ${words.length} үг`}
         action={
           <div className="flex gap-2">
+            <Button variant="secondary" size="sm" onClick={toggleAnalytics}>
+              <BarChart2 className="h-4 w-4" /> Аналитик
+            </Button>
             <Button variant="secondary" size="sm" onClick={() => { setModal('import'); setImportResult(null); setError(''); }}>
               <Upload className="h-4 w-4" /> Төхөөрөмжөөс оруулах
             </Button>
@@ -477,6 +505,48 @@ export default function WordsPage() {
           </div>
         }
       />
+
+      {/* Learning analytics panel */}
+      {showAnalytics && (
+        <div className="mb-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+          {!analytics ? (
+            <p className="text-sm text-gray-400">Ачаалж байна…</p>
+          ) : (
+            <>
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-gray-700">Сурлагын аналитик</h3>
+                <span className="text-xs text-gray-500">
+                  Дундаж хадгалалт: <strong className="text-primary">{(analytics.avgSaveRate * 100).toFixed(0)}%</strong>
+                </span>
+              </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {([
+                  { title: '😵 Хамгийн их мартсан', rows: analytics.topForgotten, metric: (r: WordStat) => r.wrong },
+                  { title: '⭐ Хамгийн их хадгалсан', rows: analytics.topSaved, metric: (r: WordStat) => r.saved },
+                  { title: '✅ Хамгийн их мэдсэн', rows: analytics.topKnown, metric: (r: WordStat) => r.correct },
+                  { title: '🔥 Хамгийн хүнд', rows: analytics.hardest, metric: (r: WordStat) => `${(r.difficulty * 100).toFixed(0)}%` },
+                ] as const).map((col) => (
+                  <div key={col.title}>
+                    <p className="mb-1 text-xs font-medium text-gray-500">{col.title}</p>
+                    {col.rows.length === 0 ? (
+                      <p className="text-xs text-gray-300">Дата алга</p>
+                    ) : (
+                      <ol className="space-y-1">
+                        {col.rows.slice(0, 5).map((r, i) => (
+                          <li key={r.wordId} className="flex items-center justify-between text-sm">
+                            <span className="truncate"><span className="text-gray-400">{i + 1}.</span> {r.english}</span>
+                            <span className="ml-2 font-medium text-gray-600">{col.metric(r)}</span>
+                          </li>
+                        ))}
+                      </ol>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Stats bar */}
       {stats && (
