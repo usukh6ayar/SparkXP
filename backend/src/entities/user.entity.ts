@@ -81,6 +81,18 @@ export class User extends BaseEntity {
   @Column({ type: 'int', default: 0 })
   sparks: number;
 
+  /** Consecutive active days (updated when XP is earned). */
+  @Column({ name: 'current_streak', type: 'int', default: 0 })
+  currentStreak: number;
+
+  /** Best streak ever reached. */
+  @Column({ name: 'longest_streak', type: 'int', default: 0 })
+  longestStreak: number;
+
+  /** Last day (UB time, YYYY-MM-DD) the user earned XP — drives the streak. */
+  @Column({ name: 'last_active_date', type: 'date', nullable: true })
+  lastActiveDate: string | null;
+
   // --- Location (for local leaderboards: by province / district) ---
   // Stored on the User so leaderboard queries stay simple. Populated either
   // from registration (user picks) or inherited from their school/org.

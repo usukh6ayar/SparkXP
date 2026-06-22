@@ -101,6 +101,12 @@
 | GET | `/reviews/saved` | 🔑 | ⭐ Хадгалсан үгсийн жагсаалт |
 | POST | `/reviews/:wordId/save` | 🔑 | ⭐ saved toggle → `{ wordId, saved }` |
 
+## 🔥 Gamification — `/api/gamification`
+
+| Method | Path | Auth | Тайлбар |
+|---|---|:---:|---|
+| GET | `/gamification` | 🔑 | `{ xp, level, levelXp, levelTarget, xpToNext, progress, currentStreak, longestStreak, todayXp, dailyGoal, cefrLevel }`. Streak XP олох бүрт ахина (UB цагаар өдөр); level нь XP-ээс тооцоологдоно |
+
 ## 🤖 AI Gateway — `/api/ai`
 
 | Method | Path | Auth | Тайлбар |

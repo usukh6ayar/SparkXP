@@ -7,6 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../../src/auth/AuthContext';
 import * as usersApi from '../../src/api/users';
 import * as classesApi from '../../src/api/classes';
+import { getGamification, type Gamification } from '../../src/api/gamification';
 import { MN_PROVINCES as PROVINCES, UB_DISTRICTS } from '../../src/constants/locations';
 import { TopBar } from '../../src/components/TopBar';
 import { AppText } from '../../src/components/Text';
@@ -66,11 +67,13 @@ export default function ProfileScreen() {
   const [editing, setEditing] = useState(false);
   const [classes, setClasses] = useState<{ id: string; name: string; teacherName: string | null }[]>([]);
   const [plan, setPlan] = useState<usersApi.PlanInfo | null>(null);
+  const [gam, setGam] = useState<Gamification | null>(null);
 
-  // Enrolled classes (+ which teacher) and plan — refetched on focus.
+  // Enrolled classes (+ which teacher), plan and gamification — refetched on focus.
   const loadProfile = useCallback(async () => {
     if (!token) return;
     usersApi.getMyPlan(token).then(setPlan).catch(() => {});
+    getGamification(token).then(setGam).catch(() => {});
     try {
       const mine = await classesApi.getMyClasses(token);
       const details = await Promise.all(mine.enrolled.map((c) => classesApi.getClass(c.id, token)));
@@ -95,14 +98,17 @@ export default function ProfileScreen() {
 
   const xp = user?.xp ?? 0;
   const sparks = user?.sparks ?? 0;
-  const level = Math.floor(xp / LEVEL_SIZE) + 1;
-  const inLevel = xp % LEVEL_SIZE;
-  const pct = Math.round((inLevel / LEVEL_SIZE) * 100);
+  // Real gamification (backend curve) with a local fallback until it loads.
+  const level = gam?.level ?? Math.floor(xp / LEVEL_SIZE) + 1;
+  const pct = gam ? Math.round(gam.progress * 100) : Math.round(((xp % LEVEL_SIZE) / LEVEL_SIZE) * 100);
+  const levelXp = gam?.levelXp ?? xp % LEVEL_SIZE;
+  const levelTarget = gam?.levelTarget ?? LEVEL_SIZE;
+  const streak = gam?.currentStreak ?? STREAK;
 
   const STATS = [
     { icon: 'book' as IconName, value: LESSONS_DONE, label: 'Хичээл', tint: tints.purple },
     { icon: 'trophy' as IconName, value: QUIZZES_DONE, label: 'Сорил', tint: tints.green },
-    { icon: 'flame' as IconName, value: STREAK, label: 'Өдөр дараалал', tint: tints.blue },
+    { icon: 'flame' as IconName, value: streak, label: 'Өдөр дараалал', tint: tints.blue },
     { icon: 'diamond' as IconName, value: sparks, label: 'Очирхон', tint: tints.amber },
   ];
 
@@ -163,7 +169,7 @@ export default function ProfileScreen() {
                   style={[styles.xpFill, { width: `${Math.max(pct, 4)}%` }]}
                 />
               </View>
-              <AppText variant="caption" style={styles.levelXp}>{inLevel} / {LEVEL_SIZE} XP</AppText>
+              <AppText variant="caption" style={styles.levelXp}>{levelXp} / {levelTarget} XP</AppText>
             </View>
           </LinearGradient>
 
