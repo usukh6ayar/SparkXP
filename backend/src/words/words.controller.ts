@@ -16,9 +16,12 @@ import { WordsService } from './words.service';
 import { CreateWordDto } from './dto/create-word.dto';
 import { UpdateWordDto } from './dto/update-word.dto';
 import { QueryWordsDto } from './dto/query-words.dto';
+import { QuizQueryDto, QuizSubmitDto } from './dto/quiz.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { User } from '../entities/user.entity';
 import { UserRole } from '../common/enums';
 
 /**
@@ -60,6 +63,23 @@ export class WordsController {
   @Get()
   findAll(@Query() query: QueryWordsDto) {
     return this.wordsService.findAll(query);
+  }
+
+  /**
+   * Generate a vocabulary quiz (multiple-choice) from published words.
+   * Declared before `:id` so the literal "quiz" path isn't parsed as a UUID.
+   */
+  @Get('quiz')
+  @UseGuards(JwtAuthGuard)
+  getQuiz(@Query() query: QuizQueryDto) {
+    return this.wordsService.generateQuiz(query.count);
+  }
+
+  /** Submit quiz answers → graded server-side, awards XP + Sparks for correct. */
+  @Post('quiz/submit')
+  @UseGuards(JwtAuthGuard)
+  submitQuiz(@CurrentUser() user: User, @Body() dto: QuizSubmitDto) {
+    return this.wordsService.gradeQuiz(user.id, dto.answers);
   }
 
   @Get(':id')

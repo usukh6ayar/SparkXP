@@ -40,6 +40,8 @@
 | Method | Path | Auth | Тайлбар |
 |---|---|:---:|---|
 | GET | `/words` | 🔑 | Жагсаалт (`?status&level&category&search&lessonId&page&limit`). **Default `status=published`** (student-д зөвхөн published; admin тодорхой `status` дамжуулна) |
+| GET | `/words/quiz` | 🔑 | Vocabulary quiz үүсгэх (`?count=4..30`) — published үгээс multiple-choice (зөв хариулт client рүү явахгүй) |
+| POST | `/words/quiz/submit` | 🔑 | `{ answers:[{wordId,choice}] }` → server-side grade, зөв бүрд XP+Sparks. Буцаалт `{ total, correct, xpAwarded, sparksAwarded }` |
 | GET | `/words/:id` | 🔑 | Нэг үг |
 | POST | `/words` | 🛡️ | Үг үүсгэх (`slug` авто үүснэ) |
 | POST | `/words/bulk` | 🛡️ | JSON массив bulk import |
