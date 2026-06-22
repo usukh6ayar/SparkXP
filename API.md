@@ -39,11 +39,19 @@
 
 | Method | Path | Auth | Тайлбар |
 |---|---|:---:|---|
-| GET | `/words` | 🔑 | Жагсаалт (`?level&lessonId&page&limit`) |
+| GET | `/words` | 🔑 | Жагсаалт (`?status&level&category&search&lessonId&page&limit`). **Default `status=published`** (student-д зөвхөн published; admin тодорхой `status` дамжуулна) |
 | GET | `/words/:id` | 🔑 | Нэг үг |
-| POST | `/words` | 🛡️ | Үг үүсгэх |
-| PATCH | `/words/:id` | 🛡️ | Засах |
+| POST | `/words` | 🛡️ | Үг үүсгэх (`slug` авто үүснэ) |
+| POST | `/words/bulk` | 🛡️ | JSON массив bulk import |
+| PATCH | `/words/:id` | 🛡️ | Засах (`status` солих → publish/approve) |
 | DELETE | `/words/:id` | 🛡️ | Устгах |
+
+> **Word талбарууд (vocabulary system, 2026-06-22):** `english, mongolian,
+> englishDefinition, phonetic, category, partOfSpeech, exampleSentence,
+> exampleTranslation, audioUrl, imageUrl, level, slug, status`. **`status`
+> (`WordStatus`):** `draft·needs_review·approved·rejected·published` —
+> default `published`. App-д зөвхөн `published` гарна. `category` = нээлттэй
+> string (`VOCAB_CATEGORY_SUGGESTIONS`). Дэлгэрэнгүй: `VOCABULARY_SYSTEM.md`.
 
 ## 📚 Lessons (Хичээл) — `/api/lessons`
 
@@ -78,9 +86,11 @@
 | Method | Path | Auth | Тайлбар |
 |---|---|:---:|---|
 | GET | `/reviews/due` | 🔑 | Өнөөдөр давтах үгс (word-той) |
-| POST | `/reviews/:wordId` | 🔑 | Хариу `{ quality: 0-5 }` → SM-2 reschedule |
-| GET | `/reviews/learn` | 🔑 | Swipe deck — мэдээгүй үгс (known-г хасна) |
+| POST | `/reviews/:wordId` | 🔑 | Хариу `{ quality: 0-5 }` → SM-2 reschedule + recall progress (correct/wrong/recallStatus) |
+| GET | `/reviews/learn` | 🔑 | Swipe deck — зөвхөн `published`, мэдээгүй үгс. Карт бүр `saved` flag-тай |
 | GET | `/reviews/stats` | 🔑 | `{ known, learning }` — "мэдэх үг" тоо |
+| GET | `/reviews/saved` | 🔑 | ⭐ Хадгалсан үгсийн жагсаалт |
+| POST | `/reviews/:wordId/save` | 🔑 | ⭐ saved toggle → `{ wordId, saved }` |
 
 ## 🤖 AI Gateway — `/api/ai`
 

@@ -1,7 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, ILike } from 'typeorm';
 import { Word } from '../entities/word.entity';
+import { WordStatus } from '../common/enums';
 import { CreateWordDto } from './dto/create-word.dto';
 import { UpdateWordDto } from './dto/update-word.dto';
 import { QueryWordsDto } from './dto/query-words.dto';
@@ -14,6 +15,18 @@ export interface PaginatedWords {
   limit: number;
 }
 
+/**
+ * URL-safe key from an English word: lowercase, trimmed, spaces/punctuation → `_`.
+ * Used to auto-match bulk-uploaded media filenames (`abandon.mp3` → "abandon").
+ */
+export function slugify(english: string): string {
+  return english
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
 @Injectable()
 export class WordsService {
   constructor(
@@ -22,19 +35,34 @@ export class WordsService {
   ) {}
 
   create(dto: CreateWordDto): Promise<Word> {
-    const word = this.words.create(dto);
+    const word = this.words.create({ ...dto, slug: slugify(dto.english) });
     return this.words.save(word);
   }
 
-  /** List words with optional level/lesson filters and pagination. */
+  /**
+   * List words with optional filters + pagination.
+   *
+   * Defaults to `status = published` so the student app only ever sees live
+   * content. The admin panel passes an explicit `status` to see other states.
+   */
   async findAll(query: QueryWordsDto): Promise<PaginatedWords> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
 
     // Build a where clause from only the filters that were provided.
-    const where: Record<string, unknown> = {};
-    if (query.level) where.level = query.level;
-    if (query.lessonId) where.lessonId = query.lessonId;
+    const base: Record<string, unknown> = {};
+    base.status = query.status ?? WordStatus.PUBLISHED;
+    if (query.level) base.level = query.level;
+    if (query.lessonId) base.lessonId = query.lessonId;
+    if (query.category) base.category = query.category;
+
+    // A text search matches English OR Mongolian → two where-objects (OR).
+    const where = query.search
+      ? [
+          { ...base, english: ILike(`%${query.search}%`) },
+          { ...base, mongolian: ILike(`%${query.search}%`) },
+        ]
+      : base;
 
     const [items, total] = await this.words.findAndCount({
       where,
@@ -87,7 +115,9 @@ export class WordsService {
             select: { id: true },
           });
           if (exists) { skipped++; return; }
-          await this.words.save(this.words.create(dto));
+          await this.words.save(
+            this.words.create({ ...dto, slug: slugify(dto.english) }),
+          );
           inserted++;
         }),
       );
