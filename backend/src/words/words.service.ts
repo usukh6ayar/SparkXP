@@ -11,7 +11,7 @@ import { ConfigService } from '@nestjs/config';
 import { Repository, ILike, In } from 'typeorm';
 import Anthropic from '@anthropic-ai/sdk';
 import { Word } from '../entities/word.entity';
-import { WordStatus, XpSource, SparksSource } from '../common/enums';
+import { WordStatus, XpSource, SparksSource, ContentLevel } from '../common/enums';
 import { XpService } from '../xp/xp.service';
 import { SparksService } from '../sparks/sparks.service';
 import { AiGatewayService } from '../ai-gateway/ai-gateway.service';
@@ -19,6 +19,14 @@ import { CreateWordDto } from './dto/create-word.dto';
 import { UpdateWordDto } from './dto/update-word.dto';
 import { QueryWordsDto } from './dto/query-words.dto';
 import { QuizAnswerDto } from './dto/quiz.dto';
+
+/** Result of a bulk AI-fill import (CSV of bare English words → ready cards). */
+export interface AiBulkReport {
+  requested: number;
+  inserted: number;
+  skipped: number;
+  failed: { word: string; message: string }[];
+}
 
 export interface AiFillResult {
   mongolian: string;
@@ -89,6 +97,14 @@ export function slugify(english: string): string {
  * Claude sometimes wraps JSON in ```json … ``` fences despite instructions.
  * Strip them (and any leading/trailing prose) so JSON.parse succeeds.
  */
+/** Coerce an AI-suggested level string to a valid ContentLevel (fallback A1). */
+export function normalizeLevel(level?: string): ContentLevel {
+  const v = (level ?? '').trim().toLowerCase();
+  return (Object.values(ContentLevel) as string[]).includes(v)
+    ? (v as ContentLevel)
+    : ContentLevel.A1;
+}
+
 export function stripJsonFences(raw: string): string {
   const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
   const body = (fenced ? fenced[1] : raw).trim();
@@ -129,6 +145,72 @@ export class WordsService implements OnModuleInit {
       this.fillImage(english).catch(() => null),
     ]);
     return { ...text, imageUrl };
+  }
+
+  /**
+   * Bulk "AI fill": take a list of English words and, for each new one, let AI
+   * generate every field (+ optional image) and save it — so a CSV of bare
+   * English words becomes a set of ready vocabulary cards.
+   *
+   * Runs with limited concurrency (AI is slow); duplicates are skipped and
+   * per-word failures are collected rather than aborting the whole batch.
+   */
+  async aiBulkImport(
+    rawWords: string[],
+    generateImages = false,
+  ): Promise<AiBulkReport> {
+    const words = [...new Set(rawWords.map((w) => w.trim()).filter(Boolean))];
+    const report: AiBulkReport = {
+      requested: words.length,
+      inserted: 0,
+      skipped: 0,
+      failed: [],
+    };
+
+    const CONCURRENCY = 3;
+    for (let i = 0; i < words.length; i += CONCURRENCY) {
+      const batch = words.slice(i, i + CONCURRENCY);
+      await Promise.all(
+        batch.map(async (english) => {
+          try {
+            const dup = await this.words.findOne({
+              where: { english: ILike(english) },
+              select: { id: true },
+            });
+            if (dup) { report.skipped++; return; }
+
+            const text = await this.fillText(english);
+            const imageUrl = generateImages
+              ? await this.fillImage(english).catch(() => null)
+              : null;
+
+            await this.words.save(
+              this.words.create({
+                english,
+                mongolian: text.mongolian,
+                englishDefinition: text.englishDefinition,
+                phonetic: text.phonetic,
+                partOfSpeech: text.partOfSpeech,
+                category: text.category,
+                level: normalizeLevel(text.level),
+                exampleSentence: text.exampleSentence,
+                exampleTranslation: text.exampleTranslation,
+                sparkTip: text.sparkTip,
+                imageUrl,
+                slug: slugify(english),
+              }),
+            );
+            report.inserted++;
+          } catch (e) {
+            report.failed.push({
+              word: english,
+              message: e instanceof Error ? e.message : 'AI алдаа',
+            });
+          }
+        }),
+      );
+    }
+    return report;
   }
 
   private async fillText(english: string): Promise<Omit<AiFillResult, 'imageUrl'>> {

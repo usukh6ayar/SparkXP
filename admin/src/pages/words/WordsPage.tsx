@@ -74,6 +74,40 @@ function parseCsv(text: string): Record<string, string>[] {
   }).filter(o => o['english']);
 }
 
+interface AiBulkReport {
+  requested: number;
+  inserted: number;
+  skipped: number;
+  failed: { word: string; message: string }[];
+}
+
+/**
+ * Pull a list of English words out of an uploaded file for AI bulk import.
+ * Accepts: CSV with an `english` column, JSON (array of strings or {english}),
+ * or a plain list (one word per line / first CSV column).
+ */
+function extractEnglish(name: string, text: string): string[] {
+  if (name.endsWith('.json')) {
+    const j = JSON.parse(text);
+    const arr = Array.isArray(j) ? j : j.words;
+    return (arr ?? [])
+      .map((x: unknown) => (typeof x === 'string' ? x : (x as { english?: string })?.english))
+      .filter((w: unknown): w is string => !!w)
+      .map((w: string) => w.trim());
+  }
+  if (name.endsWith('.csv')) {
+    const rows = parseCsv(text);
+    if (rows.length && rows[0]['english'] !== undefined) {
+      return rows.map((r) => r['english']?.trim()).filter(Boolean);
+    }
+  }
+  // plain list / header-less CSV: take the first cell of each line
+  return text
+    .split(/\r?\n/)
+    .map((l) => l.split(',')[0].trim())
+    .filter((l) => l && l.toLowerCase() !== 'english');
+}
+
 function splitCsvLine(line: string): string[] {
   const result: string[] = [];
   let cur = '';
@@ -99,6 +133,10 @@ export default function WordsPage() {
   const [importResult, setImportResult] = useState<{ inserted: number; skipped: number } | null>(null);
   const [importing, setImporting] = useState(false);
   const [generatingId, setGeneratingId] = useState<string | null>(null);
+  // AI bulk: import a list of bare English words → AI fills the rest.
+  const [aiMode, setAiMode] = useState(false);
+  const [aiImages, setAiImages] = useState(false);
+  const [aiReport, setAiReport] = useState<AiBulkReport | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -203,9 +241,28 @@ export default function WordsPage() {
   }
 
   async function handleImportFile(file: File) {
-    setImporting(true); setError(''); setImportResult(null);
+    setImporting(true); setError(''); setImportResult(null); setAiReport(null);
     try {
       const text = await file.text();
+
+      // AI mode: a list of bare English words → AI fills everything.
+      if (aiMode) {
+        const englishList = extractEnglish(file.name, text);
+        if (englishList.length === 0) throw new Error('Англи үг олдсонгүй');
+        const res = await fetch(`${BASE}/words/ai-bulk`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken() ?? ''}` },
+          body: JSON.stringify({ words: englishList, generateImages: aiImages }),
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.message ?? `Алдаа ${res.status}`);
+        }
+        setAiReport(await res.json());
+        load();
+        return;
+      }
+
       let words: Record<string, string>[];
 
       if (file.name.endsWith('.csv')) {
@@ -424,19 +481,49 @@ export default function WordsPage() {
       {modal === 'import' && (
         <Modal title="Төхөөрөмжөөс үг оруулах" onClose={() => setModal(null)}>
           <div className="space-y-4">
-            {/* Instructions */}
-            <div className="rounded-lg bg-gray-50 border border-gray-200 px-4 py-3 text-sm text-gray-700">
-              <p className="font-medium mb-1">CSV формат (Excel-д нээж засах боломжтой):</p>
-              <p className="text-xs text-gray-500 font-mono bg-white rounded px-2 py-1 border border-gray-100 overflow-x-auto whitespace-nowrap">
-                english, mongolian, level, partOfSpeech, exampleSentence, exampleTranslation
-              </p>
-              <button
-                onClick={downloadCsvTemplate}
-                className="mt-2 flex items-center gap-1 text-xs text-primary hover:underline"
-              >
-                <Upload className="h-3 w-3 rotate-180" /> Загвар татах (words_template.csv)
-              </button>
-            </div>
+            {/* Mode toggle: AI fill vs full file */}
+            <label className="flex items-start gap-3 rounded-lg border border-primary/30 bg-primarySoft px-4 py-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={aiMode}
+                onChange={(e) => { setAiMode(e.target.checked); setImportResult(null); setAiReport(null); }}
+                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+              />
+              <span className="text-sm text-gray-700">
+                <span className="flex items-center gap-1.5 font-medium text-primary">
+                  <Sparkles className="h-4 w-4" /> Зөвхөн англи үгс — AI бусдыг бөглөнө
+                </span>
+                <span className="text-xs text-gray-500">
+                  Англи үгсийн жагсаалт оруулахад орчуулга, тодорхойлолт, жишээ, түвшин гэх мэт бүгдийг AI бөглөж бэлэн болгоно.
+                </span>
+              </span>
+            </label>
+
+            {/* Instructions (depend on mode) */}
+            {aiMode ? (
+              <div className="rounded-lg bg-gray-50 border border-gray-200 px-4 py-3 text-sm text-gray-700">
+                <p className="font-medium mb-1">Формат: мөр бүрт нэг англи үг (эсвэл `english` баганатай CSV / JSON):</p>
+                <p className="text-xs text-gray-500 font-mono bg-white rounded px-2 py-1 border border-gray-100 whitespace-pre">abandon{'\n'}ability{'\n'}achieve</p>
+                <label className="mt-3 flex items-center gap-2 text-sm text-gray-700">
+                  <input type="checkbox" checked={aiImages} onChange={(e) => setAiImages(e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary" />
+                  <span className="flex items-center gap-1.5"><ImageIcon className="h-4 w-4 text-primary" /> Зураг бас үүсгэх (удаан · нэг удаад цөөн үг)</span>
+                </label>
+                <p className="mt-1 text-xs text-gray-400">Нэг удаад {aiImages ? '25' : '75'}-аас ихгүй үг. Их бол багцлан оруулна уу.</p>
+              </div>
+            ) : (
+              <div className="rounded-lg bg-gray-50 border border-gray-200 px-4 py-3 text-sm text-gray-700">
+                <p className="font-medium mb-1">CSV формат (Excel-д нээж засах боломжтой):</p>
+                <p className="text-xs text-gray-500 font-mono bg-white rounded px-2 py-1 border border-gray-100 overflow-x-auto whitespace-nowrap">
+                  english, mongolian, level, partOfSpeech, exampleSentence, exampleTranslation
+                </p>
+                <button
+                  onClick={downloadCsvTemplate}
+                  className="mt-2 flex items-center gap-1 text-xs text-primary hover:underline"
+                >
+                  <Upload className="h-3 w-3 rotate-180" /> Загвар татах (words_template.csv)
+                </button>
+              </div>
+            )}
 
             {/* Drop zone */}
             <div
@@ -448,17 +535,17 @@ export default function WordsPage() {
               {importing ? (
                 <div className="flex items-center gap-2 text-sm text-primary">
                   <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                  Оруулж байна...
+                  {aiMode ? 'AI бөглөж байна... (удаж магадгүй)' : 'Оруулж байна...'}
                 </div>
               ) : (
                 <>
                   <Upload className="h-10 w-10 text-gray-300" />
                   <p className="text-sm font-medium text-gray-700">Файл сонгох</p>
-                  <p className="text-xs text-gray-400">.csv эсвэл .json · чирж оруулж болно</p>
+                  <p className="text-xs text-gray-400">.csv · .json{aiMode ? ' · .txt' : ''} · чирж оруулж болно</p>
                 </>
               )}
               <input
-                ref={fileRef} type="file" accept=".csv,.json" className="hidden"
+                ref={fileRef} type="file" accept={aiMode ? '.csv,.json,.txt' : '.csv,.json'} className="hidden"
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImportFile(f); e.target.value = ''; }}
               />
             </div>
@@ -467,6 +554,24 @@ export default function WordsPage() {
               <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-800">
                 ✅ <strong>{importResult.inserted.toLocaleString()}</strong> үг нэмэгдлээ
                 {importResult.skipped > 0 && <span className="text-green-600 ml-1">· {importResult.skipped} давхардал алгасагдсан</span>}
+              </div>
+            )}
+
+            {aiReport && (
+              <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-800 space-y-1">
+                <p>✅ <strong>{aiReport.inserted}</strong> үг AI-аар бөглөж нэмэгдлээ
+                  {aiReport.skipped > 0 && <span className="text-green-600 ml-1">· {aiReport.skipped} давхардал</span>}
+                </p>
+                {aiReport.failed.length > 0 && (
+                  <details className="text-xs text-red-600">
+                    <summary className="cursor-pointer">{aiReport.failed.length} үг амжилтгүй (дэлгэрэнгүй)</summary>
+                    <ul className="mt-1 list-disc pl-4">
+                      {aiReport.failed.slice(0, 20).map((f) => (
+                        <li key={f.word}><strong>{f.word}</strong>: {f.message}</li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
               </div>
             )}
             {error && <p className="text-sm text-red-500">{error}</p>}
