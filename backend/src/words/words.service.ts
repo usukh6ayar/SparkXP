@@ -21,9 +21,14 @@ import { QuizAnswerDto } from './dto/quiz.dto';
 
 export interface AiFillResult {
   mongolian: string;
+  englishDefinition: string;
+  phonetic: string;
   partOfSpeech: string;
+  category: string;
+  level: string;
   exampleSentence: string;
   exampleTranslation: string;
+  sparkTip: string;
   imageUrl: string | null;
 }
 
@@ -79,6 +84,19 @@ export function slugify(english: string): string {
     .replace(/^_+|_+$/g, '');
 }
 
+/**
+ * Claude sometimes wraps JSON in ```json … ``` fences despite instructions.
+ * Strip them (and any leading/trailing prose) so JSON.parse succeeds.
+ */
+export function stripJsonFences(raw: string): string {
+  const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const body = (fenced ? fenced[1] : raw).trim();
+  // Fall back to the outermost { … } if there's surrounding text.
+  const start = body.indexOf('{');
+  const end = body.lastIndexOf('}');
+  return start >= 0 && end > start ? body.slice(start, end + 1) : body;
+}
+
 @Injectable()
 export class WordsService implements OnModuleInit {
   private anthropic: Anthropic;
@@ -115,24 +133,29 @@ export class WordsService implements OnModuleInit {
   private async fillText(english: string): Promise<Omit<AiFillResult, 'imageUrl'>> {
     const response = await this.anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 300,
+      max_tokens: 600,
       messages: [
         {
           role: 'user',
           content:
-            `Generate vocabulary data for the English word "${english}".\n` +
-            'Return ONLY valid JSON (no markdown, no explanation):\n' +
+            `Generate complete vocabulary-card data for the English word "${english}".\n` +
+            'Return ONLY valid JSON (no markdown fences, no explanation):\n' +
             '{\n' +
-            '  "mongolian": "<Mongolian translation>",\n' +
+            '  "mongolian": "<Mongolian meaning, e.g. Орхих, хаях>",\n' +
+            '  "englishDefinition": "<short English definition, max 1 sentence>",\n' +
+            '  "phonetic": "<IPA pronunciation incl. slashes, e.g. /əˈbændən/>",\n' +
             '  "partOfSpeech": "<noun|verb|adjective|adverb|phrase>",\n' +
+            '  "category": "<one of: Daily Life, Business, Law, Medical, Engineering, Travel, Academic>",\n' +
+            '  "level": "<CEFR level: a1|a2|b1|b2|c1|c2>",\n' +
             '  "exampleSentence": "<short natural English sentence using the word>",\n' +
-            '  "exampleTranslation": "<Mongolian translation of the example sentence>"\n' +
+            '  "exampleTranslation": "<Mongolian translation of the example sentence>",\n' +
+            '  "sparkTip": "<a short, fun memory aid / mnemonic in Mongolian to remember the word>"\n' +
             '}',
         },
       ],
     });
-    const raw = response.content[0].type === 'text' ? response.content[0].text.trim() : '{}';
-    return JSON.parse(raw) as Omit<AiFillResult, 'imageUrl'>;
+    const raw = response.content[0].type === 'text' ? response.content[0].text : '';
+    return JSON.parse(stripJsonFences(raw)) as Omit<AiFillResult, 'imageUrl'>;
   }
 
   private async fillImage(english: string): Promise<string | null> {
