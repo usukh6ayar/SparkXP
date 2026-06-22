@@ -1,66 +1,66 @@
-# Deploying the EnglishXP backend
+# EnglishXP backend-ийг deploy хийх
 
-This is the production checklist for the NestJS API (`/backend`). It covers the
-three things that block real users: **database schema**, **email**, and **media
-uploads** — plus how to run it in Docker.
+Энэ бол NestJS API (`/backend`)-ийг production-д гаргах шалгах хуудас. Жинхэнэ
+хэрэглэгчид ажиллахад саад болдог гол 3 зүйлийг хамарна: **өгөгдлийн сангийн
+schema**, **имэйл**, **медиа upload** — мөн Docker-оор хэрхэн ажиллуулахыг.
 
-> Dev setup (local Postgres/Redis) lives in the root `CLAUDE.md`. This file is
-> only about going live.
+> Локал хөгжүүлэлтийн тохиргоо (локал Postgres/Redis) үндсэн `CLAUDE.md`-д бий.
+> Энэ файл зөвхөн production-д гаргах тухай.
 
 ---
 
-## 1. Database schema (migrations, not synchronize)
+## 1. Өгөгдлийн сангийн schema (synchronize биш, migration)
 
-In dev we use `DB_SYNCHRONIZE=true` to auto-create tables from the entities.
-**Never do that in production** — synchronize can drop or alter columns and lose
-data. Production uses SQL migrations in `src/migrations/`.
+Хөгжүүлэлтэд бид `DB_SYNCHRONIZE=true`-г ашиглаж entity-үүдээс хүснэгтүүдийг
+автоматаар үүсгэдэг. **Production дээр үүнийг ХЭЗЭЭ Ч бүү ашигла** — synchronize
+багана устгаж/өөрчилж, өгөгдөл алдагдуулж болзошгүй. Production нь
+`src/migrations/` доторх SQL migration-уудыг ашиглана.
 
-Set these in production:
+Production дээр дараахыг тохируул:
 
 ```env
 DB_SYNCHRONIZE=false
-DB_MIGRATIONS_RUN=true   # run pending migrations automatically on boot
-DB_SSL=true              # required by Neon / Supabase / most cloud Postgres
+DB_MIGRATIONS_RUN=true   # boot хийх үед хүлээгдэж буй migration-уудыг автоматаар ажиллуулна
+DB_SSL=true              # Neon / Supabase / ихэнх cloud Postgres-д шаардлагатай
 ```
 
-With `DB_MIGRATIONS_RUN=true` the app applies any pending migrations every time
-it starts, so a normal deploy = run the container. If you prefer to run them
-manually instead, leave it `false` and run:
+`DB_MIGRATIONS_RUN=true` үед app ажиллах болгондоо хүлээгдэж буй migration-уудыг
+хэрэгжүүлдэг, тэгэхээр энгийн deploy = контейнерээ ажиллуулах. Хэрэв гараар
+ажиллуулахыг хүсвэл `false` үлдээгээд дараахыг ажиллуул:
 
 ```bash
-npm run migration:run      # apply
-npm run migration:revert   # undo the last one
+npm run migration:run      # хэрэгжүүлэх
+npm run migration:revert   # сүүлчийнхийг буцаах
 ```
 
-**When you change an entity**, generate a new migration (needs a DB to diff
-against) and commit it:
+**Entity өөрчлөх үед** шинэ migration үүсгээд (ялгааг тооцоход DB хэрэгтэй) commit хий:
 
 ```bash
 npm run migration:generate -- src/migrations/DescribeYourChange
 ```
 
-The first migration (`InitialSchema`) creates the whole schema including the
-`uuid-ossp` extension, so a brand-new empty database is enough.
+Эхний migration (`InitialSchema`) нь бүх schema-г (`uuid-ossp` extension-той хамт)
+үүсгэдэг тул шинэ хоосон өгөгдлийн сан байхад л хангалттай.
 
 ---
 
-## 2. Email (OTP verify + password reset)
+## 2. Имэйл (OTP баталгаажуулалт + нууц үг сэргээх)
 
-`MailService` auto-selects a provider from env (no code change needed):
+`MailService` нь env-ээс провайдерыг автоматаар сонгоно (код өөрчлөх шаардлагагүй):
 
-1. `RESEND_API_KEY` set  → [Resend](https://resend.com) HTTP API (simplest)
-2. else `SMTP_HOST` set  → any SMTP server (Gmail, Mailgun, SES, …)
-3. else                  → dev **stub** that just logs the code (no email sent)
+1. `RESEND_API_KEY` тохируулсан  → [Resend](https://resend.com) HTTP API (хамгийн хялбар)
+2. эсвэл `SMTP_HOST` тохируулсан  → дурын SMTP сервер (Gmail, Mailgun, SES, …)
+3. аль нь ч биш                   → хөгжүүлэлтийн **stub**, кодыг зөвхөн log-д бичнэ (имэйл явахгүй)
 
-If neither is configured, registration "works" but the code only appears in the
-server logs — so **set one before launch**.
+Хэрэв аль нь ч тохируулагдаагүй бол бүртгэл "ажиллана" ч код зөвхөн серверийн
+log-д харагдана — тиймээс **гаргахаасаа өмнө нэгийг нь заавал тохируул**.
 
 ```env
-# Option A — Resend
+# Сонголт A — Resend
 RESEND_API_KEY=re_xxx
-MAIL_FROM=SparkXP <noreply@yourdomain.mn>   # must be a verified sender
+MAIL_FROM=SparkXP <noreply@yourdomain.mn>   # провайдер дээр баталгаажсан илгээгч байх ёстой
 
-# Option B — SMTP
+# Сонголт B — SMTP
 SMTP_HOST=smtp.yourhost.com
 SMTP_PORT=587
 SMTP_SECURE=false
@@ -71,16 +71,16 @@ MAIL_FROM=SparkXP <noreply@yourdomain.mn>
 
 ---
 
-## 3. Media uploads (images / audio / video)
+## 3. Медиа upload (зураг / аудио / видео)
 
-`POST /api/upload` and AI-generated word images both go through
-`ImageStorageService`, which picks a target automatically:
+`POST /api/upload` болон AI-аар үүсгэсэн үгийн зургууд хоёулаа
+`ImageStorageService`-ээр дамждаг бөгөөд тэр нь зорилтыг автоматаар сонгоно:
 
-- **Cloudinary** when `CLOUDINARY_*` is set → files are persistent + on a CDN.
-- **Local `uploads/` folder** otherwise → dev only. On most cloud hosts the
-  filesystem is ephemeral, so local-stored files vanish on redeploy.
+- `CLOUDINARY_*` тохируулсан үед **Cloudinary** → файлууд тогтвортой + CDN дээр.
+- Эс бөгөөс **локал `uploads/` фолдер** → зөвхөн хөгжүүлэлтэд. Ихэнх cloud host-ийн
+  файлын систем түр зуурын тул локал хадгалсан файлууд redeploy дээр алга болно.
 
-For production set Cloudinary:
+Production-д Cloudinary-г тохируул:
 
 ```env
 CLOUDINARY_CLOUD_NAME=...
@@ -90,36 +90,37 @@ CLOUDINARY_API_SECRET=...
 
 ---
 
-## 4. Other required env
+## 4. Бусад шаардлагатай env
 
 ```env
 NODE_ENV=production
 PORT=3000
-JWT_SECRET=<long-random-string>     # CHANGE from the default
-ADMIN_ORIGIN=https://your-admin.vercel.app   # CORS allow-list for the admin web
-# Redis: REDIS_HOST/REDIS_PORT, or REDIS_URL for Upstash
+JWT_SECRET=<урт-санамсаргүй-тэмдэгт>     # default-оос ӨӨРЧЛӨХ
+ADMIN_ORIGIN=https://your-admin.vercel.app   # админ веб-д зориулсан CORS зөвшөөрлийн жагсаалт
+# Redis: REDIS_HOST/REDIS_PORT, эсвэл Upstash-д REDIS_URL
 ```
 
-See `.env.example` for the full annotated list.
+Бүрэн тайлбартай жагсаалтыг `.env.example`-ээс үз.
 
 ---
 
-## 5. Run with Docker
+## 5. Docker-оор ажиллуулах
 
-The `Dockerfile` is a 2-stage build (compile, then a slim prod image).
+`Dockerfile` нь 2 шаттай build (эхлээд compile, дараа нь нимгэн prod image).
 
 ```bash
-# from /backend
+# /backend дотроос
 docker build -t englishxp-api .
 
 docker run -p 3000:3000 --env-file .env englishxp-api
 ```
 
-The container runs `node dist/main.js`. With `DB_MIGRATIONS_RUN=true` it migrates
-on startup, then serves on `:3000` (`/api` prefix). Health check: `GET /api/health`.
+Контейнер `node dist/main.js`-ийг ажиллуулна. `DB_MIGRATIONS_RUN=true` үед эхлэх
+үедээ migrate хийгээд `:3000` дээр (`/api` prefix-тэй) ажиллана. Health шалгалт:
+`GET /api/health`.
 
-### Platform notes (Render / Railway / Fly / etc.)
-- Point the service at `/backend` with this Dockerfile, or use a Node build with
-  build = `npm ci && npm run build` and start = `npm run start:prod`.
-- Provision managed Postgres + Redis and set the env vars above.
-- Set `DB_SSL=true` for managed Postgres.
+### Платформын тэмдэглэл (Render / Railway / Fly гэх мэт)
+- Сервисээ энэ Dockerfile-тай `/backend` руу чиглүүл, эсвэл Node build ашиглаж
+  build = `npm ci && npm run build`, start = `npm run start:prod` гэж тохируул.
+- Managed Postgres + Redis авч дээрх env хувьсагчдыг тохируул.
+- Managed Postgres-д `DB_SSL=true` тохируул.
