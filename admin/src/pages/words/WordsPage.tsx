@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Plus, Pencil, Trash2, Upload } from 'lucide-react';
+import { Plus, Pencil, Trash2, Upload, Sparkles } from 'lucide-react';
 import { api, getToken } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
 import { Button } from '../../components/Button';
@@ -81,6 +81,7 @@ export default function WordsPage() {
   const [editing, setEditing] = useState<Word | null>(null);
   const [form, setForm] = useState<WordForm>(empty);
   const [saving, setSaving] = useState(false);
+  const [aiFilling, setAiFilling] = useState(false);
   const [error, setError] = useState('');
   const [importResult, setImportResult] = useState<{ inserted: number; skipped: number } | null>(null);
   const [importing, setImporting] = useState(false);
@@ -103,6 +104,26 @@ export default function WordsPage() {
       exampleTranslation: w.exampleTranslation ?? '',
     });
     setEditing(w); setError(''); setModal('edit');
+  }
+
+  async function aiFill() {
+    if (!form.english.trim()) { setError('Эхлээд Англи үгийг оруулна уу'); return; }
+    setAiFilling(true); setError('');
+    try {
+      const result = await api.post<{
+        mongolian: string; partOfSpeech: string;
+        exampleSentence: string; exampleTranslation: string;
+      }>('/words/ai-fill', { english: form.english.trim() });
+      setForm(f => ({
+        ...f,
+        mongolian: result.mongolian || f.mongolian,
+        partOfSpeech: result.partOfSpeech || f.partOfSpeech,
+        exampleSentence: result.exampleSentence || f.exampleSentence,
+        exampleTranslation: result.exampleTranslation || f.exampleTranslation,
+      }));
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'AI алдаа гарлаа');
+    } finally { setAiFilling(false); }
   }
 
   async function save() {
@@ -239,10 +260,29 @@ export default function WordsPage() {
       {(modal === 'create' || modal === 'edit') && (
         <Modal title={modal === 'create' ? 'Үг нэмэх' : 'Үг засах'} onClose={() => setModal(null)}>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <Input label="Англи үг" value={form.english} onChange={(e) => setForm({ ...form, english: e.target.value })} placeholder="apple" />
-              <Input label="Монгол утга" value={form.mongolian} onChange={(e) => setForm({ ...form, mongolian: e.target.value })} placeholder="алим" />
+            {/* English word + AI fill button */}
+            <div className="flex gap-2 items-end">
+              <div className="flex-1">
+                <Input label="Англи үг" value={form.english} onChange={(e) => setForm({ ...form, english: e.target.value })} placeholder="apple" />
+              </div>
+              <button
+                type="button"
+                onClick={aiFill}
+                disabled={aiFilling || !form.english.trim()}
+                className="flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primarySoft px-3 py-2 text-sm font-medium text-primary hover:bg-primary/10 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                title="AI-аар орчуулга, жишээ өгүүлбэр автоматаар бөглөх"
+              >
+                {aiFilling ? (
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                ) : (
+                  <Sparkles className="h-4 w-4" />
+                )}
+                {aiFilling ? 'Бөглөж байна...' : 'AI бөглөх'}
+              </button>
             </div>
+
+            <Input label="Монгол утга" value={form.mongolian} onChange={(e) => setForm({ ...form, mongolian: e.target.value })} placeholder="алим" />
+
             <div className="grid grid-cols-2 gap-4">
               <Select label="Түвшин" options={levelFormOptions} value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value })} />
               <Input label="Хэлзүй (noun, verb...)" value={form.partOfSpeech} onChange={(e) => setForm({ ...form, partOfSpeech: e.target.value })} placeholder="noun" />

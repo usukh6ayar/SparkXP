@@ -32,6 +32,19 @@ import { UserRole } from '../common/enums';
 export class WordsController {
   constructor(private readonly wordsService: WordsService) {}
 
+  /**
+   * POST /api/words/ai-fill  { english: "abandon" }
+   * Admin helper — returns AI-generated mongolian, partOfSpeech,
+   * exampleSentence, exampleTranslation so the form can be pre-filled.
+   */
+  @Post('ai-fill')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  aiFill(@Body('english') english: string) {
+    if (!english?.trim()) throw new BadRequestException('english оруулна уу');
+    return this.wordsService.aiFill(english.trim());
+  }
+
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)

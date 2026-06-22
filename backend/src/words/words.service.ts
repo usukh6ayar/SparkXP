@@ -1,10 +1,19 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { ConfigService } from '@nestjs/config';
 import { Repository } from 'typeorm';
+import Anthropic from '@anthropic-ai/sdk';
 import { Word } from '../entities/word.entity';
 import { CreateWordDto } from './dto/create-word.dto';
 import { UpdateWordDto } from './dto/update-word.dto';
 import { QueryWordsDto } from './dto/query-words.dto';
+
+export interface AiFillResult {
+  mongolian: string;
+  partOfSpeech: string;
+  exampleSentence: string;
+  exampleTranslation: string;
+}
 
 /** A page of results plus the total count, for paginated list endpoints. */
 export interface PaginatedWords {
@@ -15,11 +24,48 @@ export interface PaginatedWords {
 }
 
 @Injectable()
-export class WordsService {
+export class WordsService implements OnModuleInit {
+  private anthropic: Anthropic;
+
   constructor(
     @InjectRepository(Word)
     private readonly words: Repository<Word>,
+    private readonly config: ConfigService,
   ) {}
+
+  onModuleInit() {
+    this.anthropic = new Anthropic({ apiKey: this.config.get('ANTHROPIC_API_KEY') });
+  }
+
+  /**
+   * Use Claude Haiku to auto-generate Mongolian translation, part of speech,
+   * and example sentences for a given English word.
+   * Called by the admin "✨ AI бөглөх" button before saving.
+   */
+  async aiFill(english: string): Promise<AiFillResult> {
+    const response = await this.anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 300,
+      messages: [
+        {
+          role: 'user',
+          content:
+            `Generate vocabulary data for the English word "${english}".\n` +
+            'Return ONLY valid JSON (no markdown, no explanation):\n' +
+            '{\n' +
+            '  "mongolian": "<Mongolian translation>",\n' +
+            '  "partOfSpeech": "<noun|verb|adjective|adverb|phrase>",\n' +
+            '  "exampleSentence": "<short natural English sentence using the word>",\n' +
+            '  "exampleTranslation": "<Mongolian translation of the example sentence>"\n' +
+            '}',
+        },
+      ],
+    });
+
+    const raw = response.content[0].type === 'text' ? response.content[0].text.trim() : '{}';
+    const parsed = JSON.parse(raw) as AiFillResult;
+    return parsed;
+  }
 
   create(dto: CreateWordDto): Promise<Word> {
     const word = this.words.create(dto);
