@@ -13,6 +13,7 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../src/auth/AuthContext";
 import { getStats } from "../../src/api/users";
+import { getGamification, type Gamification } from "../../src/api/gamification";
 import { getDue } from "../../src/api/reviews";
 import { getLessons } from "../../src/api/lessons";
 import { apiRequest } from "../../src/api/client";
@@ -31,11 +32,6 @@ import {
 type IconName = keyof typeof Ionicons.glyphMap;
 
 const banner = require("../../assets/home-banner.png");
-
-// TODO: бодит утгуудаар солих (backend streak / daily-XP tracking)
-const STREAK = 5;
-const DAILY_GOAL = 50;
-const TODAY_XP = 35;
 
 const CATS: {
   key: string;
@@ -90,22 +86,25 @@ export default function HomeScreen() {
   const [due, setDue] = useState(0);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [cont, setCont] = useState<{ lesson: LastLesson; resume: boolean } | null>(null);
+  const [gam, setGam] = useState<Gamification | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
     if (!token) return;
     try {
-      const [stats, dueList, lessons] = await Promise.all([
+      const [stats, dueList, lessons, gamification] = await Promise.all([
         getStats(token),
         getDue(token),
         apiRequest<{ items: { type: string }[] }>(
           "/lessons?limit=100&isPublished=true",
           { token },
         ),
+        getGamification(token).catch(() => null),
       ]);
       setXp(stats.xp);
       setSparks(stats.sparks);
       setDue(dueList.length);
+      if (gamification) setGam(gamification);
       const c: Record<string, number> = {};
       lessons.items.forEach((l) => {
         c[l.type] = (c[l.type] ?? 0) + 1;
@@ -153,6 +152,11 @@ export default function HomeScreen() {
     setRefreshing(false);
   };
 
+  // Real gamification values (fallback to 0 / default until loaded).
+  const streak = gam?.currentStreak ?? 0;
+  const dailyGoal = gam?.dailyGoal ?? 50;
+  const todayXp = gam?.todayXp ?? 0;
+
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <ScrollView
@@ -182,7 +186,7 @@ export default function HomeScreen() {
             <Badge
               icon="flame"
               color={colors.streak}
-              value={STREAK}
+              value={streak}
               label="Цуврал"
             />
             <Badge
@@ -239,17 +243,17 @@ export default function HomeScreen() {
               color={colors.white}
               style={styles.heroGoal}
             >
-              {DAILY_GOAL} XP
+              {dailyGoal} XP
             </AppText>
             <ProgressBar
-              value={TODAY_XP / DAILY_GOAL}
+              value={todayXp / dailyGoal}
               color={colors.white}
               track="rgba(255,255,255,0.35)"
               height={10}
               style={styles.heroBar}
             />
             <AppText variant="caption" color={colors.textOnDark}>
-              {TODAY_XP} / {DAILY_GOAL} XP
+              {todayXp} / {dailyGoal} XP
             </AppText>
           </View>
         </ImageBackground>
@@ -369,7 +373,7 @@ export default function HomeScreen() {
           <StatCol
             icon="flame"
             color={colors.streak}
-            value={`${STREAK} өдөр`}
+            value={`${streak} өдөр`}
             label="Цуврал"
           />
         </View>
