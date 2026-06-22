@@ -1,11 +1,11 @@
 import { useRef, useState } from 'react';
-import { X, Image, Film } from 'lucide-react';
+import { X, Image, Film, Music2 } from 'lucide-react';
 import { getToken } from '../api/client';
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api';
 
 interface Props {
-  accept: 'image' | 'video';
+  accept: 'image' | 'video' | 'audio';
   value: string;                       // current URL
   onChange: (url: string) => void;
   label?: string;
@@ -16,8 +16,9 @@ export function FileUpload({ accept, value, onChange, label }: Props) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
 
-  const acceptAttr = accept === 'image'
-    ? '.jpg,.jpeg,.png,.gif,.webp'
+  const acceptAttr =
+    accept === 'image' ? '.jpg,.jpeg,.png,.gif,.webp'
+    : accept === 'audio' ? '.mp3,.m4a,.wav,.ogg,.aac'
     : '.mp4,.mov,.webm,.m4v';
 
   async function handleFile(file: File) {
@@ -54,16 +55,18 @@ export function FileUpload({ accept, value, onChange, label }: Props) {
     if (file) handleFile(file);
   }
 
-  const Icon = accept === 'image' ? Image : Film;
+  const Icon = accept === 'image' ? Image : accept === 'audio' ? Music2 : Film;
 
   return (
     <div>
       {label && <p className="text-sm font-medium text-gray-700 mb-1">{label}</p>}
 
       {value ? (
-        <div className="relative rounded-lg overflow-hidden border border-gray-200">
+        <div className="relative rounded-lg overflow-hidden border border-gray-200 bg-gray-50 p-2">
           {accept === 'image' ? (
             <img src={value} alt="preview" className="w-full max-h-40 object-cover" />
+          ) : accept === 'audio' ? (
+            <audio src={value} controls className="w-full" />
           ) : (
             <video src={value} controls className="w-full max-h-40" />
           )}
@@ -97,7 +100,9 @@ export function FileUpload({ accept, value, onChange, label }: Props) {
                   <span className="font-medium text-primary">Файл сонгох</span> эсвэл чирж оруулна уу
                 </p>
                 <p className="text-xs text-gray-400 mt-0.5">
-                  {accept === 'image' ? 'JPG, PNG, GIF, WEBP · Max 10 MB' : 'MP4, MOV, WEBM · Max 200 MB'}
+                  {accept === 'image' ? 'JPG, PNG, GIF, WEBP · Max 10 MB'
+                    : accept === 'audio' ? 'MP3, M4A, WAV, OGG'
+                    : 'MP4, MOV, WEBM · Max 200 MB'}
                 </p>
               </div>
             </>

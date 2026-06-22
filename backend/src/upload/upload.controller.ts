@@ -19,6 +19,7 @@ import { UserRole } from '../common/enums';
 
 const ALLOWED_IMAGE_EXT = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
 const ALLOWED_VIDEO_EXT = ['.mp4', '.mov', '.webm', '.m4v'];
+const ALLOWED_AUDIO_EXT = ['.mp3', '.m4a', '.wav', '.ogg', '.aac'];
 const MAX_SIZE_IMAGE = 10 * 1024 * 1024;  // 10 MB
 const MAX_SIZE_VIDEO = 200 * 1024 * 1024; // 200 MB
 
@@ -36,7 +37,7 @@ function fileFilter(
   cb: (error: Error | null, acceptFile: boolean) => void,
 ) {
   const ext = extname(file.originalname).toLowerCase();
-  if ([...ALLOWED_IMAGE_EXT, ...ALLOWED_VIDEO_EXT].includes(ext)) {
+  if ([...ALLOWED_IMAGE_EXT, ...ALLOWED_VIDEO_EXT, ...ALLOWED_AUDIO_EXT].includes(ext)) {
     cb(null, true);
   } else {
     cb(new BadRequestException(`Зөвшөөрөгдөөгүй файлын төрөл: ${ext}`), false);
