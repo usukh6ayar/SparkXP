@@ -3,6 +3,7 @@ import { View, ActivityIndicator, StyleSheet } from "react-native";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider, useAuth } from "../src/auth/AuthContext";
+import { DictionaryProvider } from "../src/components/DictionaryProvider";
 import { colors } from "../src/theme/theme";
 
 /**
@@ -52,7 +53,9 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <AuthProvider>
-        <RootNavigator />
+        <DictionaryProvider>
+          <RootNavigator />
+        </DictionaryProvider>
       </AuthProvider>
     </SafeAreaProvider>
   );
