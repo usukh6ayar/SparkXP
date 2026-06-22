@@ -315,7 +315,9 @@ export class WordsService implements OnModuleInit {
     const limit = query.limit ?? 20;
 
     const base: Record<string, unknown> = {};
-    base.status = query.status ?? WordStatus.PUBLISHED;
+    // Student app: published only. Admin: explicit status, or `all` for every status.
+    if (query.status) base.status = query.status;
+    else if (!query.all) base.status = WordStatus.PUBLISHED;
     if (query.level) base.level = query.level;
     if (query.lessonId) base.lessonId = query.lessonId;
     if (query.category) base.category = query.category;
