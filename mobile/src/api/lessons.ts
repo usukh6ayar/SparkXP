@@ -45,3 +45,11 @@ export function unlockLesson(id: string, token: string): Promise<LessonUnlock> {
     token,
   });
 }
+
+/** Mark a lesson complete → awards XP once. Idempotent on the server. */
+export function completeLesson(
+  id: string,
+  token: string,
+): Promise<{ lessonId: string; alreadyCompleted: boolean; xpAwarded: number }> {
+  return apiRequest(`/lessons/${id}/complete`, { method: 'POST', token });
+}
