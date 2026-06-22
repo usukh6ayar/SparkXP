@@ -39,11 +39,23 @@
 
 | Method | Path | Auth | Тайлбар |
 |---|---|:---:|---|
-| GET | `/words` | 🔑 | Жагсаалт (`?level&lessonId&page&limit`) |
+| GET | `/words` | 🔑 | Жагсаалт (`?status&level&category&search&lessonId&page&limit`). **Default `status=published`** (student-д зөвхөн published; admin тодорхой `status` дамжуулна) |
+| GET | `/words/quiz` | 🔑 | Vocabulary quiz үүсгэх (`?count=4..30`) — published үгээс multiple-choice (зөв хариулт client рүү явахгүй) |
+| POST | `/words/quiz/submit` | 🔑 | `{ answers:[{wordId,choice}] }` → server-side grade, зөв бүрд XP+Sparks. Буцаалт `{ total, correct, xpAwarded, sparksAwarded }` |
 | GET | `/words/:id` | 🔑 | Нэг үг |
-| POST | `/words` | 🛡️ | Үг үүсгэх |
-| PATCH | `/words/:id` | 🛡️ | Засах |
+| POST | `/words` | 🛡️ | Үг үүсгэх (`slug` авто үүснэ). `generateImage:true` бол AI Gateway-ээр зураг үүсгээд `imageUrl` хадгална |
+| POST | `/words/bulk` | 🛡️ | JSON массив bulk import |
+| POST | `/words/:id/generate-image` | 🛡️ | Тухайн үгэнд AI зураг шинээр үүсгэж `imageUrl` шинэчилнэ |
+| PATCH | `/words/:id` | 🛡️ | Засах (`status` солих → publish/approve). `generateImage:true` бол зураг шинээр үүсгэнэ |
 | DELETE | `/words/:id` | 🛡️ | Устгах |
+
+> **Word талбарууд (vocabulary system, 2026-06-22):** `english, mongolian,
+> englishDefinition, phonetic, sparkTip, category, partOfSpeech,
+> exampleSentence, exampleTranslation, audioUrl, imageUrl, level, slug,
+> status`. **`status`
+> (`WordStatus`):** `draft·needs_review·approved·rejected·published` —
+> default `published`. App-д зөвхөн `published` гарна. `category` = нээлттэй
+> string (`VOCAB_CATEGORY_SUGGESTIONS`). Дэлгэрэнгүй: `VOCABULARY_SYSTEM.md`.
 
 ## 📚 Lessons (Хичээл) — `/api/lessons`
 
@@ -78,9 +90,11 @@
 | Method | Path | Auth | Тайлбар |
 |---|---|:---:|---|
 | GET | `/reviews/due` | 🔑 | Өнөөдөр давтах үгс (word-той) |
-| POST | `/reviews/:wordId` | 🔑 | Хариу `{ quality: 0-5 }` → SM-2 reschedule |
-| GET | `/reviews/learn` | 🔑 | Swipe deck — мэдээгүй үгс (known-г хасна) |
+| POST | `/reviews/:wordId` | 🔑 | Хариу `{ quality: 0-5 }` → SM-2 reschedule + recall progress (correct/wrong/recallStatus) |
+| GET | `/reviews/learn` | 🔑 | Swipe deck — зөвхөн `published`, мэдээгүй үгс. Карт бүр `saved` flag-тай |
 | GET | `/reviews/stats` | 🔑 | `{ known, learning }` — "мэдэх үг" тоо |
+| GET | `/reviews/saved` | 🔑 | ⭐ Хадгалсан үгсийн жагсаалт |
+| POST | `/reviews/:wordId/save` | 🔑 | ⭐ saved toggle → `{ wordId, saved }` |
 
 ## 🤖 AI Gateway — `/api/ai`
 
@@ -89,6 +103,12 @@
 | POST | `/ai/chat` | 🔑 | AI Найз `{ message, conversationId? }` → `{ reply, conversationId }` |
 | GET | `/ai/conversations/:conversationId` | 🔑 | Харилцааны түүх |
 | PATCH | `/ai/limits` | 🛡️ | Plan limit тохируулах (Redis, app update-гүй) |
+
+## 📚 Dictionary — `/api/dictionary`
+
+| Method | Path | Auth | Тайлбар |
+|---|---|:---:|---|
+| GET | `/dictionary/:word` | 🔑 | Англи үгийн монгол тайлбар → `{ word, explanation, cached }`. Words DB-ээс эхэлж (cached=true), байхгүй бол AI (plan `dictionaryAiLimit`-тэй). Mobile: AI chat-д үг дээр дарахад. |
 
 ## 🏆 Leaderboard — `/api/leaderboard`
 

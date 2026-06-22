@@ -38,12 +38,15 @@ export function getQuiz(id: string, token: string): Promise<Quiz> {
   return apiRequest<Quiz>(`/quizzes/${id}`, { token });
 }
 
-/** GET /api/quizzes — optionally filtered by lesson (for the lesson's test). */
+/** GET /api/quizzes — optionally filtered by lesson (for the lesson's test).
+ *  Only published quizzes are shown to students (admins can keep drafts hidden),
+ *  matching how getLessons filters by isPublished. */
 export function getQuizzes(
   token: string,
   params: { lessonId?: string } = {},
 ): Promise<{ items: Quiz[]; total: number }> {
-  const q = params.lessonId ? `?lessonId=${params.lessonId}` : '';
+  let q = '?isPublished=true';
+  if (params.lessonId) q += `&lessonId=${params.lessonId}`;
   return apiRequest<{ items: Quiz[]; total: number }>(`/quizzes${q}`, { token });
 }
 

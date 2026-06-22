@@ -1,14 +1,23 @@
-import { Injectable, NotFoundException, OnModuleInit, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  Logger,
+  OnModuleInit,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
-import { Repository } from 'typeorm';
-import { writeFileSync, mkdirSync } from 'fs';
-import { join } from 'path';
+import { Repository, ILike, In } from 'typeorm';
 import Anthropic from '@anthropic-ai/sdk';
 import { Word } from '../entities/word.entity';
+import { WordStatus, XpSource, SparksSource } from '../common/enums';
+import { XpService } from '../xp/xp.service';
+import { SparksService } from '../sparks/sparks.service';
+import { AiGatewayService } from '../ai-gateway/ai-gateway.service';
 import { CreateWordDto } from './dto/create-word.dto';
 import { UpdateWordDto } from './dto/update-word.dto';
 import { QueryWordsDto } from './dto/query-words.dto';
+import { QuizAnswerDto } from './dto/quiz.dto';
 
 export interface AiFillResult {
   mongolian: string;
@@ -26,6 +35,50 @@ export interface PaginatedWords {
   limit: number;
 }
 
+/** One multiple-choice question for the vocabulary quiz (no answer leaked). */
+export interface QuizQuestion {
+  wordId: string;
+  english: string;
+  phonetic: string | null;
+  imageUrl: string | null;
+  /** 4 Mongolian options, shuffled — one is correct. Graded server-side. */
+  options: string[];
+}
+
+/** Result of grading a submitted vocabulary quiz. */
+export interface QuizResult {
+  total: number;
+  correct: number;
+  xpAwarded: number;
+  sparksAwarded: number;
+}
+
+/** Reward per correct answer (anti-abuse: only correct answers earn). */
+const XP_PER_CORRECT = 5;
+const SPARKS_PER_CORRECT = 1;
+
+/** Fisher–Yates shuffle (returns a new array). */
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+/**
+ * URL-safe key from an English word: lowercase, trimmed, spaces/punctuation → `_`.
+ * Used to auto-match bulk-uploaded media filenames (`abandon.mp3` → "abandon").
+ */
+export function slugify(english: string): string {
+  return english
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
 @Injectable()
 export class WordsService implements OnModuleInit {
   private anthropic: Anthropic;
@@ -34,6 +87,9 @@ export class WordsService implements OnModuleInit {
   constructor(
     @InjectRepository(Word)
     private readonly words: Repository<Word>,
+    private readonly xp: XpService,
+    private readonly sparks: SparksService,
+    private readonly aiGateway: AiGatewayService,
     private readonly config: ConfigService,
   ) {}
 
@@ -41,20 +97,22 @@ export class WordsService implements OnModuleInit {
     this.anthropic = new Anthropic({ apiKey: this.config.get('ANTHROPIC_API_KEY') });
   }
 
+  // ── AI Fill (admin "✨ AI бөглөх" button) ──────────────────────────────────
+
   /**
-   * Use Claude Haiku (text) + Flux Schnell via Replicate (image) in parallel
-   * to auto-fill all word fields. Called by the admin "✨ AI бөглөх" button.
-   * Image generation is skipped gracefully if REPLICATE_API_TOKEN is not set.
+   * Generate all word fields from just the English word.
+   * Text: Claude Haiku. Image: OpenAI via AiGatewayService.
+   * Both run in parallel. Image is skipped gracefully if OPENAI_API_KEY is unset.
    */
   async aiFill(english: string): Promise<AiFillResult> {
     const [text, imageUrl] = await Promise.all([
-      this.generateText(english),
-      this.generateImage(english),
+      this.fillText(english),
+      this.fillImage(english).catch(() => null),
     ]);
     return { ...text, imageUrl };
   }
 
-  private async generateText(english: string): Promise<Omit<AiFillResult, 'imageUrl'>> {
+  private async fillText(english: string): Promise<Omit<AiFillResult, 'imageUrl'>> {
     const response = await this.anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 300,
@@ -73,75 +131,51 @@ export class WordsService implements OnModuleInit {
         },
       ],
     });
-
     const raw = response.content[0].type === 'text' ? response.content[0].text.trim() : '{}';
     return JSON.parse(raw) as Omit<AiFillResult, 'imageUrl'>;
   }
 
+  private async fillImage(english: string): Promise<string | null> {
+    const result = await this.aiGateway.generateVocabularyImage({
+      userId: 'admin-fill',
+      wordId: 'preview',
+      english,
+      mongolian: '',
+      partOfSpeech: null,
+    });
+    return result.imageUrl;
+  }
+
+  // ── CRUD ──────────────────────────────────────────────────────────────────
+
+  async create(dto: CreateWordDto, userId?: string): Promise<Word> {
+    const { generateImage, ...wordFields } = dto;
+    const word = this.words.create({ ...wordFields, slug: slugify(dto.english) });
+    const saved = await this.words.save(word);
+    if (generateImage && userId) return this.generateImage(saved.id, userId);
+    return saved;
+  }
+
   /**
-   * Generate an illustration via Replicate Flux Schnell (~$0.003/image).
-   * Downloads the result and saves it to /uploads so it's served like any
-   * other uploaded file. Returns null if no API token is configured.
+   * List words with optional filters + pagination.
+   * Defaults to `status = published` so the student app only ever sees live content.
    */
-  private async generateImage(english: string): Promise<string | null> {
-    const token = this.config.get<string>('REPLICATE_API_TOKEN');
-    if (!token) return null;
-
-    try {
-      const res = await fetch(
-        'https://api.replicate.com/v1/models/black-forest-labs/flux-schnell/predictions',
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-            Prefer: 'wait', // synchronous — waits up to 60s for the result
-          },
-          body: JSON.stringify({
-            input: {
-              prompt: `Simple clean educational illustration for the English word "${english}", flat design, white background, minimalist style, no text`,
-              num_outputs: 1,
-              output_format: 'jpg',
-              output_quality: 80,
-              aspect_ratio: '16:9',
-            },
-          }),
-        },
-      );
-
-      const prediction = await res.json() as { output?: string[] };
-      const outputUrl = prediction?.output?.[0];
-      if (!outputUrl) return null;
-
-      // Download the image and save to local uploads folder
-      const imgRes = await fetch(outputUrl);
-      const buffer = Buffer.from(await imgRes.arrayBuffer());
-      const filename = `ai-${Date.now()}-${english.replace(/\W+/g, '-')}.jpg`;
-      const uploadsDir = join(process.cwd(), 'uploads');
-      mkdirSync(uploadsDir, { recursive: true });
-      writeFileSync(join(uploadsDir, filename), buffer);
-
-      const baseUrl = this.config.get<string>('BASE_URL', 'http://localhost:3000');
-      return `${baseUrl}/uploads/${filename}`;
-    } catch (err) {
-      this.logger.warn(`Image generation failed for "${english}": ${(err as Error).message}`);
-      return null;
-    }
-  }
-
-  create(dto: CreateWordDto): Promise<Word> {
-    const word = this.words.create(dto);
-    return this.words.save(word);
-  }
-
-  /** List words with optional level/lesson filters and pagination. */
   async findAll(query: QueryWordsDto): Promise<PaginatedWords> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
 
-    const where: Record<string, unknown> = {};
-    if (query.level) where.level = query.level;
-    if (query.lessonId) where.lessonId = query.lessonId;
+    const base: Record<string, unknown> = {};
+    base.status = query.status ?? WordStatus.PUBLISHED;
+    if (query.level) base.level = query.level;
+    if (query.lessonId) base.lessonId = query.lessonId;
+    if (query.category) base.category = query.category;
+
+    const where = query.search
+      ? [
+          { ...base, english: ILike(`%${query.search}%`) },
+          { ...base, mongolian: ILike(`%${query.search}%`) },
+        ]
+      : base;
 
     const [items, total] = await this.words.findAndCount({
       where,
@@ -160,9 +194,26 @@ export class WordsService implements OnModuleInit {
     return word;
   }
 
-  async update(id: string, dto: UpdateWordDto): Promise<Word> {
+  async update(id: string, dto: UpdateWordDto, userId?: string): Promise<Word> {
     const word = await this.findOne(id);
-    Object.assign(word, dto);
+    const { generateImage, ...wordFields } = dto;
+    Object.assign(word, wordFields);
+    const saved = await this.words.save(word);
+    if (generateImage && userId) return this.generateImage(saved.id, userId);
+    return saved;
+  }
+
+  /** Generate and save an AI illustration for an existing word via OpenAI. */
+  async generateImage(id: string, userId: string): Promise<Word> {
+    const word = await this.findOne(id);
+    const result = await this.aiGateway.generateVocabularyImage({
+      userId,
+      wordId: word.id,
+      english: word.english,
+      mongolian: word.mongolian,
+      partOfSpeech: word.partOfSpeech,
+    });
+    word.imageUrl = result.imageUrl;
     return this.words.save(word);
   }
 
@@ -173,12 +224,10 @@ export class WordsService implements OnModuleInit {
 
   /**
    * Bulk-insert words, skipping any that already exist (same english + level).
-   * Returns counts of inserted vs skipped.
    */
   async bulkImport(items: CreateWordDto[]): Promise<{ inserted: number; skipped: number }> {
     let inserted = 0;
     let skipped = 0;
-
     const BATCH = 100;
     for (let i = 0; i < items.length; i += BATCH) {
       const batch = items.slice(i, i + BATCH);
@@ -189,12 +238,71 @@ export class WordsService implements OnModuleInit {
             select: { id: true },
           });
           if (exists) { skipped++; return; }
-          await this.words.save(this.words.create(dto));
+          const { generateImage: _gi, ...wordFields } = dto;
+          await this.words.save(this.words.create({ ...wordFields, slug: slugify(dto.english) }));
           inserted++;
         }),
       );
     }
-
     return { inserted, skipped };
+  }
+
+  // ── Vocabulary quiz ──────────────────────────────────────────────────────
+
+  /**
+   * Build a multiple-choice quiz from PUBLISHED words: each question shows an
+   * English word and 4 Mongolian options (the correct meaning + 3 distractors).
+   */
+  async generateQuiz(count = 10): Promise<QuizQuestion[]> {
+    const pool = await this.words
+      .createQueryBuilder('w')
+      .where('w.status = :status', { status: WordStatus.PUBLISHED })
+      .andWhere("w.mongolian <> ''")
+      .orderBy('RANDOM()')
+      .limit(Math.max(count * 4, 40))
+      .getMany();
+
+    const uniqueMeanings = Array.from(new Set(pool.map((w) => w.mongolian)));
+    if (uniqueMeanings.length < 4) {
+      throw new BadRequestException('Сорил үүсгэхэд хангалттай нийтлэгдсэн үг алга байна');
+    }
+
+    const answers = pool.slice(0, Math.min(count, pool.length));
+    return answers.map((word) => {
+      const distractors = shuffle(uniqueMeanings.filter((m) => m !== word.mongolian)).slice(0, 3);
+      return {
+        wordId: word.id,
+        english: word.english,
+        phonetic: word.phonetic,
+        imageUrl: word.imageUrl,
+        options: shuffle([word.mongolian, ...distractors]),
+      };
+    });
+  }
+
+  /**
+   * Grade submitted answers and award XP + Sparks for correct ones only.
+   */
+  async gradeQuiz(userId: string, answers: QuizAnswerDto[]): Promise<QuizResult> {
+    if (answers.length === 0) throw new BadRequestException('Хариулт алга байна');
+
+    const ids = [...new Set(answers.map((a) => a.wordId))];
+    const wordList = await this.words.find({ where: { id: In(ids), status: WordStatus.PUBLISHED } });
+    const byId = new Map(wordList.map((w) => [w.id, w]));
+
+    let correct = 0;
+    for (const a of answers) {
+      const word = byId.get(a.wordId);
+      if (word && a.choice.trim() === word.mongolian.trim()) correct++;
+    }
+
+    const xpAwarded = correct * XP_PER_CORRECT;
+    const sparksAwarded = correct * SPARKS_PER_CORRECT;
+    if (xpAwarded > 0) await this.xp.award({ userId, amount: xpAwarded, source: XpSource.QUIZ });
+    if (sparksAwarded > 0) {
+      await this.sparks.change({ userId, amount: sparksAwarded, source: SparksSource.QUIZ });
+    }
+
+    return { total: answers.length, correct, xpAwarded, sparksAwarded };
   }
 }

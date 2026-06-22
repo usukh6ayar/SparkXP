@@ -4,6 +4,7 @@ import {
   Logger,
   OnModuleInit,
   Inject,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -18,6 +19,7 @@ import { MessageRole, AiUsageType } from '../common/enums';
 import { CreateBuddyDto, UpdateBuddyDto } from './dto/create-buddy.dto';
 import { REDIS_CLIENT } from '../redis/redis.module';
 import type Redis from 'ioredis';
+import { ImageStorageService } from './image-storage.service';
 
 /** Default plan limits — overridable via Redis key `ai:limits:default`. */
 const DEFAULT_LIMITS = {
@@ -29,10 +31,27 @@ const DEFAULT_LIMITS = {
 /** Model used for the AI buddy. Haiku is fast and cheap for chat. */
 const AI_MODEL = 'claude-haiku-4-5-20251001';
 
+/** Default model for vocabulary illustrations. Override with OPENAI_IMAGE_MODEL. */
+const DEFAULT_IMAGE_MODEL = 'gpt-image-2';
+const IMAGE_COST_MICRO_USD = 6_000;
+
 export interface ChatResponse {
   conversationId: string;
   reply: string;
   tokensUsed: { prompt: number; completion: number };
+}
+
+export interface VocabularyImageRequest {
+  userId: string;
+  wordId: string;
+  english: string;
+  mongolian: string;
+  partOfSpeech?: string | null;
+}
+
+export interface VocabularyImageResponse {
+  imageUrl: string;
+  model: string;
 }
 
 @Injectable()
@@ -51,6 +70,7 @@ export class AiGatewayService implements OnModuleInit {
     @InjectRepository(User)
     private readonly usersRepo: Repository<User>,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    private readonly imageStorage: ImageStorageService,
   ) {}
 
   onModuleInit() {
@@ -216,6 +236,96 @@ export class AiGatewayService implements OnModuleInit {
       where: { userId, conversationId },
       order: { createdAt: 'ASC' },
     });
+  }
+
+  /**
+   * Generate one safe, text-free vocabulary illustration and store it as a URL.
+   * Features call this gateway instead of calling AI providers directly.
+   */
+  async generateVocabularyImage(
+    input: VocabularyImageRequest,
+  ): Promise<VocabularyImageResponse> {
+    const apiKey = this.config.get<string>('OPENAI_API_KEY');
+    if (!apiKey) {
+      throw new InternalServerErrorException('OPENAI_API_KEY тохируулаагүй байна');
+    }
+
+    const model = this.config.get<string>('OPENAI_IMAGE_MODEL', DEFAULT_IMAGE_MODEL);
+    const prompt = [
+      'Create a square educational vocabulary flashcard illustration.',
+      `English word: "${input.english}".`,
+      `Mongolian meaning: "${input.mongolian}".`,
+      input.partOfSpeech ? `Part of speech: ${input.partOfSpeech}.` : '',
+      'Show the concept clearly for a Mongolian student learning English.',
+      'No text, no letters, no watermark, no logo.',
+      'Friendly modern illustration, clean background, high contrast, age-safe.',
+    ]
+      .filter(Boolean)
+      .join(' ');
+
+    const response = await fetch('https://api.openai.com/v1/images/generations', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model,
+        prompt,
+        size: this.config.get<string>('OPENAI_IMAGE_SIZE', '1024x1024'),
+        quality: this.config.get<string>('OPENAI_IMAGE_QUALITY', 'low'),
+        n: 1,
+      }),
+    });
+
+    const body = (await response.json().catch(() => ({}))) as {
+      data?: { b64_json?: string }[];
+      error?: { message?: string };
+    };
+    const b64 = body.data?.[0]?.b64_json;
+    if (!response.ok || !b64) {
+      throw new InternalServerErrorException(
+        body.error?.message ?? 'OpenAI image generation failed',
+      );
+    }
+
+    const imageUrl = await this.imageStorage.storeGeneratedImage({
+      buffer: Buffer.from(b64, 'base64'),
+      filename: `${this.safeFilename(input.english)}-${Date.now()}.png`,
+      mimeType: 'image/png',
+      folder: this.config.get<string>('CLOUDINARY_WORD_IMAGES_FOLDER'),
+    });
+
+    await this.aiUsages.save(
+      this.aiUsages.create({
+        userId: input.userId,
+        type: AiUsageType.IMAGE_GENERATION,
+        model,
+        promptTokens: 0,
+        completionTokens: 0,
+        voiceSeconds: 0,
+        costMicroUsd: IMAGE_COST_MICRO_USD,
+        metadata: {
+          wordId: input.wordId,
+          english: input.english,
+          provider: 'openai',
+          size: this.config.get<string>('OPENAI_IMAGE_SIZE', '1024x1024'),
+          quality: this.config.get<string>('OPENAI_IMAGE_QUALITY', 'low'),
+        },
+      }),
+    );
+
+    return { imageUrl, model };
+  }
+
+  private safeFilename(value: string): string {
+    return (
+      value
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'word'
+    );
   }
 
   /**

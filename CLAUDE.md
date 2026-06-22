@@ -48,6 +48,9 @@ organizations (e.g. law firms). Owner: Hustle Hive LLC.
   permissions matrix (read this to understand who can do what)
 - `API.md` — full backend endpoint reference (path, auth level, purpose)
 - `ADMIN_ROADMAP.md` — web admin dashboard plan (tech, phases, features)
+- `VOCABULARY_SYSTEM.md` — **bulk vocabulary pipeline** (20k+ words: bulk
+  upload → validate → media auto-match → review → publish → swipe + per-user
+  progress + analytics). Read before any vocab/word/swipe/bulk-import work.
 
 ---
 

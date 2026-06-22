@@ -37,7 +37,7 @@ export class QuizzesController {
   /** Admin: create a new quiz. */
   @Post()
   @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
   create(@Body() dto: CreateQuizDto) {
     return this.quizzesService.create(dto);
   }
@@ -57,7 +57,7 @@ export class QuizzesController {
   /** Admin: update a quiz. */
   @Patch(':id')
   @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
   update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateQuizDto) {
     return this.quizzesService.update(id, dto);
   }
@@ -65,7 +65,7 @@ export class QuizzesController {
   /** Admin: delete a quiz. */
   @Delete(':id')
   @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.quizzesService.remove(id);

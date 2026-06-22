@@ -1,15 +1,39 @@
 import { Type } from 'class-transformer';
-import { IsOptional, IsEnum, IsUUID, IsInt, Min, Max } from 'class-validator';
-import { ContentLevel } from '../../common/enums';
+import {
+  IsOptional,
+  IsEnum,
+  IsUUID,
+  IsInt,
+  IsString,
+  Min,
+  Max,
+} from 'class-validator';
+import { ContentLevel, WordStatus } from '../../common/enums';
 
 /**
  * Query params for GET /api/words — optional filters + simple pagination.
  * `@Type(() => Number)` converts the string query values to numbers.
+ *
+ * `status` defaults to `published` in the service (student app), so the admin
+ * panel passes an explicit status to view drafts / needs_review / etc.
  */
 export class QueryWordsDto {
   @IsOptional()
   @IsEnum(ContentLevel)
   level?: ContentLevel;
+
+  @IsOptional()
+  @IsEnum(WordStatus)
+  status?: WordStatus;
+
+  @IsOptional()
+  @IsString()
+  category?: string;
+
+  /** Free-text search over English / Mongolian. */
+  @IsOptional()
+  @IsString()
+  search?: string;
 
   @IsOptional()
   @IsUUID()

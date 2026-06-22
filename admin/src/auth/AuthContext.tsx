@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import { api, setToken } from '../api/client';
+import { isStaff } from './access';
 
 interface AuthUser {
   id: string;
@@ -39,7 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!token || !authUser) {
       throw new Error('Серверээс буруу хариу ирлээ');
     }
-    if (authUser.role !== 'admin' && authUser.role !== 'super_admin') {
+    if (!isStaff(authUser.role)) {
       throw new Error('Таны эрх хүрэхгүй байна');
     }
     setToken(token);

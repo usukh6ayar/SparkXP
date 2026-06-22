@@ -4,8 +4,9 @@ import {
   IsEnum,
   IsUUID,
   MaxLength,
+  IsBoolean,
 } from 'class-validator';
-import { ContentLevel } from '../../common/enums';
+import { ContentLevel, WordStatus } from '../../common/enums';
 
 /** Body for POST /api/words. Admins author vocabulary from the admin panel. */
 export class CreateWordDto {
@@ -16,6 +17,35 @@ export class CreateWordDto {
   @IsString()
   @MaxLength(200)
   mongolian: string;
+
+  /** English dictionary definition (separate from the Mongolian meaning). */
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  englishDefinition?: string;
+
+  /** IPA pronunciation, e.g. /əˈbændən/. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  phonetic?: string;
+
+  /** Memory aid / mnemonic shown in the flashcard "Spark сануулга" section. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  sparkTip?: string;
+
+  /** Topical category (free text — see VOCAB_CATEGORY_SUGGESTIONS). */
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  category?: string;
+
+  /** Review lifecycle. Defaults to `published` on the entity if omitted. */
+  @IsOptional()
+  @IsEnum(WordStatus)
+  status?: WordStatus;
 
   @IsOptional()
   @IsString()
@@ -52,4 +82,12 @@ export class CreateWordDto {
   @IsOptional()
   @IsUUID()
   lessonId?: string;
+
+  /**
+   * Admin-only request flag. If true, the WordsService asks the AI Gateway to
+   * create and attach a vocabulary image after saving the word.
+   */
+  @IsOptional()
+  @IsBoolean()
+  generateImage?: boolean;
 }

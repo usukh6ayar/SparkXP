@@ -5,13 +5,17 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useAudioPlayer } from 'expo-audio';
 import { useAuth } from '../src/auth/AuthContext';
-import { getLearnQueue, markKnown, type LearnWord } from '../src/api/reviews';
+import {
+  getLearnQueue, markKnown, markForgot, toggleSave, type LearnWord,
+} from '../src/api/reviews';
 import { TopBar } from '../src/components/TopBar';
 import { AppText } from '../src/components/Text';
 import { Loading } from '../src/components/Loading';
 import { Button } from '../src/components/Button';
 import { ProgressBar } from '../src/components/ProgressBar';
+import { VocabCard } from '../src/components/VocabCard';
 import { colors, spacing, radius, elevation } from '../src/theme/theme';
 
 const SCREEN_W = Dimensions.get('window').width;
@@ -19,21 +23,22 @@ const THRESHOLD = SCREEN_W * 0.25;
 const OUT_DURATION = 250;
 
 /**
- * Tinder-style word learning.
- * - Swipe RIGHT = "Мэднэ" → mark known (quality 5), word leaves the deck.
- * - Swipe LEFT  = "Мэдэхгүй" → word goes to the back of the deck (comes again).
- * - Tap the card → flip to the Mongolian meaning.
- * Loops until every word is known. Known count shown on Profile.
+ * Vocabulary swipe learning (design mockup zurag.jpg).
+ * - Swipe RIGHT / "Know"   → mark known (quality 5), card leaves the deck.
+ * - Swipe LEFT  / "Forgot" → mark forgot (quality 1), card goes to the back.
+ * - ⭐ tap → save/unsave the word.
+ * - 🔊 tap → play the word's pronunciation.
+ * Only published words come back from the server. Loops until all are known.
  */
 export default function SwipeScreen() {
   const { token } = useAuth();
   const router = useRouter();
   const [queue, setQueue] = useState<LearnWord[]>([]);
   const [known, setKnown] = useState(0);
-  const [flipped, setFlipped] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const position = useRef(new Animated.ValueXY()).current;
+  const player = useAudioPlayer();
   // Refs so the (once-created) PanResponder always reads the latest values.
   const queueRef = useRef<LearnWord[]>([]);
   queueRef.current = queue;
@@ -48,19 +53,41 @@ export default function SwipeScreen() {
       .finally(() => setLoading(false));
   }, [token]);
 
+  function playAudio() {
+    const url = queueRef.current[0]?.audioUrl;
+    if (!url) return;
+    try {
+      player.replace({ uri: url });
+      player.play();
+    } catch {
+      // audio is non-critical — ignore playback errors
+    }
+  }
+
+  function onToggleSave() {
+    const card = queueRef.current[0];
+    if (!card) return;
+    // optimistic flip on the visible card
+    setQueue((q) =>
+      q.map((w, i) => (i === 0 ? { ...w, saved: !w.saved } : w)),
+    );
+    const t = tokenRef.current;
+    if (t) toggleSave(t, card.id).catch(() => {});
+  }
+
   function handleSwipe(dir: 'left' | 'right') {
     const card = queueRef.current[0];
     if (!card) return;
+    const t = tokenRef.current;
     if (dir === 'right') {
-      const t = tokenRef.current;
       if (t) markKnown(t, card.id).catch(() => {});
       setKnown((k) => k + 1);
       setQueue((q) => q.slice(1)); // known → remove
     } else {
-      setQueue((q) => [...q.slice(1), card]); // don't know → back of deck
+      if (t) markForgot(t, card.id).catch(() => {});
+      setQueue((q) => [...q.slice(1), card]); // forgot → back of deck
     }
     position.setValue({ x: 0, y: 0 });
-    setFlipped(false);
   }
 
   function forceSwipe(dir: 'left' | 'right') {
@@ -77,11 +104,10 @@ export default function SwipeScreen() {
 
   const pan = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 6,
       onPanResponderMove: (_, g) => position.setValue({ x: g.dx, y: g.dy }),
       onPanResponderRelease: (_, g) => {
-        if (Math.abs(g.dx) < 8 && Math.abs(g.dy) < 8) setFlipped((f) => !f);
-        else if (g.dx > THRESHOLD) forceSwipe('right');
+        if (g.dx > THRESHOLD) forceSwipe('right');
         else if (g.dx < -THRESHOLD) forceSwipe('left');
         else reset();
       },
@@ -95,7 +121,7 @@ export default function SwipeScreen() {
 
   const rotate = position.x.interpolate({
     inputRange: [-SCREEN_W * 1.4, 0, SCREEN_W * 1.4],
-    outputRange: ['-28deg', '0deg', '28deg'],
+    outputRange: ['-12deg', '0deg', '12deg'],
   });
   const knowOpacity = position.x.interpolate({ inputRange: [0, THRESHOLD], outputRange: [0, 1], extrapolate: 'clamp' });
   const dontOpacity = position.x.interpolate({ inputRange: [-THRESHOLD, 0], outputRange: [1, 0], extrapolate: 'clamp' });
@@ -126,8 +152,8 @@ export default function SwipeScreen() {
         <View style={styles.deck}>
           {/* Next card peek */}
           {next ? (
-            <View style={[styles.card, styles.cardBehind]}>
-              <AppText style={styles.word}>{next.english}</AppText>
+            <View style={[styles.cardWrap, styles.cardBehind]} pointerEvents="none">
+              <VocabCard word={next} saved={next.saved} onToggleSave={() => {}} onPlayAudio={() => {}} />
             </View>
           ) : null}
 
@@ -135,47 +161,38 @@ export default function SwipeScreen() {
           <Animated.View
             {...pan.panHandlers}
             style={[
-              styles.card,
+              styles.cardWrap,
               { transform: [{ translateX: position.x }, { translateY: position.y }, { rotate }] },
             ]}
           >
             <Animated.View style={[styles.badge, styles.badgeKnow, { opacity: knowOpacity }]}>
-              <AppText variant="label" color={colors.success} style={styles.badgeText}>МЭДНЭ</AppText>
+              <AppText color={colors.success} style={styles.badgeText}>KNOW</AppText>
             </Animated.View>
             <Animated.View style={[styles.badge, styles.badgeDont, { opacity: dontOpacity }]}>
-              <AppText variant="label" color={colors.danger} style={styles.badgeText}>МЭДЭХГҮЙ</AppText>
+              <AppText color={colors.danger} style={styles.badgeText}>FORGOT</AppText>
             </Animated.View>
 
-            {!flipped ? (
-              <>
-                <AppText style={styles.word}>{current.english}</AppText>
-                <AppText variant="caption" style={styles.hint}>дарж орчуулга харах</AppText>
-              </>
-            ) : (
-              <>
-                <AppText style={styles.translation}>{current.mongolian}</AppText>
-                {current.exampleSentence ? (
-                  <AppText variant="body" color={colors.textSecondary} center style={styles.example}>
-                    {current.exampleSentence}
-                  </AppText>
-                ) : null}
-              </>
-            )}
+            <VocabCard
+              word={current}
+              saved={current.saved}
+              onToggleSave={onToggleSave}
+              onPlayAudio={playAudio}
+            />
           </Animated.View>
         </View>
       )}
 
-      {/* Action buttons */}
+      {/* Forgot / Know actions */}
       {current ? (
         <View style={styles.actions}>
-          <Pressable style={[styles.actBtn, styles.actDont]} onPress={() => forceSwipe('left')}>
-            <Ionicons name="close" size={30} color={colors.danger} />
+          <Pressable style={[styles.actBtn, styles.actForgot]} onPress={() => forceSwipe('left')}>
+            <Ionicons name="arrow-back" size={20} color={colors.danger} />
+            <AppText variant="label" color={colors.danger}>Forgot</AppText>
           </Pressable>
-          <Pressable style={[styles.actBtn, styles.actFlip]} onPress={() => setFlipped((f) => !f)}>
-            <Ionicons name="sync" size={22} color={colors.navy} />
-          </Pressable>
+          <AppText variant="caption">— Swipe —</AppText>
           <Pressable style={[styles.actBtn, styles.actKnow]} onPress={() => forceSwipe('right')}>
-            <Ionicons name="checkmark" size={30} color={colors.white} />
+            <AppText variant="label" color={colors.success}>Know</AppText>
+            <Ionicons name="arrow-forward" size={20} color={colors.success} />
           </Pressable>
         </View>
       ) : null}
@@ -187,34 +204,29 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   counterWrap: { paddingHorizontal: spacing.lg, marginBottom: spacing.sm, marginTop: spacing.xs },
   counter: { flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.sm },
-  deck: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
-  card: {
-    position: 'absolute',
-    width: SCREEN_W - spacing.lg * 2,
-    minHeight: 320,
-    backgroundColor: colors.surface,
-    borderRadius: radius.xl,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: spacing.xl,
-    ...(elevation.md as object),
+  deck: { flex: 1, justifyContent: 'center', paddingHorizontal: spacing.lg },
+  cardWrap: { position: 'absolute', left: spacing.lg, right: spacing.lg },
+  cardBehind: { transform: [{ scale: 0.95 }, { translateY: 14 }], opacity: 0.55 },
+  badge: {
+    position: 'absolute', top: spacing.lg, zIndex: 10,
+    paddingHorizontal: spacing.md, paddingVertical: 6,
+    borderRadius: radius.md, borderWidth: 3, backgroundColor: 'rgba(255,255,255,0.9)',
   },
-  cardBehind: { transform: [{ scale: 0.94 }, { translateY: 16 }], opacity: 0.6 },
-  word: { fontSize: 40, lineHeight: 46, fontWeight: '800', color: colors.navy, textAlign: 'center' },
-  hint: { marginTop: spacing.lg },
-  translation: { fontSize: 30, lineHeight: 36, fontWeight: '800', color: colors.primary, textAlign: 'center' },
-  example: { marginTop: spacing.md },
-  badge: { position: 'absolute', top: spacing.lg, paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: radius.md, borderWidth: 2.5 },
   badgeKnow: { right: spacing.lg, borderColor: colors.success, transform: [{ rotate: '12deg' }] },
   badgeDont: { left: spacing.lg, borderColor: colors.danger, transform: [{ rotate: '-12deg' }] },
-  badgeText: { fontWeight: '900', letterSpacing: 0.5 },
-  actions: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: spacing.xl, paddingVertical: spacing.lg },
-  actBtn: { width: 64, height: 64, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center', borderWidth: 2 },
-  actDont: { borderColor: colors.danger, backgroundColor: colors.surface },
-  actFlip: { borderColor: colors.border, backgroundColor: colors.surface, width: 52, height: 52 },
-  actKnow: { borderColor: colors.success, backgroundColor: colors.success },
+  badgeText: { fontWeight: '900', letterSpacing: 1, fontSize: 18 },
+  actions: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.lg,
+  },
+  actBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
+    paddingVertical: spacing.md, paddingHorizontal: spacing.xl,
+    borderRadius: radius.full, borderWidth: 1.5, flex: 1, justifyContent: 'center',
+    ...(elevation.sm as object),
+  },
+  actForgot: { borderColor: colors.danger, backgroundColor: colors.dangerSoft },
+  actKnow: { borderColor: colors.success, backgroundColor: colors.successSoft },
   done: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
   doneEmoji: { fontSize: 56 },
   doneTitle: { marginTop: spacing.md, marginBottom: spacing.xs },

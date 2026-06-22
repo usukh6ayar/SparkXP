@@ -16,9 +16,12 @@ import { WordsService } from './words.service';
 import { CreateWordDto } from './dto/create-word.dto';
 import { UpdateWordDto } from './dto/update-word.dto';
 import { QueryWordsDto } from './dto/query-words.dto';
+import { QuizQueryDto, QuizSubmitDto } from './dto/quiz.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { User } from '../entities/user.entity';
 import { UserRole } from '../common/enums';
 
 /**
@@ -48,8 +51,8 @@ export class WordsController {
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
-  create(@Body() dto: CreateWordDto) {
-    return this.wordsService.create(dto);
+  create(@CurrentUser() user: User, @Body() dto: CreateWordDto) {
+    return this.wordsService.create(dto, user.id);
   }
 
   /**
@@ -75,25 +78,53 @@ export class WordsController {
     return this.wordsService.findAll(query);
   }
 
+  /**
+   * Generate a vocabulary quiz (multiple-choice) from published words.
+   * Declared before `:id` so the literal "quiz" path isn't parsed as a UUID.
+   */
+  @Get('quiz')
+  @UseGuards(JwtAuthGuard)
+  getQuiz(@Query() query: QuizQueryDto) {
+    return this.wordsService.generateQuiz(query.count);
+  }
+
+  /** Submit quiz answers → graded server-side, awards XP + Sparks for correct. */
+  @Post('quiz/submit')
+  @UseGuards(JwtAuthGuard)
+  submitQuiz(@CurrentUser() user: User, @Body() dto: QuizSubmitDto) {
+    return this.wordsService.gradeQuiz(user.id, dto.answers);
+  }
+
   @Get(':id')
   findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.wordsService.findOne(id);
   }
 
+  @Post(':id/generate-image')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  generateImage(
+    @CurrentUser() user: User,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.wordsService.generateImage(id, user.id);
+  }
+
   @Patch(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
   update(
+    @CurrentUser() user: User,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateWordDto,
   ) {
-    return this.wordsService.update(id, dto);
+    return this.wordsService.update(id, dto, user.id);
   }
 
   @Delete(':id')
   @HttpCode(204)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
   remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.wordsService.remove(id);
   }

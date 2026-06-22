@@ -10,6 +10,7 @@ import { useAuth } from '../../src/auth/AuthContext';
 import * as aiApi from '../../src/api/ai';
 import { TopBar } from '../../src/components/TopBar';
 import { AppText } from '../../src/components/Text';
+import { TappableText } from '../../src/components/DictionaryProvider';
 import { colors, spacing, radius } from '../../src/theme/theme';
 
 interface LocalMessage {
@@ -161,9 +162,17 @@ function MessageBubble({ message }: { message: LocalMessage }) {
     <View style={[styles.bubbleRow, isUser && styles.bubbleRowUser]}>
       {!isUser && <Image source={sparkImg} style={styles.avatarImg} resizeMode="contain" />}
       <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAi]}>
-        <AppText variant="body" color={isUser ? colors.white : colors.text}>
-          {message.content}
-        </AppText>
+        {/* Spark's replies are English-rich — tap any word for a Mongolian
+            explanation. User's own messages stay plain. */}
+        {isUser ? (
+          <AppText variant="body" color={colors.white}>
+            {message.content}
+          </AppText>
+        ) : (
+          <TappableText variant="body" color={colors.text}>
+            {message.content}
+          </TappableText>
+        )}
       </View>
     </View>
   );

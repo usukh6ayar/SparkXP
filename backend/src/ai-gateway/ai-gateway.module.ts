@@ -7,11 +7,12 @@ import { User } from '../entities/user.entity';
 import { Plan } from '../entities/plan.entity';
 import { AiGatewayService } from './ai-gateway.service';
 import { AiGatewayController } from './ai-gateway.controller';
+import { ImageStorageService } from './image-storage.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Message, AiUsage, AiBuddy, User, Plan])],
-  providers: [AiGatewayService],
+  providers: [AiGatewayService, ImageStorageService],
   controllers: [AiGatewayController],
-  exports: [AiGatewayService],
+  exports: [AiGatewayService, ImageStorageService],
 })
 export class AiGatewayModule {}
