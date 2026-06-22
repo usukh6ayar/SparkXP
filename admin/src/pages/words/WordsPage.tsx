@@ -8,6 +8,7 @@ import { Table } from '../../components/Table';
 import { Modal } from '../../components/Modal';
 import { Input } from '../../components/Input';
 import { Select } from '../../components/Select';
+import { ImageCropUpload } from '../../components/ImageCropUpload';
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api';
 
@@ -119,7 +120,7 @@ export default function WordsPage() {
       partOfSpeech: w.partOfSpeech ?? '',
       exampleSentence: w.exampleSentence ?? '',
       exampleTranslation: w.exampleTranslation ?? '',
-      imageUrl: '',        // cleared so we only show fresh AI fill
+      imageUrl: w.imageUrl ?? '',   // show existing image so it can be replaced
       generateImage: false,
     });
     setEditing(w); setError(''); setModal('edit');
@@ -372,47 +373,39 @@ export default function WordsPage() {
             <Input label="Жишээ өгүүлбэрийн орчуулга" value={form.exampleTranslation} onChange={(e) => setForm({ ...form, exampleTranslation: e.target.value })} placeholder="Би өдөр бүр нэг алим иддэг." />
             <Input label="Spark сануулга (тогтооход туслах)" value={form.sparkTip} onChange={(e) => setForm({ ...form, sparkTip: e.target.value })} placeholder="Abandon = A band on? Хамтлаг чамайг орхиод явж байна гэж сана." />
 
-            {/* AI fill image preview */}
-            {form.imageUrl && (
-              <div className="relative rounded-xl overflow-hidden border border-gray-200">
-                <img src={form.imageUrl} alt={form.english} className="w-full max-h-40 object-cover" />
-                <button
-                  type="button"
-                  onClick={() => setForm(f => ({ ...f, imageUrl: '', generateImage: false }))}
-                  className="absolute top-2 right-2 rounded-full bg-black/50 p-1 text-white hover:bg-black/70"
-                >
-                  <span className="text-xs px-1">✕</span>
-                </button>
-                <span className="absolute bottom-2 left-2 rounded bg-black/50 px-2 py-0.5 text-xs text-white">AI зураг</span>
-              </div>
-            )}
+            {/* Image — manual upload/crop/replace. Works for AI-filled images too
+                (the AI fill / generate fills `imageUrl`, which shows here and can
+                be swapped or cleared). */}
+            <div className="space-y-2">
+              <ImageCropUpload
+                value={form.imageUrl}
+                onChange={(url) => setForm(f => ({ ...f, imageUrl: url, generateImage: false }))}
+                label="Зураг"
+                aspect={1}
+              />
+              {form.imageUrl && (
+                <p className="flex items-center gap-1.5 text-xs text-gray-400">
+                  <ImageIcon className="h-3.5 w-3.5" />
+                  Зургийг солихын тулд дээр дарж шинээр сонгоно уу.
+                </p>
+              )}
 
-            {/* Existing image when editing and no AI fill has run */}
-            {!form.imageUrl && editing?.imageUrl && (
-              <div className="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
-                <img src={editing.imageUrl} alt="" className="h-16 w-16 rounded-lg object-cover" />
-                <div>
-                  <p className="text-sm font-medium text-gray-700">Одоогийн зураг</p>
-                  <p className="text-xs text-gray-500 break-all">{editing.imageUrl}</p>
-                </div>
-              </div>
-            )}
-
-            {/* Generate image checkbox (disabled when AI fill already produced one) */}
-            {!form.imageUrl && (
-              <label className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
-                <input
-                  type="checkbox"
-                  checked={form.generateImage}
-                  onChange={(e) => setForm({ ...form, generateImage: e.target.checked })}
-                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                />
-                <span className="flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-primary" />
-                  {modal === 'create' ? 'Зураг автоматаар үүсгэх' : 'Зургийг шинээр үүсгэх'}
-                </span>
-              </label>
-            )}
+              {/* No image yet → offer AI auto-generation on save */}
+              {!form.imageUrl && (
+                <label className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={form.generateImage}
+                    onChange={(e) => setForm({ ...form, generateImage: e.target.checked })}
+                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                  />
+                  <span className="flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                    Зураг оруулаагүй бол AI-аар автоматаар үүсгэх
+                  </span>
+                </label>
+              )}
+            </div>
 
             {error && <p className="text-sm text-red-500">{error}</p>}
             <div className="flex justify-end gap-2 pt-2">
