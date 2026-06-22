@@ -18,6 +18,7 @@ interface Word {
   partOfSpeech: string | null;
   exampleSentence: string | null;
   exampleTranslation: string | null;
+  imageUrl: string | null;
   level: string;
   lessonId: string | null;
 }
@@ -37,10 +38,11 @@ const levelColors: Record<string, 'green' | 'blue' | 'yellow' | 'red' | 'gray'> 
 interface WordForm {
   english: string; mongolian: string; level: string;
   partOfSpeech: string; exampleSentence: string; exampleTranslation: string;
+  imageUrl: string;
 }
 const empty: WordForm = {
   english: '', mongolian: '', level: 'a1',
-  partOfSpeech: '', exampleSentence: '', exampleTranslation: '',
+  partOfSpeech: '', exampleSentence: '', exampleTranslation: '', imageUrl: '',
 };
 
 const CSV_TEMPLATE =
@@ -102,6 +104,7 @@ export default function WordsPage() {
       partOfSpeech: w.partOfSpeech ?? '',
       exampleSentence: w.exampleSentence ?? '',
       exampleTranslation: w.exampleTranslation ?? '',
+      imageUrl: w.imageUrl ?? '',
     });
     setEditing(w); setError(''); setModal('edit');
   }
@@ -113,6 +116,7 @@ export default function WordsPage() {
       const result = await api.post<{
         mongolian: string; partOfSpeech: string;
         exampleSentence: string; exampleTranslation: string;
+        imageUrl: string | null;
       }>('/words/ai-fill', { english: form.english.trim() });
       setForm(f => ({
         ...f,
@@ -120,6 +124,7 @@ export default function WordsPage() {
         partOfSpeech: result.partOfSpeech || f.partOfSpeech,
         exampleSentence: result.exampleSentence || f.exampleSentence,
         exampleTranslation: result.exampleTranslation || f.exampleTranslation,
+        imageUrl: result.imageUrl || f.imageUrl,
       }));
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'AI алдаа гарлаа');
@@ -139,6 +144,7 @@ export default function WordsPage() {
         partOfSpeech: form.partOfSpeech || undefined,
         exampleSentence: form.exampleSentence || undefined,
         exampleTranslation: form.exampleTranslation || undefined,
+        imageUrl: form.imageUrl || undefined,
       };
       if (modal === 'create') await api.post('/words', payload);
       else if (editing) await api.patch(`/words/${editing.id}`, payload);
@@ -195,6 +201,13 @@ export default function WordsPage() {
   }
 
   const columns = [
+    {
+      key: 'img', header: '',
+      render: (w: Word) => w.imageUrl
+        ? <img src={w.imageUrl} alt="" className="h-10 w-14 rounded object-cover border border-gray-100" />
+        : <div className="h-10 w-14 rounded border border-dashed border-gray-200 bg-gray-50" />,
+      className: 'w-16',
+    },
     {
       key: 'word', header: 'Үг', render: (w: Word) => (
         <div>
@@ -289,6 +302,22 @@ export default function WordsPage() {
             </div>
             <Input label="Жишээ өгүүлбэр (Англи)" value={form.exampleSentence} onChange={(e) => setForm({ ...form, exampleSentence: e.target.value })} placeholder="I eat an apple every day." />
             <Input label="Жишээ өгүүлбэрийн орчуулга" value={form.exampleTranslation} onChange={(e) => setForm({ ...form, exampleTranslation: e.target.value })} placeholder="Би өдөр бүр нэг алим иддэг." />
+
+            {/* AI-generated image preview */}
+            {form.imageUrl && (
+              <div className="relative rounded-xl overflow-hidden border border-gray-200">
+                <img src={form.imageUrl} alt={form.english} className="w-full max-h-40 object-cover" />
+                <button
+                  type="button"
+                  onClick={() => setForm(f => ({ ...f, imageUrl: '' }))}
+                  className="absolute top-2 right-2 rounded-full bg-black/50 p-1 text-white hover:bg-black/70"
+                >
+                  <span className="text-xs px-1">✕</span>
+                </button>
+                <span className="absolute bottom-2 left-2 rounded bg-black/50 px-2 py-0.5 text-xs text-white">AI зураг</span>
+              </div>
+            )}
+
             {error && <p className="text-sm text-red-500">{error}</p>}
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="secondary" onClick={() => setModal(null)}>Болих</Button>
