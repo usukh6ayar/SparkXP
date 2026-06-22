@@ -15,6 +15,10 @@ interface Word {
   id: string;
   english: string;
   mongolian: string;
+  englishDefinition: string | null;
+  phonetic: string | null;
+  category: string | null;
+  sparkTip: string | null;
   partOfSpeech: string | null;
   exampleSentence: string | null;
   exampleTranslation: string | null;
@@ -37,15 +41,19 @@ const levelColors: Record<string, 'green' | 'blue' | 'yellow' | 'red' | 'gray'> 
 
 interface WordForm {
   english: string; mongolian: string; level: string;
+  englishDefinition: string; phonetic: string; category: string; sparkTip: string;
   partOfSpeech: string; exampleSentence: string; exampleTranslation: string;
   imageUrl: string;      // AI-fill preview (returned from /words/ai-fill)
   generateImage: boolean; // checkbox: generate server-side after save
 }
 const empty: WordForm = {
   english: '', mongolian: '', level: 'a1',
+  englishDefinition: '', phonetic: '', category: '', sparkTip: '',
   partOfSpeech: '', exampleSentence: '', exampleTranslation: '',
   imageUrl: '', generateImage: true,
 };
+
+const VALID_LEVELS = ['a1', 'a2', 'b1', 'b2', 'c1', 'c2'];
 
 const CSV_TEMPLATE =
   'english,mongolian,level,partOfSpeech,exampleSentence,exampleTranslation\n' +
@@ -104,6 +112,10 @@ export default function WordsPage() {
   function openEdit(w: Word) {
     setForm({
       english: w.english, mongolian: w.mongolian, level: w.level,
+      englishDefinition: w.englishDefinition ?? '',
+      phonetic: w.phonetic ?? '',
+      category: w.category ?? '',
+      sparkTip: w.sparkTip ?? '',
       partOfSpeech: w.partOfSpeech ?? '',
       exampleSentence: w.exampleSentence ?? '',
       exampleTranslation: w.exampleTranslation ?? '',
@@ -118,16 +130,25 @@ export default function WordsPage() {
     setAiFilling(true); setError('');
     try {
       const result = await api.post<{
-        mongolian: string; partOfSpeech: string;
+        mongolian: string; englishDefinition: string; phonetic: string;
+        partOfSpeech: string; category: string; level: string;
         exampleSentence: string; exampleTranslation: string;
-        imageUrl: string | null;
+        sparkTip: string; imageUrl: string | null;
       }>('/words/ai-fill', { english: form.english.trim() });
+      const level = VALID_LEVELS.includes((result.level || '').toLowerCase())
+        ? result.level.toLowerCase()
+        : form.level;
       setForm(f => ({
         ...f,
         mongolian: result.mongolian || f.mongolian,
+        englishDefinition: result.englishDefinition || f.englishDefinition,
+        phonetic: result.phonetic || f.phonetic,
         partOfSpeech: result.partOfSpeech || f.partOfSpeech,
+        category: result.category || f.category,
+        level,
         exampleSentence: result.exampleSentence || f.exampleSentence,
         exampleTranslation: result.exampleTranslation || f.exampleTranslation,
+        sparkTip: result.sparkTip || f.sparkTip,
         imageUrl: result.imageUrl || f.imageUrl,
         generateImage: false, // already generated, uncheck server-side gen
       }));
@@ -145,6 +166,10 @@ export default function WordsPage() {
       const payload = {
         english: form.english,
         mongolian: form.mongolian,
+        englishDefinition: form.englishDefinition || undefined,
+        phonetic: form.phonetic || undefined,
+        category: form.category || undefined,
+        sparkTip: form.sparkTip || undefined,
         level: form.level,
         partOfSpeech: form.partOfSpeech || undefined,
         exampleSentence: form.exampleSentence || undefined,
@@ -327,14 +352,25 @@ export default function WordsPage() {
               </button>
             </div>
 
+            <p className="-mt-1 flex items-center gap-1.5 text-xs text-gray-400">
+              <Sparkles className="h-3.5 w-3.5 text-primary" />
+              Зөвхөн Англи үгээ бичээд <span className="font-medium text-primary">AI бөглөх</span> дарвал доорх бүх талбар автоматаар бөглөгдөнө.
+            </p>
+
             <Input label="Монгол утга" value={form.mongolian} onChange={(e) => setForm({ ...form, mongolian: e.target.value })} placeholder="алим" />
+            <Input label="Англи тодорхойлолт" value={form.englishDefinition} onChange={(e) => setForm({ ...form, englishDefinition: e.target.value })} placeholder="to leave someone or something behind" />
 
             <div className="grid grid-cols-2 gap-4">
               <Select label="Түвшин" options={levelFormOptions} value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value })} />
               <Input label="Хэлзүй (noun, verb...)" value={form.partOfSpeech} onChange={(e) => setForm({ ...form, partOfSpeech: e.target.value })} placeholder="noun" />
             </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Input label="Дуудлага (phonetic)" value={form.phonetic} onChange={(e) => setForm({ ...form, phonetic: e.target.value })} placeholder="/əˈbændən/" />
+              <Input label="Ангилал (category)" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} placeholder="Daily Life" />
+            </div>
             <Input label="Жишээ өгүүлбэр (Англи)" value={form.exampleSentence} onChange={(e) => setForm({ ...form, exampleSentence: e.target.value })} placeholder="I eat an apple every day." />
             <Input label="Жишээ өгүүлбэрийн орчуулга" value={form.exampleTranslation} onChange={(e) => setForm({ ...form, exampleTranslation: e.target.value })} placeholder="Би өдөр бүр нэг алим иддэг." />
+            <Input label="Spark сануулга (тогтооход туслах)" value={form.sparkTip} onChange={(e) => setForm({ ...form, sparkTip: e.target.value })} placeholder="Abandon = A band on? Хамтлаг чамайг орхиод явж байна гэж сана." />
 
             {/* AI fill image preview */}
             {form.imageUrl && (

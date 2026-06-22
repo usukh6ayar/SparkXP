@@ -43,6 +43,7 @@
 | GET | `/words/quiz` | 🔑 | Vocabulary quiz үүсгэх (`?count=4..30`) — published үгээс multiple-choice (зөв хариулт client рүү явахгүй) |
 | POST | `/words/quiz/submit` | 🔑 | `{ answers:[{wordId,choice}] }` → server-side grade, зөв бүрд XP+Sparks. Буцаалт `{ total, correct, xpAwarded, sparksAwarded }` |
 | GET | `/words/:id` | 🔑 | Нэг үг |
+| POST | `/words/ai-fill` | 🛡️ | `{ english }` → AI бүх талбарыг үүсгэнэ: `mongolian, englishDefinition, phonetic, partOfSpeech, category, level, exampleSentence, exampleTranslation, sparkTip, imageUrl`. Зөвхөн англи үгээ бичээд формоо урьдчилан бөглөнө |
 | POST | `/words` | 🛡️ | Үг үүсгэх (`slug` авто үүснэ). `generateImage:true` бол AI Gateway-ээр зураг үүсгээд `imageUrl` хадгална |
 | POST | `/words/bulk` | 🛡️ | JSON массив bulk import |
 | POST | `/words/:id/generate-image` | 🛡️ | Тухайн үгэнд AI зураг шинээр үүсгэж `imageUrl` шинэчилнэ |
