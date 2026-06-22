@@ -7,6 +7,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAudioPlayer } from 'expo-audio';
 import * as Haptics from 'expo-haptics';
+import * as Speech from 'expo-speech';
 import { useAuth } from '../src/auth/AuthContext';
 import {
   getLearnQueue, submitReview, type LearnWord,
@@ -72,9 +73,15 @@ export default function SwipeScreen() {
   }, [topId, loading, position]);
 
   function playAudio() {
-    const url = queueRef.current[0]?.audioUrl;
-    if (!url) return;
-    try { player.replace({ uri: url }); player.play(); } catch { /* non-critical */ }
+    const card = queueRef.current[0];
+    if (!card) return;
+    // Prefer an uploaded audio file; otherwise speak the word with device TTS
+    // so pronunciation works for every word without any audio content.
+    if (card.audioUrl) {
+      try { player.replace({ uri: card.audioUrl }); player.play(); return; } catch { /* fall through to TTS */ }
+    }
+    Speech.stop();
+    Speech.speak(card.english, { language: 'en-US', rate: 0.9 });
   }
 
   function haptic(v: Verdict) {

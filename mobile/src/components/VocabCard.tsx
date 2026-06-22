@@ -87,11 +87,10 @@ export function VocabCard({ word, onPlayAudio, saved, onToggleSave }: Props) {
               </AppText>
             ) : null}
           </View>
-          {word.audioUrl ? (
-            <Pressable onPress={onPlayAudio} hitSlop={8} style={styles.audioBtn}>
-              <Ionicons name="volume-high" size={22} color={colors.primary} />
-            </Pressable>
-          ) : null}
+          {/* Always available: plays the uploaded audio if any, else device TTS. */}
+          <Pressable onPress={onPlayAudio} hitSlop={8} style={styles.audioBtn}>
+            <Ionicons name="volume-high" size={22} color={colors.primary} />
+          </Pressable>
         </View>
 
         {/* Mongolian meaning */}
