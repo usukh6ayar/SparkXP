@@ -39,6 +39,6 @@ export function canAccess(role: string | undefined, path: string): boolean {
 }
 
 /** First path a role is allowed to see — used as the safe landing/redirect. */
-export function defaultPath(role: string | undefined): string {
+export function defaultPath(_role: string | undefined): string {
   return '/words'; // allowed for every staff role
 }
