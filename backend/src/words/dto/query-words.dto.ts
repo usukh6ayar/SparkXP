@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import {
   IsOptional,
   IsEnum,
@@ -25,6 +25,12 @@ export class QueryWordsDto {
   @IsOptional()
   @IsEnum(WordStatus)
   status?: WordStatus;
+
+  /** Admin only: when true, return words of every status (ignores the
+   *  published-by-default gating). The student app never sets this. */
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  all?: boolean;
 
   @IsOptional()
   @IsString()

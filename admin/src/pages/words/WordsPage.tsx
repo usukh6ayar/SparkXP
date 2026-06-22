@@ -25,6 +25,7 @@ interface Word {
   exampleTranslation: string | null;
   imageUrl: string | null;
   level: string;
+  status: string;
   lessonId: string | null;
 }
 
@@ -40,15 +41,29 @@ const levelColors: Record<string, 'green' | 'blue' | 'yellow' | 'red' | 'gray'> 
   a1: 'green', a2: 'green', b1: 'blue', b2: 'blue', c1: 'yellow', c2: 'red',
 };
 
+// Review status — labels, colors and the filter/form option lists.
+const statusMeta: Record<string, { label: string; color: 'green' | 'blue' | 'yellow' | 'red' | 'gray' }> = {
+  draft: { label: 'Ноорог', color: 'gray' },
+  needs_review: { label: 'Хянах', color: 'yellow' },
+  approved: { label: 'Зөвшөөрсөн', color: 'blue' },
+  rejected: { label: 'Татгалзсан', color: 'red' },
+  published: { label: 'Нийтэлсэн', color: 'green' },
+};
+const statusFilterOptions = [
+  { value: '', label: 'Бүх төлөв' },
+  ...Object.entries(statusMeta).map(([value, m]) => ({ value, label: m.label })),
+];
+const statusFormOptions = Object.entries(statusMeta).map(([value, m]) => ({ value, label: m.label }));
+
 interface WordForm {
-  english: string; mongolian: string; level: string;
+  english: string; mongolian: string; level: string; status: string;
   englishDefinition: string; phonetic: string; category: string; sparkTip: string;
   partOfSpeech: string; exampleSentence: string; exampleTranslation: string;
   imageUrl: string;      // AI-fill preview (returned from /words/ai-fill)
   generateImage: boolean; // checkbox: generate server-side after save
 }
 const empty: WordForm = {
-  english: '', mongolian: '', level: 'a1',
+  english: '', mongolian: '', level: 'a1', status: 'published',
   englishDefinition: '', phonetic: '', category: '', sparkTip: '',
   partOfSpeech: '', exampleSentence: '', exampleTranslation: '',
   imageUrl: '', generateImage: true,
@@ -121,9 +136,23 @@ function splitCsvLine(line: string): string[] {
   return result;
 }
 
+interface WordStats {
+  total: number;
+  byStatus: Record<string, number>;
+  missingImage: number;
+  missingAudio: number;
+  missingMnExample: number;
+  duplicates: number;
+}
+
 export default function WordsPage() {
   const [words, setWords] = useState<Word[]>([]);
   const [levelFilter, setLevelFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [search, setSearch] = useState('');
+  const [stats, setStats] = useState<WordStats | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
   const [modal, setModal] = useState<null | 'create' | 'edit' | 'import'>(null);
   const [editing, setEditing] = useState<Word | null>(null);
   const [form, setForm] = useState<WordForm>(empty);
@@ -140,17 +169,55 @@ export default function WordsPage() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
-    const qs = levelFilter ? `?level=${levelFilter}&limit=200` : '?limit=200';
-    const data = await api.get<{ items: Word[]; total: number }>(`/words${qs}`);
+    const params = new URLSearchParams({ limit: '200' });
+    if (statusFilter) params.set('status', statusFilter);
+    else params.set('all', 'true'); // admin sees every status by default
+    if (levelFilter) params.set('level', levelFilter);
+    if (search.trim()) params.set('search', search.trim());
+    const data = await api.get<{ items: Word[]; total: number }>(`/words?${params}`);
     setWords(data.items ?? []);
-  }, [levelFilter]);
+    setSelected(new Set());
+    api.get<WordStats>('/words/stats').then(setStats).catch(() => {});
+  }, [levelFilter, statusFilter, search]);
 
   useEffect(() => { load(); }, [load]);
+
+  function toggleSelect(id: string) {
+    setSelected((s) => {
+      const next = new Set(s);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+  function toggleSelectAll() {
+    setSelected((s) => (s.size === words.length ? new Set() : new Set(words.map((w) => w.id))));
+  }
+
+  async function changeStatus(id: string, status: string) {
+    try { await api.patch(`/words/${id}`, { status }); load(); }
+    catch (e: unknown) { setError(e instanceof Error ? e.message : 'Алдаа'); }
+  }
+
+  async function bulkStatus(status: string) {
+    if (selected.size === 0) return;
+    setBulkBusy(true); setError('');
+    try { await api.patch('/words/bulk', { ids: [...selected], changes: { status } }); load(); }
+    catch (e: unknown) { setError(e instanceof Error ? e.message : 'Алдаа'); }
+    finally { setBulkBusy(false); }
+  }
+
+  async function bulkDelete() {
+    if (selected.size === 0 || !confirm(`${selected.size} үг устгах уу?`)) return;
+    setBulkBusy(true); setError('');
+    try { await Promise.all([...selected].map((id) => api.delete(`/words/${id}`))); load(); }
+    catch (e: unknown) { setError(e instanceof Error ? e.message : 'Алдаа'); }
+    finally { setBulkBusy(false); }
+  }
 
   function openCreate() { setForm(empty); setEditing(null); setError(''); setModal('create'); }
   function openEdit(w: Word) {
     setForm({
-      english: w.english, mongolian: w.mongolian, level: w.level,
+      english: w.english, mongolian: w.mongolian, level: w.level, status: w.status,
       englishDefinition: w.englishDefinition ?? '',
       phonetic: w.phonetic ?? '',
       category: w.category ?? '',
@@ -210,6 +277,7 @@ export default function WordsPage() {
         category: form.category || undefined,
         sparkTip: form.sparkTip || undefined,
         level: form.level,
+        status: form.status,
         partOfSpeech: form.partOfSpeech || undefined,
         exampleSentence: form.exampleSentence || undefined,
         exampleTranslation: form.exampleTranslation || undefined,
@@ -301,6 +369,16 @@ export default function WordsPage() {
 
   const columns = [
     {
+      key: 'select', header: '', render: (w: Word) => (
+        <input
+          type="checkbox"
+          checked={selected.has(w.id)}
+          onChange={() => toggleSelect(w.id)}
+          className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+        />
+      ),
+    },
+    {
       key: 'image', header: '', render: (w: Word) => (
         <div className="h-12 w-12 overflow-hidden rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-center">
           {w.imageUrl ? (
@@ -338,6 +416,22 @@ export default function WordsPage() {
     {
       key: 'level', header: 'Түвшин', render: (w: Word) => (
         <Badge color={levelColors[w.level] ?? 'gray'}>{w.level.toUpperCase()}</Badge>
+      ),
+    },
+    {
+      key: 'status', header: 'Төлөв', render: (w: Word) => (
+        <div className="flex items-center gap-2">
+          <Badge color={statusMeta[w.status]?.color ?? 'gray'}>{statusMeta[w.status]?.label ?? w.status}</Badge>
+          {w.status !== 'published' && (
+            <button
+              onClick={() => changeStatus(w.id, 'published')}
+              className="text-xs text-primary hover:underline"
+              title="Нийтлэх"
+            >
+              Нийтлэх
+            </button>
+          )}
+        </div>
       ),
     },
     {
@@ -379,9 +473,52 @@ export default function WordsPage() {
         }
       />
 
-      <div className="mb-4">
+      {/* Stats bar */}
+      {stats && (
+        <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
+          {[
+            { label: 'Нийт', value: stats.total, color: 'text-gray-800' },
+            { label: 'Нийтэлсэн', value: stats.byStatus.published ?? 0, color: 'text-green-600' },
+            { label: 'Хянах', value: stats.byStatus.needs_review ?? 0, color: 'text-yellow-600' },
+            { label: 'Зураггүй', value: stats.missingImage, color: 'text-gray-500' },
+            { label: 'Аудиогүй', value: stats.missingAudio, color: 'text-gray-500' },
+            { label: 'Давхардал', value: stats.duplicates, color: 'text-red-500' },
+          ].map((s) => (
+            <div key={s.label} className="rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
+              <p className={`text-xl font-bold ${s.color}`}>{s.value.toLocaleString()}</p>
+              <p className="text-xs text-gray-500">{s.label}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Filters */}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <Select options={statusFilterOptions} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-40" />
         <Select options={levelOptions} value={levelFilter} onChange={(e) => setLevelFilter(e.target.value)} className="w-40" />
+        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Хайх (англи/монгол)…" className="w-56" />
+        <label className="ml-auto flex items-center gap-2 text-sm text-gray-600">
+          <input
+            type="checkbox"
+            checked={words.length > 0 && selected.size === words.length}
+            onChange={toggleSelectAll}
+            className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+          />
+          Бүгдийг сонгох
+        </label>
       </div>
+
+      {/* Bulk action bar */}
+      {selected.size > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primarySoft px-4 py-2 text-sm">
+          <span className="font-medium text-primary">{selected.size} сонгосон:</span>
+          <Button size="sm" onClick={() => bulkStatus('published')} disabled={bulkBusy}>Нийтлэх</Button>
+          <Button variant="secondary" size="sm" onClick={() => bulkStatus('approved')} disabled={bulkBusy}>Зөвшөөрөх</Button>
+          <Button variant="secondary" size="sm" onClick={() => bulkStatus('rejected')} disabled={bulkBusy}>Татгалзах</Button>
+          <Button variant="ghost" size="sm" onClick={bulkDelete} disabled={bulkBusy}><Trash2 className="h-4 w-4 text-red-500" /> Устгах</Button>
+          <button onClick={() => setSelected(new Set())} className="ml-auto text-xs text-gray-500 hover:underline">Цуцлах</button>
+        </div>
+      )}
 
       <Table columns={columns} rows={words} keyFn={(w) => w.id} empty="Үг байхгүй байна" />
 
@@ -420,8 +557,9 @@ export default function WordsPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <Select label="Түвшин" options={levelFormOptions} value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value })} />
-              <Input label="Хэлзүй (noun, verb...)" value={form.partOfSpeech} onChange={(e) => setForm({ ...form, partOfSpeech: e.target.value })} placeholder="noun" />
+              <Select label="Төлөв" options={statusFormOptions} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} />
             </div>
+            <Input label="Хэлзүй (noun, verb...)" value={form.partOfSpeech} onChange={(e) => setForm({ ...form, partOfSpeech: e.target.value })} placeholder="noun" />
             <div className="grid grid-cols-2 gap-4">
               <Input label="Дуудлага (phonetic)" value={form.phonetic} onChange={(e) => setForm({ ...form, phonetic: e.target.value })} placeholder="/əˈbændən/" />
               <Input label="Ангилал (category)" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} placeholder="Daily Life" />
