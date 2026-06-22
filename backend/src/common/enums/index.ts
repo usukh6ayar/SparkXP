@@ -31,6 +31,42 @@ export enum LessonType {
   FILL = "fill", // нөхөх даалгавар (fill-in-the-blank)
 }
 
+/**
+ * Lifecycle of a vocabulary word. The student app shows ONLY `published` words;
+ * every other status is visible only in the admin panel. New bulk-imported words
+ * land as `needs_review`; existing words default to `published` (see Word entity)
+ * so the current content stays live.
+ */
+export enum WordStatus {
+  DRAFT = "draft",
+  NEEDS_REVIEW = "needs_review",
+  APPROVED = "approved",
+  REJECTED = "rejected",
+  PUBLISHED = "published",
+}
+
+/** Per-user recall state for a word, set from the swipe screen (forgot/know). */
+export enum RecallStatus {
+  FORGOT = "forgot",
+  LEARNING = "learning",
+  KNOW = "know",
+}
+
+/**
+ * Open-ended vocabulary categories. Like ORG_TYPE_SUGGESTIONS these are plain
+ * string suggestions (NOT a DB enum) — admins can add new categories from the
+ * panel without a code change. `Word.category` is a free-text column.
+ */
+export const VOCAB_CATEGORY_SUGGESTIONS = [
+  "Daily Life",
+  "Business",
+  "Law",
+  "Medical",
+  "Engineering",
+  "Travel",
+  "Academic",
+] as const;
+
 /** CEFR-style difficulty, reused by Lesson and Word. */
 export enum ContentLevel {
   A1 = "a1",

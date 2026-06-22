@@ -40,6 +40,21 @@ export class ReviewsController {
     return this.reviewsService.getLearnQueue(user.id);
   }
 
+  /** Words the user has saved (⭐) — for the saved-words screen. */
+  @Get('saved')
+  getSaved(@CurrentUser() user: User) {
+    return this.reviewsService.getSaved(user.id);
+  }
+
+  /** Toggle the ⭐ saved flag for a word; returns the new state. */
+  @Post(':wordId/save')
+  toggleSave(
+    @CurrentUser() user: User,
+    @Param('wordId', ParseUUIDPipe) wordId: string,
+  ) {
+    return this.reviewsService.toggleSave(user.id, wordId);
+  }
+
   /** Submit a recall attempt for a word; returns the rescheduled review. */
   @Post(':wordId')
   submit(

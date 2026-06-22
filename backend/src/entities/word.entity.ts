@@ -1,6 +1,6 @@
-import { Entity, Column, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
+import { Entity, Column, ManyToOne, OneToMany, JoinColumn, Index } from 'typeorm';
 import { BaseEntity } from '../common/entities/base.entity';
-import { ContentLevel } from '../common/enums';
+import { ContentLevel, WordStatus } from '../common/enums';
 import { Lesson } from './lesson.entity';
 import { WordReview } from './word-review.entity';
 
@@ -13,8 +13,41 @@ export class Word extends BaseEntity {
   @Column()
   english: string;
 
+  /** Mongolian meaning, e.g. "Орхих, хаях". */
   @Column()
   mongolian: string;
+
+  /** English dictionary definition, e.g. "to leave someone or something behind". */
+  @Column({ name: 'english_definition', type: 'text', nullable: true })
+  englishDefinition: string | null;
+
+  /** IPA-style pronunciation, e.g. /əˈbændən/. */
+  @Column({ type: 'varchar', nullable: true })
+  phonetic: string | null;
+
+  /**
+   * Open-ended topical category (Daily Life, Business, Law…). Free text — see
+   * VOCAB_CATEGORY_SUGGESTIONS. Not an enum so new categories need no migration.
+   */
+  @Column({ type: 'varchar', nullable: true })
+  category: string | null;
+
+  /**
+   * URL-safe key derived from `english` (lowercase, spaces → `_`). Used to
+   * auto-match bulk-uploaded media files (e.g. `abandon.mp3` → this word).
+   * Indexed but NOT unique — homonyms can share a slug.
+   */
+  @Index()
+  @Column({ type: 'varchar', nullable: true })
+  slug: string | null;
+
+  /**
+   * Review lifecycle. Defaults to `published` so existing content (and any word
+   * created without an explicit status) stays visible to students. Bulk imports
+   * set `needs_review` explicitly.
+   */
+  @Column({ type: 'enum', enum: WordStatus, default: WordStatus.PUBLISHED })
+  status: WordStatus;
 
   /** e.g. noun, verb, adjective. Free text for MVP. */
   @Column({ name: 'part_of_speech', type: 'varchar', nullable: true })

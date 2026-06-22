@@ -1,5 +1,6 @@
 import { Entity, Column, ManyToOne, JoinColumn, Index, Unique } from 'typeorm';
 import { BaseEntity } from '../common/entities/base.entity';
+import { RecallStatus } from '../common/enums';
 import { User } from './user.entity';
 import { Word } from './word.entity';
 
@@ -47,4 +48,34 @@ export class WordReview extends BaseEntity {
 
   @Column({ name: 'last_reviewed_at', type: 'timestamptz', nullable: true })
   lastReviewedAt: Date | null;
+
+  // ── Swipe / per-user progress (separate from SM-2 scheduling) ────────────
+
+  /** ⭐ Whether the user saved (starred) this word. */
+  @Column({ type: 'boolean', default: false })
+  saved: boolean;
+
+  /** Last swipe verdict: forgot / learning / know. Null until first swipe. */
+  @Column({
+    name: 'recall_status',
+    type: 'enum',
+    enum: RecallStatus,
+    nullable: true,
+  })
+  recallStatus: RecallStatus | null;
+
+  /** Total times the user has seen this card. */
+  @Column({ name: 'review_count', type: 'int', default: 0 })
+  reviewCount: number;
+
+  /** Times swiped "Know". */
+  @Column({ name: 'correct_count', type: 'int', default: 0 })
+  correctCount: number;
+
+  /** Times swiped "Forgot". Difficulty signal = wrong / (wrong + correct). */
+  @Column({ name: 'wrong_count', type: 'int', default: 0 })
+  wrongCount: number;
+
+  @Column({ name: 'last_seen_at', type: 'timestamptz', nullable: true })
+  lastSeenAt: Date | null;
 }

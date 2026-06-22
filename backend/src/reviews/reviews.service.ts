@@ -1,12 +1,16 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThanOrEqual, MoreThanOrEqual } from 'typeorm';
+import { Repository, LessThanOrEqual, MoreThanOrEqual, In } from 'typeorm';
 import { WordReview } from '../entities/word-review.entity';
 import { Word } from '../entities/word.entity';
-import { computeSm2, initialSm2State } from './sm2';
+import { RecallStatus, WordStatus } from '../common/enums';
+import { computeSm2, initialSm2State, PASS_THRESHOLD } from './sm2';
 
 /** Safety cap so the daily due queue never returns a huge payload. */
 const DUE_LIMIT = 100;
+
+/** A word in the swipe deck, plus this user's saved (⭐) flag for it. */
+export type LearnCard = Word & { saved: boolean };
 
 @Injectable()
 export class ReviewsService {
@@ -78,7 +82,49 @@ export class ReviewsService {
     review.nextReviewAt = next.nextReviewAt;
     review.lastReviewedAt = now;
 
+    // Per-user swipe progress (separate from SM-2 scheduling).
+    const passed = quality >= PASS_THRESHOLD;
+    review.reviewCount += 1;
+    review.lastSeenAt = now;
+    if (passed) {
+      review.correctCount += 1;
+      review.recallStatus = RecallStatus.KNOW;
+    } else {
+      review.wrongCount += 1;
+      review.recallStatus = RecallStatus.FORGOT;
+    }
+
     return this.reviews.save(review);
+  }
+
+  /**
+   * Toggle the ⭐ saved flag for a (user, word). Creates the WordReview on first
+   * save so a learner can star a word they haven't reviewed yet.
+   */
+  async toggleSave(
+    userId: string,
+    wordId: string,
+  ): Promise<{ wordId: string; saved: boolean }> {
+    const word = await this.words.findOne({ where: { id: wordId } });
+    if (!word) throw new NotFoundException('Үг олдсонгүй');
+
+    let review = await this.reviews.findOne({ where: { userId, wordId } });
+    if (!review) {
+      review = this.reviews.create({ userId, wordId, ...initialSm2State() });
+    }
+    review.saved = !review.saved;
+    await this.reviews.save(review);
+    return { wordId, saved: review.saved };
+  }
+
+  /** Words this user has saved (⭐) — for the "Saved words" screen. */
+  async getSaved(userId: string): Promise<Word[]> {
+    const rows = await this.reviews.find({
+      where: { userId, saved: true },
+      relations: { word: true },
+      order: { lastSeenAt: 'DESC' },
+    });
+    return rows.map((r) => r.word);
   }
 
   /**
@@ -95,10 +141,12 @@ export class ReviewsService {
   }
 
   /**
-   * Deck of words to learn (swipe): vocabulary the user does NOT yet know
-   * (no review yet, or repetitions = 0). Known words are excluded.
+   * Deck of words to learn (swipe): PUBLISHED vocabulary the user does NOT yet
+   * know (no review yet, or repetitions = 0). Each card carries this user's
+   * saved (⭐) flag so the swipe UI can render the star without an extra call.
    */
-  async getLearnQueue(userId: string, limit = 30): Promise<Word[]> {
+  async getLearnQueue(userId: string, limit = 30): Promise<LearnCard[]> {
+    // Words the user already knows (excluded from the deck).
     const knownRows = await this.reviews.find({
       where: { userId, repetitions: MoreThanOrEqual(1) },
       select: { wordId: true },
@@ -107,11 +155,22 @@ export class ReviewsService {
 
     const qb = this.words
       .createQueryBuilder('w')
+      .where('w.status = :status', { status: WordStatus.PUBLISHED })
       .orderBy('w.created_at', 'ASC')
       .take(limit);
     if (knownIds.length > 0) {
-      qb.where('w.id NOT IN (:...knownIds)', { knownIds });
+      qb.andWhere('w.id NOT IN (:...knownIds)', { knownIds });
     }
-    return qb.getMany();
+    const words = await qb.getMany();
+    if (words.length === 0) return [];
+
+    // Which of these the user has starred → merge a `saved` flag per card.
+    const savedRows = await this.reviews.find({
+      where: { userId, wordId: In(words.map((w) => w.id)), saved: true },
+      select: { wordId: true },
+    });
+    const savedIds = new Set(savedRows.map((r) => r.wordId));
+
+    return words.map((w) => ({ ...w, saved: savedIds.has(w.id) }));
   }
 }
