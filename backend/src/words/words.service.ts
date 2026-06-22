@@ -1,11 +1,18 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, ILike } from 'typeorm';
+import { Repository, ILike, In } from 'typeorm';
 import { Word } from '../entities/word.entity';
-import { WordStatus } from '../common/enums';
+import { WordStatus, XpSource, SparksSource } from '../common/enums';
+import { XpService } from '../xp/xp.service';
+import { SparksService } from '../sparks/sparks.service';
 import { CreateWordDto } from './dto/create-word.dto';
 import { UpdateWordDto } from './dto/update-word.dto';
 import { QueryWordsDto } from './dto/query-words.dto';
+import { QuizAnswerDto } from './dto/quiz.dto';
 
 /** A page of results plus the total count, for paginated list endpoints. */
 export interface PaginatedWords {
@@ -13,6 +20,38 @@ export interface PaginatedWords {
   total: number;
   page: number;
   limit: number;
+}
+
+/** One multiple-choice question for the vocabulary quiz (no answer leaked). */
+export interface QuizQuestion {
+  wordId: string;
+  english: string;
+  phonetic: string | null;
+  imageUrl: string | null;
+  /** 4 Mongolian options, shuffled — one is correct. Graded server-side. */
+  options: string[];
+}
+
+/** Result of grading a submitted vocabulary quiz. */
+export interface QuizResult {
+  total: number;
+  correct: number;
+  xpAwarded: number;
+  sparksAwarded: number;
+}
+
+/** Reward per correct answer (anti-abuse: only correct answers earn). */
+const XP_PER_CORRECT = 5;
+const SPARKS_PER_CORRECT = 1;
+
+/** Fisher–Yates shuffle (returns a new array). */
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
 }
 
 /**
@@ -32,6 +71,8 @@ export class WordsService {
   constructor(
     @InjectRepository(Word)
     private readonly words: Repository<Word>,
+    private readonly xp: XpService,
+    private readonly sparks: SparksService,
   ) {}
 
   create(dto: CreateWordDto): Promise<Word> {
@@ -124,5 +165,88 @@ export class WordsService {
     }
 
     return { inserted, skipped };
+  }
+
+  // ── Vocabulary quiz ──────────────────────────────────────────────────────
+
+  /**
+   * Build a multiple-choice quiz from PUBLISHED words: each question shows an
+   * English word and 4 Mongolian options (the correct meaning + 3 distractors
+   * from other words). The correct answer is NOT sent to the client — grading
+   * happens server-side in `gradeQuiz`.
+   */
+  async generateQuiz(count = 10): Promise<QuizQuestion[]> {
+    // Random pool big enough to supply answers + distractors. RANDOM() is fine
+    // at MVP scale; switch to a sampled approach if the table gets huge.
+    const pool = await this.words
+      .createQueryBuilder('w')
+      .where('w.status = :status', { status: WordStatus.PUBLISHED })
+      .andWhere("w.mongolian <> ''")
+      .orderBy('RANDOM()')
+      .limit(Math.max(count * 4, 40))
+      .getMany();
+
+    // De-duplicate distractors by Mongolian meaning so options never repeat.
+    const uniqueMeanings = Array.from(new Set(pool.map((w) => w.mongolian)));
+    if (uniqueMeanings.length < 4) {
+      throw new BadRequestException(
+        'Сорил үүсгэхэд хангалттай нийтлэгдсэн үг алга байна',
+      );
+    }
+
+    const answers = pool.slice(0, Math.min(count, pool.length));
+    return answers.map((word) => {
+      const distractors = shuffle(
+        uniqueMeanings.filter((m) => m !== word.mongolian),
+      ).slice(0, 3);
+      return {
+        wordId: word.id,
+        english: word.english,
+        phonetic: word.phonetic,
+        imageUrl: word.imageUrl,
+        options: shuffle([word.mongolian, ...distractors]),
+      };
+    });
+  }
+
+  /**
+   * Grade submitted answers and award XP + Sparks for the correct ones only
+   * (anti-abuse — wrong answers earn nothing). Re-reads each word so the client
+   * can't claim a meaning that isn't the real one.
+   */
+  async gradeQuiz(
+    userId: string,
+    answers: QuizAnswerDto[],
+  ): Promise<QuizResult> {
+    if (answers.length === 0) {
+      throw new BadRequestException('Хариулт алга байна');
+    }
+
+    const ids = [...new Set(answers.map((a) => a.wordId))];
+    const words = await this.words.find({
+      where: { id: In(ids), status: WordStatus.PUBLISHED },
+    });
+    const byId = new Map(words.map((w) => [w.id, w]));
+
+    let correct = 0;
+    for (const a of answers) {
+      const word = byId.get(a.wordId);
+      if (word && a.choice.trim() === word.mongolian.trim()) correct++;
+    }
+
+    const xpAwarded = correct * XP_PER_CORRECT;
+    const sparksAwarded = correct * SPARKS_PER_CORRECT;
+    if (xpAwarded > 0) {
+      await this.xp.award({ userId, amount: xpAwarded, source: XpSource.QUIZ });
+    }
+    if (sparksAwarded > 0) {
+      await this.sparks.change({
+        userId,
+        amount: sparksAwarded,
+        source: SparksSource.QUIZ,
+      });
+    }
+
+    return { total: answers.length, correct, xpAwarded, sparksAwarded };
   }
 }

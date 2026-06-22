@@ -8,6 +8,7 @@ import {
   Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../src/auth/AuthContext";
 import { AppText } from "../../src/components/Text";
@@ -41,6 +42,8 @@ interface Game {
   title: string;
   desc: string;
   tint: { bg: string; fg: string };
+  /** Route to push when tapped. Games without a route show "coming soon". */
+  route?: string;
 }
 
 const GAMES: Game[] = [
@@ -48,8 +51,9 @@ const GAMES: Game[] = [
     icon: "locate",
     // img: imgTarget,
     title: "Үг ангууч",
-    desc: "Зураг харж, зөв үгийг сонго.",
+    desc: "Англи үгийн зөв утгыг сонго.",
     tint: tints.purple,
+    route: "/vocab-quiz",
   },
   {
     icon: "headset",
@@ -96,8 +100,10 @@ const PATH = [1, 2, 3, 4, 5]; // node-ууд; LEVEL хүртэл done
 
 export default function SorilScreen() {
   const { user } = useAuth();
+  const router = useRouter();
   const open = () =>
     Alert.alert("Тун удахгүй", "Энэ тоглоом удахгүй нэмэгдэнэ. 🦊");
+  const openGame = (g: Game) => (g.route ? router.push(g.route as never) : open());
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -191,7 +197,7 @@ export default function SorilScreen() {
             <Pressable
               key={g.title}
               style={({ pressed }) => [styles.card, pressed && styles.pressed]}
-              onPress={open}
+              onPress={() => openGame(g)}
             >
               <IconTile
                 icon={g.icon}
