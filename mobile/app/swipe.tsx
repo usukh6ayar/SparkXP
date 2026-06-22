@@ -57,11 +57,14 @@ export default function SwipeScreen() {
       .finally(() => setLoading(false));
   }, [token]);
 
-  // Gesture affordance: as each new card lands on top, give it a subtle
-  // left↔right nudge so the user sees it can be swiped both ways.
-  const topId = queue[0]?.id;
+  // Gesture affordance: ONLY the first card (when the screen opens) gets a
+  // subtle left↔right nudge to show it can be swiped both ways. Later cards
+  // don't repeat it. Resets on each fresh visit to the screen.
+  const hintedRef = useRef(false);
+  const firstId = queue[0]?.id;
   useEffect(() => {
-    if (loading || !topId) return;
+    if (loading || !firstId || hintedRef.current) return;
+    hintedRef.current = true;
     position.setValue({ x: 0, y: 0 });
     const wiggle = Animated.sequence([
       Animated.timing(position, { toValue: { x: -10, y: 0 }, duration: 180, useNativeDriver: false }),
@@ -70,7 +73,7 @@ export default function SwipeScreen() {
     ]);
     wiggle.start();
     return () => wiggle.stop();
-  }, [topId, loading, position]);
+  }, [firstId, loading, position]);
 
   function playAudio() {
     const card = queueRef.current[0];
