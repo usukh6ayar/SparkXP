@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ConflictException,
   Logger,
   OnModuleInit,
 } from '@nestjs/common';
@@ -172,6 +173,15 @@ export class WordsService implements OnModuleInit {
   // ── CRUD ──────────────────────────────────────────────────────────────────
 
   async create(dto: CreateWordDto, userId?: string): Promise<Word> {
+    // Block duplicates — same English word (case-insensitive) can't be added twice.
+    const duplicate = await this.words.findOne({
+      where: { english: ILike(dto.english.trim()) },
+      select: { id: true },
+    });
+    if (duplicate) {
+      throw new ConflictException('Энэ үг аль хэдийн бүртгэлтэй байна');
+    }
+
     const { generateImage, ...wordFields } = dto;
     const word = this.words.create({ ...wordFields, slug: slugify(dto.english) });
     const saved = await this.words.save(word);
