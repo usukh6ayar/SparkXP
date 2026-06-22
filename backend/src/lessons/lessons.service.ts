@@ -2,6 +2,8 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull } from 'typeorm';
 import { Lesson } from '../entities/lesson.entity';
+import { XpService } from '../xp/xp.service';
+import { XpSource } from '../common/enums';
 import { CreateLessonDto } from './dto/create-lesson.dto';
 import { UpdateLessonDto } from './dto/update-lesson.dto';
 import { QueryLessonsDto } from './dto/query-lessons.dto';
@@ -13,12 +15,36 @@ export interface PaginatedLessons {
   limit: number;
 }
 
+/** XP awarded the first time a student completes a lesson. */
+const LESSON_XP = 15;
+
 @Injectable()
 export class LessonsService {
   constructor(
     @InjectRepository(Lesson)
     private readonly lessons: Repository<Lesson>,
+    private readonly xp: XpService,
   ) {}
+
+  /**
+   * Mark a lesson complete for a student — awards XP once per lesson (idempotent
+   * via XpLog source+referenceId). Re-completing earns nothing.
+   */
+  async complete(
+    userId: string,
+    lessonId: string,
+  ): Promise<{ lessonId: string; alreadyCompleted: boolean; xpAwarded: number }> {
+    const lesson = await this.lessons.findOne({ where: { id: lessonId } });
+    if (!lesson) throw new NotFoundException('Хичээл олдсонгүй');
+
+    const log = await this.xp.awardOnce({
+      userId,
+      amount: LESSON_XP,
+      source: XpSource.LESSON,
+      referenceId: lessonId,
+    });
+    return { lessonId, alreadyCompleted: log === null, xpAwarded: log ? LESSON_XP : 0 };
+  }
 
   create(dto: CreateLessonDto): Promise<Lesson> {
     const lesson = this.lessons.create(dto);

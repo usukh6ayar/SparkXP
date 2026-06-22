@@ -72,6 +72,7 @@
 | PATCH | `/lessons/:id` | 🛡️ | Засах / publish |
 | DELETE | `/lessons/:id` | 🛡️ | Устгах |
 | POST | `/lessons/:id/unlock` | 🔑 | **Spark-аар нээх** (sparks module) |
+| POST | `/lessons/:id/complete` | 🔑 | Хичээл дуусгах → нэг удаа +15 XP (idempotent). `{ alreadyCompleted, xpAwarded }` |
 | GET | `/lessons/:id/access` | 🔑 | Нээгдсэн эсэх `{ hasAccess }` |
 
 > **`type` утгууд (`LessonType`):** `vocabulary` · `grammar` · `listening` ·
@@ -105,7 +106,7 @@
 
 | Method | Path | Auth | Тайлбар |
 |---|---|:---:|---|
-| GET | `/gamification` | 🔑 | `{ xp, level, levelXp, levelTarget, xpToNext, progress, currentStreak, longestStreak, todayXp, dailyGoal, cefrLevel }`. Streak XP олох бүрт ахина (UB цагаар өдөр); level нь XP-ээс тооцоологдоно |
+| GET | `/gamification` | 🔑 | `{ xp, level, levelXp, levelTarget, xpToNext, progress, currentStreak, longestStreak, todayXp, dailyGoal, cefrLevel, lessonsDone, quizzesDone }`. Streak XP олох бүрт ахина (UB цагаар); level нь XP-ээс; lessonsDone = source=lesson distinct, quizzesDone = source=quiz |
 
 ## 🤖 AI Gateway — `/api/ai`
 

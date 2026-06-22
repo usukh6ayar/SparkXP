@@ -23,10 +23,8 @@ type IconName = keyof typeof Ionicons.glyphMap;
 
 const avatarImg = require('../../assets/buddy-menu.png');
 
-// TODO: бодит утгаар солих (lessons/quizzes completed, streak) — backend tracking.
-const STREAK = 8;
-const LESSONS_DONE = 23;
-const QUIZZES_DONE = 12;
+// Fallbacks until /gamification loads.
+const STREAK = 0;
 const LEVEL_SIZE = 1000;
 
 const ROLE_LABEL: Record<string, string> = {
@@ -104,10 +102,12 @@ export default function ProfileScreen() {
   const levelXp = gam?.levelXp ?? xp % LEVEL_SIZE;
   const levelTarget = gam?.levelTarget ?? LEVEL_SIZE;
   const streak = gam?.currentStreak ?? STREAK;
+  const lessonsDone = gam?.lessonsDone ?? 0;
+  const quizzesDone = gam?.quizzesDone ?? 0;
 
   const STATS = [
-    { icon: 'book' as IconName, value: LESSONS_DONE, label: 'Хичээл', tint: tints.purple },
-    { icon: 'trophy' as IconName, value: QUIZZES_DONE, label: 'Сорил', tint: tints.green },
+    { icon: 'book' as IconName, value: lessonsDone, label: 'Хичээл', tint: tints.purple },
+    { icon: 'trophy' as IconName, value: quizzesDone, label: 'Сорил', tint: tints.green },
     { icon: 'flame' as IconName, value: streak, label: 'Өдөр дараалал', tint: tints.blue },
     { icon: 'diamond' as IconName, value: sparks, label: 'Очирхон', tint: tints.amber },
   ];

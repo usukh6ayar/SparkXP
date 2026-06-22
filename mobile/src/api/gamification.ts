@@ -13,6 +13,8 @@ export interface Gamification {
   todayXp: number;
   dailyGoal: number;
   cefrLevel: string | null;
+  lessonsDone: number;
+  quizzesDone: number;
 }
 
 export function getGamification(token: string): Promise<Gamification> {

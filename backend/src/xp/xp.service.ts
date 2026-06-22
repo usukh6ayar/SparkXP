@@ -28,6 +28,8 @@ export interface GamificationSummary extends LevelInfo {
   todayXp: number;
   dailyGoal: number;
   cefrLevel: string | null;
+  lessonsDone: number;
+  quizzesDone: number;
 }
 
 /** Default daily-XP goal (could become plan/admin-configurable later). */
@@ -86,6 +88,22 @@ export class XpService {
     });
   }
 
+  /**
+   * Award XP only if this (user, source, referenceId) hasn't been awarded
+   * before — used for one-time events like completing a lesson. Returns the new
+   * log, or null if it was already awarded.
+   */
+  async awardOnce(opts: AwardXpOptions): Promise<XpLog | null> {
+    if (opts.referenceId) {
+      const existing = await this.xpLogs.findOne({
+        where: { userId: opts.userId, source: opts.source, referenceId: opts.referenceId },
+        select: { id: true },
+      });
+      if (existing) return null;
+    }
+    return this.award(opts);
+  }
+
   /** Streak + level + today's XP for the gamification UI. */
   async getGamification(userId: string): Promise<GamificationSummary> {
     const user = await this.users.findOne({
@@ -106,12 +124,23 @@ export class XpService {
     const alive = user?.lastActiveDate === today || user?.lastActiveDate === yesterday;
     const currentStreak = alive ? (user?.currentStreak ?? 0) : 0;
 
-    const todayRow = await this.xpLogs
-      .createQueryBuilder('x')
-      .select('COALESCE(SUM(x.amount), 0)', 'sum')
-      .where('x.user_id = :userId', { userId })
-      .andWhere({ createdAt: MoreThanOrEqual(startOfUBDay()) })
-      .getRawOne<{ sum: string }>();
+    const [todayRow, lessonRow, quizzesDone] = await Promise.all([
+      this.xpLogs
+        .createQueryBuilder('x')
+        .select('COALESCE(SUM(x.amount), 0)', 'sum')
+        .where('x.user_id = :userId', { userId })
+        .andWhere({ createdAt: MoreThanOrEqual(startOfUBDay()) })
+        .getRawOne<{ sum: string }>(),
+      // Distinct lessons completed (lesson XP is logged once per lesson).
+      this.xpLogs
+        .createQueryBuilder('x')
+        .select('COUNT(DISTINCT x.reference_id)', 'n')
+        .where('x.user_id = :userId', { userId })
+        .andWhere('x.source = :src', { src: XpSource.LESSON })
+        .andWhere('x.reference_id IS NOT NULL')
+        .getRawOne<{ n: string }>(),
+      this.xpLogs.count({ where: { userId, source: XpSource.QUIZ } }),
+    ]);
 
     return {
       xp,
@@ -121,6 +150,8 @@ export class XpService {
       todayXp: Number(todayRow?.sum ?? 0),
       dailyGoal: DAILY_GOAL,
       cefrLevel: user?.level ?? null,
+      lessonsDone: Number(lessonRow?.n ?? 0),
+      quizzesDone,
     };
   }
 }
