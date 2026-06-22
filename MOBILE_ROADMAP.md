@@ -138,11 +138,12 @@ mobile/
 
 - [x] **Home/Dashboard** (👤 Усухбаяр) — XP/Sparks карт, "Өнөөдрийн зорилго"
       _(одоо session-ээс; M2-д `GET /api/users/me/stats`-аар live болгоно)_
-- [ ] **Vocabulary / Review** — `GET /api/reviews/due` → карт эргүүлэх →
-      `POST /api/reviews/:wordId {quality 0-5}` (Again/Hard/Good/Easy товч)
-- [ ] **Lessons** жагсаалт — `GET /api/lessons` (type/level филтр)
-- [ ] **Lesson detail** — `GET /api/lessons/:id`, түгжээтэй бол үнэ (priceSparks)
-      харуулах; `GET /api/lessons/:id/access`-ээр нээгдсэн эсэхийг шалгах
+- [x] **Vocabulary / Review** — `GET /api/reviews/due` → карт эргүүлэх →
+      `POST /api/reviews/:wordId {quality 0-5}` (Again/Hard/Good/Easy товч) — 👤 Усухбаяр ✅
+      _(swipe + review дэлгэц)_
+- [x] **Lessons** жагсаалт — `GET /api/lessons` (type/level филтр) — 👤 Усухбаяр ✅
+- [x] **Lesson detail** — `GET /api/lessons/:id`, түгжээтэй бол үнэ (priceSparks)
+      харуулах; `GET /api/lessons/:id/access`-ээр нээгдсэн эсэхийг шалгах — 👤 Усухбаяр ✅
 - [x] **Quiz** — асуулт харуулах → `POST /api/quizzes/:id/submit` → оноо + XP — 👤 Бишрэлт ✅
 - [x] **AI buddy chat** — `POST /api/ai/chat` (текст), түүх харуулах — 👤 Бишрэлт ✅
 - [x] **Lesson detail** — `GET /api/lessons/:id` + `GET /api/lessons/:id/access` + unlock — 👤 Бишрэлт ✅
@@ -159,9 +160,9 @@ mobile/
 
 ## 🎯 Phase M4 — Өнгөлгөө `[ ]` — 👥 хамт
 
-- [ ] Voice AI товч — "Тун удахгүй" (coming soon, CLAUDE.md)
+- [x] Voice AI товч — "Тун удахгүй" (coming soon, CLAUDE.md) — 👤 Усухбаяр ✅
 - [ ] Loading skeleton, empty/error state бүх дэлгэцэд
-- [ ] Pull-to-refresh, offline сэрэмжлүүлэг
+- [x] Pull-to-refresh (lessons/home), offline сэрэмжлүүлэг (offline үлдсэн)
 - [ ] App icon, splash screen, нэр
 - **DoD:** Апп бүрэн, гацахгүй, алдаа найрсаг харагдана.
 
@@ -318,15 +319,17 @@ mockup-аар дахин зохион барьсан. Дизайны эх сур
 - [x] **Auth шинэчлэл** — username + email OTP баталгаажуулалт, нууц үг сэргээх.
 
 **Дараагийн (хямд / одоо боломжтой)**
-- [ ] **Home → "Үргэлжлүүлэх"** ганц гол үйлдэл (Duolingo-style).
-- [ ] **Placement / level** сонголт (onboarding/register; `User.level` — backend хэрэгтэй).
-- [ ] **Оноосон даалгавраа харах** (сурагч) — `GET /api/assignments/mine` бэлэн (хурдан ялалт).
-- [ ] Профайлд **English name** санал.
-- [ ] **Plan / limit badge** — одоогийн plan + лимит харуулах.
+- [x] **Home → "Үргэлжлүүлэх"** ганц гол үйлдэл (Duolingo-style). — 👤 Усухбаяр ✅
+- [x] **Placement / level** сонголт (sign-up; `User.level`). — 👤 Усухбаяр ✅
+- [x] **Оноосон даалгавраа харах** (сурагч) — `GET /api/assignments/mine`. — 👤 Усухбаяр ✅
+- [x] Профайлд **English name** санал (sign-up). — 👤 Усухбаяр ✅
+- [x] **Plan / limit badge** — одоогийн plan + лимит харуулах. — 👤 Усухбаяр ✅
 
 **Дараа (Phase 1.5+)**
 - [ ] Duolingo-style **lesson path** (жагсаалтын оронд).
 - [ ] **Voice AI** speaking + cap UI (80%/95% warning → voice зогсох → reset+upgrade).
-- [ ] **Double-tap dictionary** (DB/cache эхэлж, дараа Gemini).
+- [x] **Double-tap dictionary** — англи үг дээр дарж монгол тайлбар (bottom sheet).
+      `GET /api/dictionary/:word` (Words DB → AI fallback, Бишрэлт backend).
+      AI chat-ийн хариунд `TappableText` холбосон. — 👤 Усухбаяр ✅
 - [ ] **Profession AI buddies**-ийг mobile-д ил гаргах.
 - [ ] **Streak / badge** UI (backend tracking бэлэн болоход).

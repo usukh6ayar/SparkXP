@@ -90,6 +90,12 @@
 | GET | `/ai/conversations/:conversationId` | 🔑 | Харилцааны түүх |
 | PATCH | `/ai/limits` | 🛡️ | Plan limit тохируулах (Redis, app update-гүй) |
 
+## 📚 Dictionary — `/api/dictionary`
+
+| Method | Path | Auth | Тайлбар |
+|---|---|:---:|---|
+| GET | `/dictionary/:word` | 🔑 | Англи үгийн монгол тайлбар → `{ word, explanation, cached }`. Words DB-ээс эхэлж (cached=true), байхгүй бол AI (plan `dictionaryAiLimit`-тэй). Mobile: AI chat-д үг дээр дарахад. |
+
 ## 🏆 Leaderboard — `/api/leaderboard`
 
 | Method | Path | Auth | Тайлбар |
