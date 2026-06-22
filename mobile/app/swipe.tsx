@@ -7,7 +7,6 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAudioPlayer } from 'expo-audio';
 import * as Haptics from 'expo-haptics';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../src/auth/AuthContext';
 import {
   getLearnQueue, submitReview, type LearnWord,
@@ -22,7 +21,6 @@ import { colors, spacing, radius, elevation } from '../src/theme/theme';
 const SCREEN_W = Dimensions.get('window').width;
 const THRESHOLD = SCREEN_W * 0.25;
 const OUT_DURATION = 300;
-const HINT_KEY = 'hasSeenFlashcardGestureHint';
 
 /** SM-2 quality per verdict. */
 const QUALITY = { forgot: 1, know: 5 } as const;
@@ -58,22 +56,20 @@ export default function SwipeScreen() {
       .finally(() => setLoading(false));
   }, [token]);
 
-  // First-run gesture hint: nudge the card left then right, once ever.
+  // Gesture affordance: as each new card lands on top, give it a subtle
+  // left↔right nudge so the user sees it can be swiped both ways.
+  const topId = queue[0]?.id;
   useEffect(() => {
-    if (loading || queue.length === 0) return;
-    let cancelled = false;
-    AsyncStorage.getItem(HINT_KEY).then((seen) => {
-      if (seen || cancelled) return;
-      Animated.sequence([
-        Animated.timing(position, { toValue: { x: -12, y: 0 }, duration: 300, useNativeDriver: false }),
-        Animated.timing(position, { toValue: { x: 0, y: 0 }, duration: 300, useNativeDriver: false }),
-        Animated.timing(position, { toValue: { x: 12, y: 0 }, duration: 300, useNativeDriver: false }),
-        Animated.timing(position, { toValue: { x: 0, y: 0 }, duration: 300, useNativeDriver: false }),
-      ]).start();
-      AsyncStorage.setItem(HINT_KEY, '1');
-    });
-    return () => { cancelled = true; };
-  }, [loading, queue.length, position]);
+    if (loading || !topId) return;
+    position.setValue({ x: 0, y: 0 });
+    const wiggle = Animated.sequence([
+      Animated.timing(position, { toValue: { x: -10, y: 0 }, duration: 180, useNativeDriver: false }),
+      Animated.timing(position, { toValue: { x: 10, y: 0 }, duration: 260, useNativeDriver: false }),
+      Animated.spring(position, { toValue: { x: 0, y: 0 }, friction: 5, useNativeDriver: false }),
+    ]);
+    wiggle.start();
+    return () => wiggle.stop();
+  }, [topId, loading, position]);
 
   function playAudio() {
     const url = queueRef.current[0]?.audioUrl;
