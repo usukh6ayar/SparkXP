@@ -8,9 +8,10 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
-import { Repository, ILike, In } from 'typeorm';
+import { Repository, ILike, In, IsNull } from 'typeorm';
 import Anthropic from '@anthropic-ai/sdk';
 import { Word } from '../entities/word.entity';
+import { WordReview } from '../entities/word-review.entity';
 import { WordStatus, XpSource, SparksSource, ContentLevel } from '../common/enums';
 import { XpService } from '../xp/xp.service';
 import { SparksService } from '../sparks/sparks.service';
@@ -19,6 +20,36 @@ import { CreateWordDto } from './dto/create-word.dto';
 import { UpdateWordDto } from './dto/update-word.dto';
 import { QueryWordsDto } from './dto/query-words.dto';
 import { QuizAnswerDto } from './dto/quiz.dto';
+
+/** Content-health counts for the admin words dashboard. */
+export interface WordStats {
+  total: number;
+  byStatus: Record<WordStatus, number>;
+  missingImage: number;
+  missingAudio: number;
+  missingMnExample: number;
+  duplicates: number;
+}
+
+/** One row in the learning-analytics lists. */
+export interface WordStat {
+  wordId: string;
+  english: string;
+  wrong: number;
+  correct: number;
+  saved: number;
+  learners: number;
+  difficulty: number;
+}
+
+/** Learning analytics over WordReview for the admin monitor. */
+export interface WordAnalytics {
+  topForgotten: WordStat[];
+  topSaved: WordStat[];
+  topKnown: WordStat[];
+  hardest: WordStat[];
+  avgSaveRate: number;
+}
 
 /** Result of a bulk AI-fill import (CSV of bare English words → ready cards). */
 export interface AiBulkReport {
@@ -122,6 +153,8 @@ export class WordsService implements OnModuleInit {
   constructor(
     @InjectRepository(Word)
     private readonly words: Repository<Word>,
+    @InjectRepository(WordReview)
+    private readonly reviews: Repository<WordReview>,
     private readonly xp: XpService,
     private readonly sparks: SparksService,
     private readonly aiGateway: AiGatewayService,
@@ -198,6 +231,8 @@ export class WordsService implements OnModuleInit {
                 sparkTip: text.sparkTip,
                 imageUrl,
                 slug: slugify(english),
+                // AI-generated cards go through review before going live.
+                status: WordStatus.NEEDS_REVIEW,
               }),
             );
             report.inserted++;
@@ -348,18 +383,124 @@ export class WordsService implements OnModuleInit {
       const batch = items.slice(i, i + BATCH);
       await Promise.all(
         batch.map(async (dto) => {
+          // Same English word (case-insensitive) can't be imported twice.
           const exists = await this.words.findOne({
-            where: { english: dto.english, level: dto.level ?? ('a1' as any) },
+            where: { english: ILike(dto.english.trim()) },
             select: { id: true },
           });
           if (exists) { skipped++; return; }
           const { generateImage: _gi, ...wordFields } = dto;
-          await this.words.save(this.words.create({ ...wordFields, slug: slugify(dto.english) }));
+          await this.words.save(
+            this.words.create({
+              // Imports land for review unless the file sets an explicit status.
+              status: WordStatus.NEEDS_REVIEW,
+              ...wordFields,
+              slug: slugify(dto.english),
+            }),
+          );
           inserted++;
         }),
       );
     }
     return { inserted, skipped };
+  }
+
+  // ── Admin: monitoring, bulk-edit, analytics ──────────────────────────────
+
+  /** Content health counts for the admin dashboard. */
+  async getStats(): Promise<WordStats> {
+    const statuses = Object.values(WordStatus);
+    const [total, statusCounts, missingImage, missingAudio, missingMnExample, dup] =
+      await Promise.all([
+        this.words.count(),
+        Promise.all(statuses.map((s) => this.words.count({ where: { status: s } }))),
+        this.words.count({ where: { imageUrl: IsNull() } }),
+        this.words.count({ where: { audioUrl: IsNull() } }),
+        this.words.count({ where: { exampleTranslation: IsNull() } }),
+        this.words.query(
+          `SELECT COUNT(*)::int AS c FROM (SELECT 1 FROM words GROUP BY LOWER(english) HAVING COUNT(*) > 1) t`,
+        ) as Promise<{ c: number }[]>,
+      ]);
+
+    const byStatus = Object.fromEntries(
+      statuses.map((s, i) => [s, statusCounts[i]]),
+    ) as Record<WordStatus, number>;
+
+    return {
+      total,
+      byStatus,
+      missingImage,
+      missingAudio,
+      missingMnExample,
+      duplicates: dup[0]?.c ?? 0,
+    };
+  }
+
+  /** Apply the same change (status / category / level) to many words at once. */
+  async bulkUpdate(
+    ids: string[],
+    changes: { status?: WordStatus; category?: string; level?: ContentLevel },
+  ): Promise<{ updated: number }> {
+    const patch: {
+      status?: WordStatus;
+      category?: string;
+      level?: ContentLevel;
+    } = {};
+    if (changes.status) patch.status = changes.status;
+    if (changes.category !== undefined) patch.category = changes.category;
+    if (changes.level) patch.level = changes.level;
+    if (Object.keys(patch).length === 0) {
+      throw new BadRequestException('Өөрчлөх утга алга байна');
+    }
+    await this.words.update({ id: In(ids) }, patch);
+    return { updated: ids.length };
+  }
+
+  /** Learning analytics over WordReview — what students forget / save / know. */
+  async getAnalytics(limit = 10): Promise<WordAnalytics> {
+    const rows = await this.reviews
+      .createQueryBuilder('r')
+      .innerJoin(Word, 'w', 'w.id = r.word_id')
+      .select('r.word_id', 'wordId')
+      .addSelect('w.english', 'english')
+      .addSelect('SUM(r.wrong_count)', 'wrong')
+      .addSelect('SUM(r.correct_count)', 'correct')
+      .addSelect('SUM(CASE WHEN r.saved THEN 1 ELSE 0 END)', 'saved')
+      .addSelect('COUNT(*)', 'learners')
+      .groupBy('r.word_id')
+      .addGroupBy('w.english')
+      .getRawMany();
+
+    const data = rows.map((r) => {
+      const wrong = Number(r.wrong) || 0;
+      const correct = Number(r.correct) || 0;
+      return {
+        wordId: r.wordId as string,
+        english: r.english as string,
+        wrong,
+        correct,
+        saved: Number(r.saved) || 0,
+        learners: Number(r.learners) || 0,
+        difficulty: wrong + correct > 0 ? wrong / (wrong + correct) : 0,
+      };
+    });
+
+    const top = (key: 'wrong' | 'saved' | 'correct') =>
+      [...data].sort((a, b) => b[key] - a[key]).slice(0, limit);
+
+    const totalSaved = data.reduce((s, d) => s + d.saved, 0);
+    const totalLearners = data.reduce((s, d) => s + d.learners, 0);
+
+    return {
+      topForgotten: top('wrong'),
+      topSaved: top('saved'),
+      topKnown: top('correct'),
+      hardest: [...data]
+        .filter((d) => d.wrong + d.correct >= 3)
+        .sort((a, b) => b.difficulty - a.difficulty)
+        .slice(0, limit),
+      avgSaveRate: totalLearners > 0 ? totalSaved / totalLearners : 0,
+    };
   }
 
   // ── Vocabulary quiz ──────────────────────────────────────────────────────

@@ -17,6 +17,7 @@ import { CreateWordDto } from './dto/create-word.dto';
 import { UpdateWordDto } from './dto/update-word.dto';
 import { QueryWordsDto } from './dto/query-words.dto';
 import { QuizQueryDto, QuizSubmitDto } from './dto/quiz.dto';
+import { BulkUpdateDto } from './dto/bulk-update.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -101,6 +102,31 @@ export class WordsController {
   @Get()
   findAll(@Query() query: QueryWordsDto) {
     return this.wordsService.findAll(query);
+  }
+
+  /** Content-health counts (total, by status, missing image/audio, dupes). */
+  @Get('stats')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  getStats() {
+    return this.wordsService.getStats();
+  }
+
+  /** Learning analytics: most forgotten / saved / known / hardest words. */
+  @Get('analytics')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  getAnalytics() {
+    return this.wordsService.getAnalytics();
+  }
+
+  /** Bulk-edit many words at once (publish/approve/categorize). */
+  @Patch('bulk')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  bulkUpdate(@Body() dto: BulkUpdateDto) {
+    if (!dto.ids?.length) throw new BadRequestException('"ids" массив шаардлагатай');
+    return this.wordsService.bulkUpdate(dto.ids, dto.changes);
   }
 
   /**
