@@ -97,6 +97,7 @@ export enum XpSource {
 export enum AiUsageType {
   TEXT_CHAT = "text_chat",
   TRANSLATION = "translation",
+  IMAGE_GENERATION = "image_generation",
   STT = "stt",
   TTS = "tts",
 }

@@ -38,8 +38,8 @@ export class WordsController {
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
-  create(@Body() dto: CreateWordDto) {
-    return this.wordsService.create(dto);
+  create(@CurrentUser() user: User, @Body() dto: CreateWordDto) {
+    return this.wordsService.create(dto, user.id);
   }
 
   /**
@@ -87,14 +87,25 @@ export class WordsController {
     return this.wordsService.findOne(id);
   }
 
+  @Post(':id/generate-image')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  generateImage(
+    @CurrentUser() user: User,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.wordsService.generateImage(id, user.id);
+  }
+
   @Patch(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
   update(
+    @CurrentUser() user: User,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateWordDto,
   ) {
-    return this.wordsService.update(id, dto);
+    return this.wordsService.update(id, dto, user.id);
   }
 
   @Delete(':id')

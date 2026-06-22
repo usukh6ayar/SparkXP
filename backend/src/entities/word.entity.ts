@@ -26,6 +26,13 @@ export class Word extends BaseEntity {
   phonetic: string | null;
 
   /**
+   * Optional memory aid shown in the flashcard "Spark сануулга" section
+   * (mnemonic), e.g. "Abandon = A band on? Imagine your band leaving you behind."
+   */
+  @Column({ name: 'spark_tip', type: 'text', nullable: true })
+  sparkTip: string | null;
+
+  /**
    * Open-ended topical category (Daily Life, Business, Law…). Free text — see
    * VOCAB_CATEGORY_SUGGESTIONS. Not an enum so new categories need no migration.
    */

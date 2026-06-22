@@ -46,9 +46,24 @@ The deployed admin origin must be allowed by the backend. Set `ADMIN_ORIGIN` in
 the backend `.env` to the admin's deployed URL (e.g. `https://admin.sparkxp.mn`)
 — see `backend/src/main.ts`.
 
+### Word image generation
+
+The admin can ask the backend to generate vocabulary images when creating or
+editing words. This is handled server-side through the AI Gateway, so these keys
+belong on the backend host, not in Vercel's admin project:
+
+- `OPENAI_API_KEY`
+- `OPENAI_IMAGE_MODEL` (default: `gpt-image-2`)
+- `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`
+- `CLOUDINARY_WORD_IMAGES_FOLDER` (optional)
+
+If Cloudinary is not configured, the backend saves generated images locally under
+`/uploads/generated`, which is only suitable for local development.
+
 ## Deploy checklist
 
 1. Backend deployed and reachable; `ADMIN_ORIGIN` = this admin's URL.
 2. `VITE_API_URL` = the prod backend `/api` URL.
-3. `npm run build` passes locally.
-4. SPA rewrite in place (`vercel.json` / `_redirects`).
+3. Backend has `OPENAI_API_KEY` + Cloudinary env vars if word images are enabled.
+4. `npm run build` passes locally.
+5. SPA rewrite in place (`vercel.json` / `_redirects`).

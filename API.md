@@ -43,14 +43,16 @@
 | GET | `/words/quiz` | 🔑 | Vocabulary quiz үүсгэх (`?count=4..30`) — published үгээс multiple-choice (зөв хариулт client рүү явахгүй) |
 | POST | `/words/quiz/submit` | 🔑 | `{ answers:[{wordId,choice}] }` → server-side grade, зөв бүрд XP+Sparks. Буцаалт `{ total, correct, xpAwarded, sparksAwarded }` |
 | GET | `/words/:id` | 🔑 | Нэг үг |
-| POST | `/words` | 🛡️ | Үг үүсгэх (`slug` авто үүснэ) |
+| POST | `/words` | 🛡️ | Үг үүсгэх (`slug` авто үүснэ). `generateImage:true` бол AI Gateway-ээр зураг үүсгээд `imageUrl` хадгална |
 | POST | `/words/bulk` | 🛡️ | JSON массив bulk import |
-| PATCH | `/words/:id` | 🛡️ | Засах (`status` солих → publish/approve) |
+| POST | `/words/:id/generate-image` | 🛡️ | Тухайн үгэнд AI зураг шинээр үүсгэж `imageUrl` шинэчилнэ |
+| PATCH | `/words/:id` | 🛡️ | Засах (`status` солих → publish/approve). `generateImage:true` бол зураг шинээр үүсгэнэ |
 | DELETE | `/words/:id` | 🛡️ | Устгах |
 
 > **Word талбарууд (vocabulary system, 2026-06-22):** `english, mongolian,
-> englishDefinition, phonetic, category, partOfSpeech, exampleSentence,
-> exampleTranslation, audioUrl, imageUrl, level, slug, status`. **`status`
+> englishDefinition, phonetic, sparkTip, category, partOfSpeech,
+> exampleSentence, exampleTranslation, audioUrl, imageUrl, level, slug,
+> status`. **`status`
 > (`WordStatus`):** `draft·needs_review·approved·rejected·published` —
 > default `published`. App-д зөвхөн `published` гарна. `category` = нээлттэй
 > string (`VOCAB_CATEGORY_SUGGESTIONS`). Дэлгэрэнгүй: `VOCABULARY_SYSTEM.md`.

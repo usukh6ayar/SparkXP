@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Plus, Pencil, Trash2, Upload } from 'lucide-react';
+import { ImageIcon, Plus, Pencil, Sparkles, Trash2, Upload } from 'lucide-react';
 import { api, getToken } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
 import { Button } from '../../components/Button';
@@ -18,6 +18,7 @@ interface Word {
   partOfSpeech: string | null;
   exampleSentence: string | null;
   exampleTranslation: string | null;
+  imageUrl: string | null;
   level: string;
   lessonId: string | null;
 }
@@ -37,10 +38,12 @@ const levelColors: Record<string, 'green' | 'blue' | 'yellow' | 'red' | 'gray'> 
 interface WordForm {
   english: string; mongolian: string; level: string;
   partOfSpeech: string; exampleSentence: string; exampleTranslation: string;
+  generateImage: boolean;
 }
 const empty: WordForm = {
   english: '', mongolian: '', level: 'a1',
   partOfSpeech: '', exampleSentence: '', exampleTranslation: '',
+  generateImage: true,
 };
 
 const CSV_TEMPLATE =
@@ -84,6 +87,7 @@ export default function WordsPage() {
   const [error, setError] = useState('');
   const [importResult, setImportResult] = useState<{ inserted: number; skipped: number } | null>(null);
   const [importing, setImporting] = useState(false);
+  const [generatingId, setGeneratingId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -101,6 +105,7 @@ export default function WordsPage() {
       partOfSpeech: w.partOfSpeech ?? '',
       exampleSentence: w.exampleSentence ?? '',
       exampleTranslation: w.exampleTranslation ?? '',
+      generateImage: false,
     });
     setEditing(w); setError(''); setModal('edit');
   }
@@ -118,6 +123,7 @@ export default function WordsPage() {
         partOfSpeech: form.partOfSpeech || undefined,
         exampleSentence: form.exampleSentence || undefined,
         exampleTranslation: form.exampleTranslation || undefined,
+        generateImage: form.generateImage || undefined,
       };
       if (modal === 'create') await api.post('/words', payload);
       else if (editing) await api.patch(`/words/${editing.id}`, payload);
@@ -131,6 +137,16 @@ export default function WordsPage() {
     if (!confirm('Энэ үгийг устгах уу?')) return;
     await api.delete(`/words/${id}`);
     load();
+  }
+
+  async function generateImage(id: string) {
+    setGeneratingId(id); setError('');
+    try {
+      await api.post(`/words/${id}/generate-image`, {});
+      load();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Зураг үүсгэхэд алдаа гарлаа');
+    } finally { setGeneratingId(null); }
   }
 
   async function handleImportFile(file: File) {
@@ -175,6 +191,17 @@ export default function WordsPage() {
 
   const columns = [
     {
+      key: 'image', header: '', render: (w: Word) => (
+        <div className="h-12 w-12 overflow-hidden rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-center">
+          {w.imageUrl ? (
+            <img src={w.imageUrl} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <ImageIcon className="h-5 w-5 text-gray-300" />
+          )}
+        </div>
+      ),
+    },
+    {
       key: 'word', header: 'Үг', render: (w: Word) => (
         <div>
           <p className="font-medium">{w.english}</p>
@@ -206,6 +233,19 @@ export default function WordsPage() {
     {
       key: 'actions', header: '', render: (w: Word) => (
         <div className="flex gap-2 justify-end">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => generateImage(w.id)}
+            disabled={generatingId === w.id}
+            title="Зураг үүсгэх"
+          >
+            {generatingId === w.id ? (
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            ) : (
+              <Sparkles className="h-4 w-4 text-primary" />
+            )}
+          </Button>
           <Button variant="ghost" size="sm" onClick={() => openEdit(w)}><Pencil className="h-4 w-4" /></Button>
           <Button variant="ghost" size="sm" onClick={() => remove(w.id)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
         </div>
@@ -249,10 +289,35 @@ export default function WordsPage() {
             </div>
             <Input label="Жишээ өгүүлбэр (Англи)" value={form.exampleSentence} onChange={(e) => setForm({ ...form, exampleSentence: e.target.value })} placeholder="I eat an apple every day." />
             <Input label="Жишээ өгүүлбэрийн орчуулга" value={form.exampleTranslation} onChange={(e) => setForm({ ...form, exampleTranslation: e.target.value })} placeholder="Би өдөр бүр нэг алим иддэг." />
+            {editing?.imageUrl && (
+              <div className="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
+                <img src={editing.imageUrl} alt="" className="h-16 w-16 rounded-lg object-cover" />
+                <div>
+                  <p className="text-sm font-medium text-gray-700">Одоогийн зураг</p>
+                  <p className="text-xs text-gray-500 break-all">{editing.imageUrl}</p>
+                </div>
+              </div>
+            )}
+            <label className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                checked={form.generateImage}
+                onChange={(e) => setForm({ ...form, generateImage: e.target.checked })}
+                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+              />
+              <span className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-primary" />
+                {modal === 'create' ? 'Зураг автоматаар үүсгэх' : 'Зургийг шинээр үүсгэх'}
+              </span>
+            </label>
             {error && <p className="text-sm text-red-500">{error}</p>}
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="secondary" onClick={() => setModal(null)}>Болих</Button>
-              <Button onClick={save} disabled={saving}>{saving ? 'Хадгалж байна...' : 'Хадгалах'}</Button>
+              <Button onClick={save} disabled={saving}>
+                {saving
+                  ? (form.generateImage ? 'Хадгалж, зураг үүсгэж байна...' : 'Хадгалж байна...')
+                  : 'Хадгалах'}
+              </Button>
             </div>
           </div>
         </Modal>

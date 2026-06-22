@@ -4,6 +4,7 @@ import {
   IsEnum,
   IsUUID,
   MaxLength,
+  IsBoolean,
 } from 'class-validator';
 import { ContentLevel, WordStatus } from '../../common/enums';
 
@@ -28,6 +29,12 @@ export class CreateWordDto {
   @IsString()
   @MaxLength(100)
   phonetic?: string;
+
+  /** Memory aid / mnemonic shown in the flashcard "Spark сануулга" section. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  sparkTip?: string;
 
   /** Topical category (free text — see VOCAB_CATEGORY_SUGGESTIONS). */
   @IsOptional()
@@ -75,4 +82,12 @@ export class CreateWordDto {
   @IsOptional()
   @IsUUID()
   lessonId?: string;
+
+  /**
+   * Admin-only request flag. If true, the WordsService asks the AI Gateway to
+   * create and attach a vocabulary image after saving the word.
+   */
+  @IsOptional()
+  @IsBoolean()
+  generateImage?: boolean;
 }

@@ -13,6 +13,7 @@ import { CreateWordDto } from './dto/create-word.dto';
 import { UpdateWordDto } from './dto/update-word.dto';
 import { QueryWordsDto } from './dto/query-words.dto';
 import { QuizAnswerDto } from './dto/quiz.dto';
+import { AiGatewayService } from '../ai-gateway/ai-gateway.service';
 
 /** A page of results plus the total count, for paginated list endpoints. */
 export interface PaginatedWords {
@@ -73,11 +74,22 @@ export class WordsService {
     private readonly words: Repository<Word>,
     private readonly xp: XpService,
     private readonly sparks: SparksService,
+    private readonly aiGateway: AiGatewayService,
   ) {}
 
-  create(dto: CreateWordDto): Promise<Word> {
-    const word = this.words.create({ ...dto, slug: slugify(dto.english) });
-    return this.words.save(word);
+  async create(dto: CreateWordDto, userId?: string): Promise<Word> {
+    const { generateImage, ...wordFields } = dto;
+    const word = this.words.create({
+      ...wordFields,
+      slug: slugify(dto.english),
+    });
+    const saved = await this.words.save(word);
+
+    if (generateImage && userId) {
+      return this.generateImage(saved.id, userId);
+    }
+
+    return saved;
   }
 
   /**
@@ -124,9 +136,29 @@ export class WordsService {
     return word;
   }
 
-  async update(id: string, dto: UpdateWordDto): Promise<Word> {
+  async update(id: string, dto: UpdateWordDto, userId?: string): Promise<Word> {
     const word = await this.findOne(id); // throws if missing
-    Object.assign(word, dto);
+    const { generateImage, ...wordFields } = dto;
+    Object.assign(word, wordFields);
+    const saved = await this.words.save(word);
+
+    if (generateImage && userId) {
+      return this.generateImage(saved.id, userId);
+    }
+
+    return saved;
+  }
+
+  async generateImage(id: string, userId: string): Promise<Word> {
+    const word = await this.findOne(id);
+    const result = await this.aiGateway.generateVocabularyImage({
+      userId,
+      wordId: word.id,
+      english: word.english,
+      mongolian: word.mongolian,
+      partOfSpeech: word.partOfSpeech,
+    });
+    word.imageUrl = result.imageUrl;
     return this.words.save(word);
   }
 
@@ -156,8 +188,9 @@ export class WordsService {
             select: { id: true },
           });
           if (exists) { skipped++; return; }
+          const { generateImage: _generateImage, ...wordFields } = dto;
           await this.words.save(
-            this.words.create({ ...dto, slug: slugify(dto.english) }),
+            this.words.create({ ...wordFields, slug: slugify(dto.english) }),
           );
           inserted++;
         }),
