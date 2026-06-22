@@ -109,7 +109,7 @@ export default function ProfileScreen() {
   const QUICK: { icon: IconName; label: string; tint: { bg: string; fg: string }; onPress: () => void }[] = [
     { icon: 'person', label: 'Миний мэдээлэл', tint: tints.blue, onPress: () => setEditing(true) },
     { icon: 'stats-chart', label: 'Миний ахиц', tint: tints.pink, onPress: () => router.push('/leaderboard') },
-    { icon: 'bookmark', label: 'Хадгалсан', tint: tints.green, onPress: soon },
+    { icon: 'bookmark', label: 'Хадгалсан', tint: tints.green, onPress: () => router.push('/saved') },
     { icon: 'notifications', label: 'Мэдэгдэл', tint: tints.orange, onPress: soon },
     { icon: 'gift', label: 'Шагналууд', tint: tints.purple, onPress: soon },
     { icon: 'time', label: 'Сүүлийн үзсэн', tint: tints.blue, onPress: soon },

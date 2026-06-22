@@ -10,7 +10,7 @@ import * as Haptics from 'expo-haptics';
 import * as Speech from 'expo-speech';
 import { useAuth } from '../src/auth/AuthContext';
 import {
-  getLearnQueue, submitReview, type LearnWord,
+  getLearnQueue, submitReview, toggleSave, type LearnWord,
 } from '../src/api/reviews';
 import { AppText } from '../src/components/Text';
 import { Loading } from '../src/components/Loading';
@@ -85,6 +85,15 @@ export default function SwipeScreen() {
     }
     Speech.stop();
     Speech.speak(card.english, { language: 'en-US', rate: 0.9 });
+  }
+
+  function onToggleSave() {
+    const card = queueRef.current[0];
+    if (!card) return;
+    // optimistic ⭐ flip on the visible card
+    setQueue((q) => q.map((w, i) => (i === 0 ? { ...w, saved: !w.saved } : w)));
+    const t = tokenRef.current;
+    if (t) toggleSave(t, card.id).catch(() => {});
   }
 
   function haptic(v: Verdict) {
@@ -189,7 +198,12 @@ export default function SwipeScreen() {
               { transform: [{ translateX: position.x }, { translateY: position.y }, { rotate }] },
             ]}
           >
-            <VocabCard word={current} onPlayAudio={playAudio} />
+            <VocabCard
+              word={current}
+              onPlayAudio={playAudio}
+              saved={current.saved}
+              onToggleSave={onToggleSave}
+            />
             {/* swipe tint overlays */}
             <Animated.View pointerEvents="none" style={[styles.tint, { backgroundColor: colors.success, opacity: knowTint }]} />
             <Animated.View pointerEvents="none" style={[styles.tint, { backgroundColor: colors.danger, opacity: forgotTint }]} />
