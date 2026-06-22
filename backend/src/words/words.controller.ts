@@ -73,6 +73,31 @@ export class WordsController {
     return this.wordsService.bulkImport(words);
   }
 
+  /**
+   * AI bulk import: a list of bare English words → AI fills every field (+
+   * optional image) per word. POST /api/words/ai-bulk
+   *   { words: string[], generateImages?: boolean }
+   * AI is slow, so the batch is capped (smaller when generating images).
+   */
+  @Post('ai-bulk')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  aiBulk(
+    @Body('words') words: string[],
+    @Body('generateImages') generateImages?: boolean,
+  ) {
+    if (!Array.isArray(words) || words.length === 0) {
+      throw new BadRequestException('"words" массив шаардлагатай');
+    }
+    const cap = generateImages ? 25 : 75;
+    if (words.length > cap) {
+      throw new BadRequestException(
+        `AI bulk: нэг удаад ${cap}-аас ихгүй үг (${generateImages ? 'зурагтай' : 'зураггүй'}). Багцлан оруулна уу.`,
+      );
+    }
+    return this.wordsService.aiBulkImport(words, generateImages ?? false);
+  }
+
   @Get()
   findAll(@Query() query: QueryWordsDto) {
     return this.wordsService.findAll(query);

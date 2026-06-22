@@ -45,7 +45,8 @@
 | GET | `/words/:id` | 🔑 | Нэг үг |
 | POST | `/words/ai-fill` | 🛡️ | `{ english }` → AI бүх талбарыг үүсгэнэ: `mongolian, englishDefinition, phonetic, partOfSpeech, category, level, exampleSentence, exampleTranslation, sparkTip, imageUrl`. Зөвхөн англи үгээ бичээд формоо урьдчилан бөглөнө |
 | POST | `/words` | 🛡️ | Үг үүсгэх (`slug` авто үүснэ). `generateImage:true` бол AI Gateway-ээр зураг үүсгээд `imageUrl` хадгална |
-| POST | `/words/bulk` | 🛡️ | JSON массив bulk import |
+| POST | `/words/bulk` | 🛡️ | JSON массив bulk import (давхардлыг english+level-ээр алгасна) |
+| POST | `/words/ai-bulk` | 🛡️ | `{ words: string[], generateImages? }` → зөвхөн англи үгсээс AI бүх талбарыг бөглөж нэмнэ. Cap: 75 (зураггүй) / 25 (зурагтай). Буцаалт `{ requested, inserted, skipped, failed:[{word,message}] }` |
 | POST | `/words/:id/generate-image` | 🛡️ | Тухайн үгэнд AI зураг шинээр үүсгэж `imageUrl` шинэчилнэ |
 | PATCH | `/words/:id` | 🛡️ | Засах (`status` солих → publish/approve). `generateImage:true` бол зураг шинээр үүсгэнэ |
 | DELETE | `/words/:id` | 🛡️ | Устгах |
