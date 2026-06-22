@@ -9,6 +9,7 @@ import { Modal } from '../../components/Modal';
 import { Input } from '../../components/Input';
 import { Select } from '../../components/Select';
 import { ImageCropUpload } from '../../components/ImageCropUpload';
+import { FileUpload } from '../../components/FileUpload';
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api';
 
@@ -24,6 +25,7 @@ interface Word {
   exampleSentence: string | null;
   exampleTranslation: string | null;
   imageUrl: string | null;
+  audioUrl: string | null;
   level: string;
   status: string;
   lessonId: string | null;
@@ -60,21 +62,22 @@ interface WordForm {
   englishDefinition: string; phonetic: string; category: string; sparkTip: string;
   partOfSpeech: string; exampleSentence: string; exampleTranslation: string;
   imageUrl: string;      // AI-fill preview (returned from /words/ai-fill)
+  audioUrl: string;      // uploaded pronunciation audio
   generateImage: boolean; // checkbox: generate server-side after save
 }
 const empty: WordForm = {
   english: '', mongolian: '', level: 'a1', status: 'published',
   englishDefinition: '', phonetic: '', category: '', sparkTip: '',
   partOfSpeech: '', exampleSentence: '', exampleTranslation: '',
-  imageUrl: '', generateImage: true,
+  imageUrl: '', audioUrl: '', generateImage: true,
 };
 
 const VALID_LEVELS = ['a1', 'a2', 'b1', 'b2', 'c1', 'c2'];
 
 const CSV_TEMPLATE =
-  'english,mongolian,level,partOfSpeech,exampleSentence,exampleTranslation\n' +
-  'apple,алим,a1,noun,I eat an apple every day.,Би өдөр бүр нэг алим иддэг.\n' +
-  'run,гүйх,a1,verb,She runs in the park.,Тэр цэцэрлэгт гүйдэг.\n';
+  'english,mongolian,level,category,phonetic,partOfSpeech,englishDefinition,sparkTip,exampleSentence,exampleTranslation,imageUrl,audioUrl\n' +
+  'apple,алим,a1,Daily Life,/ˈæpəl/,noun,a round fruit,"A-P-P-L-E гэж бод",I eat an apple every day.,Би өдөр бүр нэг алим иддэг.,,\n' +
+  'run,гүйх,a1,Daily Life,/rʌn/,verb,to move fast on foot,,She runs in the park.,Тэр цэцэрлэгт гүйдэг.,,\n';
 
 /** Parse a CSV string into word objects. Handles quoted fields. */
 function parseCsv(text: string): Record<string, string>[] {
@@ -226,6 +229,7 @@ export default function WordsPage() {
       exampleSentence: w.exampleSentence ?? '',
       exampleTranslation: w.exampleTranslation ?? '',
       imageUrl: w.imageUrl ?? '',   // show existing image so it can be replaced
+      audioUrl: w.audioUrl ?? '',
       generateImage: false,
     });
     setEditing(w); setError(''); setModal('edit');
@@ -282,6 +286,7 @@ export default function WordsPage() {
         exampleSentence: form.exampleSentence || undefined,
         exampleTranslation: form.exampleTranslation || undefined,
         imageUrl: form.imageUrl || undefined,
+        audioUrl: form.audioUrl || undefined,
         generateImage: form.generateImage || undefined,
       };
       if (modal === 'create') await api.post('/words', payload);
@@ -602,6 +607,14 @@ export default function WordsPage() {
               )}
             </div>
 
+            {/* Pronunciation audio (optional — app falls back to device TTS) */}
+            <FileUpload
+              accept="audio"
+              value={form.audioUrl}
+              onChange={(url) => setForm((f) => ({ ...f, audioUrl: url }))}
+              label="Дуудлагын аудио (заавал биш)"
+            />
+
             {error && <p className="text-sm text-red-500">{error}</p>}
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="secondary" onClick={() => setModal(null)}>Болих</Button>
@@ -652,8 +665,9 @@ export default function WordsPage() {
               <div className="rounded-lg bg-gray-50 border border-gray-200 px-4 py-3 text-sm text-gray-700">
                 <p className="font-medium mb-1">CSV формат (Excel-д нээж засах боломжтой):</p>
                 <p className="text-xs text-gray-500 font-mono bg-white rounded px-2 py-1 border border-gray-100 overflow-x-auto whitespace-nowrap">
-                  english, mongolian, level, partOfSpeech, exampleSentence, exampleTranslation
+                  english, mongolian, level, category, phonetic, partOfSpeech, englishDefinition, sparkTip, exampleSentence, exampleTranslation, imageUrl, audioUrl
                 </p>
+                <p className="mt-1 text-xs text-gray-400">Зөвхөн <strong>english, mongolian</strong> шаардлагатай — бусад нь сонголттой.</p>
                 <button
                   onClick={downloadCsvTemplate}
                   className="mt-2 flex items-center gap-1 text-xs text-primary hover:underline"
