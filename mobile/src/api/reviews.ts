@@ -43,6 +43,7 @@ export interface LearnWord {
   partOfSpeech: string | null;
   exampleSentence: string | null;
   exampleTranslation: string | null;
+  sparkTip: string | null;
   audioUrl: string | null;
   imageUrl: string | null;
   level: string;

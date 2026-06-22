@@ -6,11 +6,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAudioPlayer } from 'expo-audio';
+import * as Haptics from 'expo-haptics';
 import { useAuth } from '../src/auth/AuthContext';
 import {
-  getLearnQueue, markKnown, markForgot, toggleSave, type LearnWord,
+  getLearnQueue, submitReview, type LearnWord,
 } from '../src/api/reviews';
-import { TopBar } from '../src/components/TopBar';
 import { AppText } from '../src/components/Text';
 import { Loading } from '../src/components/Loading';
 import { Button } from '../src/components/Button';
@@ -20,26 +20,29 @@ import { colors, spacing, radius, elevation } from '../src/theme/theme';
 
 const SCREEN_W = Dimensions.get('window').width;
 const THRESHOLD = SCREEN_W * 0.25;
-const OUT_DURATION = 250;
+const OUT_DURATION = 300;
+
+/** SM-2 quality per verdict. */
+const QUALITY = { forgot: 1, know: 5 } as const;
+type Verdict = keyof typeof QUALITY;
 
 /**
- * Vocabulary swipe learning (design mockup zurag.jpg).
- * - Swipe RIGHT / "Know"   → mark known (quality 5), card leaves the deck.
- * - Swipe LEFT  / "Forgot" → mark forgot (quality 1), card goes to the back.
- * - ⭐ tap → save/unsave the word.
- * - 🔊 tap → play the word's pronunciation.
- * Only published words come back from the server. Loops until all are known.
+ * Flashcard review (design spec): Tinder-style swipe deck for vocabulary.
+ * - Swipe RIGHT / "Мэднэ"     → quality 5, card leaves the deck.
+ * - Swipe LEFT  / "Мэдэхгүй"  → quality 1, card returns to the back.
+ * Card stack, swipe tint + rotation, first-run gesture hint, haptics.
+ * Only published, not-yet-known words come from the server.
  */
 export default function SwipeScreen() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const router = useRouter();
   const [queue, setQueue] = useState<LearnWord[]>([]);
+  const [total, setTotal] = useState(0);
   const [known, setKnown] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const position = useRef(new Animated.ValueXY()).current;
   const player = useAudioPlayer();
-  // Refs so the (once-created) PanResponder always reads the latest values.
   const queueRef = useRef<LearnWord[]>([]);
   queueRef.current = queue;
   const tokenRef = useRef(token);
@@ -48,54 +51,59 @@ export default function SwipeScreen() {
   useEffect(() => {
     if (!token) return;
     getLearnQueue(token)
-      .then(setQueue)
+      .then((q) => { setQueue(q); setTotal(q.length); })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [token]);
 
+  // Gesture affordance: as each new card lands on top, give it a subtle
+  // left↔right nudge so the user sees it can be swiped both ways.
+  const topId = queue[0]?.id;
+  useEffect(() => {
+    if (loading || !topId) return;
+    position.setValue({ x: 0, y: 0 });
+    const wiggle = Animated.sequence([
+      Animated.timing(position, { toValue: { x: -10, y: 0 }, duration: 180, useNativeDriver: false }),
+      Animated.timing(position, { toValue: { x: 10, y: 0 }, duration: 260, useNativeDriver: false }),
+      Animated.spring(position, { toValue: { x: 0, y: 0 }, friction: 5, useNativeDriver: false }),
+    ]);
+    wiggle.start();
+    return () => wiggle.stop();
+  }, [topId, loading, position]);
+
   function playAudio() {
     const url = queueRef.current[0]?.audioUrl;
     if (!url) return;
-    try {
-      player.replace({ uri: url });
-      player.play();
-    } catch {
-      // audio is non-critical — ignore playback errors
-    }
+    try { player.replace({ uri: url }); player.play(); } catch { /* non-critical */ }
   }
 
-  function onToggleSave() {
-    const card = queueRef.current[0];
-    if (!card) return;
-    // optimistic flip on the visible card
-    setQueue((q) =>
-      q.map((w, i) => (i === 0 ? { ...w, saved: !w.saved } : w)),
-    );
-    const t = tokenRef.current;
-    if (t) toggleSave(t, card.id).catch(() => {});
+  function haptic(v: Verdict) {
+    if (v === 'know') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    else Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   }
 
-  function handleSwipe(dir: 'left' | 'right') {
+  function resolve(v: Verdict) {
     const card = queueRef.current[0];
     if (!card) return;
     const t = tokenRef.current;
-    if (dir === 'right') {
-      if (t) markKnown(t, card.id).catch(() => {});
+    if (t) submitReview(t, card.id, QUALITY[v]).catch(() => {});
+    if (v === 'know') {
       setKnown((k) => k + 1);
-      setQueue((q) => q.slice(1)); // known → remove
+      setQueue((q) => q.slice(1)); // mastered → remove
     } else {
-      if (t) markForgot(t, card.id).catch(() => {});
-      setQueue((q) => [...q.slice(1), card]); // forgot → back of deck
+      setQueue((q) => [...q.slice(1), card]); // forgot / unsure → back of deck
     }
     position.setValue({ x: 0, y: 0 });
   }
 
-  function forceSwipe(dir: 'left' | 'right') {
-    Animated.timing(position, {
-      toValue: { x: dir === 'right' ? SCREEN_W * 1.4 : -SCREEN_W * 1.4, y: 0 },
-      duration: OUT_DURATION,
-      useNativeDriver: false,
-    }).start(() => handleSwipe(dir));
+  /** Animate the top card away, then apply the verdict. */
+  function fling(v: Verdict) {
+    haptic(v);
+    const to = v === 'know'
+      ? { x: SCREEN_W * 1.4, y: 0 }
+      : { x: -SCREEN_W * 1.4, y: 0 };
+    Animated.timing(position, { toValue: to, duration: OUT_DURATION, useNativeDriver: false })
+      .start(() => resolve(v));
   }
 
   function reset() {
@@ -104,11 +112,11 @@ export default function SwipeScreen() {
 
   const pan = useRef(
     PanResponder.create({
-      onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 6,
+      onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 6 || Math.abs(g.dy) > 6,
       onPanResponderMove: (_, g) => position.setValue({ x: g.dx, y: g.dy }),
       onPanResponderRelease: (_, g) => {
-        if (g.dx > THRESHOLD) forceSwipe('right');
-        else if (g.dx < -THRESHOLD) forceSwipe('left');
+        if (g.dx > THRESHOLD) fling('know');
+        else if (g.dx < -THRESHOLD) fling('forgot');
         else reset();
       },
     }),
@@ -123,37 +131,43 @@ export default function SwipeScreen() {
     inputRange: [-SCREEN_W * 1.4, 0, SCREEN_W * 1.4],
     outputRange: ['-12deg', '0deg', '12deg'],
   });
-  const knowOpacity = position.x.interpolate({ inputRange: [0, THRESHOLD], outputRange: [0, 1], extrapolate: 'clamp' });
-  const dontOpacity = position.x.interpolate({ inputRange: [-THRESHOLD, 0], outputRange: [1, 0], extrapolate: 'clamp' });
+  const knowTint = position.x.interpolate({ inputRange: [0, THRESHOLD], outputRange: [0, 0.18], extrapolate: 'clamp' });
+  const forgotTint = position.x.interpolate({ inputRange: [-THRESHOLD, 0], outputRange: [0.18, 0], extrapolate: 'clamp' });
 
-  const total = known + queue.length;
-  const progress = total > 0 ? known / total : 0;
+  const done = Math.min(known, total);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      <TopBar title="Үг сурах" back />
-
-      <View style={styles.counterWrap}>
-        <ProgressBar value={progress} color={colors.success} />
-        <View style={styles.counter}>
-          <AppText variant="label" color={colors.success}>{known} мэдсэн</AppText>
-          <AppText variant="label" color={colors.textMuted}>{queue.length} үлдсэн</AppText>
+      {/* ── Header ───────────────────────────────────────────────────── */}
+      <View style={styles.header}>
+        <Pressable onPress={() => router.back()} style={styles.iconBtn} hitSlop={8}>
+          <Ionicons name="arrow-back" size={20} color={colors.primary} />
+        </Pressable>
+        <AppText variant="h3" color={colors.navy}>
+          {done} <AppText variant="h3" color={colors.textMuted}>/ {total}</AppText>
+        </AppText>
+        <View style={styles.xpPill}>
+          <Ionicons name="flash" size={15} color={colors.xp} />
+          <AppText variant="label" color={colors.navy}>{user?.xp ?? 0}</AppText>
         </View>
+      </View>
+      <View style={styles.progressWrap}>
+        <ProgressBar value={total > 0 ? done / total : 0} color={colors.primary} />
       </View>
 
       {!current ? (
         <View style={styles.done}>
           <AppText style={styles.doneEmoji}>🎉</AppText>
-          <AppText variant="h1" center style={styles.doneTitle}>Бүх үгийг мэдлээ!</AppText>
+          <AppText variant="h1" center style={styles.doneTitle}>Бүх үгийг давтлаа!</AppText>
           <AppText variant="body" color={colors.textSecondary} center>Энэ удаад {known} үг сурлаа.</AppText>
           <Button label="Нүүр рүү" icon="home" onPress={() => router.back()} style={{ marginTop: spacing.xl }} />
         </View>
       ) : (
         <View style={styles.deck}>
-          {/* Next card peek */}
+          {/* Next card peek (8px lower, 97%) */}
           {next ? (
             <View style={[styles.cardWrap, styles.cardBehind]} pointerEvents="none">
-              <VocabCard word={next} saved={next.saved} onToggleSave={() => {}} onPlayAudio={() => {}} />
+              <VocabCard word={next} onPlayAudio={() => {}} />
             </View>
           ) : null}
 
@@ -165,36 +179,33 @@ export default function SwipeScreen() {
               { transform: [{ translateX: position.x }, { translateY: position.y }, { rotate }] },
             ]}
           >
-            <Animated.View style={[styles.badge, styles.badgeKnow, { opacity: knowOpacity }]}>
-              <AppText color={colors.success} style={styles.badgeText}>KNOW</AppText>
-            </Animated.View>
-            <Animated.View style={[styles.badge, styles.badgeDont, { opacity: dontOpacity }]}>
-              <AppText color={colors.danger} style={styles.badgeText}>FORGOT</AppText>
-            </Animated.View>
-
-            <VocabCard
-              word={current}
-              saved={current.saved}
-              onToggleSave={onToggleSave}
-              onPlayAudio={playAudio}
-            />
+            <VocabCard word={current} onPlayAudio={playAudio} />
+            {/* swipe tint overlays */}
+            <Animated.View pointerEvents="none" style={[styles.tint, { backgroundColor: colors.success, opacity: knowTint }]} />
+            <Animated.View pointerEvents="none" style={[styles.tint, { backgroundColor: colors.danger, opacity: forgotTint }]} />
           </Animated.View>
         </View>
       )}
 
-      {/* Forgot / Know actions */}
+      {/* ── Gesture hint + 3 pill actions ────────────────────────────── */}
       {current ? (
-        <View style={styles.actions}>
-          <Pressable style={[styles.actBtn, styles.actForgot]} onPress={() => forceSwipe('left')}>
-            <Ionicons name="arrow-back" size={20} color={colors.danger} />
-            <AppText variant="label" color={colors.danger}>Forgot</AppText>
-          </Pressable>
-          <AppText variant="caption">— Swipe —</AppText>
-          <Pressable style={[styles.actBtn, styles.actKnow]} onPress={() => forceSwipe('right')}>
-            <AppText variant="label" color={colors.success}>Know</AppText>
-            <Ionicons name="arrow-forward" size={20} color={colors.success} />
-          </Pressable>
-        </View>
+        <>
+          <View style={styles.hint}>
+            <AppText variant="caption" color={colors.danger}>← Мэдэхгүй</AppText>
+            <Ionicons name="hand-left-outline" size={16} color={colors.textMuted} />
+            <AppText variant="caption" color={colors.success}>Мэднэ →</AppText>
+          </View>
+          <View style={styles.actions}>
+            <Pressable style={[styles.pill, styles.pillForgot]} onPress={() => fling('forgot')}>
+              <AppText style={styles.pillEmoji}>😵</AppText>
+              <AppText variant="label" color={colors.danger}>Мэдэхгүй</AppText>
+            </Pressable>
+            <Pressable style={[styles.pill, styles.pillKnow]} onPress={() => fling('know')}>
+              <AppText style={styles.pillEmoji}>✅</AppText>
+              <AppText variant="label" color={colors.success}>Мэднэ</AppText>
+            </Pressable>
+          </View>
+        </>
       ) : null}
     </SafeAreaView>
   );
@@ -202,31 +213,39 @@ export default function SwipeScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
-  counterWrap: { paddingHorizontal: spacing.lg, marginBottom: spacing.sm, marginTop: spacing.xs },
-  counter: { flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.sm },
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: spacing.lg, paddingTop: spacing.xs, paddingBottom: spacing.sm,
+  },
+  iconBtn: {
+    width: 40, height: 40, borderRadius: radius.full, backgroundColor: colors.surface,
+    alignItems: 'center', justifyContent: 'center', ...(elevation.sm as object),
+  },
+  xpPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: colors.surface, paddingHorizontal: spacing.md, paddingVertical: 8,
+    borderRadius: radius.full, ...(elevation.sm as object),
+  },
+  progressWrap: { paddingHorizontal: spacing.lg, marginBottom: spacing.sm },
   deck: { flex: 1, justifyContent: 'center', paddingHorizontal: spacing.lg },
   cardWrap: { position: 'absolute', left: spacing.lg, right: spacing.lg },
-  cardBehind: { transform: [{ scale: 0.95 }, { translateY: 14 }], opacity: 0.55 },
-  badge: {
-    position: 'absolute', top: spacing.lg, zIndex: 10,
-    paddingHorizontal: spacing.md, paddingVertical: 6,
-    borderRadius: radius.md, borderWidth: 3, backgroundColor: 'rgba(255,255,255,0.9)',
+  cardBehind: { transform: [{ scale: 0.97 }, { translateY: 8 }], opacity: 0.6 },
+  tint: { ...StyleSheet.absoluteFillObject, borderRadius: radius.xl },
+  hint: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: spacing.md, paddingBottom: spacing.sm,
   },
-  badgeKnow: { right: spacing.lg, borderColor: colors.success, transform: [{ rotate: '12deg' }] },
-  badgeDont: { left: spacing.lg, borderColor: colors.danger, transform: [{ rotate: '-12deg' }] },
-  badgeText: { fontWeight: '900', letterSpacing: 1, fontSize: 18 },
   actions: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.lg,
+    gap: spacing.md, paddingHorizontal: spacing.lg, paddingBottom: spacing.lg,
   },
-  actBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
-    paddingVertical: spacing.md, paddingHorizontal: spacing.xl,
-    borderRadius: radius.full, borderWidth: 1.5, flex: 1, justifyContent: 'center',
-    ...(elevation.sm as object),
+  pill: {
+    flex: 1, height: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, borderRadius: radius.full, borderWidth: 1.5, ...(elevation.sm as object),
   },
-  actForgot: { borderColor: colors.danger, backgroundColor: colors.dangerSoft },
-  actKnow: { borderColor: colors.success, backgroundColor: colors.successSoft },
+  pillEmoji: { fontSize: 16 },
+  pillForgot: { borderColor: colors.danger, backgroundColor: colors.dangerSoft },
+  pillKnow: { borderColor: colors.success, backgroundColor: colors.successSoft },
   done: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
   doneEmoji: { fontSize: 56 },
   doneTitle: { marginTop: spacing.md, marginBottom: spacing.xs },
