@@ -5,6 +5,7 @@ import {
   Building2, Activity, Bell,
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
+import { canAccess } from '../auth/access';
 import { cn } from '../lib/utils';
 
 const nav = [
@@ -26,6 +27,9 @@ export function Sidebar() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
+  // Moderators only see content links; admins see everything.
+  const visibleNav = nav.filter(({ to }) => canAccess(user?.role, to));
+
   function handleLogout() {
     logout();
     navigate('/login');
@@ -46,7 +50,7 @@ export function Sidebar() {
 
       {/* Nav links */}
       <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-0.5">
-        {nav.map(({ to, label, icon: Icon }) => (
+        {visibleNav.map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}

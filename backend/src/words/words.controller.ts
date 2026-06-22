@@ -69,7 +69,7 @@ export class WordsController {
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateWordDto,
@@ -80,7 +80,7 @@ export class WordsController {
   @Delete(':id')
   @HttpCode(204)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
   remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.wordsService.remove(id);
   }

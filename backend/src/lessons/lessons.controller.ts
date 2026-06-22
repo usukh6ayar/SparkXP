@@ -31,7 +31,7 @@ export class LessonsController {
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
   create(@Body() dto: CreateLessonDto) {
     return this.lessonsService.create(dto);
   }
@@ -48,7 +48,7 @@ export class LessonsController {
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateLessonDto,
@@ -59,7 +59,7 @@ export class LessonsController {
   @Delete(':id')
   @HttpCode(204)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
   remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.lessonsService.remove(id);
   }
