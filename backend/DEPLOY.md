@@ -119,8 +119,58 @@ docker run -p 3000:3000 --env-file .env englishxp-api
 үедээ migrate хийгээд `:3000` дээр (`/api` prefix-тэй) ажиллана. Health шалгалт:
 `GET /api/health`.
 
-### Платформын тэмдэглэл (Render / Railway / Fly гэх мэт)
+### Платформын тэмдэглэл (Render / Fly гэх мэт)
 - Сервисээ энэ Dockerfile-тай `/backend` руу чиглүүл, эсвэл Node build ашиглаж
   build = `npm ci && npm run build`, start = `npm run start:prod` гэж тохируул.
 - Managed Postgres + Redis авч дээрх env хувьсагчдыг тохируул.
 - Managed Postgres-д `DB_SSL=true` тохируул.
+
+---
+
+## 6. Railway дээр deploy хийх (алхам алхмаар)
+
+Railway нь `backend/railway.json`-г уншиж **Dockerfile**-аар build хийгээд
+`/api/health` дээр health шалгана. Code өөрчлөх шаардлагагүй — зөвхөн тохиргоо.
+
+**1. Project + service үүсгэх**
+- [railway.app](https://railway.app) → *New Project* → *Deploy from GitHub repo* →
+  энэ repo-г сонго.
+- Service-ийн **Settings → Root Directory**-г `backend` болго (railway.json,
+  Dockerfile тэнд байгаа). Railway автоматаар Dockerfile-аар build хийнэ.
+
+**2. Postgres + Redis нэмэх**
+- Project дотор *New → Database → Add PostgreSQL*, мөн *Add Redis*.
+
+**3. Backend service-ийн Variables (env) тохируулах**
+```env
+NODE_ENV=production
+DATABASE_URL=${{Postgres.DATABASE_URL}}
+REDIS_URL=${{Redis.REDIS_URL}}
+DB_SYNCHRONIZE=false
+DB_MIGRATIONS_RUN=true
+DB_SSL=false           # Railway-н private network дотор SSL шаардлагагүй
+JWT_SECRET=<урт-санамсаргүй-тэмдэгт>
+ANTHROPIC_API_KEY=<хүчинтэй-key>
+OPENAI_API_KEY=<хүчинтэй-key>
+RESEND_API_KEY=<resend-key>          # эсвэл SMTP_* (имэйл)
+MAIL_FROM=SparkXP <noreply@yourdomain.mn>
+CLOUDINARY_CLOUD_NAME=...             # медиа тогтвортой байлгахад
+CLOUDINARY_API_KEY=...
+CLOUDINARY_API_SECRET=...
+ADMIN_ORIGIN=https://your-admin.vercel.app
+```
+> `${{Postgres.DATABASE_URL}}` / `${{Redis.REDIS_URL}}` нь Railway-н reference —
+> plugin-ийн утгыг автоматаар татна. `PORT`-г Railway өөрөө өгдөг (код түүнийг
+> уншина), гараар тохируулах шаардлагагүй.
+
+**4. Deploy + шалгах**
+- Railway автоматаар build хийж deploy хийнэ. *Settings → Networking → Generate
+  Domain* дарж public URL ав (`https://xxx.up.railway.app`).
+- Эхний deploy дээр `DB_MIGRATIONS_RUN=true` нь schema-г үүсгэнэ. Дараа нь админ
+  хэрэглэгч seed хий: service-ийн shell-д `npm run seed`.
+- Шалгах: `GET https://<domain>/api/health` → `{"status":"ok"}` буцаах ёстой.
+
+**5. Admin + mobile холбох**
+- Admin (Vercel): `VITE_API_URL=https://<domain>/api`.
+- Mobile (`mobile/.env`): `EXPO_PUBLIC_API_URL=https://<domain>/api`.
+- Backend-ийн `ADMIN_ORIGIN`-д admin-ийн URL-ийг (CORS-д) заавал нэм.

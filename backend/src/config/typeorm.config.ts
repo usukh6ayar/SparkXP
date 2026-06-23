@@ -16,13 +16,13 @@ import { entities } from '../entities';
 export function buildTypeOrmOptions(
   config: ConfigService,
 ): TypeOrmModuleOptions {
-  return {
-    type: 'postgres',
-    host: config.get<string>('DB_HOST', 'localhost'),
-    port: config.get<number>('DB_PORT', 5432),
-    username: config.get<string>('DB_USERNAME', 'postgres'),
-    password: config.get<string>('DB_PASSWORD', 'postgres'),
-    database: config.get<string>('DB_NAME', 'englishxp'),
+  // Cloud hosts (Railway, Neon, Render) expose ONE connection string. When
+  // DATABASE_URL is present we connect with it; otherwise fall back to the
+  // individual DB_* vars (local dev).
+  const databaseUrl = config.get<string>('DATABASE_URL');
+
+  const base = {
+    type: 'postgres' as const,
     entities,
     // Compiled .js at runtime (dist/), .ts when run via ts-node.
     migrations: [join(__dirname, '..', 'migrations', '*.{js,ts}')],
@@ -32,5 +32,18 @@ export function buildTypeOrmOptions(
     logging: config.get<string>('DB_LOGGING') === 'true',
     // Neon / Supabase / cloud PostgreSQL requires SSL
     ssl: config.get<string>('DB_SSL') === 'true' ? { rejectUnauthorized: false } : false,
+  };
+
+  if (databaseUrl) {
+    return { ...base, url: databaseUrl };
+  }
+
+  return {
+    ...base,
+    host: config.get<string>('DB_HOST', 'localhost'),
+    port: config.get<number>('DB_PORT', 5432),
+    username: config.get<string>('DB_USERNAME', 'postgres'),
+    password: config.get<string>('DB_PASSWORD', 'postgres'),
+    database: config.get<string>('DB_NAME', 'englishxp'),
   };
 }
