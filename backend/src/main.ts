@@ -21,8 +21,12 @@ async function bootstrap() {
     'http://localhost:5173',
     'http://127.0.0.1:5173',
     'http://localhost:5174',
-    // Production admin — set ADMIN_ORIGIN env var to your Vercel URL
-    config.get<string>('ADMIN_ORIGIN', ''),
+    // Production admin — set ADMIN_ORIGIN env var to your Vercel URL.
+    // Supports a comma-separated list (e.g. prod + preview deploys).
+    ...config
+      .get<string>('ADMIN_ORIGIN', '')
+      .split(',')
+      .map((o) => o.trim()),
   ].filter(Boolean);
 
   app.enableCors({
@@ -31,8 +35,9 @@ async function bootstrap() {
   });
 
   const port = config.get<number>('PORT', 3000);
-  await app.listen(port);
-  Logger.log(`EnglishXP API running on http://localhost:${port}/api`, 'Bootstrap');
+  // Bind 0.0.0.0 so the container is reachable on cloud hosts (Railway, Render).
+  await app.listen(port, '0.0.0.0');
+  Logger.log(`EnglishXP API running on port ${port} (prefix /api)`, 'Bootstrap');
 }
 
 bootstrap();
