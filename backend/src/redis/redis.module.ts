@@ -18,14 +18,21 @@ export const REDIS_CLIENT = 'REDIS_CLIENT';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
         const url = config.get<string>('REDIS_URL');
-        // Cloud Redis (Upstash etc.) supplies a full URL; local uses host/port.
+        // family: 0 = allow IPv4 AND IPv6 DNS lookups. Required on Railway,
+        // whose private network (*.railway.internal) is IPv6-only — without it
+        // ioredis defaults to IPv4 and can't resolve the Redis host.
         return url
-          ? new Redis(url, { maxRetriesPerRequest: null, tls: url.startsWith('rediss://') ? {} : undefined })
+          ? new Redis(url, {
+              maxRetriesPerRequest: null,
+              family: 0,
+              tls: url.startsWith('rediss://') ? {} : undefined,
+            })
           : new Redis({
               host: config.get<string>('REDIS_HOST', 'localhost'),
               port: config.get<number>('REDIS_PORT', 6379),
               password: config.get<string>('REDIS_PASSWORD') || undefined,
               maxRetriesPerRequest: null,
+              family: 0,
             });
       },
     },
