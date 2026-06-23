@@ -19,3 +19,6 @@ npm-debug.log*
 .idea
 .vscode/*
 !.vscode/extensions.json
+
+# Local-fallback upload storage (ephemeral; use Cloudinary in prod)
+uploads/
