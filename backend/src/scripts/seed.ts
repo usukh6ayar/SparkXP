@@ -270,17 +270,31 @@ async function seed(ds: DataSource) {
 
 async function main() {
   console.log('🌱 Starting seed...\n');
-  const ds = new DataSource({
-    type: 'postgres',
-    host: process.env.DB_HOST ?? 'localhost',
-    port: Number(process.env.DB_PORT ?? 5432),
-    username: process.env.DB_USERNAME ?? 'postgres',
-    password: process.env.DB_PASSWORD ?? 'postgres',
-    database: process.env.DB_NAME ?? 'englishxp',
-    entities,
-    // Dev seed: create any missing tables from entities before inserting.
-    synchronize: true,
-  });
+  const ssl =
+    process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false;
+  // Use DATABASE_URL when present (Railway/cloud), else individual DB_* vars.
+  // synchronize:true so a fresh DB gets its tables before we insert seed data.
+  const ds = new DataSource(
+    process.env.DATABASE_URL
+      ? {
+          type: 'postgres',
+          url: process.env.DATABASE_URL,
+          entities,
+          synchronize: true,
+          ssl,
+        }
+      : {
+          type: 'postgres',
+          host: process.env.DB_HOST ?? 'localhost',
+          port: Number(process.env.DB_PORT ?? 5432),
+          username: process.env.DB_USERNAME ?? 'postgres',
+          password: process.env.DB_PASSWORD ?? 'postgres',
+          database: process.env.DB_NAME ?? 'englishxp',
+          entities,
+          synchronize: true,
+          ssl,
+        },
+  );
   await ds.initialize();
   try {
     await seed(ds);
