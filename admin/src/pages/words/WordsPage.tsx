@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { ImageIcon, Plus, Pencil, Sparkles, Trash2, Upload, AlertCircle, BarChart2 } from 'lucide-react';
+import { ImageIcon, Plus, Pencil, Sparkles, Trash2, Upload, AlertCircle, BarChart2, Volume2 } from 'lucide-react';
 import { api, getToken } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
 import { Button } from '../../components/Button';
@@ -117,12 +117,13 @@ interface WordForm {
   imageUrl: string;
   audioUrl: string;
   generateImage: boolean;
+  generateAudio: boolean;
 }
 const empty: WordForm = {
   english: '', mongolian: '', level: 'a1', status: 'published',
   englishDefinition: '', phonetic: '', category: '', sparkTip: '',
   partOfSpeech: '', exampleSentence: '', exampleTranslation: '',
-  imageUrl: '', audioUrl: '', generateImage: true,
+  imageUrl: '', audioUrl: '', generateImage: true, generateAudio: true,
 };
 
 const CSV_TEMPLATE =
@@ -258,6 +259,7 @@ export default function WordsPage() {
       imageUrl: w.imageUrl ?? '',
       audioUrl: w.audioUrl ?? '',
       generateImage: false,
+      generateAudio: false,
     });
     setEditing(w); setError(''); setModal('edit');
   }
@@ -313,6 +315,8 @@ export default function WordsPage() {
         imageUrl: form.imageUrl || undefined,
         audioUrl: form.audioUrl || undefined,
         generateImage: form.generateImage || undefined,
+        // Only auto-generate audio when no file was uploaded manually.
+        generateAudio: (form.generateAudio && !form.audioUrl) || undefined,
       };
       if (modal === 'create') await api.post('/words', payload);
       else if (editing) await api.patch(`/words/${editing.id}`, payload);
@@ -332,6 +336,13 @@ export default function WordsPage() {
     setGeneratingId(id);
     try { await api.post(`/words/${id}/generate-image`, {}); load(); }
     catch (e: unknown) { setError(e instanceof Error ? e.message : 'Зураг үүсгэхэд алдаа гарлаа'); }
+    finally { setGeneratingId(null); }
+  }
+
+  async function generateAudio(id: string) {
+    setGeneratingId(id);
+    try { await api.post(`/words/${id}/generate-audio`, {}); load(); }
+    catch (e: unknown) { setError(e instanceof Error ? e.message : 'Аудио үүсгэхэд алдаа гарлаа'); }
     finally { setGeneratingId(null); }
   }
 
@@ -456,6 +467,9 @@ export default function WordsPage() {
             {generatingId === w.id
               ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
               : <Sparkles className="h-4 w-4 text-primary" />}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => generateAudio(w.id)} disabled={generatingId === w.id} title="AI дуудлага үүсгэх">
+            <Volume2 className={`h-4 w-4 ${w.audioUrl ? 'text-primary' : 'text-gray-400'}`} />
           </Button>
           <Button variant="ghost" size="sm" onClick={() => openEdit(w)}><Pencil className="h-4 w-4" /></Button>
           <Button variant="ghost" size="sm" onClick={() => remove(w.id)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
@@ -642,12 +656,24 @@ export default function WordsPage() {
                 )}
               </div>
 
-              <FileUpload
-                accept="audio"
-                value={form.audioUrl}
-                onChange={(url) => setForm((f) => ({ ...f, audioUrl: url }))}
-                label="Дуудлагын аудио (заавал биш)"
-              />
+              <div className="space-y-2">
+                <FileUpload
+                  accept="audio"
+                  value={form.audioUrl}
+                  onChange={(url) => setForm((f) => ({ ...f, audioUrl: url }))}
+                  label="Дуудлагын аудио (заавал биш)"
+                />
+                {!form.audioUrl && (
+                  <label className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
+                    <input type="checkbox" checked={form.generateAudio} onChange={(e) => setForm({ ...form, generateAudio: e.target.checked })}
+                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary" />
+                    <span className="flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-primary" />
+                      AI-аар дуудлага үүсгэх
+                    </span>
+                  </label>
+                )}
+              </div>
             </div>
 
             {error && <p className="text-sm text-red-500">{error}</p>}

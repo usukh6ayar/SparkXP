@@ -35,6 +35,11 @@ const AI_MODEL = 'claude-haiku-4-5-20251001';
 const DEFAULT_IMAGE_MODEL = 'gpt-image-2';
 const IMAGE_COST_MICRO_USD = 6_000;
 
+/** ElevenLabs TTS defaults (override via env). "Rachel" is an ElevenLabs preset voice. */
+const DEFAULT_TTS_VOICE_ID = '21m00Tcm4TlvDq8ikWAM';
+const DEFAULT_TTS_MODEL = 'eleven_multilingual_v2';
+const AUDIO_COST_MICRO_USD = 3_000;
+
 export interface ChatResponse {
   conversationId: string;
   reply: string;
@@ -51,6 +56,17 @@ export interface VocabularyImageRequest {
 
 export interface VocabularyImageResponse {
   imageUrl: string;
+  model: string;
+}
+
+export interface VocabularyAudioRequest {
+  userId: string;
+  wordId: string;
+  english: string;
+}
+
+export interface VocabularyAudioResponse {
+  audioUrl: string;
   model: string;
 }
 
@@ -316,6 +332,72 @@ export class AiGatewayService implements OnModuleInit {
     );
 
     return { imageUrl, model };
+  }
+
+  /**
+   * Generate a pronunciation audio clip (mp3) for a word via ElevenLabs TTS and
+   * store it as a URL. Features call this gateway instead of ElevenLabs directly.
+   */
+  async generateVocabularyAudio(
+    input: VocabularyAudioRequest,
+  ): Promise<VocabularyAudioResponse> {
+    const apiKey = this.config.get<string>('ELEVENLABS_API_KEY');
+    if (!apiKey) {
+      throw new InternalServerErrorException('ELEVENLABS_API_KEY тохируулаагүй байна');
+    }
+
+    const voiceId = this.config.get<string>('ELEVENLABS_VOICE_ID', DEFAULT_TTS_VOICE_ID);
+    const model = this.config.get<string>('ELEVENLABS_MODEL', DEFAULT_TTS_MODEL);
+
+    const response = await fetch(
+      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
+      {
+        method: 'POST',
+        headers: {
+          'xi-api-key': apiKey,
+          'Content-Type': 'application/json',
+          Accept: 'audio/mpeg',
+        },
+        body: JSON.stringify({ text: input.english, model_id: model }),
+      },
+    );
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      this.logger.error(`ElevenLabs TTS failed (${response.status}): ${body}`);
+      throw new InternalServerErrorException('Аудио үүсгэхэд алдаа гарлаа');
+    }
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+    const audioUrl = await this.imageStorage.storeMedia({
+      buffer,
+      filename: `${this.safeFilename(input.english)}-${Date.now()}.mp3`,
+      mimeType: 'audio/mpeg',
+      // Cloudinary serves audio under its "video" resource type.
+      resourceType: 'video',
+      folder: this.config.get<string>('CLOUDINARY_AUDIO_FOLDER', 'englishxp/audio'),
+      localSubdir: 'audio',
+    });
+
+    await this.aiUsages.save(
+      this.aiUsages.create({
+        userId: input.userId,
+        type: AiUsageType.TTS,
+        model,
+        promptTokens: 0,
+        completionTokens: 0,
+        voiceSeconds: 0,
+        costMicroUsd: AUDIO_COST_MICRO_USD,
+        metadata: {
+          wordId: input.wordId,
+          english: input.english,
+          provider: 'elevenlabs',
+          voiceId,
+        },
+      }),
+    );
+
+    return { audioUrl, model };
   }
 
   private safeFilename(value: string): string {

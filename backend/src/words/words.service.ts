@@ -323,10 +323,11 @@ export class WordsService implements OnModuleInit {
       throw new ConflictException('Энэ үг аль хэдийн бүртгэлтэй байна');
     }
 
-    const { generateImage, ...wordFields } = dto;
+    const { generateImage, generateAudio, ...wordFields } = dto;
     const word = this.words.create({ ...wordFields, slug: slugify(dto.english) });
-    const saved = await this.words.save(word);
-    if (generateImage && userId) return this.generateImage(saved.id, userId);
+    let saved = await this.words.save(word);
+    if (generateImage && userId) saved = await this.generateImage(saved.id, userId);
+    if (generateAudio && userId) saved = await this.generateAudio(saved.id, userId);
     return saved;
   }
 
@@ -372,10 +373,11 @@ export class WordsService implements OnModuleInit {
 
   async update(id: string, dto: UpdateWordDto, userId?: string): Promise<Word> {
     const word = await this.findOne(id);
-    const { generateImage, ...wordFields } = dto;
+    const { generateImage, generateAudio, ...wordFields } = dto;
     Object.assign(word, wordFields);
-    const saved = await this.words.save(word);
-    if (generateImage && userId) return this.generateImage(saved.id, userId);
+    let saved = await this.words.save(word);
+    if (generateImage && userId) saved = await this.generateImage(saved.id, userId);
+    if (generateAudio && userId) saved = await this.generateAudio(saved.id, userId);
     return saved;
   }
 
@@ -390,6 +392,18 @@ export class WordsService implements OnModuleInit {
       partOfSpeech: word.partOfSpeech,
     });
     word.imageUrl = result.imageUrl;
+    return this.words.save(word);
+  }
+
+  /** Generate and save a pronunciation audio clip for an existing word via ElevenLabs. */
+  async generateAudio(id: string, userId: string): Promise<Word> {
+    const word = await this.findOne(id);
+    const result = await this.aiGateway.generateVocabularyAudio({
+      userId,
+      wordId: word.id,
+      english: word.english,
+    });
+    word.audioUrl = result.audioUrl;
     return this.words.save(word);
   }
 

@@ -90,4 +90,12 @@ export class CreateWordDto {
   @IsOptional()
   @IsBoolean()
   generateImage?: boolean;
+
+  /**
+   * Admin-only request flag. If true, the WordsService asks the AI Gateway to
+   * generate a pronunciation audio clip (ElevenLabs) and attach it after saving.
+   */
+  @IsOptional()
+  @IsBoolean()
+  generateAudio?: boolean;
 }
