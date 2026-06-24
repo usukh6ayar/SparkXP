@@ -43,8 +43,13 @@
 | GET | `/words/quiz` | 🔑 | Vocabulary quiz үүсгэх (`?count=4..30`) — published үгээс multiple-choice (зөв хариулт client рүү явахгүй) |
 | POST | `/words/quiz/submit` | 🔑 | `{ answers:[{wordId,choice}] }` → server-side grade, зөв бүрд XP+Sparks. Буцаалт `{ total, correct, xpAwarded, sparksAwarded }` |
 | GET | `/words/:id` | 🔑 | Нэг үг |
+| POST | `/words/ai-fill` | 🛡️ | `{ english }` → AI бүх талбарыг үүсгэнэ: `mongolian, englishDefinition, phonetic, partOfSpeech, category, level, exampleSentence, exampleTranslation, sparkTip, imageUrl`. Зөвхөн англи үгээ бичээд формоо урьдчилан бөглөнө |
 | POST | `/words` | 🛡️ | Үг үүсгэх (`slug` авто үүснэ). `generateImage:true` бол AI Gateway-ээр зураг үүсгээд `imageUrl` хадгална |
-| POST | `/words/bulk` | 🛡️ | JSON массив bulk import |
+| POST | `/words/bulk` | 🛡️ | JSON массив bulk import (давхардлыг english-ээр алгасна, шинэ үг → `needs_review`) |
+| GET | `/words/stats` | 🛡️ | Контент эрүүл мэнд: `{ total, byStatus, missingImage, missingAudio, missingMnExample, duplicates }` |
+| GET | `/words/analytics` | 🛡️ | Сурлагын аналитик: `{ topForgotten, topSaved, topKnown, hardest, avgSaveRate }` (WordReview-ээс) |
+| PATCH | `/words/bulk` | 🛡️ | Олон үг нэг дор засах `{ ids, changes:{ status?, category?, level? } }` → `{ updated }` |
+| POST | `/words/ai-bulk` | 🛡️ | `{ words: string[], generateImages? }` → зөвхөн англи үгсээс AI бүх талбарыг бөглөж нэмнэ. Cap: 75 (зураггүй) / 25 (зурагтай). Буцаалт `{ requested, inserted, skipped, failed:[{word,message}] }` |
 | POST | `/words/:id/generate-image` | 🛡️ | Тухайн үгэнд AI зураг шинээр үүсгэж `imageUrl` шинэчилнэ |
 | PATCH | `/words/:id` | 🛡️ | Засах (`status` солих → publish/approve). `generateImage:true` бол зураг шинээр үүсгэнэ |
 | DELETE | `/words/:id` | 🛡️ | Устгах |
@@ -67,6 +72,7 @@
 | PATCH | `/lessons/:id` | 🛡️ | Засах / publish |
 | DELETE | `/lessons/:id` | 🛡️ | Устгах |
 | POST | `/lessons/:id/unlock` | 🔑 | **Spark-аар нээх** (sparks module) |
+| POST | `/lessons/:id/complete` | 🔑 | Хичээл дуусгах → нэг удаа +15 XP (idempotent). `{ alreadyCompleted, xpAwarded }` |
 | GET | `/lessons/:id/access` | 🔑 | Нээгдсэн эсэх `{ hasAccess }` |
 
 > **`type` утгууд (`LessonType`):** `vocabulary` · `grammar` · `listening` ·
@@ -95,6 +101,12 @@
 | GET | `/reviews/stats` | 🔑 | `{ known, learning }` — "мэдэх үг" тоо |
 | GET | `/reviews/saved` | 🔑 | ⭐ Хадгалсан үгсийн жагсаалт |
 | POST | `/reviews/:wordId/save` | 🔑 | ⭐ saved toggle → `{ wordId, saved }` |
+
+## 🔥 Gamification — `/api/gamification`
+
+| Method | Path | Auth | Тайлбар |
+|---|---|:---:|---|
+| GET | `/gamification` | 🔑 | `{ xp, level, levelXp, levelTarget, xpToNext, progress, currentStreak, longestStreak, todayXp, dailyGoal, cefrLevel, lessonsDone, quizzesDone }`. Streak XP олох бүрт ахина (UB цагаар); level нь XP-ээс; lessonsDone = source=lesson distinct, quizzesDone = source=quiz |
 
 ## 🤖 AI Gateway — `/api/ai`
 

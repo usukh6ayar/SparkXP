@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { ImageIcon, Plus, Pencil, Sparkles, Trash2, Upload, CheckSquare, XSquare, Send, AlertCircle } from 'lucide-react';
+import { ImageIcon, Plus, Pencil, Sparkles, Trash2, Upload, AlertCircle, BarChart2 } from 'lucide-react';
 import { api, getToken } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
 import { Button } from '../../components/Button';
@@ -8,13 +8,21 @@ import { Table } from '../../components/Table';
 import { Modal } from '../../components/Modal';
 import { Input } from '../../components/Input';
 import { Select } from '../../components/Select';
+import { ImageCropUpload } from '../../components/ImageCropUpload';
+import { FileUpload } from '../../components/FileUpload';
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api';
+
+// ── Interfaces ─────────────────────────────────────────────────────────────
 
 interface Word {
   id: string;
   english: string;
   mongolian: string;
+  englishDefinition: string | null;
+  phonetic: string | null;
+  category: string | null;
+  sparkTip: string | null;
   partOfSpeech: string | null;
   exampleSentence: string | null;
   exampleTranslation: string | null;
@@ -22,7 +30,6 @@ interface Word {
   audioUrl: string | null;
   level: string;
   status: string;
-  category: string | null;
   lessonId: string | null;
 }
 
@@ -31,6 +38,8 @@ interface WordStats {
   byStatus: Record<string, number>;
   missingImage: number;
   missingAudio: number;
+  missingMnExample: number;
+  duplicates: number;
 }
 
 interface ImportReport {
@@ -41,6 +50,30 @@ interface ImportReport {
   duplicates: { row: number; word: string }[];
   missingImage: string[];
   missingAudio: string[];
+}
+
+interface AiBulkReport {
+  requested: number;
+  inserted: number;
+  skipped: number;
+  failed: { word: string; message: string }[];
+}
+
+interface WordStat {
+  wordId: string;
+  english: string;
+  wrong: number;
+  correct: number;
+  saved: number;
+  learners: number;
+  difficulty: number;
+}
+interface WordAnalytics {
+  topForgotten: WordStat[];
+  topSaved: WordStat[];
+  topKnown: WordStat[];
+  hardest: WordStat[];
+  avgSaveRate: number;
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -54,12 +87,14 @@ const STATUS_TABS = [
   { value: 'draft',        label: '📝 Ноорог' },
 ];
 
-const STATUS_COLORS: Record<string, 'green' | 'blue' | 'yellow' | 'red' | 'gray'> = {
-  published: 'green', approved: 'blue', needs_review: 'yellow', rejected: 'red', draft: 'gray',
+const statusMeta: Record<string, { label: string; color: 'green' | 'blue' | 'yellow' | 'red' | 'gray' }> = {
+  draft:        { label: 'Ноорог',       color: 'gray'   },
+  needs_review: { label: 'Хянах',        color: 'yellow' },
+  approved:     { label: 'Зөвшөөрсөн',  color: 'blue'   },
+  rejected:     { label: 'Татгалзсан',  color: 'red'    },
+  published:    { label: 'Нийтэлсэн',   color: 'green'  },
 };
-const STATUS_LABELS: Record<string, string> = {
-  published: 'Нийтлэгдсэн', approved: 'Батлагдсан', needs_review: 'Хянах', rejected: 'Буцаагдсан', draft: 'Ноорог',
-};
+const statusFormOptions = Object.entries(statusMeta).map(([value, m]) => ({ value, label: m.label }));
 
 const levelOptions = [
   { value: '', label: 'Бүх түвшин' },
@@ -73,23 +108,49 @@ const levelColors: Record<string, 'green' | 'blue' | 'yellow' | 'red' | 'gray'> 
   a1: 'green', a2: 'green', b1: 'blue', b2: 'blue', c1: 'yellow', c2: 'red',
 };
 
+const VALID_LEVELS = ['a1', 'a2', 'b1', 'b2', 'c1', 'c2'];
+
 interface WordForm {
-  english: string; mongolian: string; level: string;
+  english: string; mongolian: string; level: string; status: string;
+  englishDefinition: string; phonetic: string; category: string; sparkTip: string;
   partOfSpeech: string; exampleSentence: string; exampleTranslation: string;
   imageUrl: string;
+  audioUrl: string;
   generateImage: boolean;
 }
 const empty: WordForm = {
-  english: '', mongolian: '', level: 'a1',
+  english: '', mongolian: '', level: 'a1', status: 'published',
+  englishDefinition: '', phonetic: '', category: '', sparkTip: '',
   partOfSpeech: '', exampleSentence: '', exampleTranslation: '',
-  imageUrl: '', generateImage: true,
+  imageUrl: '', audioUrl: '', generateImage: true,
 };
 
 const CSV_TEMPLATE =
-  'word,mongolian_meaning,level,part_of_speech,category,english_definition,english_example,mongolian_example,phonetic,image_url,audio_url\n' +
-  'abandon,Орхих,a1,verb,Daily Life,to leave someone or something behind,He abandoned the old house.,Тэр хуучин байшинг орхисон.,/əˈbændən/,,\n';
+  'english,mongolian,level,category,phonetic,partOfSpeech,englishDefinition,sparkTip,exampleSentence,exampleTranslation,imageUrl,audioUrl\n' +
+  'apple,алим,a1,Daily Life,/ˈæpəl/,noun,a round fruit,"A-P-P-L-E гэж бод",I eat an apple every day.,Би өдөр бүр нэг алим иддэг.,,\n' +
+  'run,гүйх,a1,Daily Life,/rʌn/,verb,to move fast on foot,,She runs in the park.,Тэр цэцэрлэгт гүйдэг.,,\n';
 
-// ── CSV parser ─────────────────────────────────────────────────────────────
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+/**
+ * Pull English words out of a file for AI bulk import.
+ * Accepts: CSV with `english` column, JSON (string[] or {english}[]), or plain list.
+ */
+function extractEnglish(name: string, text: string): string[] {
+  if (name.endsWith('.json')) {
+    const j = JSON.parse(text);
+    const arr = Array.isArray(j) ? j : j.words;
+    return (arr ?? [])
+      .map((x: unknown) => (typeof x === 'string' ? x : (x as { english?: string })?.english))
+      .filter((w: unknown): w is string => !!w)
+      .map((w: string) => w.trim());
+  }
+  // CSV or plain list: first column
+  return text
+    .split(/\r?\n/)
+    .map((l) => l.split(',')[0].replace(/^"|"$/g, '').trim())
+    .filter((l) => l && l.toLowerCase() !== 'english');
+}
 
 function splitCsvLine(line: string): string[] {
   const result: string[] = [];
@@ -108,10 +169,15 @@ function splitCsvLine(line: string): string[] {
 export default function WordsPage() {
   const [words, setWords] = useState<Word[]>([]);
   const [stats, setStats] = useState<WordStats | null>(null);
+  const [analytics, setAnalytics] = useState<WordAnalytics | null>(null);
+  const [showAnalytics, setShowAnalytics] = useState(false);
+
   const [statusTab, setStatusTab] = useState('needs_review');
   const [levelFilter, setLevelFilter] = useState('');
+  const [search, setSearch] = useState('');
+
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [bulkLoading, setBulkLoading] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const [modal, setModal] = useState<null | 'create' | 'edit' | 'import'>(null);
   const [editing, setEditing] = useState<Word | null>(null);
@@ -120,38 +186,89 @@ export default function WordsPage() {
   const [aiFilling, setAiFilling] = useState(false);
   const [error, setError] = useState('');
 
+  // Import v2 (multipart CSV with validation report)
   const [importReport, setImportReport] = useState<ImportReport | null>(null);
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState('');
+  // AI bulk import (list of English → AI fills everything)
+  const [aiMode, setAiMode] = useState(false);
+  const [aiImages, setAiImages] = useState(false);
+  const [aiReport, setAiReport] = useState<AiBulkReport | null>(null);
+
   const [generatingId, setGeneratingId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-
-  const load = useCallback(async () => {
-    const params = new URLSearchParams({ limit: '200' });
-    if (statusTab) params.set('status', statusTab);
-    if (levelFilter) params.set('level', levelFilter);
-    const data = await api.get<{ items: Word[] }>(`/words?${params}`);
-    setWords(data.items ?? []);
-    setSelected(new Set());
-  }, [statusTab, levelFilter]);
 
   const loadStats = useCallback(() => {
     api.get<WordStats>('/words/stats').then(setStats).catch(() => {});
   }, []);
 
+  const load = useCallback(async () => {
+    const params = new URLSearchParams({ limit: '200' });
+    if (statusTab) params.set('status', statusTab);
+    else params.set('all', 'true');
+    if (levelFilter) params.set('level', levelFilter);
+    if (search.trim()) params.set('search', search.trim());
+    const data = await api.get<{ items: Word[] }>(`/words?${params}`);
+    setWords(data.items ?? []);
+    setSelected(new Set());
+  }, [statusTab, levelFilter, search]);
+
   useEffect(() => { load(); }, [load]);
   useEffect(() => { loadStats(); }, [loadStats]);
 
-  // ── Form helpers ─────────────────────────────────────────────────────────
+  // ── Analytics ─────────────────────────────────────────────────────────────
+
+  function toggleAnalytics() {
+    const next = !showAnalytics;
+    setShowAnalytics(next);
+    if (next && !analytics) api.get<WordAnalytics>('/words/analytics').then(setAnalytics).catch(() => {});
+  }
+
+  // ── Select helpers ────────────────────────────────────────────────────────
+
+  function toggleSelect(id: string) {
+    setSelected((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  }
+  function toggleSelectAll() {
+    setSelected((s) => (s.size === words.length ? new Set() : new Set(words.map((w) => w.id))));
+  }
+
+  async function changeStatus(id: string, status: string) {
+    try { await api.patch(`/words/${id}`, { status }); load(); loadStats(); }
+    catch (e: unknown) { setError(e instanceof Error ? e.message : 'Алдаа'); }
+  }
+
+  async function bulkStatus(status: string) {
+    if (selected.size === 0) return;
+    setBulkBusy(true); setError('');
+    try { await api.patch('/words/bulk', { ids: [...selected], changes: { status } }); load(); loadStats(); }
+    catch (e: unknown) { setError(e instanceof Error ? e.message : 'Алдаа'); }
+    finally { setBulkBusy(false); }
+  }
+
+  async function bulkDelete() {
+    if (selected.size === 0 || !confirm(`${selected.size} үг устгах уу?`)) return;
+    setBulkBusy(true); setError('');
+    try { await Promise.all([...selected].map((id) => api.delete(`/words/${id}`))); load(); loadStats(); }
+    catch (e: unknown) { setError(e instanceof Error ? e.message : 'Алдаа'); }
+    finally { setBulkBusy(false); }
+  }
+
+  // ── Form helpers ──────────────────────────────────────────────────────────
 
   function openCreate() { setForm(empty); setEditing(null); setError(''); setModal('create'); }
   function openEdit(w: Word) {
     setForm({
-      english: w.english, mongolian: w.mongolian, level: w.level,
+      english: w.english, mongolian: w.mongolian, level: w.level, status: w.status,
+      englishDefinition: w.englishDefinition ?? '',
+      phonetic: w.phonetic ?? '',
+      category: w.category ?? '',
+      sparkTip: w.sparkTip ?? '',
       partOfSpeech: w.partOfSpeech ?? '',
       exampleSentence: w.exampleSentence ?? '',
       exampleTranslation: w.exampleTranslation ?? '',
-      imageUrl: '',
+      imageUrl: w.imageUrl ?? '',
+      audioUrl: w.audioUrl ?? '',
       generateImage: false,
     });
     setEditing(w); setError(''); setModal('edit');
@@ -162,15 +279,25 @@ export default function WordsPage() {
     setAiFilling(true); setError('');
     try {
       const result = await api.post<{
-        mongolian: string; partOfSpeech: string;
-        exampleSentence: string; exampleTranslation: string; imageUrl: string | null;
+        mongolian: string; englishDefinition: string; phonetic: string;
+        partOfSpeech: string; category: string; level: string;
+        exampleSentence: string; exampleTranslation: string;
+        sparkTip: string; imageUrl: string | null;
       }>('/words/ai-fill', { english: form.english.trim() });
+      const level = VALID_LEVELS.includes((result.level || '').toLowerCase())
+        ? result.level.toLowerCase()
+        : form.level;
       setForm(f => ({
         ...f,
         mongolian: result.mongolian || f.mongolian,
+        englishDefinition: result.englishDefinition || f.englishDefinition,
+        phonetic: result.phonetic || f.phonetic,
         partOfSpeech: result.partOfSpeech || f.partOfSpeech,
+        category: result.category || f.category,
+        level,
         exampleSentence: result.exampleSentence || f.exampleSentence,
         exampleTranslation: result.exampleTranslation || f.exampleTranslation,
+        sparkTip: result.sparkTip || f.sparkTip,
         imageUrl: result.imageUrl || f.imageUrl,
         generateImage: false,
       }));
@@ -184,11 +311,19 @@ export default function WordsPage() {
     setSaving(true); setError('');
     try {
       const payload = {
-        english: form.english, mongolian: form.mongolian, level: form.level,
+        english: form.english,
+        mongolian: form.mongolian,
+        englishDefinition: form.englishDefinition || undefined,
+        phonetic: form.phonetic || undefined,
+        category: form.category || undefined,
+        sparkTip: form.sparkTip || undefined,
+        level: form.level,
+        status: form.status,
         partOfSpeech: form.partOfSpeech || undefined,
         exampleSentence: form.exampleSentence || undefined,
         exampleTranslation: form.exampleTranslation || undefined,
         imageUrl: form.imageUrl || undefined,
+        audioUrl: form.audioUrl || undefined,
         generateImage: form.generateImage || undefined,
       };
       if (modal === 'create') await api.post('/words', payload);
@@ -212,47 +347,40 @@ export default function WordsPage() {
     finally { setGeneratingId(null); }
   }
 
-  // ── Bulk actions ─────────────────────────────────────────────────────────
-
-  function toggleSelect(id: string) {
-    setSelected(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  }
-  function toggleAll() {
-    setSelected(prev => prev.size === words.length ? new Set() : new Set(words.map(w => w.id)));
-  }
-
-  async function bulkAction(status: string) {
-    if (selected.size === 0) return;
-    if (!confirm(`${selected.size} үгийн статусыг "${STATUS_LABELS[status]}" болгох уу?`)) return;
-    setBulkLoading(true);
-    try {
-      await api.patch('/words/bulk', { ids: Array.from(selected), changes: { status } });
-      load(); loadStats();
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Bulk алдаа');
-    } finally { setBulkLoading(false); }
-  }
-
-  // ── Import v2 ─────────────────────────────────────────────────────────────
+  // ── Import ────────────────────────────────────────────────────────────────
 
   async function handleImportFile(file: File) {
-    setImporting(true); setImportError(''); setImportReport(null);
+    setImporting(true); setImportError(''); setImportReport(null); setAiReport(null);
+
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const res = await fetch(`${BASE}/words/import`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${getToken() ?? ''}` },
-        body: formData,
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body.message ?? `Алдаа ${res.status}`);
-      setImportReport(body as ImportReport);
-      load(); loadStats();
+      if (aiMode) {
+        // AI mode: extract English words and let AI fill every field
+        const text = await file.text();
+        const englishList = extractEnglish(file.name, text);
+        if (englishList.length === 0) throw new Error('Англи үг олдсонгүй');
+        const res = await fetch(`${BASE}/words/ai-bulk`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken() ?? ''}` },
+          body: JSON.stringify({ words: englishList, generateImages: aiImages }),
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body.message ?? `Алдаа ${res.status}`);
+        setAiReport(body as AiBulkReport);
+        load(); loadStats();
+      } else {
+        // Regular mode: multipart CSV upload with full validation report
+        const formData = new FormData();
+        formData.append('file', file);
+        const res = await fetch(`${BASE}/words/import`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${getToken() ?? ''}` },
+          body: formData,
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body.message ?? `Алдаа ${res.status}`);
+        setImportReport(body as ImportReport);
+        load(); loadStats();
+      }
     } catch (e: unknown) {
       setImportError(e instanceof Error ? e.message : 'Import алдаа');
     } finally { setImporting(false); }
@@ -280,15 +408,13 @@ export default function WordsPage() {
     URL.revokeObjectURL(url);
   }
 
-  // ── Table ─────────────────────────────────────────────────────────────────
-
-  const allSelected = words.length > 0 && selected.size === words.length;
+  // ── Table ──────────────────────────────────────────────────────────────────
 
   const columns = [
     {
-      key: 'check', header: (
-        <input type="checkbox" checked={allSelected} onChange={toggleAll}
-          className="h-4 w-4 rounded border-gray-300 accent-primary" />
+      key: 'select', header: (
+        <input type="checkbox" checked={words.length > 0 && selected.size === words.length}
+          onChange={toggleSelectAll} className="h-4 w-4 rounded border-gray-300 accent-primary" />
       ),
       render: (w: Word) => (
         <input type="checkbox" checked={selected.has(w.id)} onChange={() => toggleSelect(w.id)}
@@ -308,12 +434,13 @@ export default function WordsPage() {
         <div>
           <p className="font-medium">{w.english}</p>
           <p className="text-xs text-gray-400">{w.mongolian}</p>
+          {w.phonetic && <p className="text-xs text-gray-300 font-mono">{w.phonetic}</p>}
           {w.exampleSentence && <p className="text-xs text-gray-300 truncate max-w-xs">{w.exampleSentence}</p>}
         </div>
       ),
     },
     {
-      key: 'meta', header: 'Түвшин / Хэлзүй', render: (w: Word) => (
+      key: 'meta', header: 'Түвшин / Ангилал', render: (w: Word) => (
         <div className="flex flex-wrap gap-1">
           <Badge color={levelColors[w.level] ?? 'gray'}>{w.level.toUpperCase()}</Badge>
           {w.partOfSpeech && <span className="text-xs text-gray-400 italic">{w.partOfSpeech}</span>}
@@ -322,8 +449,16 @@ export default function WordsPage() {
       ),
     },
     {
-      key: 'status', header: 'Статус', render: (w: Word) => (
-        <Badge color={STATUS_COLORS[w.status] ?? 'gray'}>{STATUS_LABELS[w.status] ?? w.status}</Badge>
+      key: 'status', header: 'Төлөв', render: (w: Word) => (
+        <div className="flex items-center gap-2">
+          <Badge color={statusMeta[w.status]?.color ?? 'gray'}>{statusMeta[w.status]?.label ?? w.status}</Badge>
+          {w.status !== 'published' && (
+            <button onClick={() => changeStatus(w.id, 'published')}
+              className="text-xs text-primary hover:underline" title="Нийтлэх">
+              Нийтлэх
+            </button>
+          )}
+        </div>
       ),
     },
     {
@@ -342,6 +477,8 @@ export default function WordsPage() {
     },
   ];
 
+  // ── Render ────────────────────────────────────────────────────────────────
+
   return (
     <>
       <PageHeader
@@ -349,7 +486,10 @@ export default function WordsPage() {
         description={stats ? `Нийт: ${stats.total} · Зураггүй: ${stats.missingImage} · Аудиогүй: ${stats.missingAudio}` : 'Үгийн сан'}
         action={
           <div className="flex gap-2">
-            <Button variant="secondary" size="sm" onClick={() => { setModal('import'); setImportReport(null); setImportError(''); }}>
+            <Button variant="secondary" size="sm" onClick={toggleAnalytics}>
+              <BarChart2 className="h-4 w-4" /> Аналитик
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => { setModal('import'); setImportReport(null); setAiReport(null); setImportError(''); }}>
               <Upload className="h-4 w-4" /> Оруулах
             </Button>
             <Button onClick={openCreate}><Plus className="h-4 w-4" /> Үг нэмэх</Button>
@@ -357,17 +497,63 @@ export default function WordsPage() {
         }
       />
 
-      {/* Stats row */}
+      {/* Learning analytics panel */}
+      {showAnalytics && (
+        <div className="mb-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+          {!analytics ? (
+            <p className="text-sm text-gray-400">Ачаалж байна…</p>
+          ) : (
+            <>
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-gray-700">Сурлагын аналитик</h3>
+                <span className="text-xs text-gray-500">
+                  Дундаж хадгалалт: <strong className="text-primary">{(analytics.avgSaveRate * 100).toFixed(0)}%</strong>
+                </span>
+              </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {([
+                  { title: '😵 Хамгийн их мартсан', rows: analytics.topForgotten, metric: (r: WordStat) => r.wrong },
+                  { title: '⭐ Хамгийн их хадгалсан', rows: analytics.topSaved, metric: (r: WordStat) => r.saved },
+                  { title: '✅ Хамгийн их мэдсэн', rows: analytics.topKnown, metric: (r: WordStat) => r.correct },
+                  { title: '🔥 Хамгийн хүнд', rows: analytics.hardest, metric: (r: WordStat) => `${(r.difficulty * 100).toFixed(0)}%` },
+                ] as const).map((col) => (
+                  <div key={col.title}>
+                    <p className="mb-1 text-xs font-medium text-gray-500">{col.title}</p>
+                    {col.rows.length === 0 ? (
+                      <p className="text-xs text-gray-300">Дата алга</p>
+                    ) : (
+                      <ol className="space-y-1">
+                        {col.rows.slice(0, 5).map((r, i) => (
+                          <li key={r.wordId} className="flex items-center justify-between text-sm">
+                            <span className="truncate"><span className="text-gray-400">{i + 1}.</span> {r.english}</span>
+                            <span className="ml-2 font-medium text-gray-600">{col.metric(r)}</span>
+                          </li>
+                        ))}
+                      </ol>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Stats grid */}
       {stats && (
-        <div className="flex flex-wrap gap-2 mb-4">
-          {Object.entries(stats.byStatus).map(([status, count]) => (
-            <button
-              key={status}
-              onClick={() => setStatusTab(status)}
-              className={`rounded-lg border px-3 py-1 text-xs font-medium transition-colors ${statusTab === status ? 'border-primary bg-primary/10 text-primary' : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'}`}
-            >
-              {STATUS_LABELS[status] ?? status}: {count}
-            </button>
+        <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          {[
+            { label: 'Нийт', value: stats.total, color: 'text-gray-800' },
+            { label: 'Нийтэлсэн', value: stats.byStatus?.published ?? 0, color: 'text-green-600' },
+            { label: 'Хянах', value: stats.byStatus?.needs_review ?? 0, color: 'text-yellow-600' },
+            { label: 'Зураггүй', value: stats.missingImage, color: 'text-gray-500' },
+            { label: 'Аудиогүй', value: stats.missingAudio, color: 'text-gray-500' },
+            { label: 'Давхардал', value: stats.duplicates, color: 'text-red-500' },
+          ].map((s) => (
+            <div key={s.label} className="rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
+              <p className={`text-xl font-bold ${s.color}`}>{s.value.toLocaleString()}</p>
+              <p className="text-xs text-gray-500">{s.label}</p>
+            </div>
           ))}
         </div>
       )}
@@ -383,27 +569,23 @@ export default function WordsPage() {
             {t.label}
           </button>
         ))}
-        <div className="ml-auto pb-1">
+        <div className="ml-auto flex items-center gap-2 pb-1">
+          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Хайх…" className="w-40 text-xs" />
           <Select options={levelOptions} value={levelFilter} onChange={(e) => setLevelFilter(e.target.value)} className="w-32 text-xs" />
         </div>
       </div>
 
       {/* Bulk action bar */}
       {selected.size > 0 && (
-        <div className="mb-3 flex items-center gap-2 rounded-xl border border-primary/20 bg-primary/5 px-4 py-2.5">
-          <span className="text-sm font-medium text-primary">{selected.size} сонгосон</span>
-          <div className="ml-auto flex gap-2">
-            <Button size="sm" variant="secondary" onClick={() => bulkAction('approved')} disabled={bulkLoading}>
-              <CheckSquare className="h-4 w-4 text-blue-500" /> Батлах
-            </Button>
-            <Button size="sm" variant="secondary" onClick={() => bulkAction('published')} disabled={bulkLoading}>
-              <Send className="h-4 w-4 text-green-500" /> Нийтлэх
-            </Button>
-            <Button size="sm" variant="secondary" onClick={() => bulkAction('rejected')} disabled={bulkLoading}>
-              <XSquare className="h-4 w-4 text-red-400" /> Буцаах
-            </Button>
-            <Button size="sm" variant="secondary" onClick={() => setSelected(new Set())}>Болих</Button>
-          </div>
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primarySoft px-4 py-2 text-sm">
+          <span className="font-medium text-primary">{selected.size} сонгосон:</span>
+          <Button size="sm" onClick={() => bulkStatus('published')} disabled={bulkBusy}>Нийтлэх</Button>
+          <Button variant="secondary" size="sm" onClick={() => bulkStatus('approved')} disabled={bulkBusy}>Зөвшөөрөх</Button>
+          <Button variant="secondary" size="sm" onClick={() => bulkStatus('rejected')} disabled={bulkBusy}>Татгалзах</Button>
+          <Button variant="ghost" size="sm" onClick={bulkDelete} disabled={bulkBusy}>
+            <Trash2 className="h-4 w-4 text-red-500" /> Устгах
+          </Button>
+          <button onClick={() => setSelected(new Set())} className="ml-auto text-xs text-gray-500 hover:underline">Цуцлах</button>
         </div>
       )}
 
@@ -430,42 +612,52 @@ export default function WordsPage() {
               </button>
             </div>
 
+            <p className="-mt-1 flex items-center gap-1.5 text-xs text-gray-400">
+              <Sparkles className="h-3.5 w-3.5 text-primary" />
+              Зөвхөн Англи үгээ бичээд <span className="font-medium text-primary">AI бөглөх</span> дарвал доорх бүх талбар автоматаар бөглөгдөнө.
+            </p>
+
             <Input label="Монгол утга" value={form.mongolian} onChange={(e) => setForm({ ...form, mongolian: e.target.value })} placeholder="алим" />
+            <Input label="Англи тодорхойлолт" value={form.englishDefinition} onChange={(e) => setForm({ ...form, englishDefinition: e.target.value })} placeholder="a round fruit that grows on trees" />
 
             <div className="grid grid-cols-2 gap-4">
               <Select label="Түвшин" options={levelFormOptions} value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value })} />
-              <Input label="Хэлзүй (noun, verb...)" value={form.partOfSpeech} onChange={(e) => setForm({ ...form, partOfSpeech: e.target.value })} placeholder="noun" />
+              <Select label="Төлөв" options={statusFormOptions} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} />
             </div>
-            <Input label="Жишээ өгүүлбэр (Англи)" value={form.exampleSentence} onChange={(e) => setForm({ ...form, exampleSentence: e.target.value })} />
-            <Input label="Жишээ өгүүлбэрийн орчуулга" value={form.exampleTranslation} onChange={(e) => setForm({ ...form, exampleTranslation: e.target.value })} />
+            <div className="grid grid-cols-2 gap-4">
+              <Input label="Хэлзүй (noun, verb...)" value={form.partOfSpeech} onChange={(e) => setForm({ ...form, partOfSpeech: e.target.value })} placeholder="noun" />
+              <Input label="Дуудлага (phonetic)" value={form.phonetic} onChange={(e) => setForm({ ...form, phonetic: e.target.value })} placeholder="/ˈæpəl/" />
+            </div>
+            <Input label="Ангилал" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} placeholder="Daily Life" />
+            <Input label="Жишээ өгүүлбэр (Англи)" value={form.exampleSentence} onChange={(e) => setForm({ ...form, exampleSentence: e.target.value })} placeholder="I eat an apple every day." />
+            <Input label="Жишээ өгүүлбэрийн орчуулга" value={form.exampleTranslation} onChange={(e) => setForm({ ...form, exampleTranslation: e.target.value })} placeholder="Би өдөр бүр нэг алим иддэг." />
+            <Input label="Spark сануулга (тогтооход туслах)" value={form.sparkTip} onChange={(e) => setForm({ ...form, sparkTip: e.target.value })} placeholder="A-P-P-L-E гэж бод" />
 
-            {form.imageUrl && (
-              <div className="relative rounded-xl overflow-hidden border border-gray-200">
-                <img src={form.imageUrl} alt={form.english} className="w-full max-h-40 object-cover" />
-                <button type="button" onClick={() => setForm(f => ({ ...f, imageUrl: '', generateImage: false }))}
-                  className="absolute top-2 right-2 rounded-full bg-black/50 p-1 text-white hover:bg-black/70">
-                  <span className="text-xs px-1">✕</span>
-                </button>
-                <span className="absolute bottom-2 left-2 rounded bg-black/50 px-2 py-0.5 text-xs text-white">AI зураг</span>
-              </div>
-            )}
+            <div className="space-y-2">
+              <ImageCropUpload
+                value={form.imageUrl}
+                onChange={(url) => setForm(f => ({ ...f, imageUrl: url, generateImage: false }))}
+                label="Зураг"
+                aspect={1}
+              />
+              {!form.imageUrl && (
+                <label className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
+                  <input type="checkbox" checked={form.generateImage} onChange={(e) => setForm({ ...form, generateImage: e.target.checked })}
+                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary" />
+                  <span className="flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                    Зураг оруулаагүй бол AI-аар автоматаар үүсгэх
+                  </span>
+                </label>
+              )}
+            </div>
 
-            {!form.imageUrl && editing?.imageUrl && (
-              <div className="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
-                <img src={editing.imageUrl} alt="" className="h-16 w-16 rounded-lg object-cover" />
-                <p className="text-sm text-gray-500">Одоогийн зураг</p>
-              </div>
-            )}
-
-            {!form.imageUrl && (
-              <label className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
-                <input type="checkbox" checked={form.generateImage} onChange={(e) => setForm({ ...form, generateImage: e.target.checked })}
-                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary" />
-                <span className="flex items-center gap-2"><Sparkles className="h-4 w-4 text-primary" />
-                  {modal === 'create' ? 'Зураг автоматаар үүсгэх' : 'Зургийг шинээр үүсгэх'}
-                </span>
-              </label>
-            )}
+            <FileUpload
+              accept="audio"
+              value={form.audioUrl}
+              onChange={(url) => setForm((f) => ({ ...f, audioUrl: url }))}
+              label="Дуудлагын аудио (заавал биш)"
+            />
 
             {error && <p className="text-sm text-red-500">{error}</p>}
             <div className="flex justify-end gap-2 pt-2">
@@ -478,35 +670,72 @@ export default function WordsPage() {
         </Modal>
       )}
 
-      {/* Import modal (v2 — with report) */}
+      {/* Import modal */}
       {modal === 'import' && (
-        <Modal title="CSV оруулах (v2)" onClose={() => setModal(null)}>
+        <Modal title="Үг оруулах" onClose={() => setModal(null)}>
           <div className="space-y-4">
-            <div className="rounded-lg bg-gray-50 border border-gray-200 px-4 py-3 text-sm text-gray-700">
-              <p className="font-medium mb-1">CSV баганын гарчиг (дэлгэрэнгүй формат):</p>
-              <p className="text-xs font-mono bg-white rounded px-2 py-1 border border-gray-100 overflow-x-auto whitespace-nowrap">
-                word, mongolian_meaning, level, part_of_speech, category, english_definition, english_example, mongolian_example, phonetic, image_url, audio_url
-              </p>
-              <p className="text-xs text-gray-400 mt-1">Шинэ үгс → <strong>needs_review</strong> статустай орно (автоматаар нийтлэгдэхгүй)</p>
-              <button onClick={downloadCsvTemplate} className="mt-2 flex items-center gap-1 text-xs text-primary hover:underline">
-                <Upload className="h-3 w-3 rotate-180" /> Загвар татах
-              </button>
-            </div>
+            {/* Mode toggle */}
+            <label className="flex items-start gap-3 rounded-lg border border-primary/30 bg-primarySoft px-4 py-3 cursor-pointer">
+              <input type="checkbox" checked={aiMode} onChange={(e) => { setAiMode(e.target.checked); setImportReport(null); setAiReport(null); }}
+                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary" />
+              <span className="text-sm text-gray-700">
+                <span className="flex items-center gap-1.5 font-medium text-primary">
+                  <Sparkles className="h-4 w-4" /> Зөвхөн англи үгс — AI бусдыг бөглөнө
+                </span>
+                <span className="text-xs text-gray-500">
+                  Англи үгсийн жагсаалт оруулахад орчуулга, тодорхойлолт, жишээ, түвшин гэх мэт бүгдийг AI бөглөж бэлэн болгоно.
+                </span>
+              </span>
+            </label>
 
+            {/* Instructions */}
+            {aiMode ? (
+              <div className="rounded-lg bg-gray-50 border border-gray-200 px-4 py-3 text-sm text-gray-700">
+                <p className="font-medium mb-1">Формат: мөр бүрт нэг англи үг (эсвэл CSV/JSON):</p>
+                <p className="text-xs text-gray-500 font-mono bg-white rounded px-2 py-1 border border-gray-100 whitespace-pre">abandon{'\n'}ability{'\n'}achieve</p>
+                <label className="mt-3 flex items-center gap-2 text-sm text-gray-700">
+                  <input type="checkbox" checked={aiImages} onChange={(e) => setAiImages(e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary" />
+                  <span className="flex items-center gap-1.5"><ImageIcon className="h-4 w-4 text-primary" /> Зураг бас үүсгэх (удаан · нэг удаад цөөн үг)</span>
+                </label>
+                <p className="mt-1 text-xs text-gray-400">Нэг удаад {aiImages ? '25' : '75'}-аас ихгүй үг.</p>
+              </div>
+            ) : (
+              <div className="rounded-lg bg-gray-50 border border-gray-200 px-4 py-3 text-sm text-gray-700">
+                <p className="font-medium mb-1">CSV баганын гарчиг:</p>
+                <p className="text-xs text-gray-500 font-mono bg-white rounded px-2 py-1 border border-gray-100 overflow-x-auto whitespace-nowrap">
+                  english, mongolian, level, category, phonetic, partOfSpeech, englishDefinition, sparkTip, exampleSentence, exampleTranslation, imageUrl, audioUrl
+                </p>
+                <p className="mt-1 text-xs text-gray-400">Зөвхөн <strong>english, mongolian</strong> шаардлагатай. Шинэ үгс → <strong>needs_review</strong>.</p>
+                <button onClick={downloadCsvTemplate} className="mt-2 flex items-center gap-1 text-xs text-primary hover:underline">
+                  <Upload className="h-3 w-3 rotate-180" /> Загвар татах
+                </button>
+              </div>
+            )}
+
+            {/* Drop zone */}
             <div
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleImportFile(f); }}
               onClick={() => fileRef.current?.click()}
               className="flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 p-10 cursor-pointer hover:border-primary hover:bg-primary/5 transition-colors"
             >
-              {importing
-                ? <div className="flex items-center gap-2 text-sm text-primary"><div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />Оруулж байна...</div>
-                : <><Upload className="h-10 w-10 text-gray-300" /><p className="text-sm font-medium text-gray-700">CSV файл сонгох</p><p className="text-xs text-gray-400">Чирж оруулж болно</p></>
-              }
-              <input ref={fileRef} type="file" accept=".csv" className="hidden"
+              {importing ? (
+                <div className="flex items-center gap-2 text-sm text-primary">
+                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                  {aiMode ? 'AI бөглөж байна... (удаж магадгүй)' : 'Оруулж байна...'}
+                </div>
+              ) : (
+                <>
+                  <Upload className="h-10 w-10 text-gray-300" />
+                  <p className="text-sm font-medium text-gray-700">Файл сонгох</p>
+                  <p className="text-xs text-gray-400">{aiMode ? '.csv · .json · .txt' : '.csv'} · чирж оруулж болно</p>
+                </>
+              )}
+              <input ref={fileRef} type="file" accept={aiMode ? '.csv,.json,.txt' : '.csv'} className="hidden"
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImportFile(f); e.target.value = ''; }} />
             </div>
 
+            {/* Import v2 report */}
             {importReport && (
               <div className="space-y-3">
                 <div className="grid grid-cols-3 gap-3">
@@ -523,7 +752,6 @@ export default function WordsPage() {
                     <p className="text-xs text-gray-500">Нийт мөр</p>
                   </div>
                 </div>
-
                 {importReport.errors.length > 0 && (
                   <div className="rounded-lg bg-red-50 border border-red-200 p-3">
                     <div className="flex items-center justify-between mb-2">
@@ -540,15 +768,27 @@ export default function WordsPage() {
                     </div>
                   </div>
                 )}
+                {importReport.duplicates.length > 0 && <p className="text-xs text-gray-500">🔁 {importReport.duplicates.length} давхардал алгасагдсан</p>}
+                {importReport.missingImage.length > 0 && <p className="text-xs text-gray-400">🖼 {importReport.missingImage.length} үгэнд зураг байхгүй</p>}
+                {importReport.missingAudio.length > 0 && <p className="text-xs text-gray-400">🔊 {importReport.missingAudio.length} үгэнд аудио байхгүй</p>}
+              </div>
+            )}
 
-                {importReport.duplicates.length > 0 && (
-                  <p className="text-xs text-gray-500">🔁 {importReport.duplicates.length} давхардал алгасагдсан</p>
-                )}
-                {importReport.missingImage.length > 0 && (
-                  <p className="text-xs text-gray-400">🖼 {importReport.missingImage.length} үгэнд зураг байхгүй</p>
-                )}
-                {importReport.missingAudio.length > 0 && (
-                  <p className="text-xs text-gray-400">🔊 {importReport.missingAudio.length} үгэнд аудио байхгүй</p>
+            {/* AI bulk report */}
+            {aiReport && (
+              <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-800 space-y-1">
+                <p>✅ <strong>{aiReport.inserted}</strong> үг AI-аар бөглөж нэмэгдлээ
+                  {aiReport.skipped > 0 && <span className="text-green-600 ml-1">· {aiReport.skipped} давхардал</span>}
+                </p>
+                {aiReport.failed.length > 0 && (
+                  <details className="text-xs text-red-600">
+                    <summary className="cursor-pointer">{aiReport.failed.length} үг амжилтгүй</summary>
+                    <ul className="mt-1 list-disc pl-4">
+                      {aiReport.failed.slice(0, 20).map((f) => (
+                        <li key={f.word}><strong>{f.word}</strong>: {f.message}</li>
+                      ))}
+                    </ul>
+                  </details>
                 )}
               </div>
             )}

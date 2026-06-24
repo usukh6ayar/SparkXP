@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { View, StyleSheet, Image, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AppText } from './Text';
@@ -6,21 +7,24 @@ import { colors, spacing, radius, elevation } from '../theme/theme';
 
 interface Props {
   word: LearnWord;
-  /** ⭐ saved state (controlled by the parent so it can update optimistically). */
-  saved: boolean;
-  onToggleSave: () => void;
   onPlayAudio: () => void;
+  /** ⭐ save (optional). Star shown only when a handler is provided. */
+  saved?: boolean;
+  onToggleSave?: () => void;
 }
 
 /**
- * The vocabulary swipe card (see design mockup zurag.jpg). Purely presentational
- * — swipe gestures + Forgot/Know live in the parent screen. Reused by the swipe
- * deck and (later) the saved-words screen, so it owns no animation state.
+ * The vocabulary flashcard (design mockup). Purely presentational — swipe
+ * gestures + actions live in the parent screen. Reused by the review deck and
+ * (later) the saved-words screen.
  *
- * Layout: hero image with level / save / category / part-of-speech overlays,
- * then word + phonetic + 🔊, English definition, Mongolian meaning, example.
+ * Layout: hero image with level / category / part-of-speech overlays, then
+ * word + phonetic + 🔊, Mongolian meaning, example, and a collapsible
+ * "Spark сануулга" memory tip.
  */
-export function VocabCard({ word, saved, onToggleSave, onPlayAudio }: Props) {
+export function VocabCard({ word, onPlayAudio, saved, onToggleSave }: Props) {
+  const [tipOpen, setTipOpen] = useState(false);
+
   return (
     <View style={styles.card}>
       {/* ── Hero image + overlays ─────────────────────────────────────── */}
@@ -34,37 +38,41 @@ export function VocabCard({ word, saved, onToggleSave, onPlayAudio }: Props) {
         )}
 
         {/* level (top-left) */}
-        <View style={[styles.overlayPill, styles.levelPill]}>
+        <View style={[styles.levelPill]}>
           <AppText variant="label" color={colors.white} style={styles.pillText}>
             {word.level?.toUpperCase()}
           </AppText>
         </View>
 
-        {/* ⭐ save (top-right) */}
-        <Pressable onPress={onToggleSave} hitSlop={10} style={styles.saveBtn}>
-          <Ionicons
-            name={saved ? 'star' : 'star-outline'}
-            size={22}
-            color={saved ? colors.xp : colors.navy}
-          />
-        </Pressable>
+        {/* category + part of speech (top-right, stacked) */}
+        <View style={styles.topRight}>
+          {word.category ? (
+            <View style={styles.categoryPill}>
+              <Ionicons name="home" size={12} color={colors.white} />
+              <AppText variant="label" color={colors.white} style={styles.pillText}>
+                {word.category}
+              </AppText>
+            </View>
+          ) : null}
+          {word.partOfSpeech ? (
+            <View style={styles.posPill}>
+              <Ionicons name="pricetag" size={11} color={colors.primary} />
+              <AppText variant="label" color={colors.primary} style={styles.pillText}>
+                {word.partOfSpeech}
+              </AppText>
+            </View>
+          ) : null}
+        </View>
 
-        {/* category (bottom-left) */}
-        {word.category ? (
-          <View style={[styles.overlayPill, styles.categoryPill]}>
-            <AppText variant="label" color={colors.white} style={styles.pillText}>
-              {word.category}
-            </AppText>
-          </View>
-        ) : null}
-
-        {/* part of speech (bottom-right) */}
-        {word.partOfSpeech ? (
-          <View style={[styles.overlayPill, styles.posPill]}>
-            <AppText variant="label" color={colors.white} style={styles.pillText}>
-              {word.partOfSpeech}
-            </AppText>
-          </View>
+        {/* ⭐ save (optional, top-right corner of image) */}
+        {onToggleSave ? (
+          <Pressable onPress={onToggleSave} hitSlop={10} style={styles.saveBtn}>
+            <Ionicons
+              name={saved ? 'star' : 'star-outline'}
+              size={20}
+              color={saved ? colors.xp : colors.navy}
+            />
+          </Pressable>
         ) : null}
       </View>
 
@@ -79,25 +87,18 @@ export function VocabCard({ word, saved, onToggleSave, onPlayAudio }: Props) {
               </AppText>
             ) : null}
           </View>
-          {word.audioUrl ? (
-            <Pressable onPress={onPlayAudio} hitSlop={8} style={styles.audioBtn}>
-              <Ionicons name="volume-high" size={22} color={colors.primary} />
-            </Pressable>
-          ) : null}
+          {/* Always available: plays the uploaded audio if any, else device TTS. */}
+          <Pressable onPress={onPlayAudio} hitSlop={8} style={styles.audioBtn}>
+            <Ionicons name="volume-high" size={22} color={colors.primary} />
+          </Pressable>
         </View>
-
-        {word.englishDefinition ? (
-          <AppText variant="body" style={styles.definition}>
-            {word.englishDefinition}
-          </AppText>
-        ) : null}
 
         {/* Mongolian meaning */}
         <View style={styles.meaningRow}>
           <View style={styles.meaningIcon}>
             <Ionicons name="language" size={14} color={colors.primary} />
           </View>
-          <AppText variant="h3" color={colors.primary} style={styles.meaning}>
+          <AppText variant="h3" color={colors.navy} style={styles.meaning}>
             {word.mongolian}
           </AppText>
         </View>
@@ -120,6 +121,28 @@ export function VocabCard({ word, saved, onToggleSave, onPlayAudio }: Props) {
             ) : null}
           </View>
         ) : null}
+
+        {/* Spark tip (collapsed by default) */}
+        {word.sparkTip ? (
+          <Pressable style={styles.tipBox} onPress={() => setTipOpen((o) => !o)}>
+            <View style={styles.tipHead}>
+              <AppText style={styles.tipFox}>🦊</AppText>
+              <AppText variant="label" color={colors.primary} style={styles.tipTitle}>
+                Spark сануулга
+              </AppText>
+              <Ionicons
+                name={tipOpen ? 'chevron-up' : 'chevron-down'}
+                size={18}
+                color={colors.primary}
+              />
+            </View>
+            {tipOpen ? (
+              <AppText variant="body" color={colors.textSecondary} style={styles.tipBody}>
+                {word.sparkTip}
+              </AppText>
+            ) : null}
+          </Pressable>
+        ) : null}
       </View>
     </View>
   );
@@ -129,12 +152,10 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
     borderRadius: radius.xl,
-    borderWidth: 1,
-    borderColor: colors.border,
     overflow: 'hidden',
     ...(elevation.md as object),
   },
-  hero: { height: 240, backgroundColor: colors.surfaceAlt },
+  hero: { height: 230, backgroundColor: colors.surfaceAlt },
   heroImg: { width: '100%', height: '100%' },
   heroPlaceholder: {
     backgroundColor: colors.primarySoft,
@@ -142,23 +163,41 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   placeholderText: { fontSize: 34, fontWeight: '800', color: colors.primary },
-  overlayPill: {
+  levelPill: {
     position: 'absolute',
+    top: spacing.md,
+    left: spacing.md,
+    backgroundColor: colors.success,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    borderRadius: radius.sm,
+  },
+  topRight: { position: 'absolute', top: spacing.md, right: spacing.md, alignItems: 'flex-end', gap: 6 },
+  categoryPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
     backgroundColor: 'rgba(24,36,74,0.72)',
     paddingHorizontal: spacing.md,
     paddingVertical: 6,
     borderRadius: radius.sm,
   },
-  levelPill: { top: spacing.md, left: spacing.md },
-  categoryPill: { bottom: spacing.md, left: spacing.md },
-  posPill: { bottom: spacing.md, right: spacing.md },
+  posPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.primarySoft,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: radius.sm,
+  },
   pillText: { fontWeight: '700' },
   saveBtn: {
     position: 'absolute',
-    top: spacing.md,
+    bottom: spacing.md,
     right: spacing.md,
-    width: 40,
-    height: 40,
+    width: 38,
+    height: 38,
     borderRadius: radius.full,
     backgroundColor: colors.surface,
     alignItems: 'center',
@@ -168,7 +207,7 @@ const styles = StyleSheet.create({
   body: { padding: spacing.lg },
   wordRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
   wordCol: { flex: 1, paddingRight: spacing.md },
-  word: { fontSize: 34, lineHeight: 40, fontWeight: '800', color: colors.navy },
+  word: { fontSize: 32, lineHeight: 38, fontWeight: '800', color: colors.navy },
   phonetic: { marginTop: 2 },
   audioBtn: {
     width: 44,
@@ -178,7 +217,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  definition: { marginTop: spacing.md, color: colors.text },
   meaningRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.md },
   meaningIcon: {
     width: 26,
@@ -188,7 +226,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  meaning: { fontWeight: '700' },
+  meaning: { fontWeight: '700', flex: 1 },
   exampleBox: {
     marginTop: spacing.lg,
     backgroundColor: colors.primarySoft,
@@ -203,4 +241,15 @@ const styles = StyleSheet.create({
     marginVertical: spacing.sm,
     opacity: 0.5,
   },
+  tipBox: {
+    marginTop: spacing.md,
+    backgroundColor: colors.primarySoft,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+  },
+  tipHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  tipFox: { fontSize: 18 },
+  tipTitle: { flex: 1, fontWeight: '700' },
+  tipBody: { marginTop: spacing.sm },
 });

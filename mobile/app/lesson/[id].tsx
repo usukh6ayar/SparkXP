@@ -78,6 +78,15 @@ export default function LessonDetailScreen() {
   async function markDone() {
     await AsyncStorage.setItem(doneKey, '1');
     setDone(true);
+    // Award completion XP once (server is idempotent).
+    if (token && id) {
+      try {
+        const res = await lessonsApi.completeLesson(id, token);
+        if (res.xpAwarded > 0) Alert.alert('Бэрхшээлгүй!', `Хичээл дуусгаж +${res.xpAwarded} XP авлаа 🎉`);
+      } catch {
+        // non-critical
+      }
+    }
   }
 
   function unlock() {

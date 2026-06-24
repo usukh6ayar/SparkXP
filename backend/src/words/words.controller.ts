@@ -20,6 +20,7 @@ import { CreateWordDto } from './dto/create-word.dto';
 import { UpdateWordDto } from './dto/update-word.dto';
 import { QueryWordsDto } from './dto/query-words.dto';
 import { QuizQueryDto, QuizSubmitDto } from './dto/quiz.dto';
+import { BulkUpdateDto } from './dto/bulk-update.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -37,34 +38,6 @@ import { UserRole } from '../common/enums';
 @Controller('words')
 export class WordsController {
   constructor(private readonly wordsService: WordsService) {}
-
-  /**
-   * POST /api/words/ai-fill  { english: "abandon" }
-   * Admin helper — returns AI-generated mongolian, partOfSpeech,
-   * exampleSentence, exampleTranslation so the form can be pre-filled.
-   */
-  /** GET /api/words/stats — review panel summary (counts by status, missing media). */
-  @Get('stats')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
-  getStats() {
-    return this.wordsService.getStats();
-  }
-
-  /**
-   * PATCH /api/words/bulk  { ids: string[], changes: { status?, category?, level? } }
-   * Bulk-update status / category / level for a set of words (admin review queue).
-   */
-  @Patch('bulk')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
-  bulkEdit(
-    @Body('ids') ids: string[],
-    @Body('changes') changes: Record<string, unknown>,
-  ) {
-    if (!Array.isArray(ids) || ids.length === 0) throw new BadRequestException('"ids" массив шаардлагатай');
-    return this.wordsService.bulkEdit(ids, changes as any);
-  }
 
   /**
    * POST /api/words/import  (multipart, field: file, .csv)
@@ -113,9 +86,59 @@ export class WordsController {
     return this.wordsService.bulkImport(words);
   }
 
+  /**
+   * AI bulk import: a list of bare English words → AI fills every field (+
+   * optional image) per word. POST /api/words/ai-bulk
+   *   { words: string[], generateImages?: boolean }
+   * AI is slow, so the batch is capped (smaller when generating images).
+   */
+  @Post('ai-bulk')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  aiBulk(
+    @Body('words') words: string[],
+    @Body('generateImages') generateImages?: boolean,
+  ) {
+    if (!Array.isArray(words) || words.length === 0) {
+      throw new BadRequestException('"words" массив шаардлагатай');
+    }
+    const cap = generateImages ? 25 : 75;
+    if (words.length > cap) {
+      throw new BadRequestException(
+        `AI bulk: нэг удаад ${cap}-аас ихгүй үг (${generateImages ? 'зурагтай' : 'зураггүй'}). Багцлан оруулна уу.`,
+      );
+    }
+    return this.wordsService.aiBulkImport(words, generateImages ?? false);
+  }
+
   @Get()
   findAll(@Query() query: QueryWordsDto) {
     return this.wordsService.findAll(query);
+  }
+
+  /** Content-health counts (total, by status, missing image/audio, dupes). */
+  @Get('stats')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  getStats() {
+    return this.wordsService.getStats();
+  }
+
+  /** Learning analytics: most forgotten / saved / known / hardest words. */
+  @Get('analytics')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  getAnalytics() {
+    return this.wordsService.getAnalytics();
+  }
+
+  /** Bulk-edit many words at once (publish/approve/categorize). */
+  @Patch('bulk')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  bulkUpdate(@Body() dto: BulkUpdateDto) {
+    if (!dto.ids?.length) throw new BadRequestException('"ids" массив шаардлагатай');
+    return this.wordsService.bulkUpdate(dto.ids, dto.changes);
   }
 
   /**

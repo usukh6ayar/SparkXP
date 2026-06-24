@@ -1,4 +1,4 @@
-import { Fragment } from "react";
+import { Fragment, useState, useEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -11,6 +11,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../src/auth/AuthContext";
+import { getGamification, type Gamification } from "../../src/api/gamification";
 import { AppText } from "../../src/components/Text";
 import { IconTile } from "../../src/components/IconTile";
 import { Pill } from "../../src/components/Pill";
@@ -92,14 +93,20 @@ const GAMES: Game[] = [
   },
 ];
 
-// TODO: бодит challenge / level progress backend-ээс.
+// TODO: бодит daily-challenge backend-ээс.
 const DAILY_DONE = 2;
 const DAILY_GOAL = 5;
-const LEVEL = 4;
-const PATH = [1, 2, 3, 4, 5]; // node-ууд; LEVEL хүртэл done
+const PATH = [1, 2, 3, 4, 5]; // node-ууд (тухайн level доторх ахиц)
 
 export default function SorilScreen() {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
+  const [gam, setGam] = useState<Gamification | null>(null);
+  useEffect(() => {
+    if (token) getGamification(token).then(setGam).catch(() => {});
+  }, [token]);
+  const level = gam?.level ?? 1;
+  // Path nodes = progress through the current level (5 steps).
+  const pathDone = gam ? Math.min(PATH.length, Math.round(gam.progress * PATH.length)) : 0;
   const router = useRouter();
   const open = () =>
     Alert.alert("Тун удахгүй", "Энэ тоглоом удахгүй нэмэгдэнэ. 🦊");
@@ -245,7 +252,7 @@ export default function SorilScreen() {
               <AppText variant="caption">Сорил тоглож, level ахицгаая!</AppText>
             </View>
             <Pill
-              label={`Level ${LEVEL}`}
+              label={`Level ${level}`}
               bg={colors.primarySoft}
               fg={colors.primaryDark}
             />
@@ -253,8 +260,8 @@ export default function SorilScreen() {
 
           <View style={styles.pathRow}>
             {PATH.map((n, i) => {
-              const done = n < LEVEL;
-              const current = n === LEVEL;
+              const done = n <= pathDone;
+              const current = n === pathDone + 1;
               const last = i === PATH.length - 1;
               return (
                 <Fragment key={n}>
@@ -286,7 +293,7 @@ export default function SorilScreen() {
                     <View
                       style={[
                         styles.connector,
-                        n < LEVEL && styles.connectorOn,
+                        n <= pathDone && styles.connectorOn,
                       ]}
                     />
                   )}
