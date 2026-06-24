@@ -226,6 +226,7 @@ export class WordsService {
   async aiBulkImport(
     rawWords: string[],
     generateImages = false,
+    generateAudios = false,
   ): Promise<AiBulkReport> {
     const words = [...new Set(rawWords.map((w) => w.trim()).filter(Boolean))];
     const report: AiBulkReport = {
@@ -248,9 +249,12 @@ export class WordsService {
             if (dup) { report.skipped++; return; }
 
             const text = await this.fillText(english);
-            const imageUrl = generateImages
-              ? await this.fillImage(english).catch(() => null)
-              : null;
+            // Image + audio are slow and optional; run them together and never
+            // let a media failure abort the whole word (text already succeeded).
+            const [imageUrl, audioUrl] = await Promise.all([
+              generateImages ? this.fillImage(english).catch(() => null) : null,
+              generateAudios ? this.fillAudio(english).catch(() => null) : null,
+            ]);
 
             await this.words.save(
               this.words.create({
@@ -266,6 +270,7 @@ export class WordsService {
                 synonyms: text.synonyms,
                 antonyms: text.antonyms,
                 imageUrl,
+                audioUrl,
                 slug: slugify(english),
                 // AI-generated cards go through review before going live.
                 status: WordStatus.NEEDS_REVIEW,
@@ -380,6 +385,15 @@ export class WordsService {
       partOfSpeech: null,
     });
     return result.imageUrl;
+  }
+
+  private async fillAudio(english: string): Promise<string | null> {
+    const result = await this.aiGateway.generateVocabularyAudio({
+      userId: 'admin-fill',
+      wordId: 'preview',
+      english,
+    });
+    return result.audioUrl;
   }
 
   // ── CRUD ──────────────────────────────────────────────────────────────────

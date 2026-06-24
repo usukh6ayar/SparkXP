@@ -189,6 +189,7 @@ export default function WordsPage() {
   // AI bulk import (list of English → AI fills everything)
   const [aiMode, setAiMode] = useState(false);
   const [aiImages, setAiImages] = useState(false);
+  const [aiAudio, setAiAudio] = useState(false);
   const [aiReport, setAiReport] = useState<AiBulkReport | null>(null);
 
   const [generatingId, setGeneratingId] = useState<string | null>(null);
@@ -379,7 +380,7 @@ export default function WordsPage() {
         const res = await fetch(`${BASE}/words/ai-bulk`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken() ?? ''}` },
-          body: JSON.stringify({ words: englishList, generateImages: aiImages }),
+          body: JSON.stringify({ words: englishList, generateImages: aiImages, generateAudios: aiAudio }),
         });
         const body = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(body.message ?? `Алдаа ${res.status}`);
@@ -763,9 +764,13 @@ export default function WordsPage() {
                 <p className="text-xs text-gray-500 font-mono bg-white rounded px-2 py-1 border border-gray-100 whitespace-pre">abandon{'\n'}ability{'\n'}achieve</p>
                 <label className="mt-3 flex items-center gap-2 text-sm text-gray-700">
                   <input type="checkbox" checked={aiImages} onChange={(e) => setAiImages(e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary" />
-                  <span className="flex items-center gap-1.5"><ImageIcon className="h-4 w-4 text-primary" /> Зураг бас үүсгэх (удаан · нэг удаад цөөн үг)</span>
+                  <span className="flex items-center gap-1.5"><ImageIcon className="h-4 w-4 text-primary" /> Зураг бас үүсгэх (удаан)</span>
                 </label>
-                <p className="mt-1 text-xs text-gray-400">Нэг удаад {aiImages ? '25' : '75'}-аас ихгүй үг.</p>
+                <label className="mt-2 flex items-center gap-2 text-sm text-gray-700">
+                  <input type="checkbox" checked={aiAudio} onChange={(e) => setAiAudio(e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary" />
+                  <span className="flex items-center gap-1.5"><Volume2 className="h-4 w-4 text-primary" /> Дуудлага бас үүсгэх (удаан)</span>
+                </label>
+                <p className="mt-1 text-xs text-gray-400">Нэг удаад {(aiImages || aiAudio) ? '25' : '100'}-аас ихгүй үг.</p>
               </div>
             ) : (
               <div className="rounded-lg bg-gray-50 border border-gray-200 px-4 py-3 text-sm text-gray-700">

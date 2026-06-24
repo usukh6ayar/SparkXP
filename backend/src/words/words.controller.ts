@@ -88,9 +88,9 @@ export class WordsController {
 
   /**
    * AI bulk import: a list of bare English words → AI fills every field (+
-   * optional image) per word. POST /api/words/ai-bulk
-   *   { words: string[], generateImages?: boolean }
-   * AI is slow, so the batch is capped (smaller when generating images).
+   * optional image and/or pronunciation audio) per word. POST /api/words/ai-bulk
+   *   { words: string[], generateImages?: boolean, generateAudios?: boolean }
+   * Media is slow, so the batch is capped smaller when generating any media.
    */
   @Post('ai-bulk')
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -98,17 +98,23 @@ export class WordsController {
   aiBulk(
     @Body('words') words: string[],
     @Body('generateImages') generateImages?: boolean,
+    @Body('generateAudios') generateAudios?: boolean,
   ) {
     if (!Array.isArray(words) || words.length === 0) {
       throw new BadRequestException('"words" массив шаардлагатай');
     }
-    const cap = generateImages ? 25 : 100;
+    const withMedia = generateImages || generateAudios;
+    const cap = withMedia ? 25 : 100;
     if (words.length > cap) {
       throw new BadRequestException(
-        `AI bulk: нэг удаад ${cap}-аас ихгүй үг (${generateImages ? 'зурагтай' : 'зураггүй'}). Багцлан оруулна уу.`,
+        `AI bulk: нэг удаад ${cap}-аас ихгүй үг (${withMedia ? 'медиатай' : 'медиагүй'}). Багцлан оруулна уу.`,
       );
     }
-    return this.wordsService.aiBulkImport(words, generateImages ?? false);
+    return this.wordsService.aiBulkImport(
+      words,
+      generateImages ?? false,
+      generateAudios ?? false,
+    );
   }
 
   @Get()
