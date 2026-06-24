@@ -452,6 +452,60 @@ admin/
 
 ---
 
+---
+
+### 🎯 Phase A18 — Үгийн сан review queue + Даалгаварын completion `[x]`
+
+**Commit:** `c17afc7`, `2d9fb2e`, `230c1ce`
+
+#### Words — review queue, bulk actions, import v2
+
+| Боломж | Дэлгэрэнгүй |
+|---|---|
+| **Stats grid** | Нийт / Нийтэлсэн / Хянах / Зураггүй / Аудиогүй / Давхардал (6 карт) |
+| **Analytics panel** | 😵 Хамгийн их мартсан · ⭐ Хадгалсан · ✅ Мэдсэн · 🔥 Хамгийн хүнд + дундаж хадгалалт% |
+| **Status filter tabs** | Бүгд / ⏳Хянах / ✅Батлагдсан / 🌐Нийтлэгдсэн / ❌Буцаагдсан / 📝Ноорог |
+| **Bulk select** | checkbox-ийн header + мөр бүрт → "N сонгосон" action bar |
+| **Bulk actions** | Нийтлэх / Зөвшөөрөх / Татгалзах / Устгах — `PATCH /words/bulk` |
+| **Inline publish** | Төлөвийн badge-ийн хажууд шууд "Нийтлэх" link |
+| **AI bulk import** | Англи үгсийн жагсаалт → AI бүх талбарыг бөглөнө (`POST /words/ai-bulk`) |
+| **Import v2** | Multipart CSV upload → validation report (нэмэгдсэн/алгасагдсан/алдаа/давхардал) |
+| **Error CSV download** | Алдааны мөрүүдийг `import_errors.csv`-ээр татна |
+| **sparkTip талбар** | Тогтооход туслах мнемоник (`sparkTip`) — form болон AI fill-д |
+| **ImageCropUpload** | Зураг crop хийж оруулах component (`ImageCropUpload`) |
+| **FileUpload** | Дуудлагын аудио upload (optional) |
+| **Хайлт** | Англи/монголоор real-time хайлт |
+
+**Backend нэмэлтүүд:**
+- `GET /words/stats` — статусаар тоо + зураг/аудиогүй тоо + давхардал
+- `GET /words/analytics` — WordReview дататай сурлагын аналитик
+- `POST /words/ai-bulk` — Англи үгсийн жагсаалт → AI bulk fill (3 concurrent)
+- `POST /words/import` — multipart CSV, дэлгэрэнгүй validation report
+- `PATCH /words/bulk` — олон үгийн статус/ангилал/түвшин нэгт шинэчлэх
+- `AiBulkReport`, `WordStats`, `WordStat`, `WordAnalytics`, `ImportReport` interface-ууд нэмэгдсэн
+
+#### Classes — assignment completion tracking
+
+| Боломж | Дэлгэрэнгүй |
+|---|---|
+| **Completion X/N** | Даалгаварын жагсаалтад хэн дуусгасан тоо харуулна |
+| **POST /assignments/:id/complete** | Сурагч даалгавар дуусгасан тэмдэглэх (idempotent) |
+
+**Backend нэмэлтүүд:**
+- `AssignmentCompletion` entity (`assignment_completions` хүснэгт, unique per student+assignment)
+- `AssignmentsService.complete()` — idempotent mark-done
+- `AssignmentsService.findForClass()` → `completedCount` багтаасан (нэг batch query)
+
+#### Notifications, Quiz publish, Cost dashboard (аль хэдийн байсан)
+
+| Боломж | Хуудас |
+|---|---|
+| **Push notification** | `/notifications` — гарчиг, текст, role-оор илгээх + түүх |
+| **Quiz isPublished toggle** | `/quizzes` — Eye/EyeOff товч |
+| **Cost dashboard** | `/monitor` — plan-аар нэгтгэсэн сарын API зардлын тооцоо |
+
+---
+
 ## 📌 Дараагийн алхам `[ ]`
 
 ### Backend (хийгдэх ёстой)
@@ -461,9 +515,11 @@ admin/
 - [ ] AI Dictionary endpoint — `GET /dictionary/:word` (DB cache → Gemini fallback)
 
 ### Admin dashboard (хийгдэх ёстой)
-- [ ] **Cost dashboard** — plan-аар нэгтгэсэн сарын API зардлын тооцоо
-- [ ] **Push notification** — admin-аас бүх хэрэглэгчид мэдэгдэл явуулах
-- [ ] **Quiz isPublished toggle** — хэрэглэгчдэд харагдах/нуух товч (Lessons-д аль хэдийн байна)
+- [x] **Cost dashboard** — plan-аар нэгтгэсэн сарын API зардлын тооцоо ✅
+- [x] **Push notification** — admin-аас бүх хэрэглэгчид мэдэгдэл явуулах ✅
+- [x] **Quiz isPublished toggle** — хэрэглэгчдэд харагдах/нуух товч ✅
+- [x] **Words review queue** — status filter tabs, bulk approve/publish/reject ✅
+- [x] **Assignment completion tracking** — X/N badge, POST /assignments/:id/complete ✅
 
 ---
 
