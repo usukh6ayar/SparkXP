@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { View, StyleSheet, Image, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AppText } from './Text';
@@ -19,12 +18,9 @@ interface Props {
  * (later) the saved-words screen.
  *
  * Layout: hero image with level / category / part-of-speech overlays, then
- * word + phonetic + 🔊, Mongolian meaning, example, and a collapsible
- * "Spark сануулга" memory tip.
+ * word + phonetic + 🔊, Mongolian meaning, and an example sentence.
  */
 export function VocabCard({ word, onPlayAudio, saved, onToggleSave }: Props) {
-  const [tipOpen, setTipOpen] = useState(false);
-
   return (
     <View style={styles.card}>
       {/* ── Hero image + overlays ─────────────────────────────────────── */}
@@ -120,28 +116,6 @@ export function VocabCard({ word, onPlayAudio, saved, onToggleSave }: Props) {
               </>
             ) : null}
           </View>
-        ) : null}
-
-        {/* Spark tip (collapsed by default) */}
-        {word.sparkTip ? (
-          <Pressable style={styles.tipBox} onPress={() => setTipOpen((o) => !o)}>
-            <View style={styles.tipHead}>
-              <AppText style={styles.tipFox}>🦊</AppText>
-              <AppText variant="label" color={colors.primary} style={styles.tipTitle}>
-                Spark сануулга
-              </AppText>
-              <Ionicons
-                name={tipOpen ? 'chevron-up' : 'chevron-down'}
-                size={18}
-                color={colors.primary}
-              />
-            </View>
-            {tipOpen ? (
-              <AppText variant="body" color={colors.textSecondary} style={styles.tipBody}>
-                {word.sparkTip}
-              </AppText>
-            ) : null}
-          </Pressable>
         ) : null}
       </View>
     </View>
@@ -241,15 +215,4 @@ const styles = StyleSheet.create({
     marginVertical: spacing.sm,
     opacity: 0.5,
   },
-  tipBox: {
-    marginTop: spacing.md,
-    backgroundColor: colors.primarySoft,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-  },
-  tipHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  tipFox: { fontSize: 18 },
-  tipTitle: { flex: 1, fontWeight: '700' },
-  tipBody: { marginTop: spacing.sm },
 });

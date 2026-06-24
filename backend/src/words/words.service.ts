@@ -3,13 +3,12 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
+  InternalServerErrorException,
   Logger,
-  OnModuleInit,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { Repository, ILike, In, IsNull } from 'typeorm';
-import Anthropic from '@anthropic-ai/sdk';
 import { Word } from '../entities/word.entity';
 import { WordReview } from '../entities/word-review.entity';
 import { WordStatus, XpSource, SparksSource, ContentLevel } from '../common/enums';
@@ -78,7 +77,6 @@ export interface AiFillResult {
   level: string;
   exampleSentence: string;
   exampleTranslation: string;
-  sparkTip: string;
   imageUrl: string | null;
 }
 
@@ -170,8 +168,7 @@ export function stripJsonFences(raw: string): string {
 }
 
 @Injectable()
-export class WordsService implements OnModuleInit {
-  private anthropic: Anthropic;
+export class WordsService {
   private readonly logger = new Logger(WordsService.name);
 
   constructor(
@@ -184,10 +181,6 @@ export class WordsService implements OnModuleInit {
     private readonly aiGateway: AiGatewayService,
     private readonly config: ConfigService,
   ) {}
-
-  onModuleInit() {
-    this.anthropic = new Anthropic({ apiKey: this.config.get('ANTHROPIC_API_KEY') });
-  }
 
   // ── AI Fill (admin "✨ AI бөглөх" button) ──────────────────────────────────
 
@@ -252,7 +245,6 @@ export class WordsService implements OnModuleInit {
                 level: normalizeLevel(text.level),
                 exampleSentence: text.exampleSentence,
                 exampleTranslation: text.exampleTranslation,
-                sparkTip: text.sparkTip,
                 imageUrl,
                 slug: slugify(english),
                 // AI-generated cards go through review before going live.
@@ -272,31 +264,51 @@ export class WordsService implements OnModuleInit {
     return report;
   }
 
+  /** Generate every text field for a word from just the English term, via Google Gemini. */
   private async fillText(english: string): Promise<Omit<AiFillResult, 'imageUrl'>> {
-    const response = await this.anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 600,
-      messages: [
-        {
-          role: 'user',
-          content:
-            `Generate complete vocabulary-card data for the English word "${english}".\n` +
-            'Return ONLY valid JSON (no markdown fences, no explanation):\n' +
-            '{\n' +
-            '  "mongolian": "<Mongolian meaning, e.g. Орхих, хаях>",\n' +
-            '  "englishDefinition": "<short English definition, max 1 sentence>",\n' +
-            '  "phonetic": "<IPA pronunciation incl. slashes, e.g. /əˈbændən/>",\n' +
-            '  "partOfSpeech": "<noun|verb|adjective|adverb|phrase>",\n' +
-            '  "category": "<one of: Daily Life, Business, Law, Medical, Engineering, Travel, Academic>",\n' +
-            '  "level": "<CEFR level: a1|a2|b1|b2|c1|c2>",\n' +
-            '  "exampleSentence": "<short natural English sentence using the word>",\n' +
-            '  "exampleTranslation": "<Mongolian translation of the example sentence>",\n' +
-            '  "sparkTip": "<a short, fun memory aid / mnemonic in Mongolian to remember the word>"\n' +
-            '}',
-        },
-      ],
-    });
-    const raw = response.content[0].type === 'text' ? response.content[0].text : '';
+    const apiKey = this.config.get<string>('GEMINI_API_KEY');
+    if (!apiKey) {
+      throw new InternalServerErrorException('GEMINI_API_KEY тохируулаагүй байна');
+    }
+    const model = this.config.get<string>('GEMINI_MODEL', 'gemini-2.0-flash');
+
+    const prompt =
+      `Generate complete vocabulary-card data for the English word "${english}".\n` +
+      'Return ONLY valid JSON (no markdown fences, no explanation):\n' +
+      '{\n' +
+      '  "mongolian": "<Mongolian meaning, e.g. Орхих, хаях>",\n' +
+      '  "englishDefinition": "<short English definition, max 1 sentence>",\n' +
+      '  "phonetic": "<IPA pronunciation incl. slashes, e.g. /əˈbændən/>",\n' +
+      '  "partOfSpeech": "<noun|verb|adjective|adverb|phrase>",\n' +
+      '  "category": "<one of: Daily Life, Business, Law, Medical, Engineering, Travel, Academic>",\n' +
+      '  "level": "<CEFR level: a1|a2|b1|b2|c1|c2>",\n' +
+      '  "exampleSentence": "<short natural English sentence using the word>",\n' +
+      '  "exampleTranslation": "<Mongolian translation of the example sentence>"\n' +
+      '}';
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          // Ask Gemini to return raw JSON (no markdown fences).
+          generationConfig: { responseMimeType: 'application/json', temperature: 0.4 },
+        }),
+      },
+    );
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      this.logger.error(`Gemini fill failed (${response.status}): ${body}`);
+      throw new InternalServerErrorException('AI бөглөхөд алдаа гарлаа');
+    }
+
+    const data = (await response.json()) as {
+      candidates?: { content?: { parts?: { text?: string }[] } }[];
+    };
+    const raw = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
     return JSON.parse(stripJsonFences(raw)) as Omit<AiFillResult, 'imageUrl'>;
   }
 

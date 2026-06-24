@@ -30,12 +30,6 @@ export class CreateWordDto {
   @MaxLength(100)
   phonetic?: string;
 
-  /** Memory aid / mnemonic shown in the flashcard "Spark сануулга" section. */
-  @IsOptional()
-  @IsString()
-  @MaxLength(500)
-  sparkTip?: string;
-
   /** Topical category (free text — see VOCAB_CATEGORY_SUGGESTIONS). */
   @IsOptional()
   @IsString()

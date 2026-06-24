@@ -22,7 +22,6 @@ interface Word {
   englishDefinition: string | null;
   phonetic: string | null;
   category: string | null;
-  sparkTip: string | null;
   partOfSpeech: string | null;
   exampleSentence: string | null;
   exampleTranslation: string | null;
@@ -112,7 +111,7 @@ const VALID_LEVELS = ['a1', 'a2', 'b1', 'b2', 'c1', 'c2'];
 
 interface WordForm {
   english: string; mongolian: string; level: string; status: string;
-  englishDefinition: string; phonetic: string; category: string; sparkTip: string;
+  englishDefinition: string; phonetic: string; category: string;
   partOfSpeech: string; exampleSentence: string; exampleTranslation: string;
   imageUrl: string;
   audioUrl: string;
@@ -121,13 +120,13 @@ interface WordForm {
 }
 const empty: WordForm = {
   english: '', mongolian: '', level: 'a1', status: 'published',
-  englishDefinition: '', phonetic: '', category: '', sparkTip: '',
+  englishDefinition: '', phonetic: '', category: '',
   partOfSpeech: '', exampleSentence: '', exampleTranslation: '',
   imageUrl: '', audioUrl: '', generateImage: true, generateAudio: true,
 };
 
 const CSV_TEMPLATE =
-  'english,mongolian,level,category,phonetic,partOfSpeech,englishDefinition,sparkTip,exampleSentence,exampleTranslation,imageUrl,audioUrl\n' +
+  'english,mongolian,level,category,phonetic,partOfSpeech,englishDefinition,exampleSentence,exampleTranslation,imageUrl,audioUrl\n' +
   'apple,алим,a1,Daily Life,/ˈæpəl/,noun,a round fruit,"A-P-P-L-E гэж бод",I eat an apple every day.,Би өдөр бүр нэг алим иддэг.,,\n' +
   'run,гүйх,a1,Daily Life,/rʌn/,verb,to move fast on foot,,She runs in the park.,Тэр цэцэрлэгт гүйдэг.,,\n';
 
@@ -252,7 +251,6 @@ export default function WordsPage() {
       englishDefinition: w.englishDefinition ?? '',
       phonetic: w.phonetic ?? '',
       category: w.category ?? '',
-      sparkTip: w.sparkTip ?? '',
       partOfSpeech: w.partOfSpeech ?? '',
       exampleSentence: w.exampleSentence ?? '',
       exampleTranslation: w.exampleTranslation ?? '',
@@ -272,7 +270,7 @@ export default function WordsPage() {
         mongolian: string; englishDefinition: string; phonetic: string;
         partOfSpeech: string; category: string; level: string;
         exampleSentence: string; exampleTranslation: string;
-        sparkTip: string; imageUrl: string | null;
+        imageUrl: string | null;
       }>('/words/ai-fill', { english: form.english.trim() });
       const level = VALID_LEVELS.includes((result.level || '').toLowerCase())
         ? result.level.toLowerCase()
@@ -287,7 +285,6 @@ export default function WordsPage() {
         level,
         exampleSentence: result.exampleSentence || f.exampleSentence,
         exampleTranslation: result.exampleTranslation || f.exampleTranslation,
-        sparkTip: result.sparkTip || f.sparkTip,
         imageUrl: result.imageUrl || f.imageUrl,
         generateImage: false,
       }));
@@ -306,7 +303,6 @@ export default function WordsPage() {
         englishDefinition: form.englishDefinition || undefined,
         phonetic: form.phonetic || undefined,
         category: form.category || undefined,
-        sparkTip: form.sparkTip || undefined,
         level: form.level,
         status: form.status,
         partOfSpeech: form.partOfSpeech || undefined,
@@ -632,7 +628,6 @@ export default function WordsPage() {
               <Input label="Дуудлага (phonetic)" value={form.phonetic} onChange={(e) => setForm({ ...form, phonetic: e.target.value })} placeholder="/ˈæpəl/" />
               <Input wrapperClassName="sm:col-span-2" label="Жишээ өгүүлбэр (Англи)" value={form.exampleSentence} onChange={(e) => setForm({ ...form, exampleSentence: e.target.value })} placeholder="I eat an apple every day." />
               <Input wrapperClassName="sm:col-span-2" label="Жишээ өгүүлбэрийн орчуулга" value={form.exampleTranslation} onChange={(e) => setForm({ ...form, exampleTranslation: e.target.value })} placeholder="Би өдөр бүр нэг алим иддэг." />
-              <Input wrapperClassName="sm:col-span-2" label="Spark сануулга (тогтооход туслах)" value={form.sparkTip} onChange={(e) => setForm({ ...form, sparkTip: e.target.value })} placeholder="A-P-P-L-E гэж бод" />
             </div>
 
             {/* Media — image + audio side by side on desktop */}
@@ -720,7 +715,7 @@ export default function WordsPage() {
               <div className="rounded-lg bg-gray-50 border border-gray-200 px-4 py-3 text-sm text-gray-700">
                 <p className="font-medium mb-1">CSV баганын гарчиг:</p>
                 <p className="text-xs text-gray-500 font-mono bg-white rounded px-2 py-1 border border-gray-100 overflow-x-auto whitespace-nowrap">
-                  english, mongolian, level, category, phonetic, partOfSpeech, englishDefinition, sparkTip, exampleSentence, exampleTranslation, imageUrl, audioUrl
+                  english, mongolian, level, category, phonetic, partOfSpeech, englishDefinition, exampleSentence, exampleTranslation, imageUrl, audioUrl
                 </p>
                 <p className="mt-1 text-xs text-gray-400">Зөвхөн <strong>english, mongolian</strong> шаардлагатай. Шинэ үгс → <strong>needs_review</strong>.</p>
                 <button onClick={downloadCsvTemplate} className="mt-2 flex items-center gap-1 text-xs text-primary hover:underline">
