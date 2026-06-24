@@ -23,7 +23,13 @@ const nav = [
   { to: '/settings',      label: 'Тохиргоо',    icon: Settings },
 ];
 
-export function Sidebar() {
+interface Props {
+  /** Drawer open state (mobile only; always visible on md+). */
+  open: boolean;
+  onClose: () => void;
+}
+
+export function Sidebar({ open, onClose }: Props) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -36,7 +42,23 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="flex h-screen w-56 flex-col bg-sidebar text-white">
+    <>
+      {/* Backdrop — mobile only, click to close */}
+      {open && (
+        <div
+          onClick={onClose}
+          className="fixed inset-0 z-30 bg-black/40 md:hidden"
+          aria-hidden
+        />
+      )}
+
+      <aside
+        className={cn(
+          'fixed inset-y-0 left-0 z-40 flex h-screen w-56 flex-col bg-sidebar text-white transition-transform duration-200',
+          'md:static md:translate-x-0',
+          open ? 'translate-x-0' : '-translate-x-full',
+        )}
+      >
       {/* Logo — purple gradient strip */}
       <div
         className="flex items-center gap-2.5 px-5 py-5 border-b border-white/10"
@@ -54,6 +76,7 @@ export function Sidebar() {
           <NavLink
             key={to}
             to={to}
+            onClick={onClose}
             className={({ isActive }) =>
               cn(
                 'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150',
@@ -80,6 +103,7 @@ export function Sidebar() {
           <LogOut className="h-3.5 w-3.5" /> Гарах
         </button>
       </div>
-    </aside>
+      </aside>
+    </>
   );
 }

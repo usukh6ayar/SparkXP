@@ -4,11 +4,13 @@ import { cn } from '../lib/utils';
 interface Props extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   error?: string;
+  /** Class on the outer wrapper (e.g. grid `col-span`), not the <input>. */
+  wrapperClassName?: string;
 }
 
 export const Input = forwardRef<HTMLInputElement, Props>(
-  ({ label, error, className, ...props }, ref) => (
-    <div className="flex flex-col gap-1">
+  ({ label, error, className, wrapperClassName, ...props }, ref) => (
+    <div className={cn('flex flex-col gap-1', wrapperClassName)}>
       {label && <label className="text-sm font-medium text-gray-700">{label}</label>}
       <input
         ref={ref}

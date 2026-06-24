@@ -583,72 +583,75 @@ export default function WordsPage() {
 
       {/* Create / Edit modal */}
       {(modal === 'create' || modal === 'edit') && (
-        <Modal title={modal === 'create' ? 'Үг нэмэх' : 'Үг засах'} onClose={() => setModal(null)}>
-          <div className="space-y-4">
-            <div className="flex gap-2 items-end">
-              <div className="flex-1">
-                <Input label="Англи үг" value={form.english} onChange={(e) => setForm({ ...form, english: e.target.value })} placeholder="apple" />
+        <Modal size="xl" title={modal === 'create' ? 'Үг нэмэх' : 'Үг засах'} onClose={() => setModal(null)}>
+          <div className="space-y-5">
+            {/* English word + AI fill — full width, the entry point */}
+            <div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                <div className="flex-1">
+                  <Input label="Англи үг" value={form.english} onChange={(e) => setForm({ ...form, english: e.target.value })} placeholder="apple" />
+                </div>
+                <button
+                  type="button"
+                  onClick={aiFill}
+                  disabled={aiFilling || !form.english.trim()}
+                  className="flex items-center justify-center gap-1.5 rounded-lg border border-primary/30 bg-primarySoft px-3 py-2 text-sm font-medium text-primary hover:bg-primary/10 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  {aiFilling ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" /> : <Sparkles className="h-4 w-4" />}
+                  {aiFilling ? 'Бөглөж байна...' : 'AI бөглөх'}
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={aiFill}
-                disabled={aiFilling || !form.english.trim()}
-                className="flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primarySoft px-3 py-2 text-sm font-medium text-primary hover:bg-primary/10 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              >
-                {aiFilling ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" /> : <Sparkles className="h-4 w-4" />}
-                {aiFilling ? 'Бөглөж байна...' : 'AI бөглөх'}
-              </button>
+              <p className="mt-1.5 flex items-center gap-1.5 text-xs text-gray-400">
+                <Sparkles className="h-3.5 w-3.5 text-primary" />
+                Зөвхөн Англи үгээ бичээд <span className="font-medium text-primary">AI бөглөх</span> дарвал доорх бүх талбар автоматаар бөглөгдөнө.
+              </p>
             </div>
 
-            <p className="-mt-1 flex items-center gap-1.5 text-xs text-gray-400">
-              <Sparkles className="h-3.5 w-3.5 text-primary" />
-              Зөвхөн Англи үгээ бичээд <span className="font-medium text-primary">AI бөглөх</span> дарвал доорх бүх талбар автоматаар бөглөгдөнө.
-            </p>
-
-            <Input label="Монгол утга" value={form.mongolian} onChange={(e) => setForm({ ...form, mongolian: e.target.value })} placeholder="алим" />
-            <Input label="Англи тодорхойлолт" value={form.englishDefinition} onChange={(e) => setForm({ ...form, englishDefinition: e.target.value })} placeholder="a round fruit that grows on trees" />
-
-            <div className="grid grid-cols-2 gap-4">
+            {/* Text fields — 2 columns on desktop, 1 on mobile */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Input label="Монгол утга" value={form.mongolian} onChange={(e) => setForm({ ...form, mongolian: e.target.value })} placeholder="алим" />
+              <Input label="Ангилал" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} placeholder="Daily Life" />
+              <Input wrapperClassName="sm:col-span-2" label="Англи тодорхойлолт" value={form.englishDefinition} onChange={(e) => setForm({ ...form, englishDefinition: e.target.value })} placeholder="a round fruit that grows on trees" />
               <Select label="Түвшин" options={levelFormOptions} value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value })} />
               <Select label="Төлөв" options={statusFormOptions} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
               <Input label="Хэлзүй (noun, verb...)" value={form.partOfSpeech} onChange={(e) => setForm({ ...form, partOfSpeech: e.target.value })} placeholder="noun" />
               <Input label="Дуудлага (phonetic)" value={form.phonetic} onChange={(e) => setForm({ ...form, phonetic: e.target.value })} placeholder="/ˈæpəl/" />
+              <Input wrapperClassName="sm:col-span-2" label="Жишээ өгүүлбэр (Англи)" value={form.exampleSentence} onChange={(e) => setForm({ ...form, exampleSentence: e.target.value })} placeholder="I eat an apple every day." />
+              <Input wrapperClassName="sm:col-span-2" label="Жишээ өгүүлбэрийн орчуулга" value={form.exampleTranslation} onChange={(e) => setForm({ ...form, exampleTranslation: e.target.value })} placeholder="Би өдөр бүр нэг алим иддэг." />
+              <Input wrapperClassName="sm:col-span-2" label="Spark сануулга (тогтооход туслах)" value={form.sparkTip} onChange={(e) => setForm({ ...form, sparkTip: e.target.value })} placeholder="A-P-P-L-E гэж бод" />
             </div>
-            <Input label="Ангилал" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} placeholder="Daily Life" />
-            <Input label="Жишээ өгүүлбэр (Англи)" value={form.exampleSentence} onChange={(e) => setForm({ ...form, exampleSentence: e.target.value })} placeholder="I eat an apple every day." />
-            <Input label="Жишээ өгүүлбэрийн орчуулга" value={form.exampleTranslation} onChange={(e) => setForm({ ...form, exampleTranslation: e.target.value })} placeholder="Би өдөр бүр нэг алим иддэг." />
-            <Input label="Spark сануулга (тогтооход туслах)" value={form.sparkTip} onChange={(e) => setForm({ ...form, sparkTip: e.target.value })} placeholder="A-P-P-L-E гэж бод" />
 
-            <div className="space-y-2">
-              <ImageCropUpload
-                value={form.imageUrl}
-                onChange={(url) => setForm(f => ({ ...f, imageUrl: url, generateImage: false }))}
-                label="Зураг"
-                aspect={1}
+            {/* Media — image + audio side by side on desktop */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <ImageCropUpload
+                  value={form.imageUrl}
+                  onChange={(url) => setForm(f => ({ ...f, imageUrl: url, generateImage: false }))}
+                  label="Зураг"
+                  aspect={1}
+                />
+                {!form.imageUrl && (
+                  <label className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
+                    <input type="checkbox" checked={form.generateImage} onChange={(e) => setForm({ ...form, generateImage: e.target.checked })}
+                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary" />
+                    <span className="flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-primary" />
+                      AI-аар үүсгэх
+                    </span>
+                  </label>
+                )}
+              </div>
+
+              <FileUpload
+                accept="audio"
+                value={form.audioUrl}
+                onChange={(url) => setForm((f) => ({ ...f, audioUrl: url }))}
+                label="Дуудлагын аудио (заавал биш)"
               />
-              {!form.imageUrl && (
-                <label className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
-                  <input type="checkbox" checked={form.generateImage} onChange={(e) => setForm({ ...form, generateImage: e.target.checked })}
-                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary" />
-                  <span className="flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-primary" />
-                    Зураг оруулаагүй бол AI-аар автоматаар үүсгэх
-                  </span>
-                </label>
-              )}
             </div>
-
-            <FileUpload
-              accept="audio"
-              value={form.audioUrl}
-              onChange={(url) => setForm((f) => ({ ...f, audioUrl: url }))}
-              label="Дуудлагын аудио (заавал биш)"
-            />
 
             {error && <p className="text-sm text-red-500">{error}</p>}
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="flex justify-end gap-2 border-t pt-4">
               <Button variant="secondary" onClick={() => setModal(null)}>Болих</Button>
               <Button onClick={save} disabled={saving}>
                 {saving ? (form.generateImage && !form.imageUrl ? 'Хадгалж, зураг үүсгэж байна...' : 'Хадгалж байна...') : 'Хадгалах'}
@@ -660,7 +663,7 @@ export default function WordsPage() {
 
       {/* Import modal */}
       {modal === 'import' && (
-        <Modal title="Үг оруулах" onClose={() => setModal(null)}>
+        <Modal size="lg" title="Үг оруулах" onClose={() => setModal(null)}>
           <div className="space-y-4">
             {/* Mode toggle */}
             <label className="flex items-start gap-3 rounded-lg border border-primary/30 bg-primarySoft px-4 py-3 cursor-pointer">

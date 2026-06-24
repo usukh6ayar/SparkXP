@@ -14,8 +14,8 @@ interface Props<T> {
 
 export function Table<T>({ columns, rows, keyFn, empty = 'Өгөгдөл байхгүй' }: Props<T>) {
   return (
-    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-      <table className="w-full text-sm">
+    <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
+      <table className="w-full min-w-[640px] text-sm">
         <thead className="bg-gray-50">
           <tr>
             {columns.map((col) => (
