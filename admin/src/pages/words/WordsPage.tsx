@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { ImageIcon, Plus, Pencil, Sparkles, Trash2, Upload, AlertCircle, BarChart2, Volume2 } from 'lucide-react';
+import { ImageIcon, Plus, Pencil, Sparkles, Trash2, Upload, AlertCircle, BarChart2, Volume2, Play } from 'lucide-react';
 import { api, getToken } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
 import { Button } from '../../components/Button';
@@ -25,6 +25,8 @@ interface Word {
   partOfSpeech: string | null;
   exampleSentence: string | null;
   exampleTranslation: string | null;
+  synonyms: string | null;
+  antonyms: string | null;
   imageUrl: string | null;
   audioUrl: string | null;
   level: string;
@@ -113,6 +115,7 @@ interface WordForm {
   english: string; mongolian: string; level: string; status: string;
   englishDefinition: string; phonetic: string; category: string;
   partOfSpeech: string; exampleSentence: string; exampleTranslation: string;
+  synonyms: string; antonyms: string;
   imageUrl: string;
   audioUrl: string;
   generateImage: boolean;
@@ -122,6 +125,7 @@ const empty: WordForm = {
   english: '', mongolian: '', level: 'a1', status: 'published',
   englishDefinition: '', phonetic: '', category: '',
   partOfSpeech: '', exampleSentence: '', exampleTranslation: '',
+  synonyms: '', antonyms: '',
   imageUrl: '', audioUrl: '', generateImage: true, generateAudio: true,
 };
 
@@ -160,12 +164,16 @@ export default function WordsPage() {
   const [analytics, setAnalytics] = useState<WordAnalytics | null>(null);
   const [showAnalytics, setShowAnalytics] = useState(false);
 
-  const [statusTab, setStatusTab] = useState('needs_review');
+  const [statusTab, setStatusTab] = useState('');
   const [levelFilter, setLevelFilter] = useState('');
   const [search, setSearch] = useState('');
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
+  // Image lightbox: URL of the image currently being previewed (null = closed).
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  // Reused <audio> element so a new clip stops the previous one.
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const [modal, setModal] = useState<null | 'create' | 'edit' | 'import'>(null);
   const [editing, setEditing] = useState<Word | null>(null);
@@ -254,6 +262,8 @@ export default function WordsPage() {
       partOfSpeech: w.partOfSpeech ?? '',
       exampleSentence: w.exampleSentence ?? '',
       exampleTranslation: w.exampleTranslation ?? '',
+      synonyms: w.synonyms ?? '',
+      antonyms: w.antonyms ?? '',
       imageUrl: w.imageUrl ?? '',
       audioUrl: w.audioUrl ?? '',
       generateImage: false,
@@ -270,6 +280,7 @@ export default function WordsPage() {
         mongolian: string; englishDefinition: string; phonetic: string;
         partOfSpeech: string; category: string; level: string;
         exampleSentence: string; exampleTranslation: string;
+        synonyms: string; antonyms: string;
         imageUrl: string | null;
       }>('/words/ai-fill', { english: form.english.trim() });
       const level = VALID_LEVELS.includes((result.level || '').toLowerCase())
@@ -285,6 +296,8 @@ export default function WordsPage() {
         level,
         exampleSentence: result.exampleSentence || f.exampleSentence,
         exampleTranslation: result.exampleTranslation || f.exampleTranslation,
+        synonyms: result.synonyms || f.synonyms,
+        antonyms: result.antonyms || f.antonyms,
         imageUrl: result.imageUrl || f.imageUrl,
         generateImage: false,
       }));
@@ -308,6 +321,8 @@ export default function WordsPage() {
         partOfSpeech: form.partOfSpeech || undefined,
         exampleSentence: form.exampleSentence || undefined,
         exampleTranslation: form.exampleTranslation || undefined,
+        synonyms: form.synonyms || undefined,
+        antonyms: form.antonyms || undefined,
         imageUrl: form.imageUrl || undefined,
         audioUrl: form.audioUrl || undefined,
         generateImage: form.generateImage || undefined,
@@ -340,6 +355,14 @@ export default function WordsPage() {
     try { await api.post(`/words/${id}/generate-audio`, {}); load(); }
     catch (e: unknown) { setError(e instanceof Error ? e.message : 'Аудио үүсгэхэд алдаа гарлаа'); }
     finally { setGeneratingId(null); }
+  }
+
+  /** Play a word's pronunciation audio from its CDN URL (stops any prior clip). */
+  function playAudio(url: string) {
+    if (audioRef.current) audioRef.current.pause();
+    const audio = new Audio(url);
+    audioRef.current = audio;
+    audio.play().catch(() => setError('Аудио тоглуулж чадсангүй'));
   }
 
   // ── Import ────────────────────────────────────────────────────────────────
@@ -419,9 +442,20 @@ export default function WordsPage() {
     },
     {
       key: 'image', header: '', render: (w: Word) => (
-        <div className="h-12 w-12 overflow-hidden rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-center">
-          {w.imageUrl ? <img src={w.imageUrl} alt="" className="h-full w-full object-cover" /> : <ImageIcon className="h-5 w-5 text-gray-300" />}
-        </div>
+        w.imageUrl ? (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setPreviewImage(w.imageUrl); }}
+            className="h-12 w-12 overflow-hidden rounded-lg border border-gray-200 bg-gray-50 cursor-zoom-in transition hover:ring-2 hover:ring-primary/40"
+            title="Томоор харах"
+          >
+            <img src={w.imageUrl} alt="" className="h-full w-full object-cover" />
+          </button>
+        ) : (
+          <div className="h-12 w-12 overflow-hidden rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-center">
+            <ImageIcon className="h-5 w-5 text-gray-300" />
+          </div>
+        )
       ),
     },
     {
@@ -464,6 +498,11 @@ export default function WordsPage() {
               ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
               : <Sparkles className="h-4 w-4 text-primary" />}
           </Button>
+          {w.audioUrl && (
+            <Button variant="ghost" size="sm" onClick={() => playAudio(w.audioUrl!)} title="Дуудлага сонсох">
+              <Play className="h-4 w-4 text-primary" />
+            </Button>
+          )}
           <Button variant="ghost" size="sm" onClick={() => generateAudio(w.id)} disabled={generatingId === w.id} title="AI дуудлага үүсгэх">
             <Volume2 className={`h-4 w-4 ${w.audioUrl ? 'text-primary' : 'text-gray-400'}`} />
           </Button>
@@ -591,6 +630,21 @@ export default function WordsPage() {
 
       <Table columns={columns} rows={words} keyFn={(w) => w.id} empty="Үг байхгүй байна" />
 
+      {/* Image lightbox — click a thumbnail to view it large */}
+      {previewImage && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setPreviewImage(null)}
+        >
+          <img
+            src={previewImage}
+            alt=""
+            className="max-h-[85vh] max-w-[85vw] rounded-xl object-contain shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
+
       {/* Create / Edit modal */}
       {(modal === 'create' || modal === 'edit') && (
         <Modal size="xl" title={modal === 'create' ? 'Үг нэмэх' : 'Үг засах'} onClose={() => setModal(null)}>
@@ -628,6 +682,8 @@ export default function WordsPage() {
               <Input label="Дуудлага (phonetic)" value={form.phonetic} onChange={(e) => setForm({ ...form, phonetic: e.target.value })} placeholder="/ˈæpəl/" />
               <Input wrapperClassName="sm:col-span-2" label="Жишээ өгүүлбэр (Англи)" value={form.exampleSentence} onChange={(e) => setForm({ ...form, exampleSentence: e.target.value })} placeholder="I eat an apple every day." />
               <Input wrapperClassName="sm:col-span-2" label="Жишээ өгүүлбэрийн орчуулга" value={form.exampleTranslation} onChange={(e) => setForm({ ...form, exampleTranslation: e.target.value })} placeholder="Би өдөр бүр нэг алим иддэг." />
+              <Input label="Ижил утгатай (synonyms)" value={form.synonyms} onChange={(e) => setForm({ ...form, synonyms: e.target.value })} placeholder="glad, joyful, cheerful" />
+              <Input label="Эсрэг утгатай (antonyms)" value={form.antonyms} onChange={(e) => setForm({ ...form, antonyms: e.target.value })} placeholder="sad, unhappy" />
             </div>
 
             {/* Media — image + audio side by side on desktop */}

@@ -56,6 +56,18 @@ export class CreateWordDto {
   @MaxLength(500)
   exampleTranslation?: string;
 
+  /** Comma-separated synonyms, e.g. "happy, glad, joyful". */
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  synonyms?: string;
+
+  /** Comma-separated antonyms, e.g. "sad, unhappy". */
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  antonyms?: string;
+
   // URLs are stored as plain strings (CDN links). Kept simple — not validated
   // as strict URLs so relative/CDN paths are allowed.
   @IsOptional()

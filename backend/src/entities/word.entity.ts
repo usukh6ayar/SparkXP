@@ -60,6 +60,14 @@ export class Word extends BaseEntity {
   @Column({ name: 'example_translation', type: 'text', nullable: true })
   exampleTranslation: string | null;
 
+  /** Comma-separated synonyms, e.g. "happy, glad, joyful". */
+  @Column({ type: 'text', nullable: true })
+  synonyms: string | null;
+
+  /** Comma-separated antonyms, e.g. "sad, unhappy". */
+  @Column({ type: 'text', nullable: true })
+  antonyms: string | null;
+
   /** CDN URL for pronunciation audio. */
   @Column({ name: 'audio_url', type: 'varchar', nullable: true })
   audioUrl: string | null;

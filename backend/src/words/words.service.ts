@@ -77,6 +77,8 @@ export interface AiFillResult {
   level: string;
   exampleSentence: string;
   exampleTranslation: string;
+  synonyms: string;
+  antonyms: string;
   imageUrl: string | null;
 }
 
@@ -261,6 +263,8 @@ export class WordsService {
                 level: normalizeLevel(text.level),
                 exampleSentence: text.exampleSentence,
                 exampleTranslation: text.exampleTranslation,
+                synonyms: text.synonyms,
+                antonyms: text.antonyms,
                 imageUrl,
                 slug: slugify(english),
                 // AI-generated cards go through review before going live.
@@ -307,7 +311,9 @@ export class WordsService {
       '  "category": "<one of: Daily Life, Business, Law, Medical, Engineering, Travel, Academic>",\n' +
       '  "level": "<CEFR level: a1|a2|b1|b2|c1|c2>",\n' +
       '  "exampleSentence": "<short natural English sentence using the word>",\n' +
-      '  "exampleTranslation": "<Mongolian translation of the example sentence>"\n' +
+      '  "exampleTranslation": "<Mongolian translation of the example sentence>",\n' +
+      '  "synonyms": "<2-4 English synonyms, comma-separated; empty string if none>",\n' +
+      '  "antonyms": "<1-3 English antonyms, comma-separated; empty string if none>"\n' +
       '}';
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
