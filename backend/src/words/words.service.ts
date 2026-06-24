@@ -167,6 +167,20 @@ export function stripJsonFences(raw: string): string {
   return start >= 0 && end > start ? body.slice(start, end + 1) : body;
 }
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * How long to wait before retrying a Gemini call. Gemini's 429 body often
+ * carries a RetryInfo ("retryDelay":"6s" / "Please retry in 6.2s"); honour it,
+ * otherwise fall back to exponential backoff (2s, 4s, 8s…) capped at 30s.
+ */
+export function geminiRetryDelayMs(body: string, attempt: number): number {
+  const m = body.match(/retry(?:Delay)?["\s:]+["']?(\d+(?:\.\d+)?)s/i);
+  const suggested = m ? Math.ceil(parseFloat(m[1]) * 1000) : 0;
+  const backoff = Math.min(2000 * 2 ** (attempt - 1), 30000);
+  return Math.max(suggested, backoff);
+}
+
 @Injectable()
 export class WordsService {
   private readonly logger = new Logger(WordsService.name);
@@ -191,7 +205,9 @@ export class WordsService {
    */
   async aiFill(english: string): Promise<AiFillResult> {
     const [text, imageUrl] = await Promise.all([
-      this.fillText(english),
+      // Interactive button: a couple of quick retries (rides out a brief 503
+      // "high demand" blip) without spinning ~30s like the bulk path.
+      this.fillText(english, 3),
       this.fillImage(english).catch(() => null),
     ]);
     return { ...text, imageUrl };
@@ -264,13 +280,21 @@ export class WordsService {
     return report;
   }
 
-  /** Generate every text field for a word from just the English term, via Google Gemini. */
-  private async fillText(english: string): Promise<Omit<AiFillResult, 'imageUrl'>> {
+  /**
+   * Generate every text field for a word from just the English term, via Google
+   * Gemini. `maxAttempts` controls 429/503 retry depth: keep it low for the
+   * interactive "AI бөглөх" button (fast feedback) and high for bulk import
+   * (rides out the free-tier per-minute rate limit).
+   */
+  private async fillText(
+    english: string,
+    maxAttempts = 7,
+  ): Promise<Omit<AiFillResult, 'imageUrl'>> {
     const apiKey = this.config.get<string>('GEMINI_API_KEY');
     if (!apiKey) {
       throw new InternalServerErrorException('GEMINI_API_KEY тохируулаагүй байна');
     }
-    const model = this.config.get<string>('GEMINI_MODEL', 'gemini-2.0-flash');
+    const model = this.config.get<string>('GEMINI_MODEL', 'gemini-2.5-flash');
 
     const prompt =
       `Generate complete vocabulary-card data for the English word "${english}".\n` +
@@ -286,30 +310,59 @@ export class WordsService {
       '  "exampleTranslation": "<Mongolian translation of the example sentence>"\n' +
       '}';
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          // Ask Gemini to return raw JSON (no markdown fences).
-          generationConfig: { responseMimeType: 'application/json', temperature: 0.4 },
-        }),
-      },
-    );
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    const requestInit = {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        // Ask Gemini to return raw JSON (no markdown fences).
+        generationConfig: { responseMimeType: 'application/json', temperature: 0.4 },
+      }),
+    };
 
-    if (!response.ok) {
+    // Retry on rate-limit (429) / transient server errors (503) — important for
+    // bulk import on the free tier, which throttles requests per minute.
+    const MAX_ATTEMPTS = Math.max(1, maxAttempts);
+    for (let attempt = 1; ; attempt++) {
+      const response = await fetch(url, requestInit);
+      if (response.ok) {
+        const data = (await response.json()) as {
+          candidates?: {
+            content?: { parts?: { text?: string; thought?: boolean }[] };
+          }[];
+        };
+        // Pro/thinking models can return a "thought" part before the answer —
+        // skip those and concatenate the real text parts.
+        const parts = data.candidates?.[0]?.content?.parts ?? [];
+        const raw = parts
+          .filter((p) => !p.thought && p.text)
+          .map((p) => p.text)
+          .join('')
+          .trim();
+        return JSON.parse(stripJsonFences(raw)) as Omit<AiFillResult, 'imageUrl'>;
+      }
+
       const body = await response.text().catch(() => '');
+      // Under load Gemini flaps between 429, 503 and even 404 — all carrying a
+      // transient "high demand / unavailable" message. Retry those, but let a
+      // genuine "model not found" 404 fail fast (don't mask a bad model name).
+      const transient =
+        response.status === 429 ||
+        response.status === 503 ||
+        (response.status === 404 && /high demand|unavailable|overloaded|try again/i.test(body));
+      if (transient && attempt < MAX_ATTEMPTS) {
+        const waitMs = geminiRetryDelayMs(body, attempt);
+        this.logger.warn(
+          `Gemini ${response.status} for "${english}" — retry ${attempt}/${MAX_ATTEMPTS - 1} in ${waitMs}ms`,
+        );
+        await sleep(waitMs);
+        continue;
+      }
+
       this.logger.error(`Gemini fill failed (${response.status}): ${body}`);
       throw new InternalServerErrorException('AI бөглөхөд алдаа гарлаа');
     }
-
-    const data = (await response.json()) as {
-      candidates?: { content?: { parts?: { text?: string }[] } }[];
-    };
-    const raw = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-    return JSON.parse(stripJsonFences(raw)) as Omit<AiFillResult, 'imageUrl'>;
   }
 
   private async fillImage(english: string): Promise<string | null> {
@@ -402,6 +455,8 @@ export class WordsService {
       english: word.english,
       mongolian: word.mongolian,
       partOfSpeech: word.partOfSpeech,
+      exampleSentence: word.exampleSentence,
+      cefr: word.level,
     });
     word.imageUrl = result.imageUrl;
     return this.words.save(word);

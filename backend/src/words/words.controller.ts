@@ -102,7 +102,7 @@ export class WordsController {
     if (!Array.isArray(words) || words.length === 0) {
       throw new BadRequestException('"words" массив шаардлагатай');
     }
-    const cap = generateImages ? 25 : 75;
+    const cap = generateImages ? 25 : 100;
     if (words.length > cap) {
       throw new BadRequestException(
         `AI bulk: нэг удаад ${cap}-аас ихгүй үг (${generateImages ? 'зурагтай' : 'зураггүй'}). Багцлан оруулна уу.`,

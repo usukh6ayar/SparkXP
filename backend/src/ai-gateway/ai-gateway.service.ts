@@ -35,6 +35,37 @@ const AI_MODEL = 'claude-haiku-4-5-20251001';
 const DEFAULT_IMAGE_MODEL = 'gpt-image-2';
 const IMAGE_COST_MICRO_USD = 6_000;
 
+/**
+ * Prompt used to generate a vocabulary illustration. Placeholders {word},
+ * {meaning}, {example_sentence}, {part_of_speech} and {cefr} are filled per
+ * word. Override the whole thing with the IMAGE_PROMPT_TEMPLATE env var (no app
+ * code change needed) to tweak the art style.
+ */
+const DEFAULT_IMAGE_PROMPT = [
+  'Create a clean educational vocabulary illustration for the English word: "{word}".',
+  'Meaning to show: "{meaning}".',
+  'Example context: "{example_sentence}".',
+  'Part of speech: "{part_of_speech}".',
+  'CEFR level: "{cefr}".',
+  'Style requirements:',
+  'Make the image in a cute, modern, polished 3D educational style similar to a friendly AI learning companion. The visual style should feel soft, appealing, and student-friendly. Use smooth rounded shapes, clean forms, soft lighting, and a high-quality cartoon-like 3D render. The character design should feel like an AI buddy from an English learning app: expressive, adorable, approachable, and slightly playful, with big friendly eyes, a soft face, and a welcoming expression.',
+  'The overall design language should match a modern learning app for young adults and students. Use a purple-centered palette with soft accent colors, especially purple and lavender tones, with clean balanced composition. The image should feel premium, minimal, and easy to understand at a glance. The scene should clearly visualize the meaning of the word in a direct and intuitive way.',
+  'Include one main cute AI-buddy-style character or a small number of characters if needed for the meaning. The character should look like a smart educational app mascot or helper, with a friendly and encouraging presence. Clothing and accessories can subtly include modern app-like styling such as a hoodie or simple casual outfit in purple tones, but keep it clean and not overly detailed.',
+  'Important visual rules:',
+  '- Show the meaning clearly and literally when possible.',
+  '- Make the concept easy to understand for English learners.',
+  '- Keep the background simple and uncluttered.',
+  '- Focus on one clear scene.',
+  '- Make it suitable for a vocabulary learning card.',
+  '- No written text inside the image.',
+  '- No labels, captions, speech bubbles, or watermarks.',
+  '- No complex background distractions.',
+  '- Keep the composition centered and visually clean.',
+  '- Make the image emotionally clear and memorable.',
+  'If the word is abstract, represent it with a simple symbolic or situational scene that communicates the meaning clearly. If the word is concrete, show the object or action very clearly.',
+  'Output a square image with a polished, consistent, modern educational app illustration style.',
+].join('\n');
+
 /** ElevenLabs TTS defaults (override via env). "Rachel" is an ElevenLabs preset voice. */
 const DEFAULT_TTS_VOICE_ID = '21m00Tcm4TlvDq8ikWAM';
 const DEFAULT_TTS_MODEL = 'eleven_multilingual_v2';
@@ -52,6 +83,8 @@ export interface VocabularyImageRequest {
   english: string;
   mongolian: string;
   partOfSpeech?: string | null;
+  exampleSentence?: string | null;
+  cefr?: string | null;
 }
 
 export interface VocabularyImageResponse {
@@ -267,17 +300,14 @@ export class AiGatewayService implements OnModuleInit {
     }
 
     const model = this.config.get<string>('OPENAI_IMAGE_MODEL', DEFAULT_IMAGE_MODEL);
-    const prompt = [
-      'Create a square educational vocabulary flashcard illustration.',
-      `English word: "${input.english}".`,
-      `Mongolian meaning: "${input.mongolian}".`,
-      input.partOfSpeech ? `Part of speech: ${input.partOfSpeech}.` : '',
-      'Show the concept clearly for a Mongolian student learning English.',
-      'No text, no letters, no watermark, no logo.',
-      'Friendly modern illustration, clean background, high contrast, age-safe.',
-    ]
-      .filter(Boolean)
-      .join(' ');
+    const template =
+      this.config.get<string>('IMAGE_PROMPT_TEMPLATE') || DEFAULT_IMAGE_PROMPT;
+    const prompt = template
+      .replace(/\{word\}/g, input.english)
+      .replace(/\{meaning\}/g, input.mongolian || '')
+      .replace(/\{example_sentence\}/g, input.exampleSentence || '')
+      .replace(/\{part_of_speech\}/g, input.partOfSpeech || '')
+      .replace(/\{cefr\}/g, input.cefr || '');
 
     const response = await fetch('https://api.openai.com/v1/images/generations', {
       method: 'POST',
