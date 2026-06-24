@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
+import { randomUUID } from 'crypto';
 import { Repository, ILike, In, IsNull } from 'typeorm';
 import { Word } from '../entities/word.entity';
 import { WordReview } from '../entities/word-review.entity';
@@ -66,6 +67,12 @@ export interface AiBulkReport {
   inserted: number;
   skipped: number;
   failed: { word: string; message: string }[];
+  // Live progress (for the background media path the admin polls). `total` is
+  // the deduped word count; `processed` counts finished words; `done` flips true
+  // when the whole batch is finished.
+  total: number;
+  processed: number;
+  done: boolean;
 }
 
 export interface AiFillResult {
@@ -187,6 +194,12 @@ export function geminiRetryDelayMs(body: string, attempt: number): number {
 export class WordsService {
   private readonly logger = new Logger(WordsService.name);
 
+  /**
+   * Live progress of background AI-bulk jobs, keyed by jobId. In-memory (single
+   * instance) — fine for MVP. The admin polls getBulkJob() to show a %.
+   */
+  private readonly bulkJobs = new Map<string, AiBulkReport>();
+
   constructor(
     @InjectRepository(Word)
     private readonly words: Repository<Word>,
@@ -221,18 +234,49 @@ export class WordsService {
    * Runs with limited concurrency (AI is slow); duplicates are skipped and
    * per-word failures are collected rather than aborting the whole batch.
    */
+  /** Start a background AI-bulk job and return its id; poll getBulkJob() for %. */
+  startAiBulk(
+    rawWords: string[],
+    generateImages = false,
+    generateAudios = false,
+  ): string {
+    const jobId = randomUUID();
+    const report: AiBulkReport = {
+      requested: 0, inserted: 0, skipped: 0, failed: [],
+      total: 0, processed: 0, done: false,
+    };
+    this.bulkJobs.set(jobId, report);
+    void this.aiBulkImport(rawWords, generateImages, generateAudios, report)
+      .catch((e) => this.logger.error(`[AI bulk] job ${jobId} crashed: ${e?.message ?? e}`))
+      .finally(() => {
+        report.done = true;
+        // Keep the finished result around briefly so the admin can read the
+        // final counts, then free the memory.
+        setTimeout(() => this.bulkJobs.delete(jobId), 5 * 60_000);
+      });
+    return jobId;
+  }
+
+  /** Live progress/result of a background AI-bulk job (undefined if unknown). */
+  getBulkJob(jobId: string): AiBulkReport | undefined {
+    return this.bulkJobs.get(jobId);
+  }
+
   async aiBulkImport(
     rawWords: string[],
     generateImages = false,
     generateAudios = false,
+    report?: AiBulkReport,
   ): Promise<AiBulkReport> {
     const words = [...new Set(rawWords.map((w) => w.trim()).filter(Boolean))];
-    const report: AiBulkReport = {
-      requested: words.length,
-      inserted: 0,
-      skipped: 0,
-      failed: [],
+    // Reuse a caller-supplied report (background job holds a live reference) or
+    // make a fresh one for the synchronous path.
+    report = report ?? {
+      requested: words.length, inserted: 0, skipped: 0, failed: [],
+      total: words.length, processed: 0, done: false,
     };
+    report.requested = words.length;
+    report.total = words.length;
     // Always-on progress logs (visible in Railway prod logs too) so a slow
     // background run can be watched word-by-word.
     this.logger.log(
@@ -291,10 +335,13 @@ export class WordsService {
             const message = e instanceof Error ? e.message : 'AI алдаа';
             report.failed.push({ word: english, message });
             this.logger.error(`[AI bulk] failed "${english}": ${message}`);
+          } finally {
+            report.processed++;
           }
         }),
       );
     }
+    report.done = true;
     this.logger.log(
       `[AI bulk] done: inserted=${report.inserted}, skipped=${report.skipped}, failed=${report.failed.length}`,
     );

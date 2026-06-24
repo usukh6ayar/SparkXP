@@ -61,6 +61,11 @@ interface AiBulkReport {
   // When media (image/audio) is requested the work runs in the background and
   // the server returns immediately — words appear in the list as they finish.
   background?: boolean;
+  // Live progress for the background path (polled from the server).
+  total?: number;
+  processed?: number;
+  done?: boolean;
+  jobId?: string;
 }
 
 interface WordStat {
@@ -390,12 +395,11 @@ export default function WordsPage() {
         });
         const body = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(body.message ?? `Алдаа ${res.status}`);
-        if (body.started || body.background) {
-          // Media bulk runs in the background — show progress hint and refresh
-          // the list a few times so words appear as they're generated.
-          setAiReport({ requested: body.requested ?? 0, inserted: 0, skipped: 0, failed: [], background: true });
-          load(); loadStats();
-          [15000, 45000, 90000].forEach((ms) => setTimeout(() => { load(); loadStats(); }, ms));
+        if (body.background && body.jobId) {
+          // Media bulk runs in the background — poll the job for live progress %.
+          const total = body.requested ?? 0;
+          setAiReport({ requested: total, inserted: 0, skipped: 0, failed: [], background: true, total, processed: 0, done: false });
+          pollBulkJob(body.jobId);
         } else {
           setAiReport(body as AiBulkReport);
           load(); loadStats();
@@ -417,6 +421,27 @@ export default function WordsPage() {
     } catch (e: unknown) {
       setImportError(e instanceof Error ? e.message : 'Import алдаа');
     } finally { setImporting(false); }
+  }
+
+  /** Poll a background AI-bulk job for progress and refresh the list as it runs. */
+  function pollBulkJob(jobId: string) {
+    const tick = async () => {
+      let stop = false;
+      try {
+        const job = await api.get<Partial<AiBulkReport> & { done?: boolean }>(`/words/ai-bulk/${jobId}`);
+        setAiReport((prev) => ({
+          ...(prev ?? { requested: 0, inserted: 0, skipped: 0, failed: [] }),
+          ...job,
+          background: true,
+        } as AiBulkReport));
+        load();
+        if (job.done) { stop = true; loadStats(); }
+      } catch {
+        stop = true;
+      }
+      if (!stop) setTimeout(tick, 2500);
+    };
+    setTimeout(tick, 2000);
   }
 
   function downloadCsvTemplate() {
@@ -862,12 +887,36 @@ export default function WordsPage() {
             )}
 
             {/* AI bulk report */}
-            {aiReport && aiReport.background && (
-              <div className="rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 text-sm text-blue-800">
-                ⏳ <strong>{aiReport.requested}</strong> үгийг AI-аар (зураг/дуудлагатай) <strong>background-д боловсруулж эхэллээ</strong>.
-                Удаж магадгүй — цонхоо хааж болно. Үгс бэлэн болохын хэрээр жагсаалтад нэмэгдэнэ (хэдэн минутын дараа сэргээ).
-              </div>
-            )}
+            {aiReport && aiReport.background && (() => {
+              const total = aiReport.total ?? aiReport.requested ?? 0;
+              const processed = aiReport.processed ?? 0;
+              const pct = total ? Math.round((processed / total) * 100) : 0;
+              return (
+                <div className="rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 text-sm text-blue-800 space-y-2">
+                  {!aiReport.done ? (
+                    <p>⏳ AI боловсруулж байна (зураг/дуудлагатай) — цонхоо хааж болно.</p>
+                  ) : (
+                    <p className="font-medium text-green-700">✅ Дууслаа</p>
+                  )}
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-blue-100">
+                    <div className="h-full bg-blue-500 transition-all duration-500" style={{ width: `${pct}%` }} />
+                  </div>
+                  <p className="text-xs">
+                    {processed}/{total} ({pct}%) · нэмсэн <strong>{aiReport.inserted}</strong> · давхардал {aiReport.skipped} · алдаа {aiReport.failed.length}
+                  </p>
+                  {aiReport.failed.length > 0 && (
+                    <details className="text-xs text-red-600">
+                      <summary className="cursor-pointer">{aiReport.failed.length} үг амжилтгүй</summary>
+                      <ul className="mt-1 list-disc pl-4">
+                        {aiReport.failed.slice(0, 20).map((f) => (
+                          <li key={f.word}><strong>{f.word}</strong>: {f.message}</li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
+                </div>
+              );
+            })()}
             {aiReport && !aiReport.background && (
               <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-800 space-y-1">
                 <p>✅ <strong>{aiReport.inserted}</strong> үг AI-аар бөглөж нэмэгдлээ

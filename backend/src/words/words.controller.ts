@@ -120,15 +120,28 @@ export class WordsController {
     // once; the admin refreshes the list to see words appear. Text-only batches
     // are fast, so those stay synchronous and return the full report.
     if (withMedia) {
-      void this.wordsService
-        .aiBulkImport(words, generateImages ?? false, generateAudios ?? false)
-        .catch((e) =>
-          this.logger.error(`AI bulk (background) failed: ${e?.message ?? e}`),
-        );
-      return { started: true, requested: words.length, background: true };
+      const jobId = this.wordsService.startAiBulk(
+        words,
+        generateImages ?? false,
+        generateAudios ?? false,
+      );
+      return { started: true, requested: words.length, background: true, jobId };
     }
 
     return this.wordsService.aiBulkImport(words, false, false);
+  }
+
+  /** Poll background AI-bulk progress: GET /api/words/ai-bulk/:jobId */
+  @Get('ai-bulk/:jobId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  aiBulkStatus(@Param('jobId') jobId: string) {
+    const job = this.wordsService.getBulkJob(jobId);
+    if (!job) {
+      // Unknown id = finished long ago (and cleaned up) or never existed.
+      return { done: true, expired: true };
+    }
+    return job;
   }
 
   @Get()
