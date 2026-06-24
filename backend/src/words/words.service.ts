@@ -349,6 +349,13 @@ export class WordsService {
           .map((p) => p.text)
           .join('')
           .trim();
+        // Dev-only: dump the full Gemini response so you can see exactly what the
+        // model generated (and spot anything extra). Quiet in production.
+        if (this.config.get('NODE_ENV') !== 'production') {
+          this.logger.log(`[AI] Gemini fillText("${english}") model=${model}`);
+          this.logger.log(`[AI] Gemini RAW response: ${JSON.stringify(data)}`);
+          this.logger.log(`[AI] Gemini parsed text: ${raw}`);
+        }
         return JSON.parse(stripJsonFences(raw)) as Omit<AiFillResult, 'imageUrl'>;
       }
 

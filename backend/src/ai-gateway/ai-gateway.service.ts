@@ -318,6 +318,12 @@ export class AiGatewayService implements OnModuleInit {
       .replace(/\{part_of_speech\}/g, input.partOfSpeech || '')
       .replace(/\{cefr\}/g, input.cefr || '');
 
+    const dev = this.config.get('NODE_ENV') !== 'production';
+    if (dev) {
+      this.logger.log(`[AI] OpenAI image generate for "${input.english}" (model=${model}, n=1)`);
+      this.logger.log(`[AI] OpenAI image prompt:\n${prompt}`);
+    }
+
     const response = await fetch('https://api.openai.com/v1/images/generations', {
       method: 'POST',
       headers: {
@@ -337,6 +343,14 @@ export class AiGatewayService implements OnModuleInit {
       data?: { b64_json?: string }[];
       error?: { message?: string };
     };
+    // Dev-only: show the response shape (how many images came back) without
+    // dumping the huge base64 blob, so you can confirm it's exactly 1.
+    if (dev) {
+      this.logger.log(
+        `[AI] OpenAI image response: status=${response.status}, images=${body.data?.length ?? 0}` +
+          (body.error ? `, error=${body.error.message}` : ''),
+      );
+    }
     const b64 = body.data?.[0]?.b64_json;
     if (!response.ok || !b64) {
       throw new InternalServerErrorException(
@@ -352,6 +366,7 @@ export class AiGatewayService implements OnModuleInit {
       mimeType: 'image/png',
       folder: this.config.get<string>('CLOUDINARY_WORD_IMAGES_FOLDER'),
     });
+    if (dev) this.logger.log(`[AI] OpenAI image stored → ${imageUrl}`);
 
     await this.aiUsages.save(
       this.aiUsages.create({
@@ -389,6 +404,8 @@ export class AiGatewayService implements OnModuleInit {
 
     const voiceId = this.config.get<string>('ELEVENLABS_VOICE_ID', DEFAULT_TTS_VOICE_ID);
     const model = this.config.get<string>('ELEVENLABS_MODEL', DEFAULT_TTS_MODEL);
+    const dev = this.config.get('NODE_ENV') !== 'production';
+    if (dev) this.logger.log(`[AI] ElevenLabs TTS for "${input.english}" (voice=${voiceId}, model=${model})`);
 
     const response = await fetch(
       `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
@@ -410,6 +427,7 @@ export class AiGatewayService implements OnModuleInit {
     }
 
     const buffer = Buffer.from(await response.arrayBuffer());
+    if (dev) this.logger.log(`[AI] ElevenLabs TTS ok: ${buffer.length} bytes`);
     const audioUrl = await this.imageStorage.storeMedia({
       buffer,
       filename: `${this.safeFilename(input.english)}-${Date.now()}.mp3`,
@@ -419,6 +437,7 @@ export class AiGatewayService implements OnModuleInit {
       folder: this.config.get<string>('CLOUDINARY_AUDIO_FOLDER', 'englishxp/audio'),
       localSubdir: 'audio',
     });
+    if (dev) this.logger.log(`[AI] ElevenLabs audio stored → ${audioUrl}`);
 
     await this.aiUsages.save(
       this.aiUsages.create({
