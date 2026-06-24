@@ -51,6 +51,7 @@
 | PATCH | `/words/bulk` | 🛡️ | Олон үг нэг дор засах `{ ids, changes:{ status?, category?, level? } }` → `{ updated }` |
 | POST | `/words/ai-bulk` | 🛡️ | `{ words: string[], generateImages? }` → зөвхөн англи үгсээс AI бүх талбарыг бөглөж нэмнэ. Cap: 75 (зураггүй) / 25 (зурагтай). Буцаалт `{ requested, inserted, skipped, failed:[{word,message}] }` |
 | POST | `/words/:id/generate-image` | 🛡️ | Тухайн үгэнд AI зураг шинээр үүсгэж `imageUrl` шинэчилнэ |
+| POST | `/words/:id/generate-audio` | 🛡️ | Тухайн үгэнд ElevenLabs дуудлага (mp3) үүсгэж `audioUrl` шинэчилнэ |
 | PATCH | `/words/:id` | 🛡️ | Засах (`status` солих → publish/approve). `generateImage:true` бол зураг шинээр үүсгэнэ |
 | DELETE | `/words/:id` | 🛡️ | Устгах |
 
