@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { Outlet, Navigate, useLocation } from 'react-router-dom';
+import { Menu } from 'lucide-react';
 import { Sidebar } from './Sidebar';
 import { useAuth } from '../auth/AuthContext';
 import { canAccess, defaultPath } from '../auth/access';
@@ -17,11 +19,26 @@ function RequireAccess({ children }: { children: React.ReactNode }) {
 }
 
 export function Layout() {
+  // Sidebar is an off-canvas drawer on mobile, always-visible on md+.
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
   return (
     <div className="flex h-screen overflow-hidden">
-      <Sidebar />
-      <main className="flex-1 overflow-y-auto">
-        <div className="p-8">
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <main className="flex flex-1 flex-col overflow-y-auto">
+        {/* Mobile top bar — hamburger to open the sidebar */}
+        <header className="flex items-center gap-3 border-b bg-white px-4 py-3 md:hidden">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="text-gray-600 hover:text-gray-900"
+            aria-label="Цэс нээх"
+          >
+            <Menu className="h-6 w-6" />
+          </button>
+          <span className="font-semibold text-gray-900">SparkXP Admin</span>
+        </header>
+
+        <div className="p-4 sm:p-6 lg:p-8">
           <RequireAccess>
             <Outlet />
           </RequireAccess>
