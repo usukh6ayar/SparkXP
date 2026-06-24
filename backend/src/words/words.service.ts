@@ -233,6 +233,11 @@ export class WordsService {
       skipped: 0,
       failed: [],
     };
+    // Always-on progress logs (visible in Railway prod logs too) so a slow
+    // background run can be watched word-by-word.
+    this.logger.log(
+      `[AI bulk] start: ${words.length} words (images=${generateImages}, audios=${generateAudios})`,
+    );
 
     const CONCURRENCY = 3;
     for (let i = 0; i < words.length; i += CONCURRENCY) {
@@ -244,7 +249,11 @@ export class WordsService {
               where: { english: ILike(english) },
               select: { id: true },
             });
-            if (dup) { report.skipped++; return; }
+            if (dup) {
+              report.skipped++;
+              this.logger.log(`[AI bulk] skip "${english}" (already exists)`);
+              return;
+            }
 
             const text = await this.fillText(english);
             // Image + audio are slow and optional; run them together and never
@@ -275,15 +284,20 @@ export class WordsService {
               }),
             );
             report.inserted++;
+            this.logger.log(
+              `[AI bulk] inserted "${english}" (image=${imageUrl ? 'yes' : 'no'}, audio=${audioUrl ? 'yes' : 'no'})`,
+            );
           } catch (e) {
-            report.failed.push({
-              word: english,
-              message: e instanceof Error ? e.message : 'AI алдаа',
-            });
+            const message = e instanceof Error ? e.message : 'AI алдаа';
+            report.failed.push({ word: english, message });
+            this.logger.error(`[AI bulk] failed "${english}": ${message}`);
           }
         }),
       );
     }
+    this.logger.log(
+      `[AI bulk] done: inserted=${report.inserted}, skipped=${report.skipped}, failed=${report.failed.length}`,
+    );
     return report;
   }
 

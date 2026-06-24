@@ -58,6 +58,9 @@ interface AiBulkReport {
   inserted: number;
   skipped: number;
   failed: { word: string; message: string }[];
+  // When media (image/audio) is requested the work runs in the background and
+  // the server returns immediately — words appear in the list as they finish.
+  background?: boolean;
 }
 
 interface WordStat {
@@ -149,11 +152,15 @@ function extractEnglish(name: string, text: string): string[] {
       .filter((w: unknown): w is string => !!w)
       .map((w: string) => w.trim());
   }
-  // CSV or plain list: first column
-  return text
+  // CSV or plain list: take the first column of every non-empty line.
+  const lines = text
     .split(/\r?\n/)
     .map((l) => l.split(',')[0].replace(/^"|"$/g, '').trim())
-    .filter((l) => l && l.toLowerCase() !== 'english');
+    .filter(Boolean);
+  // Drop only a LEADING "english" header row — keep a real word "english"
+  // that appears elsewhere (the old filter dropped every such line → lost words).
+  if (lines[0]?.toLowerCase() === 'english') lines.shift();
+  return lines;
 }
 
 // ── Main page ──────────────────────────────────────────────────────────────
@@ -383,8 +390,16 @@ export default function WordsPage() {
         });
         const body = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(body.message ?? `Алдаа ${res.status}`);
-        setAiReport(body as AiBulkReport);
-        load(); loadStats();
+        if (body.started || body.background) {
+          // Media bulk runs in the background — show progress hint and refresh
+          // the list a few times so words appear as they're generated.
+          setAiReport({ requested: body.requested ?? 0, inserted: 0, skipped: 0, failed: [], background: true });
+          load(); loadStats();
+          [15000, 45000, 90000].forEach((ms) => setTimeout(() => { load(); loadStats(); }, ms));
+        } else {
+          setAiReport(body as AiBulkReport);
+          load(); loadStats();
+        }
       } else {
         // Regular mode: multipart CSV upload with full validation report
         const formData = new FormData();
@@ -847,7 +862,13 @@ export default function WordsPage() {
             )}
 
             {/* AI bulk report */}
-            {aiReport && (
+            {aiReport && aiReport.background && (
+              <div className="rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 text-sm text-blue-800">
+                ⏳ <strong>{aiReport.requested}</strong> үгийг AI-аар (зураг/дуудлагатай) <strong>background-д боловсруулж эхэллээ</strong>.
+                Удаж магадгүй — цонхоо хааж болно. Үгс бэлэн болохын хэрээр жагсаалтад нэмэгдэнэ (хэдэн минутын дараа сэргээ).
+              </div>
+            )}
+            {aiReport && !aiReport.background && (
               <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-800 space-y-1">
                 <p>✅ <strong>{aiReport.inserted}</strong> үг AI-аар бөглөж нэмэгдлээ
                   {aiReport.skipped > 0 && <span className="text-green-600 ml-1">· {aiReport.skipped} давхардал</span>}

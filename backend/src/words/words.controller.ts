@@ -13,6 +13,7 @@ import {
   BadRequestException,
   UploadedFile,
   UseInterceptors,
+  Logger,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { WordsService } from './words.service';
@@ -37,6 +38,8 @@ import { UserRole } from '../common/enums';
  */
 @Controller('words')
 export class WordsController {
+  private readonly logger = new Logger(WordsController.name);
+
   constructor(private readonly wordsService: WordsService) {}
 
   /**
@@ -110,11 +113,22 @@ export class WordsController {
         `AI bulk: нэг удаад ${cap}-аас ихгүй үг (${withMedia ? 'медиатай' : 'медиагүй'}). Багцлан оруулна уу.`,
       );
     }
-    return this.wordsService.aiBulkImport(
-      words,
-      generateImages ?? false,
-      generateAudios ?? false,
-    );
+
+    // Media generation (image/audio) is slow — a synchronous request would
+    // exceed the proxy timeout and 502 even though the work keeps running on the
+    // server (filling Cloudinary). So run it in the BACKGROUND and return at
+    // once; the admin refreshes the list to see words appear. Text-only batches
+    // are fast, so those stay synchronous and return the full report.
+    if (withMedia) {
+      void this.wordsService
+        .aiBulkImport(words, generateImages ?? false, generateAudios ?? false)
+        .catch((e) =>
+          this.logger.error(`AI bulk (background) failed: ${e?.message ?? e}`),
+        );
+      return { started: true, requested: words.length, background: true };
+    }
+
+    return this.wordsService.aiBulkImport(words, false, false);
   }
 
   @Get()
