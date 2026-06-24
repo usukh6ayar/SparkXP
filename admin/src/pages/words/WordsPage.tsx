@@ -152,18 +152,6 @@ function extractEnglish(name: string, text: string): string[] {
     .filter((l) => l && l.toLowerCase() !== 'english');
 }
 
-function splitCsvLine(line: string): string[] {
-  const result: string[] = [];
-  let cur = ''; let inQ = false;
-  for (let i = 0; i < line.length; i++) {
-    if (line[i] === '"') { inQ = !inQ; }
-    else if (line[i] === ',' && !inQ) { result.push(cur); cur = ''; }
-    else { cur += line[i]; }
-  }
-  result.push(cur);
-  return result;
-}
-
 // ── Main page ──────────────────────────────────────────────────────────────
 
 export default function WordsPage() {
