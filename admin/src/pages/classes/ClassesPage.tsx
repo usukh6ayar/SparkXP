@@ -33,6 +33,7 @@ interface Assignment {
   targetId: string;
   dueAt: string | null;
   createdAt: string;
+  completedCount: number;
 }
 
 interface LessonOption { id: string; title: string; }
@@ -419,13 +420,18 @@ export default function ClassesPage() {
                     <div key={a.id} className="flex items-center gap-3 rounded-lg border border-gray-100 bg-white px-3 py-2.5">
                       <span className="text-base">{a.type === 'lesson' ? '📚' : '❓'}</span>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium capitalize">{a.type === 'lesson' ? 'Хичээл' : 'Сорил'}</p>
+                        <p className="text-sm font-medium">{a.type === 'lesson' ? 'Хичээл' : 'Сорил'}</p>
                         <p className="text-xs text-gray-400 font-mono truncate">{a.targetId}</p>
                         {a.dueAt && (
-                          <p className="text-xs text-amber-600">
-                            ⏰ {new Date(a.dueAt).toLocaleString('mn-MN')}
-                          </p>
+                          <p className="text-xs text-amber-600">⏰ {new Date(a.dueAt).toLocaleString('mn-MN')}</p>
                         )}
+                      </div>
+                      {/* Completion count badge */}
+                      <div className="shrink-0 text-center px-2">
+                        <span className={`text-sm font-bold ${a.completedCount > 0 ? 'text-green-600' : 'text-gray-300'}`}>
+                          {a.completedCount}
+                        </span>
+                        <p className="text-xs text-gray-400">/{students.length}</p>
                       </div>
                       <button
                         onClick={() => deleteAssignment(a.id)}

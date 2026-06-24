@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Assignment } from '../entities/assignment.entity';
+import { AssignmentCompletion } from '../entities/assignment-completion.entity';
 import { Lesson } from '../entities/lesson.entity';
 import { Quiz } from '../entities/quiz.entity';
 import { ClassesModule } from '../classes/classes.module';
@@ -11,7 +12,7 @@ import { AssignmentsController } from './assignments.controller';
  *  ownership/membership checks. */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Assignment, Lesson, Quiz]),
+    TypeOrmModule.forFeature([Assignment, AssignmentCompletion, Lesson, Quiz]),
     ClassesModule,
   ],
   controllers: [AssignmentsController],

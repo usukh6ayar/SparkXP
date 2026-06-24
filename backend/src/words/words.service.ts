@@ -7,10 +7,10 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
-import { Repository, ILike, In } from 'typeorm';
+import { Repository, ILike, In, IsNull } from 'typeorm';
 import Anthropic from '@anthropic-ai/sdk';
 import { Word } from '../entities/word.entity';
-import { WordStatus, XpSource, SparksSource } from '../common/enums';
+import { WordStatus, XpSource, SparksSource, ContentLevel } from '../common/enums';
 import { XpService } from '../xp/xp.service';
 import { SparksService } from '../sparks/sparks.service';
 import { AiGatewayService } from '../ai-gateway/ai-gateway.service';
@@ -18,6 +18,16 @@ import { CreateWordDto } from './dto/create-word.dto';
 import { UpdateWordDto } from './dto/update-word.dto';
 import { QueryWordsDto } from './dto/query-words.dto';
 import { QuizAnswerDto } from './dto/quiz.dto';
+
+export interface ImportReport {
+  total: number;
+  inserted: number;
+  skipped: number;
+  errors: { row: number; field: string; message: string }[];
+  duplicates: { row: number; word: string }[];
+  missingImage: string[];
+  missingAudio: string[];
+}
 
 export interface AiFillResult {
   mongolian: string;
@@ -56,6 +66,20 @@ export interface QuizResult {
 /** Reward per correct answer (anti-abuse: only correct answers earn). */
 const XP_PER_CORRECT = 5;
 const SPARKS_PER_CORRECT = 1;
+
+/** RFC-4180 CSV line splitter — respects quoted fields with embedded commas. */
+function splitCsvLine(line: string): string[] {
+  const result: string[] = [];
+  let cur = '';
+  let inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    if (line[i] === '"') { inQ = !inQ; }
+    else if (line[i] === ',' && !inQ) { result.push(cur); cur = ''; }
+    else { cur += line[i]; }
+  }
+  result.push(cur);
+  return result;
+}
 
 /** Fisher–Yates shuffle (returns a new array). */
 function shuffle<T>(arr: T[]): T[] {
@@ -220,6 +244,114 @@ export class WordsService implements OnModuleInit {
   async remove(id: string): Promise<void> {
     const word = await this.findOne(id);
     await this.words.remove(word);
+  }
+
+  // ── Admin stats ────────────────────────────────────────────────────────────
+
+  /** Word counts by status + missing media counts, for the admin review panel. */
+  async getStats(): Promise<{
+    total: number;
+    byStatus: Record<string, number>;
+    missingImage: number;
+    missingAudio: number;
+  }> {
+    const [rows, total, missingImage, missingAudio] = await Promise.all([
+      this.words
+        .createQueryBuilder('w')
+        .select('w.status', 'status')
+        .addSelect('COUNT(*)', 'count')
+        .groupBy('w.status')
+        .getRawMany<{ status: string; count: string }>(),
+      this.words.count(),
+      this.words.count({ where: { imageUrl: IsNull() } }),
+      this.words.count({ where: { audioUrl: IsNull() } }),
+    ]);
+    const byStatus = Object.fromEntries(rows.map((r) => [r.status, Number(r.count)]));
+    return { total, byStatus, missingImage, missingAudio };
+  }
+
+  /** Bulk-update status/category/level for a set of word IDs. */
+  async bulkEdit(
+    ids: string[],
+    changes: { status?: WordStatus; category?: string; level?: ContentLevel },
+  ): Promise<{ updated: number }> {
+    if (!ids.length) throw new BadRequestException('ids хоосон байна');
+    await this.words
+      .createQueryBuilder()
+      .update(Word)
+      .set(changes)
+      .where('id IN (:...ids)', { ids })
+      .execute();
+    return { updated: ids.length };
+  }
+
+  // ── Import v2 (with validation report) ────────────────────────────────────
+
+  /**
+   * Parse a CSV string and import words with a full validation report.
+   * New words land as `needs_review` (not `published`) so they go through review.
+   * Supported columns: word | english, mongolian_meaning | mongolian, level,
+   *   part_of_speech, category, english_definition, english_example,
+   *   mongolian_example, phonetic, image_url, audio_url.
+   */
+  async importCsv(csvText: string): Promise<ImportReport> {
+    const lines = csvText.trim().split(/\r?\n/);
+    if (lines.length < 2) throw new BadRequestException('CSV хоосон байна');
+
+    const headers = splitCsvLine(lines[0]).map((h) => h.trim().toLowerCase().replace(/\s+/g, '_'));
+    const dataRows = lines.slice(1).map((line, i) => {
+      const vals = splitCsvLine(line);
+      const obj: Record<string, string> = {};
+      headers.forEach((h, j) => { obj[h] = (vals[j] ?? '').trim(); });
+      return { rowNum: i + 2, obj };
+    });
+
+    const report: ImportReport = { total: dataRows.length, inserted: 0, skipped: 0, errors: [], duplicates: [], missingImage: [], missingAudio: [] };
+
+    const validLevels = Object.values(ContentLevel) as string[];
+
+    for (const { rowNum, obj } of dataRows) {
+      const english = obj['word'] || obj['english'];
+      const mongolian = obj['mongolian_meaning'] || obj['mongolian'];
+      const levelRaw = (obj['level'] || 'a1').toLowerCase();
+
+      if (!english) {
+        report.errors.push({ row: rowNum, field: 'word', message: 'Англи үг хоосон байна' });
+        report.skipped++; continue;
+      }
+      if (!mongolian) {
+        report.errors.push({ row: rowNum, field: 'mongolian_meaning', message: 'Монгол утга хоосон байна' });
+        report.skipped++; continue;
+      }
+      if (!validLevels.includes(levelRaw)) {
+        report.errors.push({ row: rowNum, field: 'level', message: `Түвшин буруу: "${levelRaw}" (a1–c2 байх ёстой)` });
+        report.skipped++; continue;
+      }
+      const level = levelRaw as ContentLevel;
+      const sl = slugify(english);
+
+      const exists = await this.words.findOne({ where: { slug: sl, level }, select: { id: true } });
+      if (exists) { report.duplicates.push({ row: rowNum, word: english }); report.skipped++; continue; }
+
+      const w = this.words.create({
+        english, mongolian, slug: sl, level,
+        partOfSpeech: obj['part_of_speech'] || undefined,
+        category: obj['category'] || undefined,
+        englishDefinition: obj['english_definition'] || undefined,
+        exampleSentence: obj['english_example'] || undefined,
+        exampleTranslation: obj['mongolian_example'] || undefined,
+        phonetic: obj['phonetic'] || undefined,
+        imageUrl: obj['image_url'] || undefined,
+        audioUrl: obj['audio_url'] || undefined,
+        status: WordStatus.NEEDS_REVIEW,
+      });
+      await this.words.save(w);
+      report.inserted++;
+      if (!w.imageUrl) report.missingImage.push(sl);
+      if (!w.audioUrl) report.missingAudio.push(sl);
+    }
+
+    return report;
   }
 
   /**

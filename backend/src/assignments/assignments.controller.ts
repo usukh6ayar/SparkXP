@@ -51,6 +51,13 @@ export class AssignmentsController {
     return this.assignmentsService.findForClass(classId, user);
   }
 
+  /** Student marks an assignment as completed (idempotent). */
+  @Post(':id/complete')
+  @HttpCode(204)
+  complete(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string) {
+    return this.assignmentsService.complete(id, user.id);
+  }
+
   /** Teacher (or admin) removes an assignment. */
   @Delete(':id')
   @HttpCode(204)

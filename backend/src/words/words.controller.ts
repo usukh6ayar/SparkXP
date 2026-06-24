@@ -11,7 +11,10 @@ import {
   ParseUUIDPipe,
   HttpCode,
   BadRequestException,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { WordsService } from './words.service';
 import { CreateWordDto } from './dto/create-word.dto';
 import { UpdateWordDto } from './dto/update-word.dto';
@@ -40,6 +43,43 @@ export class WordsController {
    * Admin helper — returns AI-generated mongolian, partOfSpeech,
    * exampleSentence, exampleTranslation so the form can be pre-filled.
    */
+  /** GET /api/words/stats — review panel summary (counts by status, missing media). */
+  @Get('stats')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  getStats() {
+    return this.wordsService.getStats();
+  }
+
+  /**
+   * PATCH /api/words/bulk  { ids: string[], changes: { status?, category?, level? } }
+   * Bulk-update status / category / level for a set of words (admin review queue).
+   */
+  @Patch('bulk')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  bulkEdit(
+    @Body('ids') ids: string[],
+    @Body('changes') changes: Record<string, unknown>,
+  ) {
+    if (!Array.isArray(ids) || ids.length === 0) throw new BadRequestException('"ids" массив шаардлагатай');
+    return this.wordsService.bulkEdit(ids, changes as any);
+  }
+
+  /**
+   * POST /api/words/import  (multipart, field: file, .csv)
+   * Import CSV with full validation report. New words → needs_review.
+   */
+  @Post('import')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 20 * 1024 * 1024 } }))
+  async importCsv(@UploadedFile() file: Express.Multer.File) {
+    if (!file) throw new BadRequestException('CSV файл шаардлагатай (field: file)');
+    const text = file.buffer.toString('utf-8');
+    return this.wordsService.importCsv(text);
+  }
+
   @Post('ai-fill')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
