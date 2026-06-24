@@ -201,18 +201,16 @@ export class WordsService {
   // ── AI Fill (admin "✨ AI бөглөх" button) ──────────────────────────────────
 
   /**
-   * Generate all word fields from just the English word.
-   * Text: Claude Haiku. Image: OpenAI via AiGatewayService.
-   * Both run in parallel. Image is skipped gracefully if OPENAI_API_KEY is unset.
+   * Generate all TEXT fields from just the English word (interactive "AI бөглөх").
+   * No image here on purpose: the image is generated exactly once at save time
+   * (with the full word context for a better prompt). Generating a throwaway
+   * preview image on every click wasted OpenAI credits + Cloudinary storage.
    */
   async aiFill(english: string): Promise<AiFillResult> {
-    const [text, imageUrl] = await Promise.all([
-      // Interactive button: a couple of quick retries (rides out a brief 503
-      // "high demand" blip) without spinning ~30s like the bulk path.
-      this.fillText(english, 3),
-      this.fillImage(english).catch(() => null),
-    ]);
-    return { ...text, imageUrl };
+    // A couple of quick retries ride out a brief 503 "high demand" blip without
+    // spinning ~30s like the bulk path.
+    const text = await this.fillText(english, 3);
+    return { ...text, imageUrl: null };
   }
 
   /**

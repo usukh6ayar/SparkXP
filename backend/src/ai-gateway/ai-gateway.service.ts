@@ -346,7 +346,9 @@ export class AiGatewayService implements OnModuleInit {
 
     const imageUrl = await this.imageStorage.storeGeneratedImage({
       buffer: Buffer.from(b64, 'base64'),
-      filename: `${this.safeFilename(input.english)}-${Date.now()}.png`,
+      // Stable name (no timestamp) → re-generating overwrites the word's single
+      // image in Cloudinary instead of leaving orphaned copies behind.
+      filename: `${this.safeFilename(input.english)}.png`,
       mimeType: 'image/png',
       folder: this.config.get<string>('CLOUDINARY_WORD_IMAGES_FOLDER'),
     });

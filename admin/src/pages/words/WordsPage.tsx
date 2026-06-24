@@ -299,8 +299,7 @@ export default function WordsPage() {
         exampleTranslation: result.exampleTranslation || f.exampleTranslation,
         synonyms: result.synonyms || f.synonyms,
         antonyms: result.antonyms || f.antonyms,
-        imageUrl: result.imageUrl || f.imageUrl,
-        generateImage: false,
+        // No preview image here — it's generated once at save (1 image / word).
       }));
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'AI алдаа гарлаа');

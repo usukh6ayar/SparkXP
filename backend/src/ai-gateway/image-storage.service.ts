@@ -57,8 +57,12 @@ export class ImageStorageService {
     const resourceType = input.resourceType ?? 'image';
     const timestamp = Math.floor(Date.now() / 1000).toString();
 
+    // overwrite=true so re-generating a word's media replaces the same asset
+    // (stable public_id) instead of piling up duplicates in Cloudinary.
+    // Signed params must be in alphabetical order.
     const signaturePayload = [
       `asset_folder=${assetFolder}`,
+      `overwrite=true`,
       `public_id=${publicId}`,
       `timestamp=${timestamp}`,
     ].join('&');
@@ -76,6 +80,7 @@ export class ImageStorageService {
     form.append('timestamp', timestamp);
     form.append('signature', signature);
     form.append('asset_folder', assetFolder);
+    form.append('overwrite', 'true');
     form.append('public_id', publicId);
 
     const res = await fetch(
