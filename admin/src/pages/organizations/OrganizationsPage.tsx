@@ -10,6 +10,7 @@ import { Input } from '../../components/Input';
 import { Select } from '../../components/Select';
 import { FormActions } from '../../components/FormActions';
 import { RowActions } from '../../components/RowActions';
+import { formatDate } from '../../lib/utils';
 
 interface Org {
   id: string;
@@ -145,7 +146,7 @@ export default function OrganizationsPage() {
     {
       key: 'date', header: 'Огноо',
       render: (o: Org) => (
-        <span className="text-xs text-gray-400">{new Date(o.createdAt).toLocaleDateString('mn-MN')}</span>
+        <span className="text-xs text-gray-400">{formatDate(o.createdAt)}</span>
       ),
     },
     {

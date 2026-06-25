@@ -18,6 +18,7 @@ import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { Modal } from '../../components/Modal';
 import { FormActions } from '../../components/FormActions';
+import { formatDate } from '../../lib/utils';
 
 interface Payment {
   id: string; amount: number; currency: string;
@@ -141,7 +142,7 @@ export default function MonitorPage() {
     },
     {
       key: 'date', header: 'Огноо',
-      render: (p: Payment) => new Date(p.createdAt).toLocaleDateString('mn-MN'),
+      render: (p: Payment) => formatDate(p.createdAt),
     },
   ];
 

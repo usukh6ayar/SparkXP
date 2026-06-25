@@ -6,6 +6,7 @@ import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { Select } from '../../components/Select';
 import { Badge } from '../../components/Badge';
+import { formatDate } from '../../lib/utils';
 import { Table } from '../../components/Table';
 
 interface Notification {
@@ -87,7 +88,7 @@ export default function NotificationsPage() {
     },
     {
       key: 'date', header: 'Илгээсэн огноо',
-      render: (n: Notification) => new Date(n.createdAt).toLocaleDateString('mn-MN'),
+      render: (n: Notification) => formatDate(n.createdAt),
     },
   ];
 

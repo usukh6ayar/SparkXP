@@ -3,6 +3,7 @@ import { api } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
 import { Table } from '../../components/Table';
 import { Badge } from '../../components/Badge';
+import { formatDate } from '../../lib/utils';
 
 interface UserUsage {
   id: string;
@@ -124,7 +125,7 @@ export default function UsagePage() {
     {
       key: 'reset', header: 'Reset огноо',
       render: (u: UserUsage) => u.usageResetAt
-        ? <span className="text-xs text-gray-400">{new Date(u.usageResetAt).toLocaleDateString('mn-MN')}</span>
+        ? <span className="text-xs text-gray-400">{formatDate(u.usageResetAt)}</span>
         : <span className="text-gray-300">—</span>,
     },
   ];

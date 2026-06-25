@@ -7,6 +7,7 @@ import { Modal } from '../../components/Modal';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { FormActions } from '../../components/FormActions';
+import { formatDate } from '../../lib/utils';
 
 interface ClassRow {
   id: string;
@@ -245,7 +246,7 @@ export default function ClassesPage() {
               </div>
 
               <p className="text-xs text-gray-300 mt-2">
-                {new Date(c.createdAt).toLocaleDateString('mn-MN')}
+                {formatDate(c.createdAt)}
               </p>
             </div>
           ))}
