@@ -499,13 +499,17 @@ export default function WordsPage() {
       ),
       render: (w: Word) => (
         <input type="checkbox" checked={selected.has(w.id)} readOnly
-          className="h-4 w-4 rounded border-gray-300 accent-primary"
+          className="h-4 w-4 rounded border-gray-300 accent-primary select-none"
+          // Shift+click otherwise highlights text and the click never registers
+          // as a clean click — block the text selection so the range works.
+          onMouseDown={(e) => { if (e.shiftKey) e.preventDefault(); }}
           onClick={(e) => {
             e.stopPropagation();
+            window.getSelection()?.removeAllRanges();
             selectRow(words.findIndex((x) => x.id === w.id), e.shiftKey);
           }} />
       ),
-      className: 'w-8',
+      className: 'w-8 select-none',
     },
     {
       key: 'image', header: '', render: (w: Word) => (
