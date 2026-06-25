@@ -1,9 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import Cropper, { type Area } from 'react-easy-crop';
 import { X, Image as ImageIcon, Crop } from 'lucide-react';
-import { getToken } from '../api/client';
-
-const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api';
+import { api } from '../api/client';
 
 interface Props {
   value: string;
@@ -47,16 +45,7 @@ export function ImageCropUpload({ value, onChange, label, aspect = 2, maxWidth =
       const blob = await cropToBlob(src, areaPixels, maxWidth, aspect);
       const form = new FormData();
       form.append('file', new File([blob], 'thumbnail.jpg', { type: 'image/jpeg' }));
-      const res = await fetch(`${BASE}/upload`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${getToken() ?? ''}` },
-        body: form,
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.message ?? `Upload алдаа ${res.status}`);
-      }
-      const data = await res.json();
+      const data = await api.upload<{ url: string }>('/upload', form);
       onChange(data.url);
       setSrc(null);
     } catch (e: unknown) {

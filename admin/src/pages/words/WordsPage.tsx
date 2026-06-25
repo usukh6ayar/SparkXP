@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ImageIcon, Plus, Pencil, Sparkles, Trash2, Upload, AlertCircle, BarChart2, Volume2, Play } from 'lucide-react';
-import { api, getToken } from '../../api/client';
+import { api } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
 import { Button } from '../../components/Button';
 import { Badge } from '../../components/Badge';
@@ -12,8 +12,6 @@ import { ImageCropUpload } from '../../components/ImageCropUpload';
 import { FileUpload } from '../../components/FileUpload';
 import { FormActions } from '../../components/FormActions';
 import { levelFilterOptions as levelOptions, levelFormOptions, CEFR_LEVELS as VALID_LEVELS } from '../../lib/options';
-
-const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api';
 
 // ── Interfaces ─────────────────────────────────────────────────────────────
 
@@ -421,13 +419,10 @@ export default function WordsPage() {
         const text = await file.text();
         const englishList = extractEnglish(file.name, text);
         if (englishList.length === 0) throw new Error('Англи үг олдсонгүй');
-        const res = await fetch(`${BASE}/words/ai-bulk`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken() ?? ''}` },
-          body: JSON.stringify({ words: englishList, generateImages: aiImages, generateAudios: aiAudio }),
-        });
-        const body = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(body.message ?? `Алдаа ${res.status}`);
+        const body = await api.post<AiBulkReport & { background?: boolean; jobId?: string }>(
+          '/words/ai-bulk',
+          { words: englishList, generateImages: aiImages, generateAudios: aiAudio },
+        );
         if (body.background && body.jobId) {
           // Media bulk runs in the background — poll the job for live progress %.
           const total = body.requested ?? 0;
@@ -442,14 +437,8 @@ export default function WordsPage() {
         // Regular mode: multipart CSV upload with full validation report
         const formData = new FormData();
         formData.append('file', file);
-        const res = await fetch(`${BASE}/words/import`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${getToken() ?? ''}` },
-          body: formData,
-        });
-        const body = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(body.message ?? `Алдаа ${res.status}`);
-        setImportReport(body as ImportReport);
+        const body = await api.upload<ImportReport>('/words/import', formData);
+        setImportReport(body);
         load(); loadStats();
       }
     } catch (e: unknown) {

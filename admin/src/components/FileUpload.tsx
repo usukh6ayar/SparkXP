@@ -1,8 +1,6 @@
 import { useRef, useState } from 'react';
 import { X, Image, Film, Music2 } from 'lucide-react';
-import { getToken } from '../api/client';
-
-const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api';
+import { api } from '../api/client';
 
 interface Props {
   accept: 'image' | 'video' | 'audio';
@@ -26,16 +24,7 @@ export function FileUpload({ accept, value, onChange, label }: Props) {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      const res = await fetch(`${BASE}/upload`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${getToken() ?? ''}` },
-        body: formData,
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.message ?? `Upload алдаа ${res.status}`);
-      }
-      const data = await res.json();
+      const data = await api.upload<{ url: string }>('/upload', formData);
       onChange(data.url);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Upload алдаа');

@@ -46,6 +46,30 @@ export async function apiFetch<T>(
   return res.json();
 }
 
+/**
+ * Upload multipart FormData (files). Unlike apiFetch this does NOT set
+ * Content-Type — the browser must set the multipart boundary itself.
+ */
+export async function apiUpload<T>(
+  path: string,
+  formData: FormData,
+  method = 'POST',
+): Promise<T> {
+  const token = getToken();
+  const res = await fetch(`${BASE}${path}`, {
+    method,
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, body.message ?? `HTTP ${res.status}`);
+  }
+  if (res.status === 204) return undefined as T;
+  return res.json();
+}
+
 export const api = {
   get: <T>(path: string) => apiFetch<T>(path),
   post: <T>(path: string, body: unknown) =>
@@ -53,4 +77,5 @@ export const api = {
   patch: <T>(path: string, body: unknown) =>
     apiFetch<T>(path, { method: 'PATCH', body: JSON.stringify(body) }),
   delete: <T>(path: string) => apiFetch<T>(path, { method: 'DELETE' }),
+  upload: <T>(path: string, formData: FormData) => apiUpload<T>(path, formData),
 };
