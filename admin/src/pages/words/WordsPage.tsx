@@ -178,6 +178,8 @@ export default function WordsPage() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   // Anchor row index for shift-click range selection.
   const lastSelectedIndex = useRef<number | null>(null);
+  // Whether Shift was held — captured on mousedown (the change event has no shiftKey).
+  const shiftKeyRef = useRef(false);
 
   const [modal, setModal] = useState<null | 'create' | 'edit' | 'import'>(null);
   const [editing, setEditing] = useState<Word | null>(null);
@@ -498,18 +500,18 @@ export default function WordsPage() {
           onChange={toggleSelectAll} className="h-4 w-4 rounded border-gray-300 accent-primary" />
       ),
       render: (w: Word) => (
-        <input type="checkbox" checked={selected.has(w.id)} readOnly
-          className="h-4 w-4 rounded border-gray-300 accent-primary select-none"
-          // Shift+click otherwise highlights text and the click never registers
-          // as a clean click — block the text selection so the range works.
-          onMouseDown={(e) => { if (e.shiftKey) e.preventDefault(); }}
-          onClick={(e) => {
-            e.stopPropagation();
+        <input type="checkbox" checked={selected.has(w.id)}
+          className="h-4 w-4 rounded border-gray-300 accent-primary"
+          // Capture Shift on mousedown (change event lacks shiftKey); do the
+          // select in onChange which always fires when a checkbox toggles.
+          onMouseDown={(e) => { shiftKeyRef.current = e.shiftKey; }}
+          onClick={(e) => e.stopPropagation()}
+          onChange={() => {
             window.getSelection()?.removeAllRanges();
-            selectRow(words.findIndex((x) => x.id === w.id), e.shiftKey);
+            selectRow(words.findIndex((x) => x.id === w.id), shiftKeyRef.current);
           }} />
       ),
-      className: 'w-8 select-none',
+      className: 'w-8',
     },
     {
       key: 'image', header: '', render: (w: Word) => (
