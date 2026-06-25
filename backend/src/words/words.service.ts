@@ -563,6 +563,10 @@ export class WordsService {
     if (query.level) base.level = query.level;
     if (query.lessonId) base.lessonId = query.lessonId;
     if (query.category) base.category = query.category;
+    // Media filters (admin): words missing an image / audio so they can be
+    // selected in bulk and generated. Matches the getStats() "missing" counts.
+    if (query.noImage) base.imageUrl = IsNull();
+    if (query.noAudio) base.audioUrl = IsNull();
 
     const where = query.search
       ? [

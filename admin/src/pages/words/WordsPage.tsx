@@ -109,6 +109,12 @@ const levelColors: Record<string, 'green' | 'blue' | 'yellow' | 'red' | 'gray'> 
   a1: 'green', a2: 'green', b1: 'blue', b2: 'blue', c1: 'yellow', c2: 'red',
 };
 
+const MEDIA_FILTER_OPTIONS = [
+  { value: '', label: 'Бүх медиа' },
+  { value: 'noImage', label: '🖼 Зураггүй' },
+  { value: 'noAudio', label: '🔊 Аудиогүй' },
+];
+
 interface WordForm {
   english: string; mongolian: string; level: string; status: string;
   englishDefinition: string; phonetic: string; category: string;
@@ -168,6 +174,7 @@ export default function WordsPage() {
 
   const [statusTab, setStatusTab] = useState('');
   const [levelFilter, setLevelFilter] = useState('');
+  const [mediaFilter, setMediaFilter] = useState(''); // '' | 'noImage' | 'noAudio'
   const [search, setSearch] = useState('');
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -210,11 +217,12 @@ export default function WordsPage() {
     if (statusTab) params.set('status', statusTab);
     else params.set('all', 'true');
     if (levelFilter) params.set('level', levelFilter);
+    if (mediaFilter) params.set(mediaFilter, 'true'); // noImage / noAudio
     if (search.trim()) params.set('search', search.trim());
     const data = await api.get<{ items: Word[] }>(`/words?${params}`);
     setWords(data.items ?? []);
     setSelected(new Set());
-  }, [statusTab, levelFilter, search]);
+  }, [statusTab, levelFilter, mediaFilter, search]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { loadStats(); }, [loadStats]);
@@ -682,6 +690,7 @@ export default function WordsPage() {
         <div className="ml-auto flex items-center gap-2 pb-1">
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Хайх…" className="w-40 text-xs" />
           <Select options={levelOptions} value={levelFilter} onChange={(e) => setLevelFilter(e.target.value)} className="w-32 text-xs" />
+          <Select options={MEDIA_FILTER_OPTIONS} value={mediaFilter} onChange={(e) => setMediaFilter(e.target.value)} className="w-36 text-xs" />
         </div>
       </div>
 

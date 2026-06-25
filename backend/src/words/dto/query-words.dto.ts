@@ -45,6 +45,16 @@ export class QueryWordsDto {
   @IsUUID()
   lessonId?: string;
 
+  /** Admin: only words missing an image (image_url IS NULL). */
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  noImage?: boolean;
+
+  /** Admin: only words missing pronunciation audio (audio_url IS NULL). */
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  noAudio?: boolean;
+
   @IsOptional()
   @Type(() => Number)
   @IsInt()
