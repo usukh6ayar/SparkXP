@@ -17,6 +17,7 @@ import { Table } from '../../components/Table';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { Modal } from '../../components/Modal';
+import { FormActions } from '../../components/FormActions';
 
 interface Payment {
   id: string; amount: number; currency: string;
@@ -344,12 +345,7 @@ export default function MonitorPage() {
               Шууд идэвхтэй болгох
             </label>
             {saveError && <p className="text-sm text-red-500">{saveError}</p>}
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="secondary" onClick={() => setPlanModal(false)}>Болих</Button>
-              <Button onClick={savePlan} disabled={saving}>
-                {saving ? 'Хадгалж байна...' : 'Нэмэх'}
-              </Button>
-            </div>
+            <FormActions onCancel={() => setPlanModal(false)} onSave={savePlan} saving={saving} saveLabel="Нэмэх" />
           </div>
         </Modal>
       )}

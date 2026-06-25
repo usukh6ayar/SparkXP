@@ -8,6 +8,7 @@ import { Table } from '../../components/Table';
 import { Modal } from '../../components/Modal';
 import { Input } from '../../components/Input';
 import { Select } from '../../components/Select';
+import { FormActions } from '../../components/FormActions';
 
 interface Org {
   id: string;
@@ -237,12 +238,7 @@ export default function OrganizationsPage() {
 
             {error && <p className="text-sm text-red-500">{error}</p>}
 
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="secondary" onClick={() => setModal(null)}>Болих</Button>
-              <Button onClick={save} disabled={saving}>
-                {saving ? 'Хадгалж байна...' : 'Хадгалах'}
-              </Button>
-            </div>
+            <FormActions onCancel={() => setModal(null)} onSave={save} saving={saving} />
           </div>
         </Modal>
       )}

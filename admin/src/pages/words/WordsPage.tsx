@@ -10,6 +10,7 @@ import { Input } from '../../components/Input';
 import { Select } from '../../components/Select';
 import { ImageCropUpload } from '../../components/ImageCropUpload';
 import { FileUpload } from '../../components/FileUpload';
+import { FormActions } from '../../components/FormActions';
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api';
 
@@ -854,12 +855,9 @@ export default function WordsPage() {
             </div>
 
             {error && <p className="text-sm text-red-500">{error}</p>}
-            <div className="flex justify-end gap-2 border-t pt-4">
-              <Button variant="secondary" onClick={() => setModal(null)}>Болих</Button>
-              <Button onClick={save} disabled={saving}>
-                {saving ? (form.generateImage && !form.imageUrl ? 'Хадгалж, зураг үүсгэж байна...' : 'Хадгалж байна...') : 'Хадгалах'}
-              </Button>
-            </div>
+            <FormActions onCancel={() => setModal(null)} onSave={save} saving={saving}
+              className="flex justify-end gap-2 border-t pt-4"
+              savingLabel={form.generateImage && !form.imageUrl ? 'Хадгалж, зураг үүсгэж байна...' : 'Хадгалж байна...'} />
           </div>
         </Modal>
       )}

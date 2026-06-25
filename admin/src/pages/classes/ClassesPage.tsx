@@ -6,6 +6,7 @@ import { Badge } from '../../components/Badge';
 import { Modal } from '../../components/Modal';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
+import { FormActions } from '../../components/FormActions';
 
 interface ClassRow {
   id: string;
@@ -265,12 +266,8 @@ export default function ClassesPage() {
               Нэгдэх кодыг систем автоматаар үүсгэнэ. Эзэн багш нь admin хэрэглэгч болно.
             </p>
             {createError && <p className="text-sm text-red-500">{createError}</p>}
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="secondary" onClick={() => setCreateModal(false)}>Болих</Button>
-              <Button onClick={createClass} disabled={creating}>
-                {creating ? 'Үүсгэж байна...' : 'Үүсгэх'}
-              </Button>
-            </div>
+            <FormActions onCancel={() => setCreateModal(false)} onSave={createClass} saving={creating}
+              saveLabel="Үүсгэх" savingLabel="Үүсгэж байна..." />
           </div>
         </Modal>
       )}

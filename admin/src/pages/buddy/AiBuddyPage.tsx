@@ -5,6 +5,7 @@ import { PageHeader } from '../../components/PageHeader';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { Modal } from '../../components/Modal';
+import { FormActions } from '../../components/FormActions';
 
 interface Buddy {
   slug: string;
@@ -293,12 +294,8 @@ export default function AiBuddyPage() {
 
             {error && <p className="text-sm text-red-500">{error}</p>}
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
-              <Button variant="secondary" onClick={() => setModal(null)}>Болих</Button>
-              <Button onClick={save} disabled={saving}>
-                {saving ? 'Хадгалж байна...' : 'Хадгалах'}
-              </Button>
-            </div>
+            <FormActions onCancel={() => setModal(null)} onSave={save} saving={saving}
+              className="flex justify-end gap-2 pt-2 border-t border-gray-100" />
           </div>
         </Modal>
       )}

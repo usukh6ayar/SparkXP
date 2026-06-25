@@ -10,6 +10,7 @@ import { Input } from '../../components/Input';
 import { Select } from '../../components/Select';
 import { FileUpload } from '../../components/FileUpload';
 import { ImageCropUpload } from '../../components/ImageCropUpload';
+import { FormActions } from '../../components/FormActions';
 
 interface Lesson {
   id: string;
@@ -229,10 +230,7 @@ export default function LessonsPage() {
             <Input label="Үнэ (Sparks, 0=үнэгүй)" type="number" min={0} value={form.priceSparks}
               onChange={(e) => setForm({ ...form, priceSparks: Number(e.target.value) })} />
             {error && <p className="text-sm text-red-500">{error}</p>}
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="secondary" onClick={() => setModal(null)}>Болих</Button>
-              <Button onClick={save} disabled={saving}>{saving ? 'Хадгалж байна...' : 'Хадгалах'}</Button>
-            </div>
+            <FormActions onCancel={() => setModal(null)} onSave={save} saving={saving} />
           </div>
         </Modal>
       )}
