@@ -10,6 +10,7 @@ import { Input } from '../../components/Input';
 import { Select } from '../../components/Select';
 import { FormActions } from '../../components/FormActions';
 import { RowActions } from '../../components/RowActions';
+import { levelFormOptions as LEVEL_OPTIONS } from '../../lib/options';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -58,11 +59,6 @@ const QUIZ_TYPES = [
   { value: 'fill',        label: '✏️ Дүүргэх',          desc: 'Хоосон зайг нөх',                 questionType: 'fill_blank'      },
 ];
 
-const LEVEL_OPTIONS = [
-  { value: 'a1', label: 'A1' }, { value: 'a2', label: 'A2' },
-  { value: 'b1', label: 'B1' }, { value: 'b2', label: 'B2' },
-  { value: 'c1', label: 'C1' }, { value: 'c2', label: 'C2' },
-];
 
 const TYPE_COLORS: Record<string, 'blue' | 'green' | 'yellow' | 'gray'> = {
   word_guess: 'green',

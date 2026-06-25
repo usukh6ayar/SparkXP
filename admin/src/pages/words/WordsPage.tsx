@@ -11,6 +11,7 @@ import { Select } from '../../components/Select';
 import { ImageCropUpload } from '../../components/ImageCropUpload';
 import { FileUpload } from '../../components/FileUpload';
 import { FormActions } from '../../components/FormActions';
+import { levelFilterOptions as levelOptions, levelFormOptions, CEFR_LEVELS as VALID_LEVELS } from '../../lib/options';
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api';
 
@@ -106,19 +107,9 @@ const statusMeta: Record<string, { label: string; color: 'green' | 'blue' | 'yel
 };
 const statusFormOptions = Object.entries(statusMeta).map(([value, m]) => ({ value, label: m.label }));
 
-const levelOptions = [
-  { value: '', label: 'Бүх түвшин' },
-  { value: 'a1', label: 'A1' }, { value: 'a2', label: 'A2' },
-  { value: 'b1', label: 'B1' }, { value: 'b2', label: 'B2' },
-  { value: 'c1', label: 'C1' }, { value: 'c2', label: 'C2' },
-];
-const levelFormOptions = levelOptions.slice(1);
-
 const levelColors: Record<string, 'green' | 'blue' | 'yellow' | 'red' | 'gray'> = {
   a1: 'green', a2: 'green', b1: 'blue', b2: 'blue', c1: 'yellow', c2: 'red',
 };
-
-const VALID_LEVELS = ['a1', 'a2', 'b1', 'b2', 'c1', 'c2'];
 
 interface WordForm {
   english: string; mongolian: string; level: string; status: string;

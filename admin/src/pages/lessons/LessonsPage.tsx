@@ -12,6 +12,7 @@ import { FileUpload } from '../../components/FileUpload';
 import { ImageCropUpload } from '../../components/ImageCropUpload';
 import { FormActions } from '../../components/FormActions';
 import { RowActions } from '../../components/RowActions';
+import { levelFormOptions as levelOptions } from '../../lib/options';
 
 interface Lesson {
   id: string;
@@ -72,11 +73,6 @@ const topicOptions = [
   { value: 'emotions',      label: '😊 Emotions & Feelings' },
   { value: 'shopping',      label: '🛒 Shopping' },
   { value: 'home',          label: '🏠 Home & Furniture' },
-];
-const levelOptions = [
-  { value: 'a1', label: 'A1' }, { value: 'a2', label: 'A2' },
-  { value: 'b1', label: 'B1' }, { value: 'b2', label: 'B2' },
-  { value: 'c1', label: 'C1' }, { value: 'c2', label: 'C2' },
 ];
 
 interface LessonForm {
