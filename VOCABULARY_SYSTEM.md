@@ -6,7 +6,14 @@
 > хоёр dev (Usukhbayar/mobile, Bishrelt/admin) үүнийг дагана.
 >
 > Холбоотой: `CLAUDE.md` (дүрэм) · `API.md` (endpoint) · `ROLES.md` (эрх) ·
-> `MOBILE_ROADMAP.md` (swipe). Сүүлд: **2026-06-22**.
+> `MOBILE_ROADMAP.md` (swipe). Сүүлд: **2026-06-25**.
+
+> **Шинэчлэл (2026-06-25):** AI authoring бүрэн ажиллаж байна. Текст = **Gemini**
+> (synonyms/antonyms нэмэгдсэн), зураг = **OpenAI** (Cloudinary overwrite → үг
+> тутамд 1 зураг), дуудлага = **ElevenLabs**. Bulk: `/words/ai-bulk` (background +
+> `jobId`) ба `/words/bulk-generate-media` (сонгосон үгсэд медиа, зураг 5-аар batch).
+> Admin: `noImage`/`noAudio` шүүлтүүр → select-all → bulk generate, progress %,
+> "Заавар" tab. Дэлгэрэнгүй: `CLAUDE.md` → Current Status, `API.md` → Words.
 
 ---
 

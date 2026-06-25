@@ -22,6 +22,7 @@ export const MODERATOR_PATHS = [
   '/classes',
   '/buddy',
   '/leaderboard',
+  '/guide',
 ] as const;
 
 /** Can this role enter the admin panel? */

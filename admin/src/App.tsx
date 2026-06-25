@@ -15,6 +15,7 @@ import ClassesPage from './pages/classes/ClassesPage';
 import OrganizationsPage from './pages/organizations/OrganizationsPage';
 import UsagePage from './pages/usage/UsagePage';
 import NotificationsPage from './pages/notifications/NotificationsPage';
+import GuidePage from './pages/guide/GuidePage';
 
 export default function App() {
   return (
@@ -43,6 +44,7 @@ export default function App() {
             <Route path="/notifications" element={<NotificationsPage />} />
             <Route path="/monitor"       element={<MonitorPage />} />
             <Route path="/settings"      element={<SettingsPage />} />
+            <Route path="/guide"         element={<GuidePage />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

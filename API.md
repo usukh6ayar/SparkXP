@@ -39,18 +39,20 @@
 
 | Method | Path | Auth | Тайлбар |
 |---|---|:---:|---|
-| GET | `/words` | 🔑 | Жагсаалт (`?status&level&category&search&lessonId&page&limit`). **Default `status=published`** (student-д зөвхөн published; admin тодорхой `status` дамжуулна) |
+| GET | `/words` | 🔑 | Жагсаалт (`?status&level&category&search&lessonId&page&limit&noImage&noAudio`). **Default `status=published`** (student-д зөвхөн published; admin тодорхой `status` дамжуулна). `noImage=true`/`noAudio=true` → медиа дутуу үгсийг шүүх (bulk медиа үүсгэхэд) |
 | GET | `/words/quiz` | 🔑 | Vocabulary quiz үүсгэх (`?count=4..30`) — published үгээс multiple-choice (зөв хариулт client рүү явахгүй) |
 | POST | `/words/quiz/submit` | 🔑 | `{ answers:[{wordId,choice}] }` → server-side grade, зөв бүрд XP+Sparks. Буцаалт `{ total, correct, xpAwarded, sparksAwarded }` |
 | GET | `/words/:id` | 🔑 | Нэг үг |
-| POST | `/words/ai-fill` | 🛡️ | `{ english }` → AI бүх талбарыг үүсгэнэ: `mongolian, englishDefinition, phonetic, partOfSpeech, category, level, exampleSentence, exampleTranslation, sparkTip, imageUrl`. Зөвхөн англи үгээ бичээд формоо урьдчилан бөглөнө |
+| POST | `/words/ai-fill` | 🛡️ | `{ english }` → **Google Gemini** бүх ТЕКСТ талбарыг үүсгэнэ: `mongolian, englishDefinition, phonetic, partOfSpeech, category, level, exampleSentence, exampleTranslation, synonyms, antonyms`. Зураг үүсгэхгүй (save үед нэг л удаа). Зөвхөн англи үгээ бичээд формоо урьдчилан бөглөнө |
 | POST | `/words` | 🛡️ | Үг үүсгэх (`slug` авто үүснэ). `generateImage:true` бол AI Gateway-ээр зураг үүсгээд `imageUrl` хадгална |
 | POST | `/words/bulk` | 🛡️ | JSON массив bulk import (давхардлыг english-ээр алгасна, шинэ үг → `needs_review`) |
 | GET | `/words/stats` | 🛡️ | Контент эрүүл мэнд: `{ total, byStatus, missingImage, missingAudio, missingMnExample, duplicates }` |
 | GET | `/words/analytics` | 🛡️ | Сурлагын аналитик: `{ topForgotten, topSaved, topKnown, hardest, avgSaveRate }` (WordReview-ээс) |
 | PATCH | `/words/bulk` | 🛡️ | Олон үг нэг дор засах `{ ids, changes:{ status?, category?, level? } }` → `{ updated }` |
-| POST | `/words/ai-bulk` | 🛡️ | `{ words: string[], generateImages? }` → зөвхөн англи үгсээс AI бүх талбарыг бөглөж нэмнэ. Cap: 75 (зураггүй) / 25 (зурагтай). Буцаалт `{ requested, inserted, skipped, failed:[{word,message}] }` |
-| POST | `/words/:id/generate-image` | 🛡️ | Тухайн үгэнд AI зураг шинээр үүсгэж `imageUrl` шинэчилнэ |
+| POST | `/words/ai-bulk` | 🛡️ | `{ words: string[], generateImages?, generateAudios? }` → зөвхөн англи үгсээс AI бүх талбарыг бөглөж нэмнэ. Cap: 100 (медиагүй) / 25 (медиатай). Медиагүй → `{ requested, inserted, skipped, failed }` шууд. Медиатай → **background**, `{ started, requested, background:true, jobId }` буцаана (доорх status-аар poll хий) |
+| GET | `/words/ai-bulk/:jobId` | 🛡️ | Background bulk/медиа job-ийн явц: `{ total, processed, inserted, skipped, failed, done }`. Дууссан/байхгүй бол `{ done:true, expired:true }` |
+| POST | `/words/bulk-generate-media` | 🛡️ | `{ wordIds: string[], image?, audio? }` → сонгосон ОДОО БАЙГАА үгсэд зураг/дуудлага background-д үүсгэнэ (зураг 5/мин batch throttle). `{ started, requested, background:true, jobId }` → дээрх status-аар poll. Cap 200 |
+| POST | `/words/:id/generate-image` | 🛡️ | Тухайн үгэнд AI зураг (OpenAI) шинээр үүсгэж `imageUrl` шинэчилнэ (тогтвортой нэр + overwrite → 1 үг = 1 зураг) |
 | POST | `/words/:id/generate-audio` | 🛡️ | Тухайн үгэнд ElevenLabs дуудлага (mp3) үүсгэж `audioUrl` шинэчилнэ |
 | PATCH | `/words/:id` | 🛡️ | Засах (`status` солих → publish/approve). `generateImage:true` бол зураг шинээр үүсгэнэ |
 | DELETE | `/words/:id` | 🛡️ | Устгах |

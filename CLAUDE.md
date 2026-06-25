@@ -94,6 +94,28 @@ avatar/"Continue Learning"/student assignments). See `MOBILE_ROADMAP.md` + `PROD
 migration; real gamification data (streak/level/progress are placeholders); real
 video player. Full list: `MOBILE_ROADMAP.md`.
 
+**Vocabulary AI pipeline — shipped (2026-06-25).** Admin Words page now does
+end-to-end AI authoring:
+- **AI text fill = Google Gemini** (not Anthropic anymore). `GEMINI_API_KEY` +
+  `GEMINI_MODEL` (billing-enabled key required; free tier returns `limit:0`).
+  `gemini-2.5-flash` is the stable default. Retries 429/503 + transient "high
+  demand" 404. Words gained **`synonyms` / `antonyms`** columns (AI fills them).
+- **Images = OpenAI** (`OPENAI_API_KEY`, needs billing), stored on Cloudinary
+  with a **stable public_id + overwrite** → exactly 1 image per word. Prompt is a
+  template (`IMAGE_PROMPT_TEMPLATE` env override; placeholders
+  `{word}/{meaning}/{example_sentence}/{part_of_speech}/{cefr}`). `aiFill` no
+  longer makes a throwaway preview image (cost fix).
+- **Audio = ElevenLabs** (library voices need a paid plan); audio is generated
+  once and served forever from Cloudinary.
+- **Bulk:** `/words/ai-bulk` (CSV/list → AI fill, optional media, background +
+  pollable `jobId`); **`/words/bulk-generate-media`** generates image/audio for
+  selected existing words in the background (images in **parallel batches of 5**,
+  ~61s apart for OpenAI's ~5/min limit; tune via `OPENAI_IMAGE_BATCH*`).
+- Admin UX: filter by **`noImage`/`noAudio`** → select-all → bulk generate;
+  progress bar with %; image lightbox; audio play; **"Заавар" (Guide) tab**.
+- ⚠️ `.env.example` sanitized to placeholders (real keys were committed before).
+  Prod runs `DB_SYNCHRONIZE=false` → new columns need a manual `ALTER TABLE`.
+
 ### Backend folder layout
 
 ```
