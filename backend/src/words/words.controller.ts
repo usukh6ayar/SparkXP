@@ -131,7 +131,7 @@ export class WordsController {
     return this.wordsService.aiBulkImport(words, false, false);
   }
 
-  /** Poll background AI-bulk progress: GET /api/words/ai-bulk/:jobId */
+  /** Poll background AI-bulk / media-bulk progress: GET /api/words/ai-bulk/:jobId */
   @Get('ai-bulk/:jobId')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
@@ -142,6 +142,39 @@ export class WordsController {
       return { done: true, expired: true };
     }
     return job;
+  }
+
+  /**
+   * Generate image and/or audio for a set of EXISTING words (admin selects them
+   * by checkbox). Runs in the background (image calls are rate-limited), returns
+   * a jobId — poll GET /words/ai-bulk/:jobId. POST /api/words/bulk-generate-media
+   *   { wordIds: string[], image?: boolean, audio?: boolean }
+   */
+  @Post('bulk-generate-media')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  bulkGenerateMedia(
+    @Body('wordIds') wordIds: string[],
+    @Body('image') image: boolean | undefined,
+    @Body('audio') audio: boolean | undefined,
+    @CurrentUser() user: User,
+  ) {
+    if (!Array.isArray(wordIds) || wordIds.length === 0) {
+      throw new BadRequestException('"wordIds" массив шаардлагатай');
+    }
+    if (!image && !audio) {
+      throw new BadRequestException('image эсвэл audio-н аль нэгийг сонгоно уу');
+    }
+    if (wordIds.length > 200) {
+      throw new BadRequestException('Нэг удаад 200-аас ихгүй үг сонгоно уу');
+    }
+    const jobId = this.wordsService.startBulkMedia(
+      wordIds,
+      !!image,
+      !!audio,
+      user.id,
+    );
+    return { started: true, requested: wordIds.length, background: true, jobId };
   }
 
   @Get()

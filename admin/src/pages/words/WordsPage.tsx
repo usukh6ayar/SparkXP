@@ -263,6 +263,29 @@ export default function WordsPage() {
     finally { setBulkBusy(false); }
   }
 
+  /**
+   * Generate image and/or audio for the selected words in the background.
+   * Runs server-side (image calls are rate-limited) — the admin can keep
+   * working while a progress bar tracks it.
+   */
+  async function bulkGenerateMedia(image: boolean, audio: boolean) {
+    if (selected.size === 0) return;
+    const kind = image && audio ? 'зураг + дуудлага' : image ? 'зураг' : 'дуудлага';
+    if (!confirm(`${selected.size} үгэнд ${kind} үүсгэх үү? (background-д ажиллана)`)) return;
+    setError('');
+    try {
+      const res = await api.post<{ jobId: string; requested: number; background: boolean }>(
+        '/words/bulk-generate-media',
+        { wordIds: [...selected], image, audio },
+      );
+      setSelected(new Set());
+      setAiReport({ requested: res.requested, inserted: 0, skipped: 0, failed: [], background: true, total: res.requested, processed: 0, done: false });
+      pollBulkJob(res.jobId);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Медиа үүсгэхэд алдаа');
+    }
+  }
+
   // ── Form helpers ──────────────────────────────────────────────────────────
 
   function openCreate() { setForm(empty); setEditing(null); setError(''); setModal('create'); }
@@ -400,6 +423,7 @@ export default function WordsPage() {
           const total = body.requested ?? 0;
           setAiReport({ requested: total, inserted: 0, skipped: 0, failed: [], background: true, total, processed: 0, done: false });
           pollBulkJob(body.jobId);
+          setModal(null); // close the import modal; progress shows on the main page
         } else {
           setAiReport(body as AiBulkReport);
           load(); loadStats();
@@ -662,11 +686,51 @@ export default function WordsPage() {
           <Button variant="ghost" size="sm" onClick={bulkDelete} disabled={bulkBusy}>
             <Trash2 className="h-4 w-4 text-red-500" /> Устгах
           </Button>
+          <span className="mx-1 h-4 w-px bg-primary/20" />
+          <Button variant="secondary" size="sm" onClick={() => bulkGenerateMedia(true, false)} disabled={bulkBusy} title="Сонгосон үгсэд AI зураг үүсгэх">
+            <ImageIcon className="h-4 w-4 text-primary" /> Зураг үүсгэх
+          </Button>
+          <Button variant="secondary" size="sm" onClick={() => bulkGenerateMedia(false, true)} disabled={bulkBusy} title="Сонгосон үгсэд AI дуудлага үүсгэх">
+            <Volume2 className="h-4 w-4 text-primary" /> Дуудлага үүсгэх
+          </Button>
           <button onClick={() => setSelected(new Set())} className="ml-auto text-xs text-gray-500 hover:underline">Цуцлах</button>
         </div>
       )}
 
       {error && <p className="mb-3 text-sm text-red-500">{error}</p>}
+
+      {/* Background media/import job progress — visible while you keep working */}
+      {aiReport && aiReport.background && (() => {
+        const total = aiReport.total ?? aiReport.requested ?? 0;
+        const processed = aiReport.processed ?? 0;
+        const pct = total ? Math.round((processed / total) * 100) : 0;
+        return (
+          <div className="mb-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 space-y-2">
+            <div className="flex items-center justify-between">
+              <span>{aiReport.done ? '✅ Медиа үүсгэж дууслаа' : '⏳ Медиа үүсгэж байна (background — үргэлжлүүлэн ажиллаж болно)'}</span>
+              {aiReport.done && (
+                <button onClick={() => setAiReport(null)} className="text-xs text-blue-500 hover:underline">Хаах</button>
+              )}
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-blue-100">
+              <div className="h-full bg-blue-500 transition-all duration-500" style={{ width: `${pct}%` }} />
+            </div>
+            <p className="text-xs">
+              {processed}/{total} ({pct}%) · амжилттай <strong>{aiReport.inserted}</strong> · алдаа {aiReport.failed.length}
+            </p>
+            {aiReport.failed.length > 0 && (
+              <details className="text-xs text-red-600">
+                <summary className="cursor-pointer">{aiReport.failed.length} амжилтгүй</summary>
+                <ul className="mt-1 list-disc pl-4">
+                  {aiReport.failed.slice(0, 20).map((f) => (
+                    <li key={f.word}>{f.word}: {f.message}</li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </div>
+        );
+      })()}
 
       <Table columns={columns} rows={words} keyFn={(w) => w.id} empty="Үг байхгүй байна" />
 
@@ -887,36 +951,6 @@ export default function WordsPage() {
             )}
 
             {/* AI bulk report */}
-            {aiReport && aiReport.background && (() => {
-              const total = aiReport.total ?? aiReport.requested ?? 0;
-              const processed = aiReport.processed ?? 0;
-              const pct = total ? Math.round((processed / total) * 100) : 0;
-              return (
-                <div className="rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 text-sm text-blue-800 space-y-2">
-                  {!aiReport.done ? (
-                    <p>⏳ AI боловсруулж байна (зураг/дуудлагатай) — цонхоо хааж болно.</p>
-                  ) : (
-                    <p className="font-medium text-green-700">✅ Дууслаа</p>
-                  )}
-                  <div className="h-2 w-full overflow-hidden rounded-full bg-blue-100">
-                    <div className="h-full bg-blue-500 transition-all duration-500" style={{ width: `${pct}%` }} />
-                  </div>
-                  <p className="text-xs">
-                    {processed}/{total} ({pct}%) · нэмсэн <strong>{aiReport.inserted}</strong> · давхардал {aiReport.skipped} · алдаа {aiReport.failed.length}
-                  </p>
-                  {aiReport.failed.length > 0 && (
-                    <details className="text-xs text-red-600">
-                      <summary className="cursor-pointer">{aiReport.failed.length} үг амжилтгүй</summary>
-                      <ul className="mt-1 list-disc pl-4">
-                        {aiReport.failed.slice(0, 20).map((f) => (
-                          <li key={f.word}><strong>{f.word}</strong>: {f.message}</li>
-                        ))}
-                      </ul>
-                    </details>
-                  )}
-                </div>
-              );
-            })()}
             {aiReport && !aiReport.background && (
               <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-800 space-y-1">
                 <p>✅ <strong>{aiReport.inserted}</strong> үг AI-аар бөглөж нэмэгдлээ

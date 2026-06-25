@@ -262,6 +262,72 @@ export class WordsService {
     return this.bulkJobs.get(jobId);
   }
 
+  /**
+   * Start a background job that generates image and/or audio for a set of
+   * EXISTING words (selected by checkbox in the admin). Returns a jobId to poll.
+   * Image calls are throttled because OpenAI caps image generation per minute.
+   */
+  startBulkMedia(
+    wordIds: string[],
+    image: boolean,
+    audio: boolean,
+    userId: string,
+  ): string {
+    const jobId = randomUUID();
+    const report: AiBulkReport = {
+      requested: wordIds.length, inserted: 0, skipped: 0, failed: [],
+      total: wordIds.length, processed: 0, done: false,
+    };
+    this.bulkJobs.set(jobId, report);
+    void this.runBulkMedia(wordIds, image, audio, userId, report)
+      .catch((e) => this.logger.error(`[media bulk] job ${jobId} crashed: ${e?.message ?? e}`))
+      .finally(() => {
+        report.done = true;
+        setTimeout(() => this.bulkJobs.delete(jobId), 5 * 60_000);
+      });
+    return jobId;
+  }
+
+  private async runBulkMedia(
+    wordIds: string[],
+    image: boolean,
+    audio: boolean,
+    userId: string,
+    report: AiBulkReport,
+  ): Promise<void> {
+    // OpenAI caps image generation (~5/min). Space image calls out so a big
+    // batch doesn't get rejected. 13s ≈ under 5 per minute, with headroom.
+    const IMAGE_MIN_INTERVAL_MS = Number(
+      this.config.get('OPENAI_IMAGE_MIN_INTERVAL_MS') ?? 13_000,
+    );
+    this.logger.log(
+      `[media bulk] start: ${wordIds.length} words (image=${image}, audio=${audio})`,
+    );
+    let lastImageAt = 0;
+    for (const id of wordIds) {
+      try {
+        if (image) {
+          const wait = IMAGE_MIN_INTERVAL_MS - (Date.now() - lastImageAt);
+          if (wait > 0) await sleep(wait);
+          lastImageAt = Date.now();
+          await this.generateImage(id, userId);
+        }
+        if (audio) await this.generateAudio(id, userId);
+        report.inserted++;
+        this.logger.log(`[media bulk] ok ${id}`);
+      } catch (e) {
+        const message = e instanceof Error ? e.message : 'медиа алдаа';
+        report.failed.push({ word: id, message });
+        this.logger.error(`[media bulk] failed ${id}: ${message}`);
+      } finally {
+        report.processed++;
+      }
+    }
+    this.logger.log(
+      `[media bulk] done: ok=${report.inserted}, failed=${report.failed.length}`,
+    );
+  }
+
   async aiBulkImport(
     rawWords: string[],
     generateImages = false,
