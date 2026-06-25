@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Pencil, Trash2, Image, Film } from 'lucide-react';
+import { Plus, Pencil, Image, Film } from 'lucide-react';
 import { api } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
 import { Button } from '../../components/Button';
@@ -11,6 +11,7 @@ import { Select } from '../../components/Select';
 import { FileUpload } from '../../components/FileUpload';
 import { ImageCropUpload } from '../../components/ImageCropUpload';
 import { FormActions } from '../../components/FormActions';
+import { RowActions } from '../../components/RowActions';
 
 interface Lesson {
   id: string;
@@ -173,8 +174,7 @@ export default function LessonsPage() {
     {
       key: 'actions', header: '', render: (l: Lesson) => (
         <div className="flex gap-1 justify-end">
-          <Button variant="ghost" size="sm" onClick={() => openEdit(l)}><Pencil className="h-4 w-4" /></Button>
-          <Button variant="ghost" size="sm" onClick={() => remove(l.id)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
+          <RowActions onEdit={() => openEdit(l)} onDelete={() => remove(l.id)} />
         </div>
       ), className: 'text-right',
     },

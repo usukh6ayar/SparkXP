@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Pencil, Trash2, GripVertical, X, Eye, EyeOff } from 'lucide-react';
+import { Plus, GripVertical, X, Eye, EyeOff } from 'lucide-react';
 import { api } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
 import { Button } from '../../components/Button';
@@ -9,6 +9,7 @@ import { Modal } from '../../components/Modal';
 import { Input } from '../../components/Input';
 import { Select } from '../../components/Select';
 import { FormActions } from '../../components/FormActions';
+import { RowActions } from '../../components/RowActions';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -431,8 +432,7 @@ export default function QuizzesPage() {
               ? <Eye className="h-4 w-4 text-green-500" />
               : <EyeOff className="h-4 w-4 text-gray-400" />}
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => openEdit(q)}><Pencil className="h-4 w-4" /></Button>
-          <Button variant="ghost" size="sm" onClick={() => remove(q.id)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
+          <RowActions onEdit={() => openEdit(q)} onDelete={() => remove(q.id)} />
         </div>
       ), className: 'text-right',
     },

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { api } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
 import { Button } from '../../components/Button';
@@ -9,6 +9,7 @@ import { Modal } from '../../components/Modal';
 import { Input } from '../../components/Input';
 import { Select } from '../../components/Select';
 import { FormActions } from '../../components/FormActions';
+import { RowActions } from '../../components/RowActions';
 
 interface Org {
   id: string;
@@ -151,8 +152,7 @@ export default function OrganizationsPage() {
       key: 'actions', header: '',
       render: (o: Org) => (
         <div className="flex gap-2 justify-end">
-          <Button variant="ghost" size="sm" onClick={() => openEdit(o)}><Pencil className="h-4 w-4" /></Button>
-          <Button variant="ghost" size="sm" onClick={() => remove(o.id)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
+          <RowActions onEdit={() => openEdit(o)} onDelete={() => remove(o.id)} />
         </div>
       ),
       className: 'text-right',
