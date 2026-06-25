@@ -186,6 +186,8 @@ export default function WordsPage() {
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   // Reused <audio> element so a new clip stops the previous one.
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  // Anchor row index for shift-click range selection.
+  const lastSelectedIndex = useRef<number | null>(null);
 
   const [modal, setModal] = useState<null | 'create' | 'edit' | 'import'>(null);
   const [editing, setEditing] = useState<Word | null>(null);
@@ -235,10 +237,26 @@ export default function WordsPage() {
 
   // ── Select helpers ────────────────────────────────────────────────────────
 
-  function toggleSelect(id: string) {
-    setSelected((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  /**
+   * Select a row checkbox. Holding Shift selects the whole range between the
+   * previously-clicked row and this one (like a file manager / Gmail).
+   */
+  function selectRow(index: number, shiftKey: boolean) {
+    setSelected((s) => {
+      const n = new Set(s);
+      if (shiftKey && lastSelectedIndex.current !== null) {
+        const [a, b] = [lastSelectedIndex.current, index].sort((x, y) => x - y);
+        for (let i = a; i <= b; i++) n.add(words[i].id);
+      } else {
+        const id = words[index].id;
+        n.has(id) ? n.delete(id) : n.add(id);
+      }
+      return n;
+    });
+    lastSelectedIndex.current = index;
   }
   function toggleSelectAll() {
+    lastSelectedIndex.current = null;
     setSelected((s) => (s.size === words.length ? new Set() : new Set(words.map((w) => w.id))));
   }
 
@@ -499,8 +517,12 @@ export default function WordsPage() {
           onChange={toggleSelectAll} className="h-4 w-4 rounded border-gray-300 accent-primary" />
       ),
       render: (w: Word) => (
-        <input type="checkbox" checked={selected.has(w.id)} onChange={() => toggleSelect(w.id)}
-          className="h-4 w-4 rounded border-gray-300 accent-primary" onClick={e => e.stopPropagation()} />
+        <input type="checkbox" checked={selected.has(w.id)} readOnly
+          className="h-4 w-4 rounded border-gray-300 accent-primary"
+          onClick={(e) => {
+            e.stopPropagation();
+            selectRow(words.findIndex((x) => x.id === w.id), e.shiftKey);
+          }} />
       ),
       className: 'w-8',
     },
