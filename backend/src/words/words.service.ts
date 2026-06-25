@@ -295,23 +295,20 @@ export class WordsService {
     userId: string,
     report: AiBulkReport,
   ): Promise<void> {
-    // OpenAI caps image generation (~5/min). Space image calls out so a big
-    // batch doesn't get rejected. 13s ≈ under 5 per minute, with headroom.
-    const IMAGE_MIN_INTERVAL_MS = Number(
-      this.config.get('OPENAI_IMAGE_MIN_INTERVAL_MS') ?? 13_000,
+    // OpenAI caps image generation (~5/min). Process in PARALLEL batches of 5
+    // and space batch *starts* ~60s apart — far faster than one-at-a-time while
+    // staying under the limit. Audio (no such cap) just rides along per word.
+    const BATCH = Number(this.config.get('OPENAI_IMAGE_BATCH') ?? 5);
+    const BATCH_INTERVAL_MS = Number(
+      this.config.get('OPENAI_IMAGE_BATCH_INTERVAL_MS') ?? 61_000,
     );
     this.logger.log(
-      `[media bulk] start: ${wordIds.length} words (image=${image}, audio=${audio})`,
+      `[media bulk] start: ${wordIds.length} words (image=${image}, audio=${audio}), batch=${BATCH}`,
     );
-    let lastImageAt = 0;
-    for (const id of wordIds) {
+
+    const processOne = async (id: string) => {
       try {
-        if (image) {
-          const wait = IMAGE_MIN_INTERVAL_MS - (Date.now() - lastImageAt);
-          if (wait > 0) await sleep(wait);
-          lastImageAt = Date.now();
-          await this.generateImage(id, userId);
-        }
+        if (image) await this.generateImage(id, userId);
         if (audio) await this.generateAudio(id, userId);
         report.inserted++;
         this.logger.log(`[media bulk] ok ${id}`);
@@ -321,6 +318,19 @@ export class WordsService {
         this.logger.error(`[media bulk] failed ${id}: ${message}`);
       } finally {
         report.processed++;
+      }
+    };
+
+    for (let i = 0; i < wordIds.length; i += BATCH) {
+      const batchStart = Date.now();
+      await Promise.all(wordIds.slice(i, i + BATCH).map(processOne));
+      // Only the image API is rate-limited, so only pace batches for images.
+      if (image && i + BATCH < wordIds.length) {
+        const wait = BATCH_INTERVAL_MS - (Date.now() - batchStart);
+        if (wait > 0) {
+          this.logger.log(`[media bulk] batch done, waiting ${Math.round(wait / 1000)}s for rate limit`);
+          await sleep(wait);
+        }
       }
     }
     this.logger.log(
