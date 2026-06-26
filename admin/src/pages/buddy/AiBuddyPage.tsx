@@ -40,11 +40,14 @@ const emptyForm = (): BuddyForm => ({
 });
 
 const CARD_COLORS: Record<string, { bg: string; ring: string; badge: string }> = {
-  cop:      { bg: 'from-blue-50 to-indigo-50',   ring: 'ring-indigo-200',  badge: 'bg-indigo-100 text-indigo-700' },
-  doctor:   { bg: 'from-green-50 to-emerald-50', ring: 'ring-emerald-200', badge: 'bg-emerald-100 text-emerald-700' },
-  lawyer:   { bg: 'from-amber-50 to-yellow-50',  ring: 'ring-amber-200',   badge: 'bg-amber-100 text-amber-700' },
-  engineer: { bg: 'from-violet-50 to-purple-50', ring: 'ring-violet-200',  badge: 'bg-violet-100 text-violet-700' },
-  business: { bg: 'from-rose-50 to-pink-50',     ring: 'ring-rose-200',    badge: 'bg-rose-100 text-rose-700' },
+  'electrical-engineer': { bg: 'from-yellow-50 to-amber-50',   ring: 'ring-amber-200',   badge: 'bg-amber-100 text-amber-700' },
+  'chef':                { bg: 'from-orange-50 to-red-50',     ring: 'ring-orange-200',  badge: 'bg-orange-100 text-orange-700' },
+  'pilot':               { bg: 'from-sky-50 to-blue-50',       ring: 'ring-sky-200',     badge: 'bg-sky-100 text-sky-700' },
+  'journalist':          { bg: 'from-purple-50 to-fuchsia-50', ring: 'ring-purple-200',  badge: 'bg-purple-100 text-purple-700' },
+  'cybersecurity':       { bg: 'from-slate-50 to-gray-100',    ring: 'ring-slate-200',   badge: 'bg-slate-100 text-slate-700' },
+  'data-scientist':      { bg: 'from-teal-50 to-cyan-50',      ring: 'ring-teal-200',    badge: 'bg-teal-100 text-teal-700' },
+  'architect':           { bg: 'from-stone-50 to-neutral-100', ring: 'ring-stone-200',   badge: 'bg-stone-100 text-stone-700' },
+  'interior-designer':   { bg: 'from-rose-50 to-pink-50',      ring: 'ring-rose-200',    badge: 'bg-rose-100 text-rose-700' },
 };
 const DEFAULT_COLORS = { bg: 'from-gray-50 to-gray-100', ring: 'ring-gray-200', badge: 'bg-gray-100 text-gray-700' };
 

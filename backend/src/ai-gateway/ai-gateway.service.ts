@@ -134,6 +134,10 @@ export class AiGatewayService implements OnModuleInit {
   onModuleInit() {
     const apiKey = this.config.get<string>('ANTHROPIC_API_KEY');
     this.anthropic = new Anthropic({ apiKey });
+    // Sync buddy definitions from buddies.ts to DB on every start
+    this.syncBuddiesFromFile().catch((e: unknown) =>
+      this.logger.error('Buddy sync failed', e instanceof Error ? e.message : e),
+    );
   }
 
   /** Fetch current plan limits from Redis (with fallback to code defaults). */
@@ -481,28 +485,46 @@ export class AiGatewayService implements OnModuleInit {
     return updated;
   }
 
-  /** Return all active buddies from DB; auto-seed from buddies.ts on first run. */
+  /** Return all active buddies from DB (synced from buddies.ts on every start). */
   async findAllBuddies(): Promise<AiBuddy[]> {
-    const count = await this.buddies.count();
-    if (count === 0) await this.seedBuddies();
     return this.buddies.find({ where: { isActive: true }, order: { sortOrder: 'ASC', createdAt: 'ASC' } });
   }
 
-  private async seedBuddies(): Promise<void> {
+  /**
+   * Full sync: upsert every buddy from buddies.ts, delete DB rows not in the file.
+   * Called automatically on module init so the DB always reflects the code definition.
+   */
+  async syncBuddiesFromFile(): Promise<void> {
     const { AI_BUDDIES } = await import('./buddies');
-    const rows = AI_BUDDIES.map((b, i) =>
-      this.buddies.create({
-        slug: b.slug, name: b.name, title: b.title,
-        description: b.description, emoji: b.emoji,
-        systemPrompt: b.systemPrompt,
-        extraMessagesAmount: b.pricing.extraMessagesAmount,
-        extraMessagesCost: b.pricing.extraMessagesCost,
-        voiceMinuteCost: b.pricing.voiceMinuteCost,
-        isActive: true, sortOrder: i,
-      }),
-    );
-    await this.buddies.save(rows);
-    this.logger.log(`Seeded ${rows.length} AI buddies from buddies.ts`);
+    const fileSlugs = new Set(AI_BUDDIES.map((b) => b.slug));
+
+    // Remove DB rows whose slug is no longer in the file
+    const existing = await this.buddies.find();
+    const toRemove = existing.filter((b) => !fileSlugs.has(b.slug));
+    if (toRemove.length > 0) {
+      await this.buddies.remove(toRemove);
+      this.logger.log(`Removed ${toRemove.length} outdated AI buddy rows`);
+    }
+
+    // Upsert every buddy from the file
+    for (let i = 0; i < AI_BUDDIES.length; i++) {
+      const b = AI_BUDDIES[i];
+      const row = (await this.buddies.findOne({ where: { slug: b.slug } })) ??
+        this.buddies.create({ slug: b.slug });
+      row.name = b.name;
+      row.title = b.title;
+      row.description = b.description;
+      row.emoji = b.emoji;
+      row.systemPrompt = b.systemPrompt;
+      row.extraMessagesAmount = b.pricing.extraMessagesAmount;
+      row.extraMessagesCost = b.pricing.extraMessagesCost;
+      row.voiceMinuteCost = b.pricing.voiceMinuteCost;
+      row.isActive = true;
+      row.sortOrder = i;
+      await this.buddies.save(row);
+    }
+
+    this.logger.log(`Synced ${AI_BUDDIES.length} AI buddies from buddies.ts`);
   }
 
   async createBuddy(dto: CreateBuddyDto): Promise<AiBuddy> {
