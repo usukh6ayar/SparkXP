@@ -578,6 +578,16 @@ export class WordsService {
     if (query.noImage) base.imageUrl = IsNull();
     if (query.noAudio) base.audioUrl = IsNull();
 
+    // Duplicates filter (admin): keep only words whose English is shared with at
+    // least one other word (case-insensitive). We resolve the duplicate ids in
+    // one query, then constrain the normal find by them so all other filters
+    // still apply. An empty set short-circuits to no results.
+    if (query.duplicates) {
+      const dupIds = await this.duplicateWordIds();
+      if (dupIds.length === 0) return { items: [], total: 0, page, limit };
+      base.id = In(dupIds);
+    }
+
     const where = query.search
       ? [
           { ...base, english: ILike(`%${query.search}%`) },
@@ -585,14 +595,77 @@ export class WordsService {
         ]
       : base;
 
+    // For the duplicates view, group identical words next to each other so the
+    // admin can eyeball each cluster; otherwise newest-first as usual.
+    const order = query.duplicates
+      ? ({ english: 'ASC', createdAt: 'ASC' } as const)
+      : ({ createdAt: 'DESC' } as const);
+
     const [items, total] = await this.words.findAndCount({
       where,
-      order: { createdAt: 'DESC' },
+      order,
       skip: (page - 1) * limit,
       take: limit,
     });
 
     return { items, total, page, limit };
+  }
+
+  /** Ids of every word that shares its English (lowercased) with another word. */
+  private async duplicateWordIds(): Promise<string[]> {
+    const rows = (await this.words.query(
+      `SELECT id FROM words WHERE LOWER(english) IN (
+         SELECT LOWER(english) FROM words GROUP BY LOWER(english) HAVING COUNT(*) > 1
+       )`,
+    )) as { id: string }[];
+    return rows.map((r) => r.id);
+  }
+
+  /**
+   * Delete duplicate words, keeping exactly one per English (case-insensitive).
+   * The keeper is the "best" row in each group: published status wins, then the
+   * one with the most media (image + audio), then the oldest. Deleting a word
+   * cascades its WordReview rows (FK onDelete: CASCADE).
+   */
+  async deduplicate(): Promise<{ deleted: number; groups: number; kept: number }> {
+    const dupIds = await this.duplicateWordIds();
+    if (dupIds.length === 0) return { deleted: 0, groups: 0, kept: 0 };
+
+    const words = await this.words.find({ where: { id: In(dupIds) } });
+
+    // Group by lowercased English.
+    const groups = new Map<string, Word[]>();
+    for (const w of words) {
+      const key = w.english.trim().toLowerCase();
+      const list = groups.get(key);
+      if (list) list.push(w);
+      else groups.set(key, [w]);
+    }
+
+    // Higher score = better keeper.
+    const score = (w: Word) =>
+      (w.status === WordStatus.PUBLISHED ? 4 : 0) +
+      (w.imageUrl ? 1 : 0) +
+      (w.audioUrl ? 1 : 0);
+
+    const toDelete: string[] = [];
+    for (const list of groups.values()) {
+      if (list.length < 2) continue;
+      list.sort((a, b) => {
+        const diff = score(b) - score(a);
+        if (diff !== 0) return diff;
+        return a.createdAt.getTime() - b.createdAt.getTime(); // oldest first = keep
+      });
+      const [, ...rest] = list; // keep first, drop the rest
+      toDelete.push(...rest.map((w) => w.id));
+    }
+
+    // Delete in chunks to keep the IN(...) list a sane size.
+    for (let i = 0; i < toDelete.length; i += 500) {
+      await this.words.delete({ id: In(toDelete.slice(i, i + 500)) });
+    }
+
+    return { deleted: toDelete.length, groups: groups.size, kept: groups.size };
   }
 
   /** Get one word or throw 404. */

@@ -55,6 +55,12 @@ export class QueryWordsDto {
   @Transform(({ value }) => value === 'true' || value === true)
   noAudio?: boolean;
 
+  /** Admin: only words that are duplicated (same English appears more than
+   *  once, case-insensitive). Lets the admin review dupes before cleaning up. */
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  duplicates?: boolean;
+
   @IsOptional()
   @Type(() => Number)
   @IsInt()

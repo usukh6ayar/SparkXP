@@ -39,7 +39,7 @@
 
 | Method | Path | Auth | Тайлбар |
 |---|---|:---:|---|
-| GET | `/words` | 🔑 | Жагсаалт (`?status&level&category&search&lessonId&page&limit&noImage&noAudio`). **Default `status=published`** (student-д зөвхөн published; admin тодорхой `status` дамжуулна). `noImage=true`/`noAudio=true` → медиа дутуу үгсийг шүүх (bulk медиа үүсгэхэд) |
+| GET | `/words` | 🔑 | Жагсаалт (`?status&level&category&search&lessonId&page&limit&noImage&noAudio&duplicates`). **Default `status=published`** (student-д зөвхөн published; admin тодорхой `status` дамжуулна). `noImage=true`/`noAudio=true` → медиа дутуу үгсийг шүүх. `duplicates=true` → давхардсан (англи нь давтагдсан) үгсийг л буцаана (бүлгээр нь хажуу хажууд эрэмбэлж) |
 | GET | `/words/quiz` | 🔑 | Vocabulary quiz үүсгэх (`?count=4..30`) — published үгээс multiple-choice (зөв хариулт client рүү явахгүй) |
 | POST | `/words/quiz/submit` | 🔑 | `{ answers:[{wordId,choice}] }` → server-side grade, зөв бүрд XP+Sparks. Буцаалт `{ total, correct, xpAwarded, sparksAwarded }` |
 | GET | `/words/:id` | 🔑 | Нэг үг |
@@ -49,6 +49,7 @@
 | GET | `/words/stats` | 🛡️ | Контент эрүүл мэнд: `{ total, byStatus, missingImage, missingAudio, missingMnExample, duplicates }` |
 | GET | `/words/analytics` | 🛡️ | Сурлагын аналитик: `{ topForgotten, topSaved, topKnown, hardest, avgSaveRate }` (WordReview-ээс) |
 | PATCH | `/words/bulk` | 🛡️ | Олон үг нэг дор засах `{ ids, changes:{ status?, category?, level? } }` → `{ updated }` |
+| POST | `/words/dedupe` | 🛡️ | Давхардсан үг бүрээс **нэгийг үлдээж** бусдыг устгана (англи, том/жижиг үсэг үл хамаарна). Үлдээх сонголт: published → их медиатай → хамгийн хуучин. `{ deleted, groups, kept }` |
 | POST | `/words/ai-bulk` | 🛡️ | `{ words: string[], generateImages?, generateAudios? }` → зөвхөн англи үгсээс AI бүх талбарыг бөглөж нэмнэ. Cap: 100 (медиагүй) / 25 (медиатай). Медиагүй → `{ requested, inserted, skipped, failed }` шууд. Медиатай → **background**, `{ started, requested, background:true, jobId }` буцаана (доорх status-аар poll хий) |
 | GET | `/words/ai-bulk/:jobId` | 🛡️ | Background bulk/медиа job-ийн явц: `{ total, processed, inserted, skipped, failed, done }`. Дууссан/байхгүй бол `{ done:true, expired:true }` |
 | POST | `/words/bulk-generate-media` | 🛡️ | `{ wordIds: string[], image?, audio? }` → сонгосон ОДОО БАЙГАА үгсэд зураг/дуудлага background-д үүсгэнэ (зураг 5/мин batch throttle). `{ started, requested, background:true, jobId }` → дээрх status-аар poll. Cap 200 |

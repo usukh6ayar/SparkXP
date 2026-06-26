@@ -208,6 +208,17 @@ export class WordsController {
   }
 
   /**
+   * Delete duplicate words, keeping one per English word (case-insensitive).
+   * POST /api/words/dedupe → { deleted, groups, kept }.
+   */
+  @Post('dedupe')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  dedupe() {
+    return this.wordsService.deduplicate();
+  }
+
+  /**
    * Generate a vocabulary quiz (multiple-choice) from published words.
    * Declared before `:id` so the literal "quiz" path isn't parsed as a UUID.
    */

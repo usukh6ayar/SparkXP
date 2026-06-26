@@ -113,6 +113,7 @@ const MEDIA_FILTER_OPTIONS = [
   { value: '', label: 'Бүх медиа' },
   { value: 'noImage', label: '🖼 Зураггүй' },
   { value: 'noAudio', label: '🔊 Аудиогүй' },
+  { value: 'duplicates', label: '🔁 Давхардсан' },
 ];
 
 interface WordForm {
@@ -217,7 +218,7 @@ export default function WordsPage() {
     if (statusTab) params.set('status', statusTab);
     else params.set('all', 'true');
     if (levelFilter) params.set('level', levelFilter);
-    if (mediaFilter) params.set(mediaFilter, 'true'); // noImage / noAudio
+    if (mediaFilter) params.set(mediaFilter, 'true'); // noImage / noAudio / duplicates
     if (search.trim()) params.set('search', search.trim());
     const data = await api.get<{ items: Word[] }>(`/words?${params}`);
     setWords(data.items ?? []);
@@ -279,6 +280,24 @@ export default function WordsPage() {
     try { await Promise.all([...selected].map((id) => api.delete(`/words/${id}`))); load(); loadStats(); }
     catch (e: unknown) { setError(e instanceof Error ? e.message : 'Алдаа'); }
     finally { setBulkBusy(false); }
+  }
+
+  /**
+   * Clean up duplicates: keep one word per English (the best/oldest) and delete
+   * the rest. Server-side so it works across the whole table, not just the page.
+   */
+  async function dedupe() {
+    if (!confirm('Давхардсан үг бүрээс нэгийг үлдээж бусдыг устгах уу?')) return;
+    setBulkBusy(true); setError('');
+    try {
+      const res = await api.post<{ deleted: number; groups: number }>('/words/dedupe', {});
+      alert(`${res.deleted} давхардсан үг устгагдлаа (${res.groups} бүлэг).`);
+      load(); loadStats();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Давхардал цэвэрлэхэд алдаа');
+    } finally {
+      setBulkBusy(false);
+    }
   }
 
   /**
@@ -691,6 +710,11 @@ export default function WordsPage() {
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Хайх…" className="w-40 text-xs" />
           <Select options={levelOptions} value={levelFilter} onChange={(e) => setLevelFilter(e.target.value)} className="w-32 text-xs" />
           <Select options={MEDIA_FILTER_OPTIONS} value={mediaFilter} onChange={(e) => setMediaFilter(e.target.value)} className="w-36 text-xs" />
+          {!!stats?.duplicates && (
+            <Button variant="ghost" size="sm" onClick={dedupe} disabled={bulkBusy} title="Давхардсан үг бүрээс нэгийг үлдээж бусдыг устгах">
+              <Trash2 className="h-4 w-4 text-red-500" /> Давхардал цэвэрлэх
+            </Button>
+          )}
         </div>
       </div>
 
