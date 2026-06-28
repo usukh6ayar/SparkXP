@@ -777,11 +777,12 @@ export class WordsService {
    * Returns counts so the admin can see how many landed.
    */
   async ingestImageBatch(batchId: string): Promise<{ saved: number; failed: number; errors: { wordId: string; message: string }[] }> {
-    const results = await this.aiGateway.fetchImageBatchResults(batchId);
     let saved = 0;
     const errors: { wordId: string; message: string }[] = [];
 
-    for (const r of results) {
+    // Stream results one at a time (the output file is 100-200MB → can't load it
+    // all without OOM). Each image is uploaded + saved, then GC'd before the next.
+    for await (const r of this.aiGateway.iterateImageBatchResults(batchId)) {
       if (!r.b64) { errors.push({ wordId: r.customId, message: r.error ?? 'no image' }); continue; }
       try {
         const word = await this.words.findOne({ where: { id: r.customId } });

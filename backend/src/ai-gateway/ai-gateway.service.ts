@@ -673,29 +673,29 @@ export class AiGatewayService implements OnModuleInit {
   }
 
   /**
-   * Download a completed batch's output file and return one result per word
-   * (custom_id → base64 image or an error message). Caller stores the images.
+   * STREAM a completed batch's output file, yielding one result per word as it's
+   * read (custom_id → base64 image or error). The output JSONL is huge (each
+   * base64 image is ~1MB; 500 ≈ 100-200MB), so we must NOT load it all into
+   * memory — that OOM-crashes small containers. We parse line by line and yield
+   * one image at a time so the caller can store it and let it be GC'd.
    */
-  async fetchImageBatchResults(
+  async *iterateImageBatchResults(
     batchId: string,
-  ): Promise<{ customId: string; b64?: string; error?: string }[]> {
+  ): AsyncGenerator<{ customId: string; b64?: string; error?: string }> {
     const apiKey = this.openaiKeyOrThrow();
     const status = await this.getImageBatchStatus(batchId);
-    if (!status.outputFileId) return [];
+    if (!status.outputFileId) return;
 
     const res = await fetch(
       `https://api.openai.com/v1/files/${status.outputFileId}/content`,
       { headers: { Authorization: `Bearer ${apiKey}` } },
     );
-    if (!res.ok) {
+    if (!res.ok || !res.body) {
       throw new InternalServerErrorException('OpenAI batch output download failed');
     }
-    const text = await res.text();
 
-    // Output is JSONL: one line per request, keyed by the custom_id we sent.
-    const results: { customId: string; b64?: string; error?: string }[] = [];
-    for (const line of text.split('\n')) {
-      if (!line.trim()) continue;
+    const parse = (line: string): { customId: string; b64?: string; error?: string } | null => {
+      if (!line.trim()) return null;
       try {
         const row = JSON.parse(line) as {
           custom_id?: string;
@@ -704,13 +704,31 @@ export class AiGatewayService implements OnModuleInit {
         };
         const customId = row.custom_id ?? '';
         const b64 = row.response?.body?.data?.[0]?.b64_json;
-        if (b64) results.push({ customId, b64 });
-        else results.push({ customId, error: row.error?.message ?? 'no image in response' });
+        return b64 ? { customId, b64 } : { customId, error: row.error?.message ?? 'no image in response' };
       } catch {
-        // skip unparsable line
+        return null;
+      }
+    };
+
+    // Read the stream and split on newlines, keeping only the current line in a
+    // small buffer — never the whole file.
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let nl: number;
+      while ((nl = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, nl);
+        buf = buf.slice(nl + 1);
+        const item = parse(line);
+        if (item) yield item;
       }
     }
-    return results;
+    const last = parse(buf);
+    if (last) yield last;
   }
 
   /**
