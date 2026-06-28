@@ -80,6 +80,7 @@ interface BatchStatus {
   saved: number;         // images saved so far (this run + any prior)
   failed: number;
   justEnqueued?: number; // how many we just added (for the toast line)
+  redisDown?: boolean;   // server couldn't reach Redis (queue won't run)
 }
 
 interface WordStat {
@@ -856,6 +857,11 @@ export default function WordsPage() {
               </span>
               <button onClick={() => setBatch(null)} className="text-xs text-green-600 hover:underline">Хаах</button>
             </div>
+            {batch.redisDown && (
+              <p className="text-xs font-medium text-red-600">
+                ⚠️ Сервер Redis-д холбогдсонгүй — дараалал ажиллахгүй. Railway-д Redis (REDIS_URL) тохируулна уу.
+              </p>
+            )}
             <p className="text-xs">
               Дараалалд <strong>{batch.queued}</strong> үг
               {batch.active && <> · боловсруулж буй багц: <code>{batch.active}</code></>}

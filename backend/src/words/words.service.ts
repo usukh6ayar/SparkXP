@@ -813,21 +813,35 @@ export class WordsService {
 
   /** Queue words for hands-off server-side image generation. Returns queued count. */
   async enqueueImageBatch(wordIds: string[]): Promise<{ queued: number; total: number }> {
-    if (wordIds.length) await this.redis.rpush(WordsService.Q.queue, ...wordIds);
-    const total = await this.redis.llen(WordsService.Q.queue);
-    this.logger.log(`[batch queue] +${wordIds.length} → queue=${total}`);
-    return { queued: wordIds.length, total };
+    try {
+      if (wordIds.length) await this.redis.rpush(WordsService.Q.queue, ...wordIds);
+      const total = await this.redis.llen(WordsService.Q.queue);
+      this.logger.log(`[batch queue] +${wordIds.length} → queue=${total}`);
+      return { queued: wordIds.length, total };
+    } catch (e) {
+      this.logger.error(`[batch queue] redis unavailable: ${e instanceof Error ? e.message : e}`);
+      throw new InternalServerErrorException(
+        'Redis холбогдсонгүй — серверт Redis (REDIS_URL) тохируулна уу. Batch дараалал Redis шаарддаг.',
+      );
+    }
   }
 
   /** Progress for the admin panel (purely informational; the server drives it). */
-  async getImageBatchQueueStatus(): Promise<{ queued: number; active: string | null; saved: number; failed: number }> {
-    const [queued, active, saved, failed] = await Promise.all([
-      this.redis.llen(WordsService.Q.queue),
-      this.redis.get(WordsService.Q.active),
-      this.redis.get(WordsService.Q.saved),
-      this.redis.get(WordsService.Q.failed),
-    ]);
-    return { queued, active: active || null, saved: Number(saved ?? 0), failed: Number(failed ?? 0) };
+  async getImageBatchQueueStatus(): Promise<{ queued: number; active: string | null; saved: number; failed: number; redisDown?: boolean }> {
+    try {
+      const [queued, active, saved, failed] = await Promise.all([
+        this.redis.llen(WordsService.Q.queue),
+        this.redis.get(WordsService.Q.active),
+        this.redis.get(WordsService.Q.saved),
+        this.redis.get(WordsService.Q.failed),
+      ]);
+      return { queued, active: active || null, saved: Number(saved ?? 0), failed: Number(failed ?? 0) };
+    } catch (e) {
+      // Redis unreachable (e.g. not provisioned on the host) — don't hang the
+      // request; return empty so the admin panel still renders.
+      this.logger.warn(`[batch queue] redis unavailable: ${e instanceof Error ? e.message : e}`);
+      return { queued: 0, active: null, saved: 0, failed: 0, redisDown: true };
+    }
   }
 
   /**

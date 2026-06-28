@@ -22,9 +22,13 @@ export const REDIS_CLIENT = 'REDIS_CLIENT';
         // family: 0 = allow IPv4 AND IPv6 DNS lookups. Required on Railway,
         // whose private network (*.railway.internal) is IPv6-only — without it
         // ioredis defaults to IPv4 and can't resolve the Redis host.
+        // commandTimeout: fail a command after 10s instead of hanging forever
+        // when Redis is unreachable — otherwise requests never respond and the
+        // client gives up (HTTP 499). Lets callers catch + fall back gracefully.
         const client = url
           ? new Redis(url, {
               maxRetriesPerRequest: null,
+              commandTimeout: 10_000,
               family: 0,
               tls: url.startsWith('rediss://') ? {} : undefined,
             })
@@ -33,6 +37,7 @@ export const REDIS_CLIENT = 'REDIS_CLIENT';
               port: config.get<number>('REDIS_PORT', 6379),
               password: config.get<string>('REDIS_PASSWORD') || undefined,
               maxRetriesPerRequest: null,
+              commandTimeout: 10_000,
               family: 0,
             });
         // Without an 'error' listener ioredis spams "Unhandled error event".
