@@ -50,10 +50,14 @@
 | GET | `/words/analytics` | 🛡️ | Сурлагын аналитик: `{ topForgotten, topSaved, topKnown, hardest, avgSaveRate }` (WordReview-ээс) |
 | PATCH | `/words/bulk` | 🛡️ | Олон үг нэг дор засах `{ ids, changes:{ status?, category?, level? } }` → `{ updated }` |
 | POST | `/words/dedupe` | 🛡️ | Давхардсан үг бүрээс **нэгийг үлдээж** бусдыг устгана (англи, том/жижиг үсэг үл хамаарна). Үлдээх сонголт: published → их медиатай → хамгийн хуучин. `{ deleted, groups, kept }` |
-| POST | `/words/ai-bulk` | 🛡️ | `{ words: string[], generateImages?, generateAudios? }` → зөвхөн англи үгсээс AI бүх талбарыг бөглөж нэмнэ. Cap: 100 (медиагүй) / 25 (медиатай). Медиагүй → `{ requested, inserted, skipped, failed }` шууд. Медиатай → **background**, `{ started, requested, background:true, jobId }` буцаана (доорх status-аар poll хий) |
-| GET | `/words/ai-bulk/:jobId` | 🛡️ | Background bulk/медиа job-ийн явц: `{ total, processed, inserted, skipped, failed, done }`. Дууссан/байхгүй бол `{ done:true, expired:true }` |
-| POST | `/words/bulk-generate-media` | 🛡️ | `{ wordIds: string[], image?, audio? }` → сонгосон ОДОО БАЙГАА үгсэд зураг/дуудлага background-д үүсгэнэ (зураг 5/мин batch throttle). `{ started, requested, background:true, jobId }` → дээрх status-аар poll. Cap 200 |
-| POST | `/words/:id/generate-image` | 🛡️ | Тухайн үгэнд AI зураг (OpenAI) шинээр үүсгэж `imageUrl` шинэчилнэ (тогтвортой нэр + overwrite → 1 үг = 1 зураг) |
+| POST | `/words/ai-bulk` | 🛡️ | `{ words: string[], generateImages?, generateAudios? }` → зөвхөн англи үгсээс AI бүх талбарыг бөглөж нэмнэ. Cap байхгүй. Медиагүй → `{ requested, inserted, skipped, failed }` шууд. Медиатай → **background**, `{ started, requested, background:true, jobId }` буцаана (доорх status-аар poll хий) |
+| GET | `/words/ai-bulk/:jobId` | 🛡️ | Background bulk/медиа job-ийн явц: `{ total, processed, inserted, skipped, failed, done, canceled }`. Дууссан/байхгүй бол `{ done:true, expired:true }` |
+| POST | `/words/ai-bulk/:jobId/cancel` | 🛡️ | Ажиллаж буй background job-ийг зогсооно (ажиллаж буй үгс дуусна) → `{ canceled }` |
+| POST | `/words/bulk-generate-media` | 🛡️ | `{ wordIds: string[], image?, audio? }` → сонгосон ОДОО БАЙГАА үгсэд зураг/дуудлага background-д үүсгэнэ (Replicate, rate mode-оор queue хийнэ, cap байхгүй). `{ started, requested, background:true, jobId }` → дээрх status-аар poll |
+| POST | `/words/image-batch` | 🛡️ | `{ wordIds: string[] }` → **OpenAI Batch API**-аар хямд (~50%) async зураг үүсгэнэ (50k хүртэл). `{ batchId, count, model }` буцаана → доорх status-аар poll, дараа нь ingest |
+| GET | `/words/image-batch/:batchId` | 🛡️ | Batch job-ийн төлөв: `{ id, status, total, completed, failed, outputFileId, errorFileId }` |
+| POST | `/words/image-batch/:batchId/ingest` | 🛡️ | Дууссан batch-ийн үр дүнг татаж зургуудыг тус үгэнд Cloudinary-д хадгална → `{ saved, failed, errors }` |
+| POST | `/words/:id/generate-image` | 🛡️ | Тухайн үгэнд AI зураг (Replicate gpt-image-2) шинээр үүсгэж `imageUrl` шинэчилнэ (тогтвортой нэр + overwrite → 1 үг = 1 зураг) |
 | POST | `/words/:id/generate-audio` | 🛡️ | Тухайн үгэнд ElevenLabs дуудлага (mp3) үүсгэж `audioUrl` шинэчилнэ |
 | PATCH | `/words/:id` | 🛡️ | Засах (`status` солих → publish/approve). `generateImage:true` бол зураг шинээр үүсгэнэ |
 | DELETE | `/words/:id` | 🛡️ | Устгах |

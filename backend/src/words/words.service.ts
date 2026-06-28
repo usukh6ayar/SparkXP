@@ -737,6 +737,61 @@ export class WordsService {
     return this.words.save(word);
   }
 
+  // ── OpenAI Batch images (cheap bulk) ──────────────────────────────────────
+
+  /**
+   * Submit a set of existing words for cheap async image generation via the
+   * OpenAI Batch API (~50% cheaper). Returns the batch id to poll. We use the
+   * word id as the batch custom_id so results map straight back on ingest.
+   */
+  async startImageBatch(wordIds: string[]): Promise<{ batchId: string; count: number; model: string }> {
+    const words = await this.words.find({ where: { id: In(wordIds) } });
+    if (words.length === 0) throw new BadRequestException('Үг олдсонгүй');
+    const items = words.map((w) => ({
+      customId: w.id,
+      prompt: this.aiGateway.buildVocabularyImagePrompt({
+        userId: 'batch',
+        wordId: w.id,
+        english: w.english,
+        mongolian: w.mongolian,
+        partOfSpeech: w.partOfSpeech,
+        exampleSentence: w.exampleSentence,
+        cefr: w.level,
+      }),
+    }));
+    return this.aiGateway.submitImageBatch(items);
+  }
+
+  /** Live status/progress of a batch image job. */
+  getImageBatchStatus(batchId: string) {
+    return this.aiGateway.getImageBatchStatus(batchId);
+  }
+
+  /**
+   * Download a completed batch's results and save each image to its word.
+   * Returns counts so the admin can see how many landed.
+   */
+  async ingestImageBatch(batchId: string): Promise<{ saved: number; failed: number; errors: { wordId: string; message: string }[] }> {
+    const results = await this.aiGateway.fetchImageBatchResults(batchId);
+    let saved = 0;
+    const errors: { wordId: string; message: string }[] = [];
+
+    for (const r of results) {
+      if (!r.b64) { errors.push({ wordId: r.customId, message: r.error ?? 'no image' }); continue; }
+      try {
+        const word = await this.words.findOne({ where: { id: r.customId } });
+        if (!word) { errors.push({ wordId: r.customId, message: 'үг олдсонгүй' }); continue; }
+        word.imageUrl = await this.aiGateway.storeWordImageBase64(word.english, r.b64);
+        await this.words.save(word);
+        saved++;
+      } catch (e) {
+        errors.push({ wordId: r.customId, message: e instanceof Error ? e.message : 'хадгалах алдаа' });
+      }
+    }
+    this.logger.log(`[batch ingest] ${batchId}: saved=${saved}, failed=${errors.length}`);
+    return { saved, failed: errors.length, errors };
+  }
+
   /** Generate and save a pronunciation audio clip for an existing word via ElevenLabs. */
   async generateAudio(id: string, userId: string): Promise<Word> {
     const word = await this.findOne(id);

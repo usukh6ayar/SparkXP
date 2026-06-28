@@ -69,6 +69,18 @@ interface AiBulkReport {
   canceled?: boolean;
 }
 
+/** OpenAI Batch image job status (cheap async bulk image path). */
+interface BatchStatus {
+  id: string;
+  status: string; // validating | in_progress | finalizing | completed | failed | expired
+  total: number;
+  completed: number;
+  failed: number;
+  outputFileId?: string | null;
+  // Set locally after we ingest the results into words.
+  ingested?: { saved: number; failed: number };
+}
+
 interface WordStat {
   wordId: string;
   english: string;
@@ -206,6 +218,9 @@ export default function WordsPage() {
   const [aiImages, setAiImages] = useState(false);
   const [aiAudio, setAiAudio] = useState(false);
   const [aiReport, setAiReport] = useState<AiBulkReport | null>(null);
+  // OpenAI Batch image job (cheap async path).
+  const [batch, setBatch] = useState<BatchStatus | null>(null);
+  const [batchBusy, setBatchBusy] = useState(false);
 
   const [generatingId, setGeneratingId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -524,6 +539,63 @@ export default function WordsPage() {
     }
   }
 
+  // ── OpenAI Batch images (cheap async) ──────────────────────────────────────
+
+  /** Submit selected words to the OpenAI Batch API for cheap async images. */
+  async function startImageBatch() {
+    if (selected.size === 0) return;
+    setBatchBusy(true);
+    try {
+      const res = await api.post<{ batchId: string; count: number; model: string }>(
+        '/words/image-batch',
+        { wordIds: [...selected] },
+      );
+      console.log(`[batch] submitted ${res.count} images → ${res.batchId} (model=${res.model})`);
+      setSelected(new Set());
+      setBatch({ id: res.batchId, status: 'validating', total: res.count, completed: 0, failed: 0 });
+      pollBatch(res.batchId);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Batch эхлүүлэх алдаа');
+    } finally {
+      setBatchBusy(false);
+    }
+  }
+
+  /** Poll the batch status until it's completed/failed (slow — minutes to hours). */
+  function pollBatch(batchId: string) {
+    const tick = async () => {
+      try {
+        const s = await api.get<BatchStatus>(`/words/image-batch/${batchId}`);
+        console.log(`[batch] ${batchId}: ${s.status} — ${s.completed}/${s.total} (failed ${s.failed})`);
+        setBatch((prev) => ({ ...(prev ?? s), ...s }));
+        const finished = ['completed', 'failed', 'expired', 'cancelled'].includes(s.status);
+        if (!finished) setTimeout(tick, 15000); // batches are slow; poll every 15s
+      } catch (e) {
+        console.warn('[batch] poll stopped:', e);
+      }
+    };
+    setTimeout(tick, 5000);
+  }
+
+  /** Download a completed batch's results and save each image to its word. */
+  async function ingestBatch() {
+    if (!batch) return;
+    setBatchBusy(true);
+    try {
+      const res = await api.post<{ saved: number; failed: number }>(
+        `/words/image-batch/${batch.id}/ingest`,
+        {},
+      );
+      console.log(`[batch] ingested ${batch.id}: saved=${res.saved}, failed=${res.failed}`);
+      setBatch((prev) => (prev ? { ...prev, ingested: res } : prev));
+      load(); loadStats();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Үр дүн татах алдаа');
+    } finally {
+      setBatchBusy(false);
+    }
+  }
+
   function downloadCsvTemplate() {
     const blob = new Blob([CSV_TEMPLATE], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -763,11 +835,47 @@ export default function WordsPage() {
           <Button variant="secondary" size="sm" onClick={() => bulkGenerateMedia(false, true)} disabled={bulkBusy} title="Сонгосон үгсэд AI дуудлага үүсгэх">
             <Volume2 className="h-4 w-4 text-primary" /> Дуудлага үүсгэх
           </Button>
+          <Button variant="secondary" size="sm" onClick={startImageBatch} disabled={batchBusy} title="OpenAI Batch API — ~50% хямд, async (минут–цаг). Том ажилд тохиромжтой.">
+            <ImageIcon className="h-4 w-4 text-green-600" /> Batch зураг (хямд)
+          </Button>
           <button onClick={() => setSelected(new Set())} className="ml-auto text-xs text-gray-500 hover:underline">Цуцлах</button>
         </div>
       )}
 
       {error && <p className="mb-3 text-sm text-red-500">{error}</p>}
+
+      {/* OpenAI Batch image job (cheap async) */}
+      {batch && (() => {
+        const pct = batch.total ? Math.round((batch.completed / batch.total) * 100) : 0;
+        const done = ['completed', 'failed', 'expired', 'cancelled'].includes(batch.status);
+        return (
+          <div className="mb-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800 space-y-2">
+            <div className="flex items-center justify-between gap-3">
+              <span>
+                💸 Batch зураг (хямд) · <code className="text-xs">{batch.id}</code> · төлөв: <strong>{batch.status}</strong>
+              </span>
+              <button onClick={() => setBatch(null)} className="text-xs text-green-600 hover:underline">Хаах</button>
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-green-100">
+              <div className="h-full bg-green-500 transition-all duration-500" style={{ width: `${pct}%` }} />
+            </div>
+            <p className="text-xs">
+              {batch.completed}/{batch.total} ({pct}%) · алдаа {batch.failed}
+              {batch.ingested && <> · хадгалсан <strong>{batch.ingested.saved}</strong> / алдаа {batch.ingested.failed}</>}
+            </p>
+            {done && batch.status === 'completed' && !batch.ingested && (
+              <button
+                onClick={ingestBatch}
+                disabled={batchBusy}
+                className="rounded-md bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50"
+              >
+                {batchBusy ? 'Татаж байна…' : 'Үр дүн татах (зургуудыг хадгалах)'}
+              </button>
+            )}
+            {!done && <p className="text-xs text-green-600">Async — минут–цаг болж магадгүй. Энэ хуудсыг хаалаа ч batch үргэлжилнэ; дараа нь batch ID-гаар үр дүнг татаж болно.</p>}
+          </div>
+        );
+      })()}
 
       {/* Background media/import job progress — visible while you keep working */}
       {aiReport && aiReport.background && (() => {

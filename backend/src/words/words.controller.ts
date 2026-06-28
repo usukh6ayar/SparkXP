@@ -180,6 +180,45 @@ export class WordsController {
     return { started: true, requested: wordIds.length, background: true, jobId };
   }
 
+  // ── OpenAI Batch images (cheap bulk; async) ────────────────────────────────
+
+  /**
+   * Submit selected words for cheap async image generation via OpenAI Batch API
+   * (~50% cheaper, up to 50k/job). Returns { batchId } — poll status, then ingest.
+   * POST /api/words/image-batch  { wordIds: string[] }
+   */
+  @Post('image-batch')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  startImageBatch(@Body('wordIds') wordIds: string[]) {
+    if (!Array.isArray(wordIds) || wordIds.length === 0) {
+      throw new BadRequestException('"wordIds" массив шаардлагатай');
+    }
+    if (wordIds.length > 50_000) {
+      throw new BadRequestException('Нэг batch-д 50,000-аас ихгүй үг');
+    }
+    return this.wordsService.startImageBatch(wordIds);
+  }
+
+  /** Poll a batch image job: GET /api/words/image-batch/:batchId */
+  @Get('image-batch/:batchId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  imageBatchStatus(@Param('batchId') batchId: string) {
+    return this.wordsService.getImageBatchStatus(batchId);
+  }
+
+  /**
+   * Ingest a completed batch: download results + save each image to its word.
+   * POST /api/words/image-batch/:batchId/ingest
+   */
+  @Post('image-batch/:batchId/ingest')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  ingestImageBatch(@Param('batchId') batchId: string) {
+    return this.wordsService.ingestImageBatch(batchId);
+  }
+
   @Get()
   findAll(@Query() query: QueryWordsDto) {
     return this.wordsService.findAll(query);

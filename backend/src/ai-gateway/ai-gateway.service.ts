@@ -370,14 +370,7 @@ export class AiGatewayService implements OnModuleInit {
     const quality = this.config.get<string>('REPLICATE_IMAGE_QUALITY', 'low');
     const aspectRatio = this.config.get<string>('REPLICATE_IMAGE_ASPECT_RATIO', '1:1');
     const outputFormat = this.config.get<string>('REPLICATE_IMAGE_FORMAT', 'webp');
-    const template =
-      this.config.get<string>('IMAGE_PROMPT_TEMPLATE') || DEFAULT_IMAGE_PROMPT;
-    const prompt = template
-      .replace(/\{word\}/g, input.english)
-      .replace(/\{meaning\}/g, input.mongolian || '')
-      .replace(/\{example_sentence\}/g, input.exampleSentence || '')
-      .replace(/\{part_of_speech\}/g, input.partOfSpeech || '')
-      .replace(/\{cefr\}/g, input.cefr || '');
+    const prompt = this.buildVocabularyImagePrompt(input);
 
     const dev = this.config.get('NODE_ENV') !== 'production';
     // Always log WHICH provider/endpoint we hit so it's obvious in the console
@@ -567,6 +560,211 @@ export class AiGatewayService implements OnModuleInit {
     );
 
     return { audioUrl, model };
+  }
+
+  /** Build the per-word image prompt from the template (shared by live + batch). */
+  buildVocabularyImagePrompt(input: VocabularyImageRequest): string {
+    const template =
+      this.config.get<string>('IMAGE_PROMPT_TEMPLATE') || DEFAULT_IMAGE_PROMPT;
+    return template
+      .replace(/\{word\}/g, input.english)
+      .replace(/\{meaning\}/g, input.mongolian || '')
+      .replace(/\{example_sentence\}/g, input.exampleSentence || '')
+      .replace(/\{part_of_speech\}/g, input.partOfSpeech || '')
+      .replace(/\{cefr\}/g, input.cefr || '');
+  }
+
+  // ── OpenAI Batch API (cheap bulk image generation) ─────────────────────────
+  // The Batch API runs up to 50,000 image generations as one async job at 50%
+  // lower cost (separate rate limits). Flow: build a JSONL of requests → upload
+  // as a file → create a batch → poll until completed → download results and
+  // store each image. ~4x cheaper than Replicate for big runs (e.g. 20k words),
+  // but async (minutes–hours), so it's a "submit now, ingest later" path.
+
+  /** Cheapest batch image params (override via env). gpt-image-1-mini = cheapest. */
+  private batchImageParams() {
+    return {
+      model: this.config.get<string>('OPENAI_BATCH_IMAGE_MODEL', 'gpt-image-1'),
+      size: this.config.get<string>('OPENAI_BATCH_IMAGE_SIZE', '1024x1024'),
+      quality: this.config.get<string>('OPENAI_BATCH_IMAGE_QUALITY', 'low'),
+    };
+  }
+
+  private openaiKeyOrThrow(): string {
+    const key = this.config.get<string>('OPENAI_API_KEY');
+    if (!key) {
+      throw new InternalServerErrorException(
+        'OPENAI_API_KEY тохируулаагүй байна (Batch зураг үүсгэхэд шаардлагатай)',
+      );
+    }
+    return key;
+  }
+
+  /**
+   * Submit a batch image-generation job. `items` carries a stable custom_id per
+   * word (so results map back) plus its prompt. Returns the OpenAI batch id.
+   */
+  async submitImageBatch(
+    items: { customId: string; prompt: string }[],
+  ): Promise<{ batchId: string; count: number; model: string }> {
+    const apiKey = this.openaiKeyOrThrow();
+    const { model, size, quality } = this.batchImageParams();
+
+    // 1) Build the JSONL body — one request per line.
+    const jsonl = items
+      .map((it) =>
+        JSON.stringify({
+          custom_id: it.customId,
+          method: 'POST',
+          url: '/v1/images/generations',
+          body: { model, prompt: it.prompt, size, quality, n: 1 },
+        }),
+      )
+      .join('\n');
+
+    // 2) Upload it as a `batch` file.
+    const form = new FormData();
+    form.append('purpose', 'batch');
+    form.append(
+      'file',
+      new Blob([jsonl], { type: 'application/jsonl' }),
+      'image-batch.jsonl',
+    );
+    const fileRes = await fetch('https://api.openai.com/v1/files', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: form,
+    });
+    const fileBody = (await fileRes.json().catch(() => ({}))) as {
+      id?: string;
+      error?: { message?: string };
+    };
+    if (!fileRes.ok || !fileBody.id) {
+      throw new InternalServerErrorException(
+        fileBody.error?.message ?? 'OpenAI batch file upload failed',
+      );
+    }
+
+    // 3) Create the batch over the uploaded file.
+    const batchRes = await fetch('https://api.openai.com/v1/batches', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        input_file_id: fileBody.id,
+        endpoint: '/v1/images/generations',
+        completion_window: '24h',
+      }),
+    });
+    const batchBody = (await batchRes.json().catch(() => ({}))) as {
+      id?: string;
+      error?: { message?: string };
+    };
+    if (!batchRes.ok || !batchBody.id) {
+      throw new InternalServerErrorException(
+        batchBody.error?.message ?? 'OpenAI batch create failed',
+      );
+    }
+
+    this.logger.log(
+      `[AI][batch] submitted ${items.length} images → batch ${batchBody.id} (model=${model}, ${size}, q=${quality})`,
+    );
+    return { batchId: batchBody.id, count: items.length, model };
+  }
+
+  /** Poll a batch's status + progress counts. */
+  async getImageBatchStatus(batchId: string): Promise<{
+    id: string;
+    status: string;
+    total: number;
+    completed: number;
+    failed: number;
+    outputFileId: string | null;
+    errorFileId: string | null;
+  }> {
+    const apiKey = this.openaiKeyOrThrow();
+    const res = await fetch(`https://api.openai.com/v1/batches/${batchId}`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    const body = (await res.json().catch(() => ({}))) as {
+      id?: string;
+      status?: string;
+      request_counts?: { total?: number; completed?: number; failed?: number };
+      output_file_id?: string | null;
+      error_file_id?: string | null;
+      error?: { message?: string };
+    };
+    if (!res.ok || !body.id) {
+      throw new InternalServerErrorException(
+        body.error?.message ?? 'OpenAI batch status fetch failed',
+      );
+    }
+    return {
+      id: body.id,
+      status: body.status ?? 'unknown',
+      total: body.request_counts?.total ?? 0,
+      completed: body.request_counts?.completed ?? 0,
+      failed: body.request_counts?.failed ?? 0,
+      outputFileId: body.output_file_id ?? null,
+      errorFileId: body.error_file_id ?? null,
+    };
+  }
+
+  /**
+   * Download a completed batch's output file and return one result per word
+   * (custom_id → base64 image or an error message). Caller stores the images.
+   */
+  async fetchImageBatchResults(
+    batchId: string,
+  ): Promise<{ customId: string; b64?: string; error?: string }[]> {
+    const apiKey = this.openaiKeyOrThrow();
+    const status = await this.getImageBatchStatus(batchId);
+    if (!status.outputFileId) return [];
+
+    const res = await fetch(
+      `https://api.openai.com/v1/files/${status.outputFileId}/content`,
+      { headers: { Authorization: `Bearer ${apiKey}` } },
+    );
+    if (!res.ok) {
+      throw new InternalServerErrorException('OpenAI batch output download failed');
+    }
+    const text = await res.text();
+
+    // Output is JSONL: one line per request, keyed by the custom_id we sent.
+    const results: { customId: string; b64?: string; error?: string }[] = [];
+    for (const line of text.split('\n')) {
+      if (!line.trim()) continue;
+      try {
+        const row = JSON.parse(line) as {
+          custom_id?: string;
+          response?: { status_code?: number; body?: { data?: { b64_json?: string }[] } };
+          error?: { message?: string } | null;
+        };
+        const customId = row.custom_id ?? '';
+        const b64 = row.response?.body?.data?.[0]?.b64_json;
+        if (b64) results.push({ customId, b64 });
+        else results.push({ customId, error: row.error?.message ?? 'no image in response' });
+      } catch {
+        // skip unparsable line
+      }
+    }
+    return results;
+  }
+
+  /**
+   * Store a base64 image for a word on Cloudinary (stable public_id = overwrite).
+   * Used by the batch ingest path. Returns the hosted URL.
+   */
+  async storeWordImageBase64(english: string, b64: string): Promise<string> {
+    const outputFormat = 'png'; // OpenAI batch images come back as PNG b64
+    return this.imageStorage.storeGeneratedImage({
+      buffer: Buffer.from(b64, 'base64'),
+      filename: `${this.safeFilename(english)}.${outputFormat}`,
+      mimeType: `image/${outputFormat}`,
+      folder: this.config.get<string>('CLOUDINARY_WORD_IMAGES_FOLDER'),
+    });
   }
 
   private safeFilename(value: string): string {
