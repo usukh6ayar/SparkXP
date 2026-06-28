@@ -312,13 +312,13 @@ export class WordsService {
     report: AiBulkReport,
   ): Promise<void> {
     // Images go through Replicate (openai/gpt-image-2), which queues requests
-    // itself. We still process in PARALLEL batches and space batch *starts*
-    // apart to stay polite under any account concurrency limit — Replicate is
-    // more forgiving than OpenAI direct, so you can lower the interval env.
-    // Audio (no such cap) just rides along per word.
+    // itself. Target ~5 requests/second: PARALLEL batches of 5 started ~1s
+    // apart. No long delay needed anymore (the old 61s wait was for OpenAI's
+    // 5/min cap). Tune via OPENAI_IMAGE_BATCH / OPENAI_IMAGE_BATCH_INTERVAL_MS.
+    // Audio just rides along per word.
     const BATCH = Number(this.config.get('OPENAI_IMAGE_BATCH') ?? 5);
     const BATCH_INTERVAL_MS = Number(
-      this.config.get('OPENAI_IMAGE_BATCH_INTERVAL_MS') ?? 61_000,
+      this.config.get('OPENAI_IMAGE_BATCH_INTERVAL_MS') ?? 1_000,
     );
     this.logger.log(
       `[media bulk] start: ${wordIds.length} words (image=${image}, audio=${audio}), batch=${BATCH}`,
@@ -346,11 +346,12 @@ export class WordsService {
       }
       const batchStart = Date.now();
       await Promise.all(wordIds.slice(i, i + BATCH).map(processOne));
-      // Only the image API is rate-limited, so only pace batches for images.
+      // Pace batch *starts* to ~5/sec; if the batch already took longer than the
+      // interval (image gen is slow), there's no wait at all.
       if (image && i + BATCH < wordIds.length && !report.canceled) {
         const wait = BATCH_INTERVAL_MS - (Date.now() - batchStart);
         if (wait > 0) {
-          this.logger.log(`[media bulk] batch done, waiting ${Math.round(wait / 1000)}s for rate limit`);
+          this.logger.log(`[media bulk] batch done, waiting ${wait}ms`);
           await sleep(wait);
         }
       }
