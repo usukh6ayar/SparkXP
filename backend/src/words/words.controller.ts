@@ -194,8 +194,16 @@ export class WordsController {
     if (!Array.isArray(wordIds) || wordIds.length === 0) {
       throw new BadRequestException('"wordIds" массив шаардлагатай');
     }
-    if (wordIds.length > 50_000) {
-      throw new BadRequestException('Нэг batch-д 50,000-аас ихгүй үг');
+    // OpenAI caps "enqueued tokens" per org (gpt-image-2 = 1,000,000). Our prompt
+    // is ~1000 tokens/image, so one job can hold ~800 words before OpenAI rejects
+    // it. Cap a single UI submit to a safe size; for big runs use the chunking
+    // script (backend/scripts/send-image-batch.mjs). Raise as your org tier grows.
+    const maxPerJob = Number(process.env.OPENAI_BATCH_MAX_WORDS ?? 800);
+    if (wordIds.length > maxPerJob) {
+      throw new BadRequestException(
+        `Нэг batch-д ${maxPerJob}-аас ихгүй үг (OpenAI enqueued token хязгаар). ` +
+          `${wordIds.length} ширхгийг хэсэгчлэн оруулна уу, эсвэл send-image-batch.mjs скрипт ашигла.`,
+      );
     }
     return this.wordsService.startImageBatch(wordIds);
   }
