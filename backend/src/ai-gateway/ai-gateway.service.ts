@@ -15,7 +15,6 @@ import { createWriteStream, createReadStream } from 'fs';
 import { unlink } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { createInterface } from 'readline';
 import { Readable } from 'stream';
 import { pipeline } from 'stream/promises';
 import { Message } from '../entities/message.entity';
@@ -727,11 +726,26 @@ export class AiGatewayService implements OnModuleInit {
     };
 
     try {
-      const rl = createInterface({ input: createReadStream(tmpPath), crlfDelay: Infinity });
-      for await (const line of rl) {
-        const item = parse(line);
-        if (item) yield item;
+      // Read the temp file in chunks and split on newlines ourselves. `yield`
+      // suspends until the consumer finishes uploading the current image, and
+      // `for await ... of stream` won't read the next file chunk until we ask —
+      // so memory stays ~one line (~1-2MB), no matter how big the file is. (We
+      // avoid readline here: its async iterator can buffer many lines ahead when
+      // the consumer is slow, which OOMs a small container.)
+      const stream = createReadStream(tmpPath, { encoding: 'utf8' });
+      let buf = '';
+      for await (const chunk of stream) {
+        buf += chunk;
+        let nl: number;
+        while ((nl = buf.indexOf('\n')) >= 0) {
+          const line = buf.slice(0, nl);
+          buf = buf.slice(nl + 1);
+          const item = parse(line);
+          if (item) yield item;
+        }
       }
+      const last = parse(buf);
+      if (last) yield last;
     } finally {
       await unlink(tmpPath).catch(() => {});
     }

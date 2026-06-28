@@ -875,7 +875,10 @@ export class WordsService {
       }
 
       // No batch in flight → submit the next chunk if any words are queued.
-      const chunkSize = Number(this.config.get('IMAGE_BATCH_CHUNK') ?? 500);
+      // Keep chunks small: the batch OUTPUT file is ~ (chunk × ~1MB b64), and
+      // ingesting it on a small (~512MB) container can OOM, especially while a
+      // Gemini ai-bulk job runs at the same time. 100 → ~30MB output, safe.
+      const chunkSize = Number(this.config.get('IMAGE_BATCH_CHUNK') ?? 100);
       const chunk = await this.redis.lrange(WordsService.Q.queue, 0, chunkSize - 1);
       if (chunk.length === 0) return; // nothing to do
       await this.redis.ltrim(WordsService.Q.queue, chunk.length, -1);
