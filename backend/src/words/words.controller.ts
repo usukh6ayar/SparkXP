@@ -103,9 +103,9 @@ export class WordsController {
     if (!Array.isArray(words) || words.length === 0) {
       throw new BadRequestException('"words" массив шаардлагатай');
     }
-    // Cap the file/bulk English-word import at 1000 per request (Gemini fills the
+    // Cap the file/bulk English-word import at 300 per request (Gemini fills the
     // rest). Split bigger lists into batches.
-    const maxWords = Number(process.env.AI_BULK_MAX_WORDS ?? 1000);
+    const maxWords = Number(process.env.AI_BULK_MAX_WORDS ?? 300);
     if (words.length > maxWords) {
       throw new BadRequestException(
         `Нэг удаад ${maxWords}-аас ихгүй үг (танай файлд ${words.length} байна). Багцлан оруулна уу.`,
