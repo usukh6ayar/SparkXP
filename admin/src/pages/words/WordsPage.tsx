@@ -230,9 +230,9 @@ export default function WordsPage() {
   }, []);
 
   const load = useCallback(async () => {
-    // Load up to 500 so "select all" can cover a large filtered set (e.g. words
-    // with noImage) and bulk-generate media for them at once.
-    const params = new URLSearchParams({ limit: '500' });
+    // Load up to 5000 so "select all" can cover a large filtered set (e.g. words
+    // with noImage) and send them all to the batch image job at once.
+    const params = new URLSearchParams({ limit: '5000' });
     if (statusTab) params.set('status', statusTab);
     else params.set('all', 'true');
     if (levelFilter) params.set('level', levelFilter);
