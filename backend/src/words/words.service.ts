@@ -5,9 +5,13 @@ import {
   ConflictException,
   InternalServerErrorException,
   Logger,
+  Inject,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import type Redis from 'ioredis';
+import { REDIS_CLIENT } from '../redis/redis.module';
 import { randomUUID } from 'crypto';
 import { Repository, ILike, In, IsNull } from 'typeorm';
 import { Word } from '../entities/word.entity';
@@ -212,6 +216,7 @@ export class WordsService {
     private readonly sparks: SparksService,
     private readonly aiGateway: AiGatewayService,
     private readonly config: ConfigService,
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
 
   // ── AI Fill (admin "✨ AI бөглөх" button) ──────────────────────────────────
@@ -790,6 +795,90 @@ export class WordsService {
     }
     this.logger.log(`[batch ingest] ${batchId}: saved=${saved}, failed=${errors.length}`);
     return { saved, failed: errors.length, errors };
+  }
+
+  // ── Server-side auto-drive (cron) — works even with the admin PC off ────────
+  // The admin just enqueues word ids; a cron on the always-on server submits one
+  // chunk at a time (≤ token limit), waits for it to complete, ingests the
+  // images to Cloudinary, then submits the next — fully hands-off, no button.
+  // Redis keeps the queue/counters so it survives restarts.
+  private static readonly Q = {
+    queue: 'image-batch:queue',     // LIST of wordIds waiting to be submitted
+    active: 'image-batch:active',   // current in-flight batchId (string)
+    saved: 'image-batch:saved',     // running total saved
+    failed: 'image-batch:failed',   // running total failed
+  };
+  /** In-memory guard so cron ticks never overlap on a single instance. */
+  private batchDraining = false;
+
+  /** Queue words for hands-off server-side image generation. Returns queued count. */
+  async enqueueImageBatch(wordIds: string[]): Promise<{ queued: number; total: number }> {
+    if (wordIds.length) await this.redis.rpush(WordsService.Q.queue, ...wordIds);
+    const total = await this.redis.llen(WordsService.Q.queue);
+    this.logger.log(`[batch queue] +${wordIds.length} → queue=${total}`);
+    return { queued: wordIds.length, total };
+  }
+
+  /** Progress for the admin panel (purely informational; the server drives it). */
+  async getImageBatchQueueStatus(): Promise<{ queued: number; active: string | null; saved: number; failed: number }> {
+    const [queued, active, saved, failed] = await Promise.all([
+      this.redis.llen(WordsService.Q.queue),
+      this.redis.get(WordsService.Q.active),
+      this.redis.get(WordsService.Q.saved),
+      this.redis.get(WordsService.Q.failed),
+    ]);
+    return { queued, active: active || null, saved: Number(saved ?? 0), failed: Number(failed ?? 0) };
+  }
+
+  /**
+   * Cron: advance the image-batch queue one step. If a batch is in flight, poll
+   * it and ingest when done; otherwise submit the next chunk. Runs every minute
+   * on the server, so big runs finish on their own even if the admin's PC is off.
+   */
+  @Cron(CronExpression.EVERY_MINUTE, { name: 'image-batch-drive' })
+  async driveImageBatchQueue(): Promise<void> {
+    if (this.batchDraining) return; // previous tick still working
+    this.batchDraining = true;
+    try {
+      const active = await this.redis.get(WordsService.Q.active);
+
+      if (active) {
+        // A batch is in flight — check it.
+        const status = await this.aiGateway.getImageBatchStatus(active);
+        if (status.status === 'completed') {
+          const res = await this.ingestImageBatch(active);
+          await this.redis.incrby(WordsService.Q.saved, res.saved);
+          await this.redis.incrby(WordsService.Q.failed, res.failed);
+          await this.redis.del(WordsService.Q.active);
+          this.logger.log(`[batch drive] ingested ${active}: +${res.saved} saved`);
+        } else if (['failed', 'expired', 'cancelled'].includes(status.status)) {
+          this.logger.warn(`[batch drive] batch ${active} ${status.status} — dropping`);
+          await this.redis.del(WordsService.Q.active);
+        }
+        // else still running → wait for the next tick.
+        return;
+      }
+
+      // No batch in flight → submit the next chunk if any words are queued.
+      const chunkSize = Number(this.config.get('IMAGE_BATCH_CHUNK') ?? 500);
+      const chunk = await this.redis.lrange(WordsService.Q.queue, 0, chunkSize - 1);
+      if (chunk.length === 0) return; // nothing to do
+      await this.redis.ltrim(WordsService.Q.queue, chunk.length, -1);
+
+      try {
+        const { batchId } = await this.startImageBatch(chunk);
+        await this.redis.set(WordsService.Q.active, batchId);
+        this.logger.log(`[batch drive] submitted ${chunk.length} → ${batchId}`);
+      } catch (e) {
+        // Submit failed (e.g. token limit) — put the words back to retry later.
+        await this.redis.lpush(WordsService.Q.queue, ...chunk.reverse());
+        this.logger.error(`[batch drive] submit failed, re-queued ${chunk.length}: ${e instanceof Error ? e.message : e}`);
+      }
+    } catch (e) {
+      this.logger.error(`[batch drive] tick error: ${e instanceof Error ? e.message : e}`);
+    } finally {
+      this.batchDraining = false;
+    }
   }
 
   /** Generate and save a pronunciation audio clip for an existing word via ElevenLabs. */

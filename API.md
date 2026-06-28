@@ -54,7 +54,9 @@
 | GET | `/words/ai-bulk/:jobId` | 🛡️ | Background bulk/медиа job-ийн явц: `{ total, processed, inserted, skipped, failed, done, canceled }`. Дууссан/байхгүй бол `{ done:true, expired:true }` |
 | POST | `/words/ai-bulk/:jobId/cancel` | 🛡️ | Ажиллаж буй background job-ийг зогсооно (ажиллаж буй үгс дуусна) → `{ canceled }` |
 | POST | `/words/bulk-generate-media` | 🛡️ | `{ wordIds: string[], image?, audio? }` → сонгосон ОДОО БАЙГАА үгсэд зураг/дуудлага background-д үүсгэнэ (OpenAI, rate mode-оор queue хийнэ, cap байхгүй). `{ started, requested, background:true, jobId }` → дээрх status-аар poll |
-| POST | `/words/image-batch` | 🛡️ | `{ wordIds: string[] }` → **OpenAI Batch API**-аар хямд (~50%) async зураг үүсгэнэ (50k хүртэл). `{ batchId, count, model }` буцаана → доорх status-аар poll, дараа нь ingest |
+| POST | `/words/image-batch/enqueue` | 🛡️ | **Hands-off**: `{ wordIds }` → серверийн дараалалд нэмнэ. Cron нь chunk-аар (≤`IMAGE_BATCH_CHUNK`, default 500) submit → дуустал хүлээ → ingest хийгээд дараагийнхийг автоматаар. **Admin PC унтарсан ч ажиллана.** `{ queued, total }` |
+| GET | `/words/image-batch-queue` | 🛡️ | Серверийн дарааллын явц: `{ queued, active, saved, failed }` (display-д) |
+| POST | `/words/image-batch` | 🛡️ | (Доод түвшний) `{ wordIds: string[] }` → нэг OpenAI Batch үүсгэнэ. Org token хязгаарын улмаас ~800/batch (`OPENAI_BATCH_MAX_WORDS`). `{ batchId, count, model }` → status poll → ingest |
 | GET | `/words/image-batch/:batchId` | 🛡️ | Batch job-ийн төлөв: `{ id, status, total, completed, failed, outputFileId, errorFileId }` |
 | POST | `/words/image-batch/:batchId/ingest` | 🛡️ | Дууссан batch-ийн үр дүнг татаж зургуудыг тус үгэнд Cloudinary-д хадгална → `{ saved, failed, errors }` |
 | POST | `/words/:id/generate-image` | 🛡️ | Тухайн үгэнд AI зураг (OpenAI gpt-image-2) шинээр үүсгэж `imageUrl` шинэчилнэ (тогтвортой нэр + overwrite → 1 үг = 1 зураг) |

@@ -70,25 +70,16 @@ interface AiBulkReport {
 }
 
 /**
- * Progress of a chunked OpenAI Batch image run. We split the selected words into
- * chunks (OpenAI caps enqueued tokens per org) and process them one at a time:
- * submit → poll → ingest → next chunk. These fields drive the status panel.
+ * Server-driven image-batch queue status. The admin just enqueues words; a cron
+ * on the always-on server submits chunks, waits, and ingests them automatically.
+ * These fields (polled from the server, for display only) reflect that progress.
  */
 interface BatchStatus {
-  // Overall run
-  totalWords: number;
-  chunkSize: number;
-  chunkIndex: number; // 1-based current chunk
-  chunkCount: number;
-  savedTotal: number;
-  failedTotal: number;
-  done: boolean;
-  runError?: string;
-  // Current chunk's live OpenAI batch
-  id?: string;
-  status?: string; // validating | in_progress | finalizing | completed | failed | expired
-  completed?: number;
-  total?: number;
+  queued: number;        // words still waiting to be submitted
+  active: string | null; // current in-flight OpenAI batch id (null = none)
+  saved: number;         // images saved so far (this run + any prior)
+  failed: number;
+  justEnqueued?: number; // how many we just added (for the toast line)
 }
 
 interface WordStat {
@@ -255,6 +246,16 @@ export default function WordsPage() {
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { loadStats(); }, [loadStats]);
+  // On open, surface any image-batch run already in progress on the server
+  // (started earlier / by another admin) and keep showing its progress.
+  useEffect(() => {
+    api.get<{ queued: number; active: string | null; saved: number; failed: number }>('/words/image-batch-queue')
+      .then((s) => {
+        if (s.queued > 0 || s.active) { setBatch(s); pollBatchQueue(); }
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Analytics ─────────────────────────────────────────────────────────────
 
@@ -551,80 +552,48 @@ export default function WordsPage() {
 
   // ── OpenAI Batch images (cheap async) ──────────────────────────────────────
 
-  // Words per chunk. OpenAI caps enqueued tokens per org (gpt-image-2 = 1M ≈
-  // ~800 of our long-prompt images), so we stay well under with 500.
-  const BATCH_CHUNK = 500;
-
   /**
-   * Generate images for ALL selected words via the OpenAI Batch API, in chunks.
-   * Each chunk is submitted, polled until completed, then ingested before the
-   * next — so we never exceed the org enqueued-token limit. Runs end to end.
+   * Hands-off image generation: enqueue the selected words on the server. A cron
+   * on the always-on server then submits chunks, waits, and ingests the images
+   * automatically — so it finishes even if this page is closed or the PC is off.
+   * We just poll the queue for display.
    */
   async function startImageBatch() {
     if (selected.size === 0 || batchBusy) return;
-    const ids = [...selected];
-    const chunkCount = Math.ceil(ids.length / BATCH_CHUNK);
-    setSelected(new Set());
+    const wordIds = [...selected];
     setBatchBusy(true);
-    setBatch({
-      totalWords: ids.length, chunkSize: BATCH_CHUNK, chunkIndex: 0, chunkCount,
-      savedTotal: 0, failedTotal: 0, done: false,
-    });
-    console.log(`[batch] run: ${ids.length} words in ${chunkCount} chunk(s) of ${BATCH_CHUNK}`);
-
     try {
-      let savedTotal = 0;
-      let failedTotal = 0;
-      for (let c = 0; c < chunkCount; c++) {
-        const wordIds = ids.slice(c * BATCH_CHUNK, (c + 1) * BATCH_CHUNK);
-        setBatch((p) => p && { ...p, chunkIndex: c + 1, id: undefined, status: 'submitting', completed: 0, total: wordIds.length });
-
-        // 1) Submit this chunk
-        const res = await api.post<{ batchId: string; count: number }>('/words/image-batch', { wordIds });
-        console.log(`[batch] chunk ${c + 1}/${chunkCount} → ${res.batchId} (${res.count})`);
-        setBatch((p) => p && { ...p, id: res.batchId, status: 'validating' });
-
-        // 2) Poll until the OpenAI batch finishes (slow)
-        const final = await waitForBatch(res.batchId);
-        if (final.status !== 'completed') {
-          throw new Error(`Batch ${res.batchId} төлөв: ${final.status}`);
-        }
-
-        // 3) Ingest the finished images into their words
-        const ing = await api.post<{ saved: number; failed: number }>(`/words/image-batch/${res.batchId}/ingest`, {});
-        savedTotal += ing.saved; failedTotal += ing.failed;
-        console.log(`[batch] chunk ${c + 1} ingested: saved=${ing.saved}, failed=${ing.failed}`);
-        setBatch((p) => p && { ...p, savedTotal, failedTotal });
-        load(); loadStats();
-      }
-      setBatch((p) => p && { ...p, done: true, status: 'completed' });
-      console.log(`[batch] run done: saved=${savedTotal}, failed=${failedTotal}`);
+      const res = await api.post<{ queued: number; total: number }>(
+        '/words/image-batch/enqueue',
+        { wordIds },
+      );
+      console.log(`[batch] enqueued ${res.queued} words (queue=${res.total})`);
+      setSelected(new Set());
+      setBatch({ queued: res.total, active: null, saved: 0, failed: 0, justEnqueued: res.queued });
+      pollBatchQueue();
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Batch алдаа';
-      console.warn('[batch] run failed:', msg);
-      setBatch((p) => p && { ...p, done: true, runError: msg });
+      setError(e instanceof Error ? e.message : 'Дараалалд нэмэх алдаа');
     } finally {
       setBatchBusy(false);
     }
   }
 
-  /** Poll one OpenAI batch every 15s until it reaches a terminal state. */
-  function waitForBatch(batchId: string): Promise<{ status: string }> {
-    return new Promise((resolve) => {
-      const tick = async () => {
-        try {
-          const s = await api.get<{ status: string; total: number; completed: number; failed: number }>(`/words/image-batch/${batchId}`);
-          console.log(`[batch] ${batchId}: ${s.status} — ${s.completed}/${s.total} (failed ${s.failed})`);
-          setBatch((p) => p && { ...p, status: s.status, completed: s.completed, total: s.total });
-          if (['completed', 'failed', 'expired', 'cancelled'].includes(s.status)) resolve({ status: s.status });
-          else setTimeout(tick, 15000);
-        } catch (e) {
-          console.warn('[batch] poll error, retrying:', e);
-          setTimeout(tick, 15000);
-        }
-      };
-      setTimeout(tick, 5000);
-    });
+  /** Poll the server-side queue for display (operation runs on the server). */
+  function pollBatchQueue() {
+    const tick = async () => {
+      try {
+        const s = await api.get<{ queued: number; active: string | null; saved: number; failed: number }>(
+          '/words/image-batch-queue',
+        );
+        setBatch((p) => ({ ...(p ?? {}), ...s }));
+        if (s.saved > 0) { load(); loadStats(); }
+        // Keep polling while there's work; stop once the queue is empty and idle.
+        if (s.queued > 0 || s.active) setTimeout(tick, 15000);
+      } catch (e) {
+        console.warn('[batch] queue poll stopped:', e);
+      }
+    };
+    setTimeout(tick, 3000);
   }
 
   function downloadCsvTemplate() {
@@ -875,34 +844,28 @@ export default function WordsPage() {
 
       {error && <p className="mb-3 text-sm text-red-500">{error}</p>}
 
-      {/* OpenAI Batch image run (chunked, cheap async) */}
+      {/* Server-driven image-batch queue (cheap async, hands-off) */}
       {batch && (() => {
-        const pct = batch.total ? Math.round(((batch.completed ?? 0) / batch.total) * 100) : 0;
+        const idle = batch.queued === 0 && !batch.active;
         return (
           <div className="mb-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800 space-y-2">
             <div className="flex items-center justify-between gap-3">
               <span>
                 💸 Batch зураг (хямд) ·{' '}
-                {batch.done
-                  ? (batch.runError ? `🛑 Зогссон: ${batch.runError}` : '✅ Дууслаа')
-                  : `Багц ${batch.chunkIndex}/${batch.chunkCount} · төлөв: ${batch.status ?? '...'}`}
+                {idle ? '✅ Дараалал хоосон (бүгд боловсруулагдсан)' : '⏳ Сервер автоматаар үүсгэж байна'}
               </span>
-              {batch.done && <button onClick={() => setBatch(null)} className="text-xs text-green-600 hover:underline">Хаах</button>}
+              <button onClick={() => setBatch(null)} className="text-xs text-green-600 hover:underline">Хаах</button>
             </div>
-            {!batch.done && (
-              <>
-                <div className="h-2 w-full overflow-hidden rounded-full bg-green-100">
-                  <div className="h-full bg-green-500 transition-all duration-500" style={{ width: `${pct}%` }} />
-                </div>
-                <p className="text-xs">
-                  Энэ багц: {batch.completed ?? 0}/{batch.total ?? 0} ({pct}%){batch.id && <> · <code>{batch.id}</code></>}
-                </p>
-              </>
-            )}
             <p className="text-xs">
-              Нийт {batch.totalWords} үг · хадгалсан <strong>{batch.savedTotal}</strong> · алдаа {batch.failedTotal}
+              Дараалалд <strong>{batch.queued}</strong> үг
+              {batch.active && <> · боловсруулж буй багц: <code>{batch.active}</code></>}
+              {' '}· хадгалсан <strong>{batch.saved}</strong> · алдаа {batch.failed}
             </p>
-            {!batch.done && <p className="text-xs text-green-600">Async — багц бүр хэдэн минут болж магадгүй. Энэ хуудсыг нээлттэй байлга (хаавал run зогсоно).</p>}
+            {!idle && (
+              <p className="text-xs text-green-600">
+                Энэ хуудсыг хаасан / PC унтарсан ч сервер дээр үргэлжилнэ. Багц бүр хэдэн минут болж магадгүй.
+              </p>
+            )}
           </div>
         );
       })()}

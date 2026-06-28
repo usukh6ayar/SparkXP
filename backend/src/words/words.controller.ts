@@ -214,6 +214,33 @@ export class WordsController {
     return this.wordsService.startImageBatch(wordIds);
   }
 
+  /**
+   * Hands-off path: enqueue words for server-driven image generation. A cron on
+   * the always-on server submits chunks, waits, and ingests automatically — so
+   * it finishes even with the admin's PC off (no button, no open browser).
+   * POST /api/words/image-batch/enqueue  { wordIds: string[] }
+   */
+  @Post('image-batch/enqueue')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  enqueueImageBatch(@Body('wordIds') wordIds: string[]) {
+    if (!Array.isArray(wordIds) || wordIds.length === 0) {
+      throw new BadRequestException('"wordIds" массив шаардлагатай');
+    }
+    if (wordIds.length > 50_000) {
+      throw new BadRequestException('Нэг удаад 50,000-аас ихгүй үг');
+    }
+    return this.wordsService.enqueueImageBatch(wordIds);
+  }
+
+  /** Server-side image-batch queue progress: GET /api/words/image-batch-queue */
+  @Get('image-batch-queue')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  imageBatchQueue() {
+    return this.wordsService.getImageBatchQueueStatus();
+  }
+
   /** Poll a batch image job: GET /api/words/image-batch/:batchId */
   @Get('image-batch/:batchId')
   @UseGuards(JwtAuthGuard, RolesGuard)
