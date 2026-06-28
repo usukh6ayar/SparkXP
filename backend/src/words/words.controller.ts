@@ -145,6 +145,18 @@ export class WordsController {
   }
 
   /**
+   * Stop a running background job (admin "Зогсоох" button):
+   * POST /api/words/ai-bulk/:jobId/cancel. In-flight items finish; no new ones start.
+   */
+  @Post('ai-bulk/:jobId/cancel')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  cancelBulk(@Param('jobId') jobId: string) {
+    const canceled = this.wordsService.cancelBulkJob(jobId);
+    return { canceled };
+  }
+
+  /**
    * Generate image and/or audio for a set of EXISTING words (admin selects them
    * by checkbox). Runs in the background (image calls are rate-limited), returns
    * a jobId — poll GET /words/ai-bulk/:jobId. POST /api/words/bulk-generate-media

@@ -66,6 +66,7 @@ interface AiBulkReport {
   processed?: number;
   done?: boolean;
   jobId?: string;
+  canceled?: boolean;
 }
 
 interface WordStat {
@@ -316,7 +317,7 @@ export default function WordsPage() {
         { wordIds: [...selected], image, audio },
       );
       setSelected(new Set());
-      setAiReport({ requested: res.requested, inserted: 0, skipped: 0, failed: [], background: true, total: res.requested, processed: 0, done: false });
+      setAiReport({ requested: res.requested, inserted: 0, skipped: 0, failed: [], background: true, total: res.requested, processed: 0, done: false, jobId: res.jobId });
       pollBulkJob(res.jobId);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Медиа үүсгэхэд алдаа');
@@ -455,7 +456,7 @@ export default function WordsPage() {
         if (body.background && body.jobId) {
           // Media bulk runs in the background — poll the job for live progress %.
           const total = body.requested ?? 0;
-          setAiReport({ requested: total, inserted: 0, skipped: 0, failed: [], background: true, total, processed: 0, done: false });
+          setAiReport({ requested: total, inserted: 0, skipped: 0, failed: [], background: true, total, processed: 0, done: false, jobId: body.jobId });
           pollBulkJob(body.jobId);
           setModal(null); // close the import modal; progress shows on the main page
         } else {
@@ -477,23 +478,48 @@ export default function WordsPage() {
 
   /** Poll a background AI-bulk job for progress and refresh the list as it runs. */
   function pollBulkJob(jobId: string) {
+    console.log(`[media] job started: ${jobId} — POST /words/ai-bulk/${jobId} (polling every 2.5s)`);
     const tick = async () => {
       let stop = false;
       try {
         const job = await api.get<Partial<AiBulkReport> & { done?: boolean }>(`/words/ai-bulk/${jobId}`);
+        // Surface live progress in the browser dev console so you can watch which
+        // words finished and how far the media generation has got.
+        console.log(
+          `[media] job ${jobId}: ${job.processed ?? 0}/${job.total ?? 0}` +
+            ` · ok=${job.inserted ?? 0} · failed=${job.failed?.length ?? 0}` +
+            (job.canceled ? ' · CANCELED' : '') + (job.done ? ' · DONE' : ''),
+        );
+        if (job.failed?.length) console.log('[media] failed so far:', job.failed);
         setAiReport((prev) => ({
           ...(prev ?? { requested: 0, inserted: 0, skipped: 0, failed: [] }),
           ...job,
+          jobId,
           background: true,
         } as AiBulkReport));
         load();
-        if (job.done) { stop = true; loadStats(); }
-      } catch {
+        if (job.done) { stop = true; loadStats(); console.log(`[media] job ${jobId} finished.`); }
+      } catch (e) {
+        console.warn(`[media] job ${jobId} poll stopped:`, e);
         stop = true;
       }
       if (!stop) setTimeout(tick, 2500);
     };
     setTimeout(tick, 2000);
+  }
+
+  /** Stop a running background media/import job ("Зогсоох" button). */
+  async function cancelBulkJob() {
+    const jobId = aiReport?.jobId;
+    if (!jobId) return;
+    console.log(`[media] cancel requested → POST /words/ai-bulk/${jobId}/cancel`);
+    try {
+      await api.post(`/words/ai-bulk/${jobId}/cancel`, {});
+      // Reflect immediately; the next poll will confirm `canceled` from the server.
+      setAiReport((prev) => (prev ? { ...prev, canceled: true } : prev));
+    } catch (e) {
+      console.warn('[media] cancel failed:', e);
+    }
   }
 
   function downloadCsvTemplate() {
@@ -748,10 +774,22 @@ export default function WordsPage() {
         const pct = total ? Math.round((processed / total) * 100) : 0;
         return (
           <div className="mb-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 space-y-2">
-            <div className="flex items-center justify-between">
-              <span>{aiReport.done ? '✅ Медиа үүсгэж дууслаа' : '⏳ Медиа үүсгэж байна (background — үргэлжлүүлэн ажиллаж болно)'}</span>
-              {aiReport.done && (
+            <div className="flex items-center justify-between gap-3">
+              <span>
+                {aiReport.done
+                  ? (aiReport.canceled ? '🛑 Зогсоосон' : '✅ Медиа үүсгэж дууслаа')
+                  : (aiReport.canceled ? '🛑 Зогсоож байна… (ажиллаж буй үгс дуусаад зогсоно)' : '⏳ Медиа үүсгэж байна (background — үргэлжлүүлэн ажиллаж болно)')}
+              </span>
+              {aiReport.done ? (
                 <button onClick={() => setAiReport(null)} className="text-xs text-blue-500 hover:underline">Хаах</button>
+              ) : (
+                <button
+                  onClick={cancelBulkJob}
+                  disabled={aiReport.canceled}
+                  className="rounded-md bg-red-500 px-3 py-1 text-xs font-medium text-white hover:bg-red-600 disabled:opacity-50"
+                >
+                  {aiReport.canceled ? 'Зогсоож байна…' : 'Зогсоох'}
+                </button>
               )}
             </div>
             <div className="h-2 w-full overflow-hidden rounded-full bg-blue-100">

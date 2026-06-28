@@ -73,6 +73,9 @@ export interface AiBulkReport {
   total: number;
   processed: number;
   done: boolean;
+  // Flipped by cancelBulkJob() when the admin presses "Зогсоох". The job loops
+  // check this between batches and stop early (in-flight items still finish).
+  canceled?: boolean;
 }
 
 export interface AiFillResult {
@@ -263,6 +266,19 @@ export class WordsService {
   }
 
   /**
+   * Request cancellation of a running bulk job. The loops check `canceled`
+   * between batches and stop early; items already in flight finish normally.
+   * Returns false if the job id is unknown (already finished/expired).
+   */
+  cancelBulkJob(jobId: string): boolean {
+    const job = this.bulkJobs.get(jobId);
+    if (!job) return false;
+    job.canceled = true;
+    this.logger.log(`[bulk] cancel requested for job ${jobId}`);
+    return true;
+  }
+
+  /**
    * Start a background job that generates image and/or audio for a set of
    * EXISTING words (selected by checkbox in the admin). Returns a jobId to poll.
    * Image calls are throttled because OpenAI caps image generation per minute.
@@ -324,10 +340,14 @@ export class WordsService {
     };
 
     for (let i = 0; i < wordIds.length; i += BATCH) {
+      if (report.canceled) {
+        this.logger.log(`[media bulk] canceled at ${report.processed}/${report.total}`);
+        break;
+      }
       const batchStart = Date.now();
       await Promise.all(wordIds.slice(i, i + BATCH).map(processOne));
       // Only the image API is rate-limited, so only pace batches for images.
-      if (image && i + BATCH < wordIds.length) {
+      if (image && i + BATCH < wordIds.length && !report.canceled) {
         const wait = BATCH_INTERVAL_MS - (Date.now() - batchStart);
         if (wait > 0) {
           this.logger.log(`[media bulk] batch done, waiting ${Math.round(wait / 1000)}s for rate limit`);
@@ -363,6 +383,10 @@ export class WordsService {
 
     const CONCURRENCY = 3;
     for (let i = 0; i < words.length; i += CONCURRENCY) {
+      if (report.canceled) {
+        this.logger.log(`[AI bulk] canceled at ${report.processed}/${report.total}`);
+        break;
+      }
       const batch = words.slice(i, i + CONCURRENCY);
       await Promise.all(
         batch.map(async (english) => {
