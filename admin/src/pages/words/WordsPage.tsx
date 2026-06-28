@@ -215,9 +215,9 @@ export default function WordsPage() {
   }, []);
 
   const load = useCallback(async () => {
-    // High limit so "select all" can cover the whole filtered set (e.g. every
-    // word with noImage) and bulk-generate media for all of them at once.
-    const params = new URLSearchParams({ limit: '5000' });
+    // Load up to 500 so "select all" can cover a large filtered set (e.g. words
+    // with noImage) and bulk-generate media for them at once.
+    const params = new URLSearchParams({ limit: '500' });
     if (statusTab) params.set('status', statusTab);
     else params.set('all', 'true');
     if (levelFilter) params.set('level', levelFilter);
