@@ -32,14 +32,13 @@ const DEFAULT_LIMITS = {
 const AI_MODEL = 'claude-haiku-4-5-20251001';
 
 /**
- * Default model for vocabulary illustrations. We call it through Replicate
- * (https://replicate.com/openai/gpt-image-2) so Replicate handles OpenAI
- * billing for us. Override the slug with REPLICATE_IMAGE_MODEL.
+ * Default model for vocabulary illustrations. We call OpenAI's image API
+ * directly (no Replicate). Override with OPENAI_IMAGE_MODEL.
  */
-const DEFAULT_IMAGE_MODEL = 'openai/gpt-image-2';
+const DEFAULT_IMAGE_MODEL = 'gpt-image-2';
 const IMAGE_COST_MICRO_USD = 6_000;
 
-/** Small async sleep used for throttle/backoff between Replicate retries. */
+/** Small async sleep used for throttle/backoff between image retries. */
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
@@ -360,75 +359,46 @@ export class AiGatewayService implements OnModuleInit {
   async generateVocabularyImage(
     input: VocabularyImageRequest,
   ): Promise<VocabularyImageResponse> {
-    const apiKey = this.config.get<string>('REPLICATE_API_TOKEN');
-    if (!apiKey) {
-      throw new InternalServerErrorException('REPLICATE_API_TOKEN тохируулаагүй байна');
-    }
+    const apiKey = this.openaiKeyOrThrow();
 
-    const model = this.config.get<string>('REPLICATE_IMAGE_MODEL', DEFAULT_IMAGE_MODEL);
-    // Cheapest setup by default: low quality + 1:1 (=1024x1024). Override via env.
-    const quality = this.config.get<string>('REPLICATE_IMAGE_QUALITY', 'low');
-    const aspectRatio = this.config.get<string>('REPLICATE_IMAGE_ASPECT_RATIO', '1:1');
-    const outputFormat = this.config.get<string>('REPLICATE_IMAGE_FORMAT', 'webp');
+    // Cheapest live setup: gpt-image-2, low quality, 1024x1024. Override via env.
+    const model = this.config.get<string>('OPENAI_IMAGE_MODEL', DEFAULT_IMAGE_MODEL);
+    const quality = this.config.get<string>('OPENAI_IMAGE_QUALITY', 'low');
+    const size = this.config.get<string>('OPENAI_IMAGE_SIZE', '1024x1024');
     const prompt = this.buildVocabularyImagePrompt(input);
 
-    const dev = this.config.get('NODE_ENV') !== 'production';
-    // Always log WHICH provider/endpoint we hit so it's obvious in the console
-    // where the image API call is going.
-    const endpoint = `https://api.replicate.com/v1/models/${model}/predictions`;
+    const endpoint = 'https://api.openai.com/v1/images/generations';
     this.logger.log(
-      `[AI][image] provider=Replicate model=${model} quality=${quality} aspect=${aspectRatio} format=${outputFormat} (text-to-image, opaque bg)`,
+      `[AI][image] provider=OpenAI model=${model} quality=${quality} size=${size} (word="${input.english}")`,
     );
-    this.logger.log(`[AI][image] POST ${endpoint}  (word="${input.english}")`);
-    if (dev) {
-      this.logger.log(`[AI] Replicate image prompt:\n${prompt}`);
-    }
 
-    // Cheapest, simplest generation: pure text-to-image. We deliberately do NOT
-    // send input_images / edit / reference, and force an opaque (non-transparent)
-    // background so we stay on the low-cost path.
-    const requestBody = JSON.stringify({
-      input: {
-        prompt,
-        aspect_ratio: aspectRatio,
-        quality,
-        background: 'opaque',
-        output_format: outputFormat,
-        number_of_images: 1,
-      },
-    });
-
-    // Replicate throttles to ~6 req/min when the account balance is low and can
-    // return 429 (or transient 5xx) under load. Don't waste the word on a single
-    // throttle: retry with exponential backoff, honoring the Retry-After hint.
-    const maxAttempts = Number(this.config.get('REPLICATE_MAX_RETRIES') ?? 5);
+    // OpenAI can return 429 (rate limit) or transient 5xx under load. Retry with
+    // exponential backoff, honoring the Retry-After hint, so one blip doesn't
+    // waste the word.
+    const maxAttempts = Number(this.config.get('OPENAI_IMAGE_MAX_RETRIES') ?? 5);
     let response!: Response;
-    let body!: { status?: string; output?: string | string[]; error?: string; detail?: string };
+    let body!: { data?: { b64_json?: string }[]; error?: { message?: string } };
 
     for (let attempt = 1; ; attempt++) {
-      // `Prefer: wait` makes it synchronous (waits up to ~60s for the prediction).
       response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
-          Prefer: 'wait',
         },
-        body: requestBody,
+        // Pure text-to-image (no input image/edit) → cheapest path.
+        body: JSON.stringify({ model, prompt, quality, size, n: 1 }),
       });
 
-      // Replicate returns a prediction object; `output` is an array of image URLs.
       body = (await response.json().catch(() => ({}))) as typeof body;
       this.logger.log(
-        `[AI][image] Replicate response: http=${response.status} status=${body.status ?? '?'}` +
-          (body.error ? `, error=${body.error}` : ''),
+        `[AI][image] OpenAI response: http=${response.status}` +
+          (body.error ? `, error=${body.error.message}` : ''),
       );
 
-      // Retry only on throttle (429) / transient server errors, with a cap.
       const throttled = response.status === 429;
-      const transient = response.status === 502 || response.status === 503;
+      const transient = response.status === 500 || response.status === 502 || response.status === 503;
       if ((throttled || transient) && attempt < maxAttempts) {
-        // Prefer the server's Retry-After (seconds); else exponential backoff.
         const retryAfter = Number(response.headers.get('retry-after'));
         const backoffMs = Number.isFinite(retryAfter) && retryAfter > 0
           ? retryAfter * 1000
@@ -442,29 +412,20 @@ export class AiGatewayService implements OnModuleInit {
       break;
     }
 
-    const imageRemoteUrl = Array.isArray(body.output) ? body.output[0] : body.output;
-    if (!response.ok || body.status === 'failed' || !imageRemoteUrl) {
+    // OpenAI returns the image as base64 (no temporary URL to download).
+    const b64 = body.data?.[0]?.b64_json;
+    if (!response.ok || !b64) {
       throw new InternalServerErrorException(
-        body.error || body.detail || `Replicate image generation failed (http=${response.status})`,
+        body.error?.message || `OpenAI image generation failed (http=${response.status})`,
       );
     }
-    // This is the address the generated image actually comes from (Replicate CDN).
-    this.logger.log(`[AI][image] image source URL ← ${imageRemoteUrl}`);
-
-    // Download the generated image, then push it to Cloudinary so we keep the
-    // single-stable-image-per-word setup (Replicate URLs are temporary).
-    const imgRes = await fetch(imageRemoteUrl);
-    if (!imgRes.ok) {
-      throw new InternalServerErrorException('Replicate-ийн зургийг татаж чадсангүй');
-    }
-    const buffer = Buffer.from(await imgRes.arrayBuffer());
 
     const imageUrl = await this.imageStorage.storeGeneratedImage({
-      buffer,
+      buffer: Buffer.from(b64, 'base64'),
       // Stable name (no timestamp) → re-generating overwrites the word's single
       // image in Cloudinary instead of leaving orphaned copies behind.
-      filename: `${this.safeFilename(input.english)}.${outputFormat}`,
-      mimeType: `image/${outputFormat}`,
+      filename: `${this.safeFilename(input.english)}.png`,
+      mimeType: 'image/png',
       folder: this.config.get<string>('CLOUDINARY_WORD_IMAGES_FOLDER'),
     });
     this.logger.log(`[AI][image] stored on Cloudinary → ${imageUrl}`);
@@ -481,10 +442,9 @@ export class AiGatewayService implements OnModuleInit {
         metadata: {
           wordId: input.wordId,
           english: input.english,
-          provider: 'replicate',
+          provider: 'openai',
           quality,
-          aspectRatio,
-          outputFormat,
+          size,
         },
       }),
     );
@@ -578,7 +538,7 @@ export class AiGatewayService implements OnModuleInit {
   // The Batch API runs up to 50,000 image generations as one async job at 50%
   // lower cost (separate rate limits). Flow: build a JSONL of requests → upload
   // as a file → create a batch → poll until completed → download results and
-  // store each image. ~4x cheaper than Replicate for big runs (e.g. 20k words),
+  // store each image. ~50% cheaper than live calls for big runs (e.g. 20k words),
   // but async (minutes–hours), so it's a "submit now, ingest later" path.
 
   /** Cheapest batch image params (override via env). gpt-image-1-mini = cheapest. */

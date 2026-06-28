@@ -311,14 +311,14 @@ export class WordsService {
     userId: string,
     report: AiBulkReport,
   ): Promise<void> {
-    // Images go through Replicate (openai/gpt-image-2). Replicate THROTTLES to
-    // ~6 req/min when the account balance is under ~$5, so we never fire 100-200
-    // at once — we queue them as PARALLEL batches paced by a rate mode:
+    // Images = OpenAI (gpt-image-2) live calls. We queue them as PARALLEL batches
+    // paced by a rate mode so we don't hammer OpenAI's per-minute limits:
     //   safe    → 1 req/sec   (batch 1, 1s apart)
     //   normal  → 5 req/sec   (batch 5, 1s apart)   [default]
-    //   low     → 1 req/10sec (batch 1, 10s apart)  [for low credit]
+    //   low     → 1 req/10sec (batch 1, 10s apart)
     // Override the mode with IMAGE_RATE_MODE, or set BATCH/interval explicitly.
-    // Per-request 429 throttles are retried with backoff inside the gateway.
+    // Per-request 429s are retried with backoff inside the gateway. For BIG runs
+    // use the Batch API path instead (~50% cheaper, async).
     const mode = String(this.config.get('IMAGE_RATE_MODE') ?? 'normal').toLowerCase();
     const preset =
       mode === 'safe' ? { batch: 1, interval: 1_000 }
