@@ -50,7 +50,7 @@
 | GET | `/words/analytics` | 🛡️ | Сурлагын аналитик: `{ topForgotten, topSaved, topKnown, hardest, avgSaveRate }` (WordReview-ээс) |
 | PATCH | `/words/bulk` | 🛡️ | Олон үг нэг дор засах `{ ids, changes:{ status?, category?, level? } }` → `{ updated }` |
 | POST | `/words/dedupe` | 🛡️ | Давхардсан үг бүрээс **нэгийг үлдээж** бусдыг устгана (англи, том/жижиг үсэг үл хамаарна). Үлдээх сонголт: published → их медиатай → хамгийн хуучин. `{ deleted, groups, kept }` |
-| POST | `/words/ai-bulk` | 🛡️ | `{ words: string[], generateImages?, generateAudios? }` → зөвхөн англи үгсээс AI бүх талбарыг бөглөж нэмнэ. Cap байхгүй. Медиагүй → `{ requested, inserted, skipped, failed }` шууд. Медиатай → **background**, `{ started, requested, background:true, jobId }` буцаана (доорх status-аар poll хий) |
+| POST | `/words/ai-bulk` | 🛡️ | `{ words: string[], generateImages?, generateAudios? }` → зөвхөн англи үгсээс AI бүх талбарыг бөглөж нэмнэ. Cap: 1000/удаа (`AI_BULK_MAX_WORDS`). Медиагүй → `{ requested, inserted, skipped, failed }` шууд. Медиатай → **background**, `{ started, requested, background:true, jobId }` буцаана (доорх status-аар poll хий) |
 | GET | `/words/ai-bulk/:jobId` | 🛡️ | Background bulk/медиа job-ийн явц: `{ total, processed, inserted, skipped, failed, done, canceled }`. Дууссан/байхгүй бол `{ done:true, expired:true }` |
 | POST | `/words/ai-bulk/:jobId/cancel` | 🛡️ | Ажиллаж буй background job-ийг зогсооно (ажиллаж буй үгс дуусна) → `{ canceled }` |
 | POST | `/words/bulk-generate-media` | 🛡️ | `{ wordIds: string[], image?, audio? }` → сонгосон ОДОО БАЙГАА үгсэд зураг/дуудлага background-д үүсгэнэ (OpenAI, rate mode-оор queue хийнэ, cap байхгүй). `{ started, requested, background:true, jobId }` → дээрх status-аар poll |

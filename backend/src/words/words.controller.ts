@@ -103,9 +103,15 @@ export class WordsController {
     if (!Array.isArray(words) || words.length === 0) {
       throw new BadRequestException('"words" массив шаардлагатай');
     }
+    // Cap the file/bulk English-word import at 1000 per request (Gemini fills the
+    // rest). Split bigger lists into batches.
+    const maxWords = Number(process.env.AI_BULK_MAX_WORDS ?? 1000);
+    if (words.length > maxWords) {
+      throw new BadRequestException(
+        `Нэг удаад ${maxWords}-аас ихгүй үг (танай файлд ${words.length} байна). Багцлан оруулна уу.`,
+      );
+    }
     const withMedia = generateImages || generateAudios;
-    // No cap — media batches run in the background (batched + cancelable) and
-    // text-only batches stay synchronous, so any count is allowed.
 
     // Media generation (image/audio) is slow — a synchronous request would
     // exceed the proxy timeout and 502 even though the work keeps running on the
