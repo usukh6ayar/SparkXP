@@ -678,6 +678,16 @@ export class AiGatewayService implements OnModuleInit {
     };
   }
 
+  /** Cancel an in-progress OpenAI batch (best-effort; no-op if already finished). */
+  async cancelImageBatch(batchId: string): Promise<void> {
+    const apiKey = this.openaiKeyOrThrow();
+    const res = await fetch(`https://api.openai.com/v1/batches/${batchId}/cancel`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    this.logger.log(`[AI][batch] cancel ${batchId} → http=${res.status}`);
+  }
+
   /**
    * STREAM a completed batch's output file, yielding one result per word as it's
    * read (custom_id → base64 image or error). The output JSONL is huge (each

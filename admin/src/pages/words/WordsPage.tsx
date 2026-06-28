@@ -597,6 +597,24 @@ export default function WordsPage() {
     setTimeout(tick, 3000);
   }
 
+  /** Stop the server-side batch run: clear the queue + cancel the active batch. */
+  async function stopImageBatch() {
+    if (!confirm('Batch зураг үүсгэлтийг зогсоох уу? Дараалал цэвэрлэгдэж, ажиллаж буй batch цуцлагдана (хадгалсан зургууд хэвээр).')) return;
+    setBatchBusy(true);
+    try {
+      const res = await api.post<{ clearedQueue: number; canceledBatch: string | null }>(
+        '/words/image-batch-queue/stop',
+        {},
+      );
+      console.log(`[batch] stopped — cleared ${res.clearedQueue}, canceled ${res.canceledBatch ?? 'none'}`);
+      setBatch(null);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Зогсоох алдаа');
+    } finally {
+      setBatchBusy(false);
+    }
+  }
+
   function downloadCsvTemplate() {
     const blob = new Blob([CSV_TEMPLATE], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -855,7 +873,18 @@ export default function WordsPage() {
                 💸 Batch зураг (хямд) ·{' '}
                 {idle ? '✅ Дараалал хоосон (бүгд боловсруулагдсан)' : '⏳ Сервер автоматаар үүсгэж байна'}
               </span>
-              <button onClick={() => setBatch(null)} className="text-xs text-green-600 hover:underline">Хаах</button>
+              <div className="flex items-center gap-3">
+                {!idle && (
+                  <button
+                    onClick={stopImageBatch}
+                    disabled={batchBusy}
+                    className="rounded-md bg-red-500 px-3 py-1 text-xs font-medium text-white hover:bg-red-600 disabled:opacity-50"
+                  >
+                    Зогсоох
+                  </button>
+                )}
+                <button onClick={() => setBatch(null)} className="text-xs text-green-600 hover:underline">Хаах</button>
+              </div>
             </div>
             {batch.redisDown && (
               <p className="text-xs font-medium text-red-600">

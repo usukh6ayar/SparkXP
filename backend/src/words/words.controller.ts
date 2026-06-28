@@ -234,6 +234,17 @@ export class WordsController {
     return this.wordsService.getImageBatchQueueStatus();
   }
 
+  /**
+   * Stop the running image-batch: clear the pending queue + cancel the in-flight
+   * OpenAI batch. Already-saved images stay. POST /api/words/image-batch-queue/stop
+   */
+  @Post('image-batch-queue/stop')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  stopImageBatchQueue() {
+    return this.wordsService.stopImageBatchQueue();
+  }
+
   /** Poll a batch image job: GET /api/words/image-batch/:batchId */
   @Get('image-batch/:batchId')
   @UseGuards(JwtAuthGuard, RolesGuard)

@@ -846,6 +846,30 @@ export class WordsService {
   }
 
   /**
+   * Stop the image-batch run: clear the pending queue so no new chunks submit,
+   * and cancel the in-flight OpenAI batch (best-effort). Already-saved images
+   * stay. Returns what was cleared. ("Зогсоох" button.)
+   */
+  async stopImageBatchQueue(): Promise<{ stopped: true; clearedQueue: number; canceledBatch: string | null }> {
+    const clearedQueue = await this.redis.llen(WordsService.Q.queue);
+    const active = await this.redis.get(WordsService.Q.active);
+    if (active) {
+      // Cancel on OpenAI so we don't keep paying / ingesting it.
+      await this.aiGateway.cancelImageBatch(active).catch((e) =>
+        this.logger.warn(`[batch queue] cancel ${active} failed: ${e instanceof Error ? e.message : e}`),
+      );
+    }
+    await this.redis.del(
+      WordsService.Q.queue,
+      WordsService.Q.active,
+      WordsService.Q.saved,
+      WordsService.Q.failed,
+    );
+    this.logger.log(`[batch queue] STOPPED — cleared ${clearedQueue} queued, canceled ${active ?? 'none'}`);
+    return { stopped: true, clearedQueue, canceledBatch: active || null };
+  }
+
+  /**
    * Cron: advance the image-batch queue one step. If a batch is in flight, poll
    * it and ingest when done; otherwise submit the next chunk. Runs every minute
    * on the server, so big runs finish on their own even if the admin's PC is off.

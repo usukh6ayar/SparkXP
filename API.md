@@ -56,6 +56,7 @@
 | POST | `/words/bulk-generate-media` | 🛡️ | `{ wordIds: string[], image?, audio? }` → сонгосон ОДОО БАЙГАА үгсэд зураг/дуудлага background-д үүсгэнэ (OpenAI, rate mode-оор queue хийнэ, cap байхгүй). `{ started, requested, background:true, jobId }` → дээрх status-аар poll |
 | POST | `/words/image-batch/enqueue` | 🛡️ | **Hands-off**: `{ wordIds }` → серверийн дараалалд нэмнэ. Cron нь chunk-аар (≤`IMAGE_BATCH_CHUNK`, default 500) submit → дуустал хүлээ → ingest хийгээд дараагийнхийг автоматаар. **Admin PC унтарсан ч ажиллана.** `{ queued, total }` |
 | GET | `/words/image-batch-queue` | 🛡️ | Серверийн дарааллын явц: `{ queued, active, saved, failed }` (display-д) |
+| POST | `/words/image-batch-queue/stop` | 🛡️ | Batch зураг үүсгэлтийг зогсооно: дараалал цэвэрлэж, ажиллаж буй OpenAI batch-ийг цуцална (хадгалсан зургууд хэвээр) → `{ stopped, clearedQueue, canceledBatch }` |
 | POST | `/words/image-batch` | 🛡️ | (Доод түвшний) `{ wordIds: string[] }` → нэг OpenAI Batch үүсгэнэ. Org token хязгаарын улмаас ~800/batch (`OPENAI_BATCH_MAX_WORDS`). `{ batchId, count, model }` → status poll → ingest |
 | GET | `/words/image-batch/:batchId` | 🛡️ | Batch job-ийн төлөв: `{ id, status, total, completed, failed, outputFileId, errorFileId }` |
 | POST | `/words/image-batch/:batchId/ingest` | 🛡️ | Дууссан batch-ийн үр дүнг татаж зургуудыг тус үгэнд Cloudinary-д хадгална → `{ saved, failed, errors }` |
