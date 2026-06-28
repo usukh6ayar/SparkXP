@@ -584,7 +584,7 @@ export class AiGatewayService implements OnModuleInit {
   /** Cheapest batch image params (override via env). gpt-image-1-mini = cheapest. */
   private batchImageParams() {
     return {
-      model: this.config.get<string>('OPENAI_BATCH_IMAGE_MODEL', 'gpt-image-1'),
+      model: this.config.get<string>('OPENAI_BATCH_IMAGE_MODEL', 'gpt-image-2'),
       size: this.config.get<string>('OPENAI_BATCH_IMAGE_SIZE', '1024x1024'),
       quality: this.config.get<string>('OPENAI_BATCH_IMAGE_QUALITY', 'low'),
     };
