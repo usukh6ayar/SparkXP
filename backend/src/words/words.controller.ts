@@ -83,9 +83,6 @@ export class WordsController {
     if (!Array.isArray(words) || words.length === 0) {
       throw new BadRequestException('"words" массив шаардлагатай');
     }
-    if (words.length > 50_000) {
-      throw new BadRequestException('Нэг удаад 50,000-аас дээш үг оруулах боломжгүй');
-    }
     return this.wordsService.bulkImport(words);
   }
 
@@ -93,7 +90,7 @@ export class WordsController {
    * AI bulk import: a list of bare English words → AI fills every field (+
    * optional image and/or pronunciation audio) per word. POST /api/words/ai-bulk
    *   { words: string[], generateImages?: boolean, generateAudios?: boolean }
-   * Media is slow, so the batch is capped smaller when generating any media.
+   * No size cap: media batches run in the background, text-only stay synchronous.
    */
   @Post('ai-bulk')
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -107,12 +104,8 @@ export class WordsController {
       throw new BadRequestException('"words" массив шаардлагатай');
     }
     const withMedia = generateImages || generateAudios;
-    const cap = withMedia ? 25 : 100;
-    if (words.length > cap) {
-      throw new BadRequestException(
-        `AI bulk: нэг удаад ${cap}-аас ихгүй үг (${withMedia ? 'медиатай' : 'медиагүй'}). Багцлан оруулна уу.`,
-      );
-    }
+    // No cap — media batches run in the background (batched + cancelable) and
+    // text-only batches stay synchronous, so any count is allowed.
 
     // Media generation (image/audio) is slow — a synchronous request would
     // exceed the proxy timeout and 502 even though the work keeps running on the
@@ -177,9 +170,7 @@ export class WordsController {
     if (!image && !audio) {
       throw new BadRequestException('image эсвэл audio-н аль нэгийг сонгоно уу');
     }
-    if (wordIds.length > 200) {
-      throw new BadRequestException('Нэг удаад 200-аас ихгүй үг сонгоно уу');
-    }
+    // No cap — runs in the background, batched + cancelable, so any count is fine.
     const jobId = this.wordsService.startBulkMedia(
       wordIds,
       !!image,
