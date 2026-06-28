@@ -111,23 +111,16 @@ export class WordsController {
         `Нэг удаад ${maxWords}-аас ихгүй үг (танай файлд ${words.length} байна). Багцлан оруулна уу.`,
       );
     }
-    const withMedia = generateImages || generateAudios;
-
-    // Media generation (image/audio) is slow — a synchronous request would
-    // exceed the proxy timeout and 502 even though the work keeps running on the
-    // server (filling Cloudinary). So run it in the BACKGROUND and return at
-    // once; the admin refreshes the list to see words appear. Text-only batches
-    // are fast, so those stay synchronous and return the full report.
-    if (withMedia) {
-      const jobId = this.wordsService.startAiBulk(
-        words,
-        generateImages ?? false,
-        generateAudios ?? false,
-      );
-      return { started: true, requested: words.length, background: true, jobId };
-    }
-
-    return this.wordsService.aiBulkImport(words, false, false);
+    // Always run in the BACKGROUND and return a jobId so the admin can show a
+    // live progress bar (Gemini fills each word's text — slow for hundreds of
+    // words, and a synchronous request would hit the proxy timeout). Poll
+    // GET /words/ai-bulk/:jobId for { total, processed, inserted, ... }.
+    const jobId = this.wordsService.startAiBulk(
+      words,
+      generateImages ?? false,
+      generateAudios ?? false,
+    );
+    return { started: true, requested: words.length, background: true, jobId };
   }
 
   /** Poll background AI-bulk / media-bulk progress: GET /api/words/ai-bulk/:jobId */

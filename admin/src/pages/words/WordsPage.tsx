@@ -886,8 +886,8 @@ export default function WordsPage() {
             <div className="flex items-center justify-between gap-3">
               <span>
                 {aiReport.done
-                  ? (aiReport.canceled ? '🛑 Зогсоосон' : '✅ Медиа үүсгэж дууслаа')
-                  : (aiReport.canceled ? '🛑 Зогсоож байна… (ажиллаж буй үгс дуусаад зогсоно)' : '⏳ Медиа үүсгэж байна (background — үргэлжлүүлэн ажиллаж болно)')}
+                  ? (aiReport.canceled ? '🛑 Зогсоосон' : '✅ AI боловсруулж дууслаа')
+                  : (aiReport.canceled ? '🛑 Зогсоож байна… (ажиллаж буй үгс дуусаад зогсоно)' : '⏳ AI боловсруулж байна (background — үргэлжлүүлэн ажиллаж болно)')}
               </span>
               {aiReport.done ? (
                 <button onClick={() => setAiReport(null)} className="text-xs text-blue-500 hover:underline">Хаах</button>
