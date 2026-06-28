@@ -31,8 +31,12 @@ const DEFAULT_LIMITS = {
 /** Model used for the AI buddy. Haiku is fast and cheap for chat. */
 const AI_MODEL = 'claude-haiku-4-5-20251001';
 
-/** Default model for vocabulary illustrations. Override with OPENAI_IMAGE_MODEL. */
-const DEFAULT_IMAGE_MODEL = 'gpt-image-2';
+/**
+ * Default model for vocabulary illustrations. We call it through Replicate
+ * (https://replicate.com/openai/gpt-image-2) so Replicate handles OpenAI
+ * billing for us. Override the slug with REPLICATE_IMAGE_MODEL.
+ */
+const DEFAULT_IMAGE_MODEL = 'openai/gpt-image-2';
 const IMAGE_COST_MICRO_USD = 6_000;
 
 /**
@@ -353,12 +357,14 @@ export class AiGatewayService implements OnModuleInit {
   async generateVocabularyImage(
     input: VocabularyImageRequest,
   ): Promise<VocabularyImageResponse> {
-    const apiKey = this.config.get<string>('OPENAI_API_KEY');
+    const apiKey = this.config.get<string>('REPLICATE_API_TOKEN');
     if (!apiKey) {
-      throw new InternalServerErrorException('OPENAI_API_KEY тохируулаагүй байна');
+      throw new InternalServerErrorException('REPLICATE_API_TOKEN тохируулаагүй байна');
     }
 
-    const model = this.config.get<string>('OPENAI_IMAGE_MODEL', DEFAULT_IMAGE_MODEL);
+    const model = this.config.get<string>('REPLICATE_IMAGE_MODEL', DEFAULT_IMAGE_MODEL);
+    const quality = this.config.get<string>('REPLICATE_IMAGE_QUALITY', 'auto');
+    const aspectRatio = this.config.get<string>('REPLICATE_IMAGE_ASPECT_RATIO', '1:1');
     const template =
       this.config.get<string>('IMAGE_PROMPT_TEMPLATE') || DEFAULT_IMAGE_PROMPT;
     const prompt = template
@@ -369,54 +375,79 @@ export class AiGatewayService implements OnModuleInit {
       .replace(/\{cefr\}/g, input.cefr || '');
 
     const dev = this.config.get('NODE_ENV') !== 'production';
+    // Always log WHICH provider/endpoint we hit so it's obvious in the console
+    // where the image API call is going.
+    const endpoint = `https://api.replicate.com/v1/models/${model}/predictions`;
+    this.logger.log(
+      `[AI][image] provider=Replicate model=${model} quality=${quality} aspect=${aspectRatio}`,
+    );
+    this.logger.log(`[AI][image] POST ${endpoint}  (word="${input.english}")`);
     if (dev) {
-      this.logger.log(`[AI] OpenAI image generate for "${input.english}" (model=${model}, n=1)`);
-      this.logger.log(`[AI] OpenAI image prompt:\n${prompt}`);
+      this.logger.log(`[AI] Replicate image prompt:\n${prompt}`);
     }
 
-    const response = await fetch('https://api.openai.com/v1/images/generations', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
+    // Replicate official-model endpoint. `Prefer: wait` makes it synchronous
+    // (waits up to ~60s for the prediction to finish) so we don't have to poll.
+    const response = await fetch(
+      endpoint,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          Prefer: 'wait',
+        },
+        body: JSON.stringify({
+          input: {
+            prompt,
+            aspect_ratio: aspectRatio,
+            quality,
+            output_format: 'png',
+            number_of_images: 1,
+          },
+        }),
       },
-      body: JSON.stringify({
-        model,
-        prompt,
-        size: this.config.get<string>('OPENAI_IMAGE_SIZE', '1024x1024'),
-        quality: this.config.get<string>('OPENAI_IMAGE_QUALITY', 'low'),
-        n: 1,
-      }),
-    });
+    );
 
+    // Replicate returns a prediction object. `output` is an array of image
+    // URLs (not base64), so we fetch the first URL's bytes below.
     const body = (await response.json().catch(() => ({}))) as {
-      data?: { b64_json?: string }[];
-      error?: { message?: string };
+      status?: string;
+      output?: string | string[];
+      error?: string;
+      detail?: string;
     };
-    // Dev-only: show the response shape (how many images came back) without
-    // dumping the huge base64 blob, so you can confirm it's exactly 1.
-    if (dev) {
-      this.logger.log(
-        `[AI] OpenAI image response: status=${response.status}, images=${body.data?.length ?? 0}` +
-          (body.error ? `, error=${body.error.message}` : ''),
-      );
-    }
-    const b64 = body.data?.[0]?.b64_json;
-    if (!response.ok || !b64) {
+    this.logger.log(
+      `[AI][image] Replicate response: http=${response.status} status=${body.status ?? '?'}` +
+        (body.error ? `, error=${body.error}` : ''),
+    );
+
+    const imageRemoteUrl = Array.isArray(body.output) ? body.output[0] : body.output;
+    if (!response.ok || body.status === 'failed' || !imageRemoteUrl) {
       throw new InternalServerErrorException(
-        body.error?.message ?? 'OpenAI image generation failed',
+        body.error || body.detail || 'Replicate image generation failed',
       );
     }
+    // This is the address the generated image actually comes from (Replicate CDN).
+    this.logger.log(`[AI][image] image source URL ← ${imageRemoteUrl}`);
+
+    // Download the generated image, then push it to Cloudinary so we keep the
+    // single-stable-image-per-word setup (Replicate URLs are temporary).
+    const imgRes = await fetch(imageRemoteUrl);
+    if (!imgRes.ok) {
+      throw new InternalServerErrorException('Replicate-ийн зургийг татаж чадсангүй');
+    }
+    const buffer = Buffer.from(await imgRes.arrayBuffer());
 
     const imageUrl = await this.imageStorage.storeGeneratedImage({
-      buffer: Buffer.from(b64, 'base64'),
+      buffer,
       // Stable name (no timestamp) → re-generating overwrites the word's single
       // image in Cloudinary instead of leaving orphaned copies behind.
       filename: `${this.safeFilename(input.english)}.png`,
       mimeType: 'image/png',
       folder: this.config.get<string>('CLOUDINARY_WORD_IMAGES_FOLDER'),
     });
-    if (dev) this.logger.log(`[AI] OpenAI image stored → ${imageUrl}`);
+    this.logger.log(`[AI][image] stored on Cloudinary → ${imageUrl}`);
 
     await this.aiUsages.save(
       this.aiUsages.create({
@@ -430,9 +461,9 @@ export class AiGatewayService implements OnModuleInit {
         metadata: {
           wordId: input.wordId,
           english: input.english,
-          provider: 'openai',
-          size: this.config.get<string>('OPENAI_IMAGE_SIZE', '1024x1024'),
-          quality: this.config.get<string>('OPENAI_IMAGE_QUALITY', 'low'),
+          provider: 'replicate',
+          quality,
+          aspectRatio,
         },
       }),
     );

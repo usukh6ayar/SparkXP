@@ -295,9 +295,11 @@ export class WordsService {
     userId: string,
     report: AiBulkReport,
   ): Promise<void> {
-    // OpenAI caps image generation (~5/min). Process in PARALLEL batches of 5
-    // and space batch *starts* ~60s apart — far faster than one-at-a-time while
-    // staying under the limit. Audio (no such cap) just rides along per word.
+    // Images go through Replicate (openai/gpt-image-2), which queues requests
+    // itself. We still process in PARALLEL batches and space batch *starts*
+    // apart to stay polite under any account concurrency limit — Replicate is
+    // more forgiving than OpenAI direct, so you can lower the interval env.
+    // Audio (no such cap) just rides along per word.
     const BATCH = Number(this.config.get('OPENAI_IMAGE_BATCH') ?? 5);
     const BATCH_INTERVAL_MS = Number(
       this.config.get('OPENAI_IMAGE_BATCH_INTERVAL_MS') ?? 61_000,
