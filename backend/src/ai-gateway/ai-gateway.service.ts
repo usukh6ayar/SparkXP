@@ -11,6 +11,13 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import Anthropic from '@anthropic-ai/sdk';
 import { randomUUID } from 'crypto';
+import { createWriteStream, createReadStream } from 'fs';
+import { unlink } from 'fs/promises';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { createInterface } from 'readline';
+import { Readable } from 'stream';
+import { pipeline } from 'stream/promises';
 import { Message } from '../entities/message.entity';
 import { AiUsage } from '../entities/ai-usage.entity';
 import { AiBuddy } from '../entities/ai-buddy.entity';
@@ -694,6 +701,15 @@ export class AiGatewayService implements OnModuleInit {
       throw new InternalServerErrorException('OpenAI batch output download failed');
     }
 
+    // Download the whole output to a TEMP FILE first (fast, sequential — the
+    // connection closes in seconds). We must NOT hold the download open while we
+    // slowly upload each image to Cloudinary (~10 min for 500): the idle stream
+    // gets "terminated". Then read the temp file line by line (low memory) and
+    // yield one image at a time. Temp file is always cleaned up.
+    const tmpPath = join(tmpdir(), `batch-${batchId}-${randomUUID()}.jsonl`);
+    await pipeline(Readable.fromWeb(res.body as Parameters<typeof Readable.fromWeb>[0]), createWriteStream(tmpPath));
+    this.logger.log(`[AI][batch] downloaded ${batchId} output → ${tmpPath}`);
+
     const parse = (line: string): { customId: string; b64?: string; error?: string } | null => {
       if (!line.trim()) return null;
       try {
@@ -710,25 +726,15 @@ export class AiGatewayService implements OnModuleInit {
       }
     };
 
-    // Read the stream and split on newlines, keeping only the current line in a
-    // small buffer — never the whole file.
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buf = '';
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buf += decoder.decode(value, { stream: true });
-      let nl: number;
-      while ((nl = buf.indexOf('\n')) >= 0) {
-        const line = buf.slice(0, nl);
-        buf = buf.slice(nl + 1);
+    try {
+      const rl = createInterface({ input: createReadStream(tmpPath), crlfDelay: Infinity });
+      for await (const line of rl) {
         const item = parse(line);
         if (item) yield item;
       }
+    } finally {
+      await unlink(tmpPath).catch(() => {});
     }
-    const last = parse(buf);
-    if (last) yield last;
   }
 
   /**
