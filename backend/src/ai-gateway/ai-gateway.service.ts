@@ -39,6 +39,9 @@ const AI_MODEL = 'claude-haiku-4-5-20251001';
 const DEFAULT_IMAGE_MODEL = 'openai/gpt-image-2';
 const IMAGE_COST_MICRO_USD = 6_000;
 
+/** Small async sleep used for throttle/backoff between Replicate retries. */
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 /**
  * Prompt used to generate a vocabulary illustration. Placeholders {word},
  * {meaning}, {example_sentence}, {part_of_speech} and {cefr} are filled per
@@ -363,8 +366,10 @@ export class AiGatewayService implements OnModuleInit {
     }
 
     const model = this.config.get<string>('REPLICATE_IMAGE_MODEL', DEFAULT_IMAGE_MODEL);
-    const quality = this.config.get<string>('REPLICATE_IMAGE_QUALITY', 'auto');
+    // Cheapest setup by default: low quality + 1:1 (=1024x1024). Override via env.
+    const quality = this.config.get<string>('REPLICATE_IMAGE_QUALITY', 'low');
     const aspectRatio = this.config.get<string>('REPLICATE_IMAGE_ASPECT_RATIO', '1:1');
+    const outputFormat = this.config.get<string>('REPLICATE_IMAGE_FORMAT', 'webp');
     const template =
       this.config.get<string>('IMAGE_PROMPT_TEMPLATE') || DEFAULT_IMAGE_PROMPT;
     const prompt = template
@@ -379,53 +384,75 @@ export class AiGatewayService implements OnModuleInit {
     // where the image API call is going.
     const endpoint = `https://api.replicate.com/v1/models/${model}/predictions`;
     this.logger.log(
-      `[AI][image] provider=Replicate model=${model} quality=${quality} aspect=${aspectRatio}`,
+      `[AI][image] provider=Replicate model=${model} quality=${quality} aspect=${aspectRatio} format=${outputFormat} (text-to-image, opaque bg)`,
     );
     this.logger.log(`[AI][image] POST ${endpoint}  (word="${input.english}")`);
     if (dev) {
       this.logger.log(`[AI] Replicate image prompt:\n${prompt}`);
     }
 
-    // Replicate official-model endpoint. `Prefer: wait` makes it synchronous
-    // (waits up to ~60s for the prediction to finish) so we don't have to poll.
-    const response = await fetch(
-      endpoint,
-      {
+    // Cheapest, simplest generation: pure text-to-image. We deliberately do NOT
+    // send input_images / edit / reference, and force an opaque (non-transparent)
+    // background so we stay on the low-cost path.
+    const requestBody = JSON.stringify({
+      input: {
+        prompt,
+        aspect_ratio: aspectRatio,
+        quality,
+        background: 'opaque',
+        output_format: outputFormat,
+        number_of_images: 1,
+      },
+    });
+
+    // Replicate throttles to ~6 req/min when the account balance is low and can
+    // return 429 (or transient 5xx) under load. Don't waste the word on a single
+    // throttle: retry with exponential backoff, honoring the Retry-After hint.
+    const maxAttempts = Number(this.config.get('REPLICATE_MAX_RETRIES') ?? 5);
+    let response!: Response;
+    let body!: { status?: string; output?: string | string[]; error?: string; detail?: string };
+
+    for (let attempt = 1; ; attempt++) {
+      // `Prefer: wait` makes it synchronous (waits up to ~60s for the prediction).
+      response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
           Prefer: 'wait',
         },
-        body: JSON.stringify({
-          input: {
-            prompt,
-            aspect_ratio: aspectRatio,
-            quality,
-            output_format: 'png',
-            number_of_images: 1,
-          },
-        }),
-      },
-    );
+        body: requestBody,
+      });
 
-    // Replicate returns a prediction object. `output` is an array of image
-    // URLs (not base64), so we fetch the first URL's bytes below.
-    const body = (await response.json().catch(() => ({}))) as {
-      status?: string;
-      output?: string | string[];
-      error?: string;
-      detail?: string;
-    };
-    this.logger.log(
-      `[AI][image] Replicate response: http=${response.status} status=${body.status ?? '?'}` +
-        (body.error ? `, error=${body.error}` : ''),
-    );
+      // Replicate returns a prediction object; `output` is an array of image URLs.
+      body = (await response.json().catch(() => ({}))) as typeof body;
+      this.logger.log(
+        `[AI][image] Replicate response: http=${response.status} status=${body.status ?? '?'}` +
+          (body.error ? `, error=${body.error}` : ''),
+      );
+
+      // Retry only on throttle (429) / transient server errors, with a cap.
+      const throttled = response.status === 429;
+      const transient = response.status === 502 || response.status === 503;
+      if ((throttled || transient) && attempt < maxAttempts) {
+        // Prefer the server's Retry-After (seconds); else exponential backoff.
+        const retryAfter = Number(response.headers.get('retry-after'));
+        const backoffMs = Number.isFinite(retryAfter) && retryAfter > 0
+          ? retryAfter * 1000
+          : Math.min(1000 * 2 ** (attempt - 1), 30_000);
+        this.logger.warn(
+          `[AI][image] ${response.status} throttle/transient — retry ${attempt}/${maxAttempts} in ${Math.round(backoffMs / 1000)}s`,
+        );
+        await sleep(backoffMs);
+        continue;
+      }
+      break;
+    }
 
     const imageRemoteUrl = Array.isArray(body.output) ? body.output[0] : body.output;
     if (!response.ok || body.status === 'failed' || !imageRemoteUrl) {
       throw new InternalServerErrorException(
-        body.error || body.detail || 'Replicate image generation failed',
+        body.error || body.detail || `Replicate image generation failed (http=${response.status})`,
       );
     }
     // This is the address the generated image actually comes from (Replicate CDN).
@@ -443,8 +470,8 @@ export class AiGatewayService implements OnModuleInit {
       buffer,
       // Stable name (no timestamp) → re-generating overwrites the word's single
       // image in Cloudinary instead of leaving orphaned copies behind.
-      filename: `${this.safeFilename(input.english)}.png`,
-      mimeType: 'image/png',
+      filename: `${this.safeFilename(input.english)}.${outputFormat}`,
+      mimeType: `image/${outputFormat}`,
       folder: this.config.get<string>('CLOUDINARY_WORD_IMAGES_FOLDER'),
     });
     this.logger.log(`[AI][image] stored on Cloudinary → ${imageUrl}`);
@@ -464,6 +491,7 @@ export class AiGatewayService implements OnModuleInit {
           provider: 'replicate',
           quality,
           aspectRatio,
+          outputFormat,
         },
       }),
     );

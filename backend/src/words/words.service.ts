@@ -311,15 +311,24 @@ export class WordsService {
     userId: string,
     report: AiBulkReport,
   ): Promise<void> {
-    // Images go through Replicate (openai/gpt-image-2), which queues requests
-    // itself. Target ~5 requests/second: PARALLEL batches of 5 started ~1s
-    // apart. No long delay needed anymore (the old 61s wait was for OpenAI's
-    // 5/min cap). Tune via OPENAI_IMAGE_BATCH / OPENAI_IMAGE_BATCH_INTERVAL_MS.
-    // Audio just rides along per word.
-    const BATCH = Number(this.config.get('OPENAI_IMAGE_BATCH') ?? 5);
+    // Images go through Replicate (openai/gpt-image-2). Replicate THROTTLES to
+    // ~6 req/min when the account balance is under ~$5, so we never fire 100-200
+    // at once — we queue them as PARALLEL batches paced by a rate mode:
+    //   safe    → 1 req/sec   (batch 1, 1s apart)
+    //   normal  → 5 req/sec   (batch 5, 1s apart)   [default]
+    //   low     → 1 req/10sec (batch 1, 10s apart)  [for low credit]
+    // Override the mode with IMAGE_RATE_MODE, or set BATCH/interval explicitly.
+    // Per-request 429 throttles are retried with backoff inside the gateway.
+    const mode = String(this.config.get('IMAGE_RATE_MODE') ?? 'normal').toLowerCase();
+    const preset =
+      mode === 'safe' ? { batch: 1, interval: 1_000 }
+      : mode === 'low' ? { batch: 1, interval: 10_000 }
+      : { batch: 5, interval: 1_000 }; // normal
+    const BATCH = Number(this.config.get('OPENAI_IMAGE_BATCH') ?? preset.batch);
     const BATCH_INTERVAL_MS = Number(
-      this.config.get('OPENAI_IMAGE_BATCH_INTERVAL_MS') ?? 1_000,
+      this.config.get('OPENAI_IMAGE_BATCH_INTERVAL_MS') ?? preset.interval,
     );
+    this.logger.log(`[media bulk] rate mode=${mode} → batch=${BATCH}, interval=${BATCH_INTERVAL_MS}ms`);
     this.logger.log(
       `[media bulk] start: ${wordIds.length} words (image=${image}, audio=${audio}), batch=${BATCH}`,
     );
