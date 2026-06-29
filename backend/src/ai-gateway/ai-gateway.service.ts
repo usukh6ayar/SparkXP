@@ -152,6 +152,9 @@ export interface VocabularyImageRequest {
   partOfSpeech?: string | null;
   exampleSentence?: string | null;
   cefr?: string | null;
+  /** When set, this exact prompt is used instead of the vocabulary template
+   *  (e.g. idioms supply their own idiom-specific prompt). */
+  prompt?: string;
 }
 
 export interface VocabularyImageResponse {
@@ -371,7 +374,7 @@ export class AiGatewayService implements OnModuleInit {
     const model = this.config.get<string>('OPENAI_IMAGE_MODEL', DEFAULT_IMAGE_MODEL);
     const quality = this.config.get<string>('OPENAI_IMAGE_QUALITY', 'low');
     const size = this.config.get<string>('OPENAI_IMAGE_SIZE', '1024x1024');
-    const prompt = this.buildVocabularyImagePrompt(input);
+    const prompt = input.prompt || this.buildVocabularyImagePrompt(input);
 
     const endpoint = 'https://api.openai.com/v1/images/generations';
     this.logger.log(
