@@ -12,7 +12,7 @@ export class DictionaryController {
   /**
    * GET /api/dictionary/:word
    * Returns a Mongolian explanation for the given English word.
-   * Checks plan limits → DB cache → Anthropic AI fallback.
+   * Word DB → translation cache → Gemini (plan-limited, result cached).
    */
   @Get(':word')
   explain(@Param('word') word: string, @CurrentUser() user: User) {

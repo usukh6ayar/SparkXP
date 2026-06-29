@@ -3,11 +3,12 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from '../entities/user.entity';
 import { Word } from '../entities/word.entity';
 import { AiUsage } from '../entities/ai-usage.entity';
+import { Translation } from '../entities/translation.entity';
 import { DictionaryService } from './dictionary.service';
 import { DictionaryController } from './dictionary.controller';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, Word, AiUsage])],
+  imports: [TypeOrmModule.forFeature([User, Word, AiUsage, Translation])],
   providers: [DictionaryService],
   controllers: [DictionaryController],
 })

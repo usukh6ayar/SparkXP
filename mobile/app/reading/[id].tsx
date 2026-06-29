@@ -8,6 +8,7 @@ import { useAuth } from '../../src/auth/AuthContext';
 import { getReadingPassage, type ReadingPassage } from '../../src/api/reading';
 import { TopBar } from '../../src/components/TopBar';
 import { AppText } from '../../src/components/Text';
+import { TappableText } from '../../src/components/DictionaryProvider';
 import { Card } from '../../src/components/Card';
 import { Loading } from '../../src/components/Loading';
 import { colors, spacing, radius, levelColor } from '../../src/theme/theme';
@@ -120,14 +121,18 @@ export default function ReadingDetailScreen() {
             </View>
           )}
 
-          {/* Passage body */}
+          {/* Passage body — each word is tappable → Mongolian meaning sheet
+              (Word DB → translation cache → Gemini). */}
           <Card variant="filled" style={styles.body}>
             {passage.sentences.map((s, i) => (
-              <AppText key={i} variant="body" style={styles.sentence}>
+              <TappableText key={i} variant="body">
                 {s.text}
-              </AppText>
+              </TappableText>
             ))}
           </Card>
+          <AppText variant="caption" color={colors.textMuted} style={styles.hint}>
+            💡 Үг дээр дарвал монгол утга гарч ирнэ
+          </AppText>
 
           <View style={{ height: 60 }} />
         </ScrollView>
@@ -180,7 +185,7 @@ const styles = StyleSheet.create({
   },
 
   body: { gap: spacing.sm },
-  sentence: { lineHeight: 26 },
+  hint: { marginTop: spacing.md, textAlign: 'center' },
 
   empty: { marginTop: spacing.xxl },
 });
