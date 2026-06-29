@@ -9,9 +9,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../entities/user.entity';
 import { Word } from '../entities/word.entity';
+import { WordReview } from '../entities/word-review.entity';
 import { AiUsage } from '../entities/ai-usage.entity';
 import { Translation } from '../entities/translation.entity';
-import { AiUsageType } from '../common/enums';
+import { AiUsageType, WordStatus, ContentLevel } from '../common/enums';
 import { AiGatewayService } from '../ai-gateway/ai-gateway.service';
 import { geminiRetryDelayMs } from '../words/words.service';
 
@@ -36,6 +37,8 @@ export class DictionaryService {
     private readonly aiGateway: AiGatewayService,
     @InjectRepository(User) private readonly users: Repository<User>,
     @InjectRepository(Word) private readonly words: Repository<Word>,
+    @InjectRepository(WordReview)
+    private readonly reviews: Repository<WordReview>,
     @InjectRepository(AiUsage) private readonly aiUsages: Repository<AiUsage>,
     @InjectRepository(Translation)
     private readonly translations: Repository<Translation>,
@@ -160,6 +163,46 @@ export class DictionaryService {
     }
 
     return { audioUrl };
+  }
+
+  /**
+   * Save a tapped word (with its Mongolian translation) to the user's saved
+   * vocabulary so it shows up in Saved Words / review. If the word isn't in the
+   * curated Word bank yet, create it as `needs_review` (kept out of everyone's
+   * learn deck, but visible in this user's saved list and reviewable by admin).
+   */
+  async saveWord(
+    userId: string,
+    word: string,
+  ): Promise<{ wordId: string; saved: boolean }> {
+    const normalised = word.trim().toLowerCase();
+
+    let dbWord = await this.words.findOne({ where: { english: normalised } });
+    if (!dbWord) {
+      // Reuse the cached translation; look it up (Gemini) if we somehow miss.
+      const cached = await this.translations.findOne({ where: { word: normalised } });
+      const mongolian = cached?.translation ?? (await this.explain(userId, normalised)).translation;
+      dbWord = await this.words.save(
+        this.words.create({
+          english: normalised,
+          mongolian,
+          status: WordStatus.NEEDS_REVIEW,
+          level: ContentLevel.A1,
+          audioUrl: cached?.audioUrl ?? null,
+        }),
+      );
+    }
+
+    let review = await this.reviews.findOne({
+      where: { userId, wordId: dbWord.id },
+    });
+    if (!review) {
+      review = this.reviews.create({ userId, wordId: dbWord.id });
+    }
+    review.saved = true;
+    await this.reviews.save(review);
+
+    return { wordId: dbWord.id, saved: true };
   }
 
   /**

@@ -12,6 +12,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -28,7 +29,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAudioPlayer } from 'expo-audio';
 import * as Speech from 'expo-speech';
 import { useAuth } from '../auth/AuthContext';
-import { lookupWord, getWordAudio, type WordLookup } from '../api/dictionary';
+import {
+  lookupWord,
+  getWordAudio,
+  saveWord,
+  type WordLookup,
+} from '../api/dictionary';
 import { ApiError } from '../api/client';
 import { AppText } from './Text';
 import { colors, spacing, radius, elevation } from '../theme/theme';
@@ -58,6 +64,8 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
   const [result, setResult] = useState<WordLookup | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [audioBusy, setAudioBusy] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [saveBusy, setSaveBusy] = useState(false);
   const [size, setSize] = useState({ w: 0, h: 0 });
 
   const close = useCallback(() => setWord(null), []);
@@ -71,6 +79,7 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
       setAnchor(at);
       setResult(null);
       setError(null);
+      setSaved(false);
       setSize({ w: 0, h: 0 });
       setLoading(true);
       try {
@@ -114,6 +123,20 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
     Speech.speak(word, { language: 'en-US', rate: 0.9 });
   }, [word, result, token, player]);
 
+  // Save the word (+ translation) to the user's saved vocabulary.
+  const save = useCallback(async () => {
+    if (!word || !token || saved || saveBusy) return;
+    setSaveBusy(true);
+    try {
+      await saveWord(token, word);
+      setSaved(true);
+    } catch {
+      // ignore — keep the icon un-saved so the user can retry
+    } finally {
+      setSaveBusy(false);
+    }
+  }, [word, token, saved, saveBusy]);
+
   // Position the popover above the tapped word, clamped to the screen.
   const screen = Dimensions.get('window');
   const GAP = 10;
@@ -141,14 +164,25 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
             </AppText>
           ) : result ? (
             <>
-              <AppText variant="bodyStrong" color={colors.text} style={styles.translation}>
+              <AppText variant="h3" color={colors.text} style={styles.translation}>
                 {result.translation}
               </AppText>
-              <Pressable onPress={speak} hitSlop={8} style={styles.speaker}>
+              <Pressable onPress={speak} hitSlop={8} style={styles.iconBtn}>
                 {audioBusy ? (
                   <ActivityIndicator size="small" color={colors.primary} />
                 ) : (
-                  <Ionicons name="volume-high" size={20} color={colors.primary} />
+                  <Ionicons name="volume-high" size={22} color={colors.primary} />
+                )}
+              </Pressable>
+              <Pressable onPress={save} hitSlop={8} style={styles.iconBtn}>
+                {saveBusy ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <Ionicons
+                    name={saved ? 'bookmark' : 'bookmark-outline'}
+                    size={22}
+                    color={saved ? colors.success : colors.primary}
+                  />
                 )}
               </Pressable>
             </>
@@ -182,7 +216,20 @@ export function TappableText({
   color?: string;
 }) {
   const { lookup } = useDictionary();
+  // Double-tap detection: two taps on the SAME word within 300ms open the popover.
+  const lastTap = useRef<{ key: number; time: number }>({ key: -1, time: 0 });
   const tokens = children.split(/([A-Za-z]+)/);
+
+  const handlePress = (key: number, tok: string, e: GestureResponderEvent) => {
+    const now = Date.now();
+    const { pageX, pageY } = e.nativeEvent;
+    if (lastTap.current.key === key && now - lastTap.current.time < 300) {
+      lastTap.current = { key: -1, time: 0 };
+      lookup(tok, { x: pageX, y: pageY });
+    } else {
+      lastTap.current = { key, time: now };
+    }
+  };
 
   return (
     <AppText variant={variant} color={color}>
@@ -192,12 +239,7 @@ export function TappableText({
             key={i}
             variant={variant}
             color={color}
-            onPress={(e: GestureResponderEvent) =>
-              lookup(tok, {
-                x: e.nativeEvent.pageX,
-                y: e.nativeEvent.pageY,
-              })
-            }
+            onPress={(e: GestureResponderEvent) => handlePress(i, tok, e)}
             suppressHighlighting
           >
             {tok}
@@ -213,22 +255,22 @@ export function TappableText({
 const styles = StyleSheet.create({
   popover: {
     position: 'absolute',
-    maxWidth: 280,
+    maxWidth: 320,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
+    gap: spacing.md,
     backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
+    borderRadius: radius.lg,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
     borderWidth: 1,
     borderColor: colors.border,
     ...elevation.float,
   },
-  translation: { flexShrink: 1 },
-  speaker: {
-    width: 30,
-    height: 30,
+  translation: { flexShrink: 1, marginRight: spacing.xs },
+  iconBtn: {
+    width: 40,
+    height: 40,
     borderRadius: radius.full,
     backgroundColor: colors.primarySoft,
     alignItems: 'center',

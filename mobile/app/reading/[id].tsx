@@ -121,7 +121,7 @@ export default function ReadingDetailScreen() {
             </View>
           )}
 
-          {/* Passage body — each word is tappable → Mongolian meaning sheet
+          {/* Passage body — double-tap a word → meaning popover
               (Word DB → translation cache → Gemini). */}
           <Card variant="filled" style={styles.body}>
             {passage.sentences.map((s, i) => (
@@ -131,7 +131,7 @@ export default function ReadingDetailScreen() {
             ))}
           </Card>
           <AppText variant="caption" color={colors.textMuted} style={styles.hint}>
-            💡 Үг дээр дарвал монгол утга гарч ирнэ
+            💡 Үг дээр 2 удаа дарвал монгол утга гарч ирнэ
           </AppText>
 
           <View style={{ height: 60 }} />

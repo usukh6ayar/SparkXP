@@ -32,3 +32,17 @@ export function getWordAudio(
     { token },
   );
 }
+
+/**
+ * POST /api/dictionary/:word/save — save the word (+ translation) to the user's
+ * saved vocabulary (creates the Word as needs_review if it isn't in the bank).
+ */
+export function saveWord(
+  token: string,
+  word: string,
+): Promise<{ wordId: string; saved: boolean }> {
+  return apiRequest<{ wordId: string; saved: boolean }>(
+    `/dictionary/${encodeURIComponent(word)}/save`,
+    { method: 'POST', token },
+  );
+}
