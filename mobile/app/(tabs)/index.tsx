@@ -320,12 +320,7 @@ export default function HomeScreen() {
                 { backgroundColor: c.tint.bg },
                 pressed && styles.pressed,
               ]}
-              onPress={() =>
-                router.push({
-                  pathname: "/(tabs)/lessons",
-                  params: { type: c.key },
-                })
-              }
+              onPress={() => router.push(`/skill/${c.key}`)}
             >
               <View style={styles.catTop}>
                 <View style={styles.catIcon}>
