@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Plus, Image as ImageIcon, Eye, EyeOff, Sparkles, Volume2, Upload, AlertCircle } from 'lucide-react';
+import { Plus, Image as ImageIcon, Eye, EyeOff, Sparkles, Volume2, Upload, AlertCircle, Trash2 } from 'lucide-react';
 import { api } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
 import { Button } from '../../components/Button';
@@ -126,7 +126,12 @@ export default function IdiomsPage() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [imageJob, setImageJob] = useState<ImageJob | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Anchor row index for shift-click range selection (like the Words page).
+  const lastSelectedIndex = useRef<number | null>(null);
+  // Whether Shift was held — captured on mousedown (change event lacks shiftKey).
+  const shiftKeyRef = useRef(false);
 
   // Import (CSV or AI bulk)
   const [showImport, setShowImport] = useState(false);
@@ -165,22 +170,45 @@ export default function IdiomsPage() {
     setEditing(it); setError(''); setModal('edit');
   }
 
-  // ── Selection ──
-  function toggleRow(id: string) {
+  // ── Selection (mirrors the Words page: header select-all + shift-click range) ──
+  /**
+   * Select a row checkbox. Holding Shift selects the whole range between the
+   * previously-clicked row and this one (like a file manager / Gmail).
+   */
+  function selectRow(index: number, shiftKey: boolean) {
     setSelected((s) => {
       const next = new Set(s);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (shiftKey && lastSelectedIndex.current !== null) {
+        const [a, b] = [lastSelectedIndex.current, index].sort((x, y) => x - y);
+        for (let i = a; i <= b; i++) next.add(idioms[i].id);
+      } else {
+        const id = idioms[index].id;
+        next.has(id) ? next.delete(id) : next.add(id);
+      }
       return next;
     });
+    lastSelectedIndex.current = index;
   }
-  function toggleAll() {
+  function toggleSelectAll() {
+    lastSelectedIndex.current = null;
     setSelected((s) => (s.size === idioms.length ? new Set() : new Set(idioms.map((i) => i.id))));
   }
 
   // ── Bulk actions ──
   async function bulkPublish(isPublished: boolean) {
-    await api.patch('/idioms/bulk', { ids: [...selected], isPublished });
-    load();
+    if (selected.size === 0) return;
+    setBulkBusy(true); setError('');
+    try { await api.patch('/idioms/bulk', { ids: [...selected], isPublished }); load(); }
+    catch (e: unknown) { setError(e instanceof Error ? e.message : 'Алдаа'); }
+    finally { setBulkBusy(false); }
+  }
+
+  async function bulkDelete() {
+    if (selected.size === 0 || !confirm(`${selected.size} хэлц устгах уу?`)) return;
+    setBulkBusy(true); setError('');
+    try { await Promise.all([...selected].map((id) => api.delete(`/idioms/${id}`))); load(); }
+    catch (e: unknown) { setError(e instanceof Error ? e.message : 'Алдаа'); }
+    finally { setBulkBusy(false); }
   }
 
   async function bulkGenerateImages() {
@@ -352,9 +380,21 @@ export default function IdiomsPage() {
   const columns = [
     {
       key: 'sel',
-      header: <input type="checkbox" checked={allChecked} onChange={toggleAll} />,
+      header: (
+        <input type="checkbox" checked={allChecked} onChange={toggleSelectAll}
+          className="h-4 w-4 rounded border-gray-300 accent-primary" />
+      ),
       render: (it: Idiom) => (
-        <input type="checkbox" checked={selected.has(it.id)} onChange={() => toggleRow(it.id)} />
+        <input type="checkbox" checked={selected.has(it.id)}
+          className="h-4 w-4 rounded border-gray-300 accent-primary"
+          // Capture Shift on mousedown (the change event has no shiftKey); the
+          // select itself runs in onChange which always fires on a toggle.
+          onMouseDown={(e) => { shiftKeyRef.current = e.shiftKey; }}
+          onClick={(e) => e.stopPropagation()}
+          onChange={() => {
+            window.getSelection()?.removeAllRanges();
+            selectRow(idioms.findIndex((x) => x.id === it.id), shiftKeyRef.current);
+          }} />
       ),
       className: 'w-8',
     },
@@ -409,27 +449,28 @@ export default function IdiomsPage() {
         }
       />
 
-      {/* Filter + bulk bar */}
+      {/* Filter bar */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <Button variant={onlyNoImage ? 'primary' : 'secondary'} size="sm" onClick={() => { setOnlyNoImage((v) => !v); setPage(1); }}>
           {onlyNoImage ? '✓ ' : ''}Зураггүй
         </Button>
-        {idioms.length > 0 && (
-          <Button variant="secondary" size="sm" onClick={toggleAll}>
-            {allChecked ? 'Сонголт цуцлах' : 'Бүгдийг сонгох'}
-          </Button>
-        )}
-        {selected.size > 0 && (
-          <>
-            <span className="text-sm text-gray-500">{selected.size} сонгосон:</span>
-            <Button variant="secondary" size="sm" onClick={() => bulkPublish(true)}>Нийтлэх</Button>
-            <Button variant="secondary" size="sm" onClick={() => bulkPublish(false)}>Ноорог болгох</Button>
-            <Button size="sm" onClick={bulkGenerateImages} disabled={!!imageJob && !imageJob.done}>
-              <ImageIcon className="h-4 w-4" /> Зураг үүсгэх ({selected.size})
-            </Button>
-          </>
-        )}
       </div>
+
+      {/* Bulk action bar (appears when rows are selected — like the Words page) */}
+      {selected.size > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primarySoft px-4 py-2 text-sm">
+          <span className="font-medium text-primary">{selected.size} сонгосон:</span>
+          <Button size="sm" onClick={() => bulkPublish(true)} disabled={bulkBusy}>Нийтлэх</Button>
+          <Button variant="secondary" size="sm" onClick={() => bulkPublish(false)} disabled={bulkBusy}>Ноорог болгох</Button>
+          <Button variant="secondary" size="sm" onClick={bulkGenerateImages} disabled={bulkBusy || (!!imageJob && !imageJob.done)} title="Сонгосон хэлцэд AI зураг үүсгэх">
+            <ImageIcon className="h-4 w-4 text-primary" /> Зураг үүсгэх
+          </Button>
+          <Button variant="ghost" size="sm" onClick={bulkDelete} disabled={bulkBusy}>
+            <Trash2 className="h-4 w-4 text-red-500" /> Устгах
+          </Button>
+          <button onClick={() => setSelected(new Set())} className="ml-auto text-xs text-gray-500 hover:underline">Цуцлах</button>
+        </div>
+      )}
 
       {imageJob && (
         <div className="mb-3">
