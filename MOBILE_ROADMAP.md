@@ -338,3 +338,49 @@ mockup-аар дахин зохион барьсан. Дизайны эх сур
       AI chat-ийн хариунд `TappableText` холбосон. — 👤 Усухбаяр ✅
 - [ ] **Profession AI buddies**-ийг mobile-д ил гаргах.
 - [ ] **Streak / badge** UI (backend tracking бэлэн болоход).
+
+---
+
+## 🎯 Phase M7 — Reading feature (4 шинэ функц) `[ ]` — 👥 Choi + Boju
+
+> Эх сурвалж: `SparkXP_reading_feature_IT_spec_MN.docx`. Reading-ийг текст
+> уншигч биш → **үг таах + ахиц + түвшин + унших/сонсох/дуудлага** систем
+> болгоно. Backend дэмжлэг **Бишрэлт**-ээс (`ROADMAP.md` → "Reading feature
+> backend"). Зарчим: цэвэр/хурдан UI, хэт animation хэрэггүй; **бүх learning
+> action хадгалагдана**; audio нэг удаа generate → storage (real-time биш).
+
+**Урьдчилсан нөхцөл (Choi — Lessons домэйны хэсэг):**
+- [ ] **Reading reader дэлгэц** — `type=reading` контентыг өгүүлбэр болгон
+      харуулах base reader (passage view, үг tap хийх боломжтой). Энэ дээр доорх
+      4 функц нэмэгдэнэ. `mobile/app/lesson/[id].tsx` / шинэ `reading/[id].tsx`.
+
+### 👤 Choi — vocabulary төвтэй 2 функц
+
+**F1. Guess Before Translate**
+- [ ] Үг дээр tap → шууд орчуулга биш, **3 сонголттой "утга таах" popup** (1 зөв, 2 төөрөгдүүлэх).
+- [ ] Хариултын дараа: зөв/буруу feedback → бүрэн dictionary card (EN/MN утга, POS, жишээ, дуудлага, **Save word**).
+- [ ] "Show meaning" товч → шууд харуулна, гэхдээ **XP өгөхгүй**.
+- [ ] Answer history backend рүү илгээх (correct/wrong/skipped/saved). Saved → одоо байгаа Saved Words урсгалд холбоно.
+
+**F3. Unknown Words Meter**
+- [ ] Уншихаас **өмнө** мэдээллийн самбар: ойролцоо хугацаа · шинэ/хэцүү үгийн тоо · difficulty (Easy/Medium/Hard) · CEFR · 5 гол үгийн preview.
+- [ ] Хэт олон шинэ үг → "Easy version унших уу?" / "Preview vocabulary first" санал.
+- [ ] Уншсаны дараа **summary** (сурсан үг, маргааш review хийх үг, хадгалсан үг).
+
+### 👤 Boju — progress + audio төвтэй 2 функц
+
+**F2. Reading Streak Garden / Library**
+- [ ] Reading home дээр **"My Reading Progress"** — нийт уншсан текст, дуусгасан chapter, streak (3/7/30 хоног).
+- [ ] **Shelf/Library** — дуусгасан контент card/cover хэлбэрээр; book completion progress + "Book Finished" trophy.
+- [ ] **Badge** холболт (First Read, 7-Day Reader, Fact Hunter...). Streak тасрахад **зөөлөн wording** ("Start again today").
+- [ ] *Дизайн: premium/clean, childish/battle/fantasy биш.*
+
+**F4. Shadow Reading Mode**
+- [ ] **Sentence-by-sentence** audio тоглож, явж буй өгүүлбэр **highlight**; replay.
+- [ ] **"Repeat after audio"** → хэрэглэгч хэлнэ → **STT/AI** basic дуудлага шалгана (зөөлөн feedback, 1–2 алдаа л).
+- [ ] Төгсгөлд summary: completed, pronunciation score, хэцүү үгс.
+- [ ] *Audio real-time биш — admin generate хийсэн файл + sentence timing metadata ашиглана.*
+
+> ⚠️ **Хуваалцсан зүйл (зарлаад, жижиг PR):** base reader дэлгэц + үг tap логик +
+> dictionary card component нь F1/F3-д хэрэгтэй (Choi эзэмшинэ); Boju энэ дээр
+> F2/F4 нэмнэ. `theme.ts`/`components`-д шинэ зүйл нэмбэл чатад зарлаад ор.

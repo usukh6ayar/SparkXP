@@ -198,6 +198,48 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
 
 ---
 
+## 📖 Reading feature backend `[ ]` — 👤 Бишрэлт (mobile: Choi/Boju)
+
+> Mobile Phase M7-ийн дэмжлэг (`MOBILE_ROADMAP.md` + `SparkXP_reading_feature_IT_spec_MN.docx`).
+> Гол зарчим: **бүх learning action хадгалагдана** (review/recommendation/teacher
+> report-д ашиглана); audio/TTS **нэг удаа generate → storage**, real-time биш.
+
+**Контент / metadata**
+- [ ] Reading content бүрт metadata: `cefr`, `word_count`, `key_vocab[]`,
+      `estimated_reading_time`, **өгүүлбэрт хуваасан текст** + (боломжтой бол)
+      audio sentence **start/end timestamp**. (Lesson `type=reading` дээр өргөтгөх.)
+- [ ] Admin: reading content + audio + vocab + CEFR upload/publish (одоогийн Words
+      pipeline-тэй уялдуулах — image/audio Cloudinary-д хадгалах загвар хэвээр).
+
+**F1 Guess Before Translate (Choi UI)**
+- [ ] Word бүрт EN/MN meaning, POS, example, CEFR (ихэнх нь Words DB-д бэлэн).
+- [ ] **Guess choices AI-аар үүсгэх** (1 зөв + 2 логик төөрөгдүүлэх, хэт ойлгомжтой биш)
+      + **admin review** боломж.
+- [ ] Answer history endpoint: `correct/wrong/skipped/saved` хадгалах.
+
+**F2 Reading Streak / Library (Boju UI)** — progress tracking
+- [ ] User reading stats: `completed_readings_count`, `completed_chapters_count`,
+      `current_reading_streak`, `longest_reading_streak`, `books_finished_count`,
+      `average_quiz_score`, `total_saved_words_from_reading`.
+- [ ] Badge logic (First Read, 7-Day Reader, Fact Hunter...) + endpoint.
+
+**F3 Unknown Words Meter (Choi UI)**
+- [ ] **User vocabulary profile**: saved / mastered / weak / guessed-wrong words.
+- [ ] Difficulty estimate endpoint: текстийн үгсийг user profile-тэй харьцуулж
+      шинэ үгийн тоо + difficulty label буцаах (intelligent estimate, 100% биш).
+- [ ] Recommendation: хэт амар/хэт хэцүү текст санал болгохгүй (энэ profile дээр).
+
+**F4 Shadow Reading Mode (Boju UI)**
+- [ ] Sentence split + audio timing API (дээрх metadata).
+- [ ] **STT / pronunciation check** endpoint (богино sentence, cost хяналттай) —
+      AI Gateway-аар. *Phase 3 (voice) дотор багтаж болно.*
+
+**Teacher / Admin**
+- [ ] Teacher dashboard data: student бүрийн уншсан текст, quiz score, saved words,
+      weak words. (Одоогийн teacher report endpoint-уудыг өргөтгөх.)
+
+---
+
 ## 📑 Doc-aligned backlog — Product Brief-ээс (coordinate)
 
 > Hustle Hive docx-ийн дагуу (`PRODUCT_BRIEF.md`) backend-д нэмэх ёстой зүйлс.
