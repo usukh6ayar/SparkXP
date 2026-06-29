@@ -18,6 +18,7 @@ import { Notification } from './notification.entity';
 import { ClassJoinRequest } from './class-join-request.entity';
 import { AiBuddy } from './ai-buddy.entity';
 import { AssignmentCompletion } from './assignment-completion.entity';
+import { ReadingPassage } from './reading-passage.entity';
 
 export {
   Organization,
@@ -39,6 +40,7 @@ export {
   ClassJoinRequest,
   AiBuddy,
   AssignmentCompletion,
+  ReadingPassage,
 };
 
 /** Single list to feed TypeORM's `entities` option. */
@@ -62,4 +64,5 @@ export const entities = [
   ClassJoinRequest,
   AiBuddy,
   AssignmentCompletion,
+  ReadingPassage,
 ];

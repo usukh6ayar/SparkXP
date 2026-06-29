@@ -18,6 +18,7 @@ export const STAFF_ROLES = ['moderator', 'admin', 'super_admin'] as const;
 export const MODERATOR_PATHS = [
   '/words',
   '/lessons',
+  '/reading',
   '/quizzes',
   '/classes',
   '/buddy',

@@ -91,6 +91,27 @@
 > Унших=`reading`, Нөхөх=`fill`, Бичих=`writing`.) `reading`/`writing`/`fill`
 > нь 2026-06-09-д нэмэгдсэн (`fill` = нөхөх даалгавар).
 
+## 📖 Reading (Унших материал) — `/api/reading`
+
+Reading feature (M7) — нийтлэлийг metadata-тай админаас үүсгэнэ. Phase 1 = CRUD.
+
+| Method | Path | Auth | Тайлбар |
+|---|---|:---:|---|
+| GET | `/reading` | 🔑 | Жагсаалт (`?cefr&search&page&limit`; оюутан зөвхөн published, админ `?all=true`) |
+| GET | `/reading/:id` | 🔑 | Нэг нийтлэл |
+| POST | `/reading` | 🛡️ | Үүсгэх. Сервер `wordCount`/`estimatedReadingTime`-г `sentences`-ээс тооцно |
+| PATCH | `/reading/:id` | 🛡️ | Засах / publish toggle |
+| DELETE | `/reading/:id` | 🛡️ | Устгах |
+
+> **Бүтэц:** `title`, `cefr` (ContentLevel), `coverImageUrl`, `keyVocab` jsonb
+> (`{word, correctMeaning?, choices?, correctIndex?, reviewed?}[]` — Phase 2
+> guess-choices), `sentences` jsonb (`{index, text, audioUrl, startMs?, endMs?}[]`
+> — Phase 3 audio), `isPublished`. `wordCount`/`estimatedReadingTime` (секунд) нь
+> сервер талд тооцогддог.
+>
+> 🔜 Phase 2: `POST /reading/guess-choices` (AI). Phase 3: `POST
+> /reading/:id/generate-audio` + poll + per-sentence regen.
+
 ## ❓ Quizzes (Сорил) — `/api/quizzes`
 
 | Method | Path | Auth | Тайлбар |

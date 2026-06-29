@@ -24,6 +24,7 @@ import { UploadModule } from './upload/upload.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
 import { DictionaryModule } from './dictionary/dictionary.module';
+import { ReadingModule } from './reading/reading.module';
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { DictionaryModule } from './dictionary/dictionary.module';
     NotificationsModule,
     SchedulerModule,
     DictionaryModule,
+    ReadingModule,
   ],
 })
 export class AppModule {}
