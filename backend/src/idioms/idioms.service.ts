@@ -6,7 +6,8 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ILike, Repository } from 'typeorm';
+import { ILike, In, IsNull, Repository } from 'typeorm';
+import { randomUUID } from 'crypto';
 import { Idiom } from '../entities/idiom.entity';
 import { CreateIdiomDto } from './dto/create-idiom.dto';
 import { UpdateIdiomDto } from './dto/update-idiom.dto';
@@ -23,6 +24,15 @@ export interface PaginatedIdioms {
   limit: number;
 }
 
+/** Live progress of a background bulk-image job. */
+export interface IdiomImageJob {
+  total: number;
+  processed: number;
+  ok: number;
+  failed: number;
+  done: boolean;
+}
+
 /** Text fields the AI fills for an idiom (admin reviews before saving). */
 export interface IdiomAiFill {
   mongolian: string;
@@ -36,6 +46,8 @@ export interface IdiomAiFill {
 @Injectable()
 export class IdiomsService {
   private readonly logger = new Logger(IdiomsService.name);
+  /** In-memory bulk-image job progress, keyed by jobId (single instance — MVP). */
+  private readonly imageJobs = new Map<string, IdiomImageJob>();
 
   constructor(
     private readonly config: ConfigService,
@@ -65,6 +77,7 @@ export class IdiomsService {
 
     const base: Record<string, unknown> = {};
     if (!query.all) base.isPublished = true;
+    if (query.noImage) base.imageUrl = IsNull();
 
     if (query.search) {
       // search over phrase OR mongolian (keep the published gate on both)
@@ -106,6 +119,84 @@ export class IdiomsService {
   async remove(id: string): Promise<void> {
     const idiom = await this.findOne(id);
     await this.idioms.remove(idiom);
+  }
+
+  /** Bulk-edit selected idioms (e.g. publish/unpublish many at once). */
+  async bulkUpdate(
+    ids: string[],
+    changes: { isPublished?: boolean },
+  ): Promise<{ updated: number }> {
+    if (!ids.length) return { updated: 0 };
+    const res = await this.idioms.update({ id: In(ids) }, changes);
+    return { updated: res.affected ?? 0 };
+  }
+
+  /** Generate an illustrative image (OpenAI) for one idiom; caches the URL. */
+  async generateImage(id: string, userId: string): Promise<{ imageUrl: string }> {
+    const idiom = await this.findOne(id);
+    const { imageUrl } = await this.aiGateway.generateVocabularyImage({
+      userId,
+      wordId: id,
+      english: idiom.phrase,
+      mongolian: idiom.meaning ?? idiom.mongolian,
+      partOfSpeech: 'idiom',
+      exampleSentence: idiom.exampleSentence,
+    });
+    idiom.imageUrl = imageUrl;
+    await this.idioms.save(idiom);
+    return { imageUrl };
+  }
+
+  // ── Bulk image generation (background, like Words) ──────────────────────────
+
+  /** Start a background job that generates images for selected idioms. */
+  startBulkImages(ids: string[], userId: string): string {
+    const jobId = randomUUID();
+    const job: IdiomImageJob = {
+      total: ids.length, processed: 0, ok: 0, failed: 0, done: false,
+    };
+    this.imageJobs.set(jobId, job);
+    this.runBulkImages(ids, userId, job)
+      .catch((e) => this.logger.error(`[idiom images] job ${jobId} crashed: ${e?.message ?? e}`))
+      .finally(() => {
+        job.done = true;
+        setTimeout(() => this.imageJobs.delete(jobId), 5 * 60_000);
+      });
+    return jobId;
+  }
+
+  getImageJob(jobId: string): IdiomImageJob | undefined {
+    return this.imageJobs.get(jobId);
+  }
+
+  private async runBulkImages(ids: string[], userId: string, job: IdiomImageJob): Promise<void> {
+    // Pace OpenAI image calls in parallel batches (default 5/sec) like Words.
+    const mode = String(this.config.get('IMAGE_RATE_MODE') ?? 'normal').toLowerCase();
+    const preset =
+      mode === 'safe' ? { batch: 1, interval: 1_000 }
+      : mode === 'low' ? { batch: 1, interval: 10_000 }
+      : { batch: 5, interval: 1_000 };
+    const BATCH = Number(this.config.get('OPENAI_IMAGE_BATCH') ?? preset.batch);
+    const INTERVAL = Number(this.config.get('OPENAI_IMAGE_BATCH_INTERVAL_MS') ?? preset.interval);
+
+    const processOne = async (id: string) => {
+      try {
+        await this.generateImage(id, userId);
+        job.ok++;
+      } catch (e) {
+        job.failed++;
+        this.logger.error(`[idiom images] failed ${id}: ${(e as Error)?.message}`);
+      } finally {
+        job.processed++;
+      }
+    };
+
+    for (let i = 0; i < ids.length; i += BATCH) {
+      const start = Date.now();
+      await Promise.all(ids.slice(i, i + BATCH).map(processOne));
+      const elapsed = Date.now() - start;
+      if (i + BATCH < ids.length && elapsed < INTERVAL) await sleep(INTERVAL - elapsed);
+    }
   }
 
   /** Generate pronunciation audio (ElevenLabs) for an idiom, cache the URL. */

@@ -54,6 +54,37 @@ export class IdiomsController {
     return this.idiomsService.aiFill(phrase.trim());
   }
 
+  /** Bulk-edit selected idioms (e.g. publish). Before `:id`. */
+  @Patch('bulk')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  bulkUpdate(@Body('ids') ids: string[], @Body('isPublished') isPublished?: boolean) {
+    if (!Array.isArray(ids) || ids.length === 0) {
+      throw new BadRequestException('"ids" массив шаардлагатай');
+    }
+    return this.idiomsService.bulkUpdate(ids, { isPublished });
+  }
+
+  /** Generate images (OpenAI) for selected idioms in the background → { jobId }. */
+  @Post('bulk-generate-images')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  bulkGenerateImages(@CurrentUser() user: User, @Body('ids') ids: string[]) {
+    if (!Array.isArray(ids) || ids.length === 0) {
+      throw new BadRequestException('"ids" массив шаардлагатай');
+    }
+    const jobId = this.idiomsService.startBulkImages(ids, user.id);
+    return { started: true, background: true, requested: ids.length, jobId };
+  }
+
+  /** Poll a bulk-image job. Before `:id`. */
+  @Get('image-job/:jobId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  imageJob(@Param('jobId') jobId: string) {
+    return this.idiomsService.getImageJob(jobId) ?? { done: true, expired: true };
+  }
+
   @Get(':id')
   @UseGuards(JwtAuthGuard)
   findOne(@Param('id', ParseUUIDPipe) id: string) {
@@ -81,5 +112,13 @@ export class IdiomsController {
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
   generateAudio(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string) {
     return this.idiomsService.generateAudio(id, user.id);
+  }
+
+  /** Generate an illustrative image (OpenAI) for one idiom. */
+  @Post(':id/generate-image')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  generateImage(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string) {
+    return this.idiomsService.generateImage(id, user.id);
   }
 }

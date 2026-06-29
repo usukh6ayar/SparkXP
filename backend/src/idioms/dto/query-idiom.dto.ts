@@ -16,6 +16,11 @@ export class QueryIdiomDto {
   @IsString()
   search?: string;
 
+  /** Admin: only idioms missing an image (image_url IS NULL). */
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  noImage?: boolean;
+
   @IsOptional()
   @Type(() => Number)
   @IsInt()
