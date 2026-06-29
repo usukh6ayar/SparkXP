@@ -25,6 +25,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
 import { DictionaryModule } from './dictionary/dictionary.module';
 import { ReadingModule } from './reading/reading.module';
+import { IdiomsModule } from './idioms/idioms.module';
 
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { ReadingModule } from './reading/reading.module';
     SchedulerModule,
     DictionaryModule,
     ReadingModule,
+    IdiomsModule,
   ],
 })
 export class AppModule {}

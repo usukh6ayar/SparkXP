@@ -20,6 +20,7 @@ import { AiBuddy } from './ai-buddy.entity';
 import { AssignmentCompletion } from './assignment-completion.entity';
 import { ReadingPassage } from './reading-passage.entity';
 import { Translation } from './translation.entity';
+import { Idiom } from './idiom.entity';
 
 export {
   Organization,
@@ -43,6 +44,7 @@ export {
   AssignmentCompletion,
   ReadingPassage,
   Translation,
+  Idiom,
 };
 
 /** Single list to feed TypeORM's `entities` option. */
@@ -68,4 +70,5 @@ export const entities = [
   AssignmentCompletion,
   ReadingPassage,
   Translation,
+  Idiom,
 ];

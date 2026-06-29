@@ -304,6 +304,21 @@ export default function HomeScreen() {
           <Ionicons name="chevron-forward" size={20} color={colors.borderStrong} />
         </Pressable>
 
+        {/* Idioms */}
+        <Pressable
+          style={({ pressed }) => [styles.joinCard, pressed && styles.pressed]}
+          onPress={() => router.push("/idioms")}
+        >
+          <View style={[styles.joinIcon, { backgroundColor: tints.amber.bg }]}>
+            <Ionicons name="chatbubbles" size={22} color={tints.amber.fg} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <AppText variant="h3">Хэлц үг</AppText>
+            <AppText variant="caption">Англи хэлц үгсийг утгатай нь сур</AppText>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={colors.borderStrong} />
+        </Pressable>
+
         {/* Learn categories */}
         <SectionHeader
           title="Юу сурах вэ?"
