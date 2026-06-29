@@ -285,8 +285,10 @@ WordReview, XpLog, AiUsage, Message, Payment, SparksLog, LessonUnlock.
   git checkout <your-branch> && git merge main   # bring in their merged work
   ```
 - `main` is always working/deployable. **Never push directly to `main`.**
-- One branch per dev/task: `usukhbayar`, `bishrelt`, or `feature/...` / `fix/...`.
-- Open a Pull Request, have the other dev review, then merge to `main`.
+- **Each dev works on their own branch** — `usukhbayar`, `bishrelt`, `choi`,
+  `boju` (or a `feature/...` / `fix/...` branch for a specific task). Never
+  commit on someone else's branch.
+- Open a Pull Request, have another dev review, then merge to `main`.
 - Keep PRs small and frequent. Split work by module to avoid conflicts.
 - `.env` is never committed (secrets). Update `.env.example` when adding new
   config keys so the other dev knows to set them.
