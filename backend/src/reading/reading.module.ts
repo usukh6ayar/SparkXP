@@ -3,13 +3,15 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ReadingPassage } from '../entities/reading-passage.entity';
 import { ReadingService } from './reading.service';
 import { ReadingController } from './reading.controller';
+import { AiGatewayModule } from '../ai-gateway/ai-gateway.module';
+import { XpModule } from '../xp/xp.module';
 
 /**
- * Reading passages (Reading feature, M7). CRUD only for Phase 1; Phase 2 (AI
- * guess-choices) and Phase 3 (sentence audio) will add AiGatewayModule here.
+ * Reading passages (Reading feature, M7): CRUD + AI guess-choices (F1) +
+ * sentence audio (F4) + XP on completion.
  */
 @Module({
-  imports: [TypeOrmModule.forFeature([ReadingPassage])],
+  imports: [TypeOrmModule.forFeature([ReadingPassage]), AiGatewayModule, XpModule],
   controllers: [ReadingController],
   providers: [ReadingService],
   exports: [ReadingService],

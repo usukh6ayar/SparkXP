@@ -91,6 +91,7 @@ export enum XpSource {
   ASSIGNMENT = "assignment",
   STREAK = "streak",
   AI_BUDDY = "ai_buddy",
+  READING = "reading",
 }
 
 /** Which AI capability consumed budget — the AI Gateway logs this per call. */

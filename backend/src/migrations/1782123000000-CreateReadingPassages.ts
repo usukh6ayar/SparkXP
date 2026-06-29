@@ -34,6 +34,10 @@ export class CreateReadingPassages1782123000000 implements MigrationInterface {
     await queryRunner.query(
       `CREATE INDEX "IDX_reading_passages_published" ON "reading_passages" ("is_published")`,
     );
+    // XP can now come from finishing a reading passage.
+    await queryRunner.query(
+      `ALTER TYPE "public"."xp_logs_source_enum" ADD VALUE IF NOT EXISTS 'reading'`,
+    );
   }
 
   async down(queryRunner: QueryRunner): Promise<void> {

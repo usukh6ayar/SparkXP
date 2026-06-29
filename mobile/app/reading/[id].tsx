@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
-import { View, StyleSheet, ScrollView, Image } from 'react-native';
+import { View, StyleSheet, ScrollView, Image, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/auth/AuthContext';
-import { getReadingPassage, type ReadingPassage } from '../../src/api/reading';
+import {
+  getReadingPassage,
+  completeReading,
+  type ReadingPassage,
+} from '../../src/api/reading';
 import { TopBar } from '../../src/components/TopBar';
 import { AppText } from '../../src/components/Text';
 import { TappableText } from '../../src/components/DictionaryProvider';
@@ -29,6 +33,18 @@ export default function ReadingDetailScreen() {
   const { token } = useAuth();
   const [passage, setPassage] = useState<ReadingPassage | null>(null);
   const [loading, setLoading] = useState(true);
+  const [done, setDone] = useState(false);
+
+  const finish = useCallback(async () => {
+    if (!token || !id || done) return;
+    try {
+      await completeReading(id, token);
+    } catch {
+      // ignore — still show as done locally
+    } finally {
+      setDone(true);
+    }
+  }, [token, id, done]);
 
   const load = useCallback(async () => {
     if (!token || !id) return;
@@ -134,6 +150,25 @@ export default function ReadingDetailScreen() {
             💡 Үг дээр 2 удаа дарвал монгол утга гарч ирнэ
           </AppText>
 
+          <Pressable
+            onPress={finish}
+            disabled={done}
+            style={({ pressed }) => [
+              styles.finishBtn,
+              done && styles.finishBtnDone,
+              pressed && !done && { opacity: 0.9 },
+            ]}
+          >
+            <Ionicons
+              name={done ? 'checkmark-circle' : 'checkmark-done'}
+              size={20}
+              color={colors.white}
+            />
+            <AppText variant="bodyStrong" color={colors.white}>
+              {done ? 'Уншиж дууслаа ✓' : 'Уншиж дууслаа (+15 XP)'}
+            </AppText>
+          </Pressable>
+
           <View style={{ height: 60 }} />
         </ScrollView>
       )}
@@ -186,6 +221,17 @@ const styles = StyleSheet.create({
 
   body: { gap: spacing.sm },
   hint: { marginTop: spacing.md, textAlign: 'center' },
+  finishBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.primary,
+    borderRadius: radius.lg,
+    paddingVertical: spacing.md,
+    marginTop: spacing.lg,
+  },
+  finishBtnDone: { backgroundColor: colors.success },
 
   empty: { marginTop: spacing.xxl },
 });
