@@ -10,7 +10,10 @@ import { Input } from '../../components/Input';
 import { Select } from '../../components/Select';
 import { FormActions } from '../../components/FormActions';
 import { RowActions } from '../../components/RowActions';
+import { Pagination } from '../../components/Pagination';
 import { levelFormOptions as LEVEL_OPTIONS } from '../../lib/options';
+
+const LIMIT = 20;
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -301,6 +304,8 @@ const emptyForm = (qt = 'word_guess'): QuizForm => ({
 
 export default function QuizzesPage() {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
   const [modal, setModal] = useState<null | 'create' | 'edit'>(null);
   const [editing, setEditing] = useState<Quiz | null>(null);
   const [form, setForm] = useState<QuizForm>(emptyForm());
@@ -308,9 +313,10 @@ export default function QuizzesPage() {
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
-    const data = await api.get<{ items: Quiz[] }>('/quizzes');
+    const data = await api.get<{ items: Quiz[]; total: number }>(`/quizzes?page=${page}&limit=${LIMIT}`);
     setQuizzes(data.items ?? []);
-  }, []);
+    setTotal(data.total ?? 0);
+  }, [page]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -445,6 +451,7 @@ export default function QuizzesPage() {
       />
 
       <Table columns={columns} rows={quizzes} keyFn={(q) => q.id} empty="Quiz байхгүй" />
+      <Pagination page={page} total={total} limit={LIMIT} onPage={setPage} />
 
       {modal && (
         <Modal

@@ -21,7 +21,10 @@ import { Select } from '../../components/Select';
 import { ImageCropUpload } from '../../components/ImageCropUpload';
 import { FormActions } from '../../components/FormActions';
 import { RowActions } from '../../components/RowActions';
+import { Pagination } from '../../components/Pagination';
 import { levelFormOptions as levelOptions } from '../../lib/options';
+
+const LIMIT = 20;
 
 interface KeyVocab {
   word: string;
@@ -94,6 +97,8 @@ function fmtTime(sec: number): string {
 
 export default function ReadingPage() {
   const [passages, setPassages] = useState<Passage[]>([]);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
   const [modal, setModal] = useState<null | 'create' | 'edit'>(null);
   const [editing, setEditing] = useState<Passage | null>(null);
   const [form, setForm] = useState<ReadingForm>(emptyForm);
@@ -109,9 +114,10 @@ export default function ReadingPage() {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const load = useCallback(async () => {
-    const data = await api.get<{ items: Passage[] }>('/reading?all=true&limit=200');
+    const data = await api.get<{ items: Passage[]; total: number }>(`/reading?all=true&page=${page}&limit=${LIMIT}`);
     setPassages(data.items ?? []);
-  }, []);
+    setTotal(data.total ?? 0);
+  }, [page]);
 
   useEffect(() => {
     load();
@@ -377,6 +383,7 @@ export default function ReadingPage() {
         action={<Button onClick={openCreate}><Plus className="h-4 w-4" /> Материал нэмэх</Button>}
       />
       <Table columns={columns} rows={passages} keyFn={(p) => p.id} empty="Унших материал байхгүй" />
+      <Pagination page={page} total={total} limit={LIMIT} onPage={setPage} />
 
       {(modal === 'create' || modal === 'edit') && (
         <Modal title={modal === 'create' ? 'Унших материал нэмэх' : 'Унших материал засах'} onClose={closeModal} size="2xl">

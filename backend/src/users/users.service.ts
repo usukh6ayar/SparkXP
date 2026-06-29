@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { ILike, Repository } from 'typeorm';
 import { User } from '../entities/user.entity';
 import { Plan } from '../entities/plan.entity';
 import { UpdateProfileDto } from './dto/update-profile.dto';
@@ -138,8 +138,22 @@ export class UsersService {
   }
 
   /** Admin: paginated user list (password hashes stripped). */
-  async findAll(page = 1, limit = 20): Promise<[SafeUser[], number]> {
+  async findAll(
+    page = 1,
+    limit = 20,
+    search?: string,
+  ): Promise<[SafeUser[], number]> {
+    // Case-insensitive search across email / full name / username / phone.
+    const where = search?.trim()
+      ? [
+          { email: ILike(`%${search.trim()}%`) },
+          { fullName: ILike(`%${search.trim()}%`) },
+          { username: ILike(`%${search.trim()}%`) },
+          { phone: ILike(`%${search.trim()}%`) },
+        ]
+      : undefined;
     const [users, total] = await this.users.findAndCount({
+      where,
       order: { createdAt: 'DESC' },
       skip: (page - 1) * limit,
       take: limit,

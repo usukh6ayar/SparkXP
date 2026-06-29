@@ -11,6 +11,7 @@ import { Select } from '../../components/Select';
 import { ImageCropUpload } from '../../components/ImageCropUpload';
 import { FileUpload } from '../../components/FileUpload';
 import { FormActions } from '../../components/FormActions';
+import { Pagination } from '../../components/Pagination';
 import { levelFilterOptions as levelOptions, levelFormOptions, CEFR_LEVELS as VALID_LEVELS } from '../../lib/options';
 
 // ── Interfaces ─────────────────────────────────────────────────────────────
@@ -184,6 +185,8 @@ function extractEnglish(name: string, text: string): string[] {
 
 export default function WordsPage() {
   const [words, setWords] = useState<Word[]>([]);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 50;
   const [stats, setStats] = useState<WordStats | null>(null);
   const [analytics, setAnalytics] = useState<WordAnalytics | null>(null);
   const [showAnalytics, setShowAnalytics] = useState(false);
@@ -246,6 +249,11 @@ export default function WordsPage() {
   }, [statusTab, levelFilter, mediaFilter, search]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Display pagination only — `words` holds the full filtered set (up to 5000) so
+  // "select all → batch image" still covers everything; we just page the table.
+  useEffect(() => { setPage(1); }, [statusTab, levelFilter, mediaFilter, search]);
+  const pagedWords = words.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   useEffect(() => { loadStats(); }, [loadStats]);
   // On open, surface any image-batch run already in progress on the server
   // (started earlier / by another admin) and keep showing its progress.
@@ -950,7 +958,8 @@ export default function WordsPage() {
         );
       })()}
 
-      <Table columns={columns} rows={words} keyFn={(w) => w.id} empty="Үг байхгүй байна" />
+      <Table columns={columns} rows={pagedWords} keyFn={(w) => w.id} empty="Үг байхгүй байна" />
+      <Pagination page={page} total={words.length} limit={PAGE_SIZE} onPage={setPage} />
 
       {/* Image lightbox — click a thumbnail to view it large */}
       {previewImage && (

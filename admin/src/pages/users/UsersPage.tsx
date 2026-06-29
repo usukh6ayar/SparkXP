@@ -8,6 +8,9 @@ import { Badge } from '../../components/Badge';
 import { Table } from '../../components/Table';
 import { Select } from '../../components/Select';
 import { Modal } from '../../components/Modal';
+import { Pagination } from '../../components/Pagination';
+
+const LIMIT = 20;
 
 interface User {
   id: string; email: string; fullName: string;
@@ -42,15 +45,24 @@ const TROPHY_DEFS: Record<string, { label: string; emoji: string }> = {
 export default function UsersPage() {
   const { user: me } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
   const [search, setSearch] = useState('');
   const [trophyUser, setTrophyUser] = useState<User | null>(null);
 
   const load = useCallback(async () => {
-    const data = await api.get<{ items: User[] }>('/users');
+    let url = `/users?page=${page}&limit=${LIMIT}`;
+    if (search.trim()) url += `&search=${encodeURIComponent(search.trim())}`;
+    const data = await api.get<{ items: User[]; total: number }>(url);
     setUsers(data.items ?? []);
-  }, []);
+    setTotal(data.total ?? 0);
+  }, [page, search]);
 
-  useEffect(() => { load(); }, [load]);
+  // Debounce so typing in the search box doesn't fire a request per keystroke.
+  useEffect(() => {
+    const t = setTimeout(() => load(), 300);
+    return () => clearTimeout(t);
+  }, [load]);
 
   async function changeRole(userId: string, role: string) {
     await api.patch(`/users/${userId}`, { role });
@@ -63,14 +75,6 @@ export default function UsersPage() {
     await api.delete(`/users/${u.id}`);
     load();
   }
-
-  const filtered = users.filter(
-    (u) =>
-      u.email.includes(search) ||
-      u.fullName.toLowerCase().includes(search.toLowerCase()) ||
-      (u.username ?? '').toLowerCase().includes(search.toLowerCase()) ||
-      (u.phone ?? '').includes(search),
-  );
 
   const columns = [
     {
@@ -134,20 +138,17 @@ export default function UsersPage() {
 
   return (
     <>
-      <PageHeader title="Хэрэглэгчид" description={`Нийт: ${users.length}`} />
+      <PageHeader title="Хэрэглэгчид" description={`Нийт: ${total}`} />
       <div className="mb-4 flex gap-3 flex-wrap">
         <input
           className="rounded-lg border border-gray-300 px-3 py-2 text-sm w-72 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
           placeholder="Нэр, имэйл, username, утас хайх..."
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => { setSearch(e.target.value); setPage(1); }}
         />
-        <div className="flex gap-2 text-xs text-gray-500 items-center">
-          <span>🎓 Оюутан: {users.filter(u => u.role === 'student').length}</span>
-          <span>📚 Багш: {users.filter(u => u.role === 'teacher').length}</span>
-        </div>
       </div>
-      <Table columns={columns} rows={filtered} keyFn={(u) => u.id} empty="Хэрэглэгч олдсонгүй" />
+      <Table columns={columns} rows={users} keyFn={(u) => u.id} empty="Хэрэглэгч олдсонгүй" />
+      <Pagination page={page} total={total} limit={LIMIT} onPage={setPage} />
 
       {/* Trophy modal */}
       {trophyUser && (

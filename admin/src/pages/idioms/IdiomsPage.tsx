@@ -10,6 +10,9 @@ import { Input } from '../../components/Input';
 import { ImageCropUpload } from '../../components/ImageCropUpload';
 import { FormActions } from '../../components/FormActions';
 import { RowActions } from '../../components/RowActions';
+import { Pagination } from '../../components/Pagination';
+
+const LIMIT = 20;
 
 interface Idiom {
   id: string;
@@ -69,16 +72,19 @@ export default function IdiomsPage() {
   // Bulk: selection, "no image" filter, image job
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [onlyNoImage, setOnlyNoImage] = useState(false);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
   const [imageJob, setImageJob] = useState<ImageJob | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const load = useCallback(async () => {
-    let url = '/idioms?all=true&limit=500';
+    let url = `/idioms?all=true&page=${page}&limit=${LIMIT}`;
     if (onlyNoImage) url += '&noImage=true';
-    const data = await api.get<{ items: Idiom[] }>(url);
+    const data = await api.get<{ items: Idiom[]; total: number }>(url);
     setIdioms(data.items ?? []);
+    setTotal(data.total ?? 0);
     setSelected(new Set());
-  }, [onlyNoImage]);
+  }, [onlyNoImage, page]);
   useEffect(() => { load(); }, [load]);
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
 
@@ -258,7 +264,7 @@ export default function IdiomsPage() {
 
       {/* Filter + bulk bar */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <Button variant={onlyNoImage ? 'primary' : 'secondary'} size="sm" onClick={() => setOnlyNoImage((v) => !v)}>
+        <Button variant={onlyNoImage ? 'primary' : 'secondary'} size="sm" onClick={() => { setOnlyNoImage((v) => !v); setPage(1); }}>
           {onlyNoImage ? '✓ ' : ''}Зураггүй
         </Button>
         {idioms.length > 0 && (
@@ -290,6 +296,7 @@ export default function IdiomsPage() {
       )}
 
       <Table columns={columns} rows={idioms} keyFn={(i) => i.id} empty="Хэлц байхгүй" />
+      <Pagination page={page} total={total} limit={LIMIT} onPage={setPage} />
 
       {(modal === 'create' || modal === 'edit') && (
         <Modal title={modal === 'create' ? 'Хэлц нэмэх' : 'Хэлц засах'} onClose={() => setModal(null)} size="xl">

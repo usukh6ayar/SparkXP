@@ -7,7 +7,10 @@ import { Modal } from '../../components/Modal';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { FormActions } from '../../components/FormActions';
+import { Pagination } from '../../components/Pagination';
 import { formatDate } from '../../lib/utils';
+
+const LIMIT = 12;
 
 interface ClassRow {
   id: string;
@@ -51,6 +54,7 @@ interface AssignForm {
 
 export default function ClassesPage() {
   const [classes, setClasses] = useState<ClassRow[]>([]);
+  const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [createModal, setCreateModal] = useState(false);
   const [newClassName, setNewClassName] = useState('');
@@ -182,6 +186,8 @@ export default function ClassesPage() {
       c.name.toLowerCase().includes(search.toLowerCase()) ||
       (c.teacherName ?? '').toLowerCase().includes(search.toLowerCase()),
   );
+  // Client-side pagination — /classes/all returns every class at once.
+  const paged = filtered.slice((page - 1) * LIMIT, page * LIMIT);
 
   const targetOptions = (assignForm.type === 'lesson' ? lessons : quizzes).map(o => (
     <option key={o.id} value={o.id}>{o.title}</option>
@@ -204,7 +210,7 @@ export default function ClassesPage() {
           className="rounded-lg border border-gray-300 px-3 py-2 text-sm w-72 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
           placeholder="Ангийн нэр эсвэл багшаар хайх..."
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => { setSearch(e.target.value); setPage(1); }}
         />
       </div>
 
@@ -214,7 +220,7 @@ export default function ClassesPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((c) => (
+          {paged.map((c) => (
             <div
               key={c.id}
               className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
@@ -252,6 +258,7 @@ export default function ClassesPage() {
           ))}
         </div>
       )}
+      <Pagination page={page} total={filtered.length} limit={LIMIT} onPage={setPage} />
 
       {/* Create class modal */}
       {createModal && (

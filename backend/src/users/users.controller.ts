@@ -89,10 +89,12 @@ export class UsersController {
   async findAll(
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('search') search?: string,
   ) {
     const [items, total] = await this.usersService.findAll(
       page ? parseInt(page, 10) : 1,
       limit ? parseInt(limit, 10) : 20,
+      search,
     );
     return { items, total };
   }

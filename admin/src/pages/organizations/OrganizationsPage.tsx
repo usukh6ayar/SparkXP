@@ -10,7 +10,10 @@ import { Input } from '../../components/Input';
 import { Select } from '../../components/Select';
 import { FormActions } from '../../components/FormActions';
 import { RowActions } from '../../components/RowActions';
+import { Pagination } from '../../components/Pagination';
 import { formatDate } from '../../lib/utils';
+
+const LIMIT = 20;
 
 interface Org {
   id: string;
@@ -70,6 +73,7 @@ const empty: OrgForm = { name: '', type: 'school', province: '', district: '' };
 export default function OrganizationsPage() {
   const [orgs, setOrgs] = useState<Org[]>([]);
   const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
   const [typeFilter, setTypeFilter] = useState('');
   const [modal, setModal] = useState<null | 'create' | 'edit'>(null);
   const [editing, setEditing] = useState<Org | null>(null);
@@ -78,11 +82,12 @@ export default function OrganizationsPage() {
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
-    const qs = typeFilter ? `?type=${typeFilter}&limit=100` : '?limit=100';
+    let qs = `?page=${page}&limit=${LIMIT}`;
+    if (typeFilter) qs += `&type=${typeFilter}`;
     const data = await api.get<{ items: Org[]; total: number }>(`/organizations${qs}`);
     setOrgs(data.items ?? []);
     setTotal(data.total ?? 0);
-  }, [typeFilter]);
+  }, [typeFilter, page]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -174,12 +179,13 @@ export default function OrganizationsPage() {
         <Select
           options={TYPE_FILTER_OPTIONS}
           value={typeFilter}
-          onChange={(e) => setTypeFilter(e.target.value)}
+          onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }}
           className="w-48"
         />
       </div>
 
       <Table columns={columns} rows={orgs} keyFn={(o) => o.id} empty="Байгууллага байхгүй байна" />
+      <Pagination page={page} total={total} limit={LIMIT} onPage={setPage} />
 
       {(modal === 'create' || modal === 'edit') && (
         <Modal
