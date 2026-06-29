@@ -15,7 +15,8 @@ export class CreateTranslations1782123500000 implements MigrationInterface {
         "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
         "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
         "word" character varying NOT NULL,
-        "explanation" text NOT NULL,
+        "translation" text NOT NULL,
+        "audio_url" character varying,
         "source" character varying,
         CONSTRAINT "PK_translations_id" PRIMARY KEY ("id")
       )

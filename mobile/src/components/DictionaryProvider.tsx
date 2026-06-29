@@ -1,12 +1,12 @@
 /**
- * Double-tap (tap-a-word) dictionary.
+ * Tap-a-word dictionary.
  *
  * Wrap the app once in <DictionaryProvider>. Anywhere you render English text,
- * use <TappableText> — each word becomes tappable and opens a bottom sheet with
- * a Mongolian explanation (Words DB → AI fallback, see backend /dictionary).
+ * use <TappableText> — each word becomes tappable and opens a small popover
+ * ABOVE the tapped word showing just its Mongolian meaning plus a speaker icon
+ * that pronounces the English word (ElevenLabs, cached).
  *
- * The sheet lives at the root (rendered once) so screens stay lightweight: a
- * tapped word just calls `useDictionary().lookup(word)`.
+ * Backend: Word DB → translation cache → Gemini (see /dictionary).
  */
 import {
   createContext,
@@ -21,47 +21,62 @@ import {
   Pressable,
   StyleSheet,
   ActivityIndicator,
-  ScrollView,
+  Dimensions,
+  type GestureResponderEvent,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useAudioPlayer } from 'expo-audio';
+import * as Speech from 'expo-speech';
 import { useAuth } from '../auth/AuthContext';
-import { lookupWord, type WordExplanation } from '../api/dictionary';
+import { lookupWord, getWordAudio, type WordLookup } from '../api/dictionary';
 import { ApiError } from '../api/client';
 import { AppText } from './Text';
 import { colors, spacing, radius, elevation } from '../theme/theme';
 
+/** Where on screen the tapped word is — the popover anchors above this point. */
+interface Anchor {
+  x: number;
+  y: number;
+}
+
 interface DictionaryState {
-  /** Look a word up and open the explanation sheet. */
-  lookup: (word: string) => void;
+  /** Look a word up and open the popover anchored above the tap point. */
+  lookup: (word: string, anchor: Anchor) => void;
 }
 
 const DictionaryContext = createContext<DictionaryState | undefined>(undefined);
 
+const clamp = (v: number, min: number, max: number) => Math.min(Math.max(v, min), max);
+
 export function DictionaryProvider({ children }: { children: ReactNode }) {
   const { token } = useAuth();
+  const player = useAudioPlayer();
+
   const [word, setWord] = useState<string | null>(null);
+  const [anchor, setAnchor] = useState<Anchor>({ x: 0, y: 0 });
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<WordExplanation | null>(null);
+  const [result, setResult] = useState<WordLookup | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [audioBusy, setAudioBusy] = useState(false);
+  const [size, setSize] = useState({ w: 0, h: 0 });
 
   const close = useCallback(() => setWord(null), []);
 
   const lookup = useCallback(
-    async (raw: string) => {
+    async (raw: string, at: Anchor) => {
       const clean = raw.trim().toLowerCase();
       if (!clean || !token) return;
 
       setWord(clean);
+      setAnchor(at);
       setResult(null);
       setError(null);
+      setSize({ w: 0, h: 0 });
       setLoading(true);
       try {
         setResult(await lookupWord(token, clean));
       } catch (err) {
-        // Plan-limit (403) and other backend messages come through ApiError.
-        setError(
-          err instanceof ApiError ? err.message : 'Тайлбарыг ачаалж чадсангүй.',
-        );
+        setError(err instanceof ApiError ? err.message : 'Олдсонгүй.');
       } finally {
         setLoading(false);
       }
@@ -69,63 +84,76 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
     [token],
   );
 
+  // Speak the English word: prefer the ElevenLabs clip (generated + cached on
+  // the backend), fall back to the device voice so it always says something.
+  const speak = useCallback(async () => {
+    if (!word) return;
+    const playUrl = (uri: string) => {
+      try {
+        player.replace({ uri });
+        player.play();
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    if (result?.audioUrl && playUrl(result.audioUrl)) return;
+    if (token) {
+      setAudioBusy(true);
+      try {
+        const { audioUrl } = await getWordAudio(token, word);
+        setResult((r) => (r ? { ...r, audioUrl } : r));
+        if (playUrl(audioUrl)) return;
+      } catch {
+        // fall through to device TTS
+      } finally {
+        setAudioBusy(false);
+      }
+    }
+    Speech.stop();
+    Speech.speak(word, { language: 'en-US', rate: 0.9 });
+  }, [word, result, token, player]);
+
+  // Position the popover above the tapped word, clamped to the screen.
+  const screen = Dimensions.get('window');
+  const GAP = 10;
+  const left = clamp(anchor.x - size.w / 2, spacing.sm, screen.width - size.w - spacing.sm);
+  const above = anchor.y - size.h - GAP;
+  const top = above < 60 ? anchor.y + 22 : above; // flip below if no room above
+
   return (
     <DictionaryContext.Provider value={{ lookup }}>
       {children}
 
-      <Modal
-        visible={word !== null}
-        transparent
-        animationType="slide"
-        onRequestClose={close}
-      >
-        <Pressable style={styles.backdrop} onPress={close}>
-          {/* Stop taps inside the sheet from closing it. */}
-          <Pressable style={styles.sheet} onPress={() => {}}>
-            <View style={styles.handle} />
-
-            <View style={styles.header}>
-              <AppText variant="h2">{word}</AppText>
-              <Pressable hitSlop={10} onPress={close}>
-                <Ionicons name="close" size={22} color={colors.textMuted} />
+      <Modal visible={word !== null} transparent animationType="fade" onRequestClose={close}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={close} />
+        <View
+          onLayout={(e) =>
+            setSize({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })
+          }
+          style={[styles.popover, { left, top, opacity: size.w ? 1 : 0 }]}
+        >
+          {loading ? (
+            <ActivityIndicator color={colors.primary} />
+          ) : error ? (
+            <AppText variant="caption" color={colors.danger}>
+              {error}
+            </AppText>
+          ) : result ? (
+            <>
+              <AppText variant="bodyStrong" color={colors.text} style={styles.translation}>
+                {result.translation}
+              </AppText>
+              <Pressable onPress={speak} hitSlop={8} style={styles.speaker}>
+                {audioBusy ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <Ionicons name="volume-high" size={20} color={colors.primary} />
+                )}
               </Pressable>
-            </View>
-
-            {loading && (
-              <View style={styles.center}>
-                <ActivityIndicator color={colors.primary} />
-                <AppText variant="caption" style={styles.centerText}>
-                  Тайлбар хайж байна...
-                </AppText>
-              </View>
-            )}
-
-            {!loading && error && (
-              <View style={styles.center}>
-                <Ionicons name="alert-circle-outline" size={28} color={colors.danger} />
-                <AppText variant="body" color={colors.textSecondary} center style={styles.centerText}>
-                  {error}
-                </AppText>
-              </View>
-            )}
-
-            {!loading && result && (
-              <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
-                <Markdown text={result.explanation} />
-                <View style={styles.sourceRow}>
-                  <Ionicons
-                    name={result.cached ? 'book-outline' : 'sparkles-outline'}
-                    size={13}
-                    color={colors.textMuted}
-                  />
-                  <AppText variant="caption">
-                    {result.cached ? 'Толь бичгээс' : 'AI-аар тайлбарласан'}
-                  </AppText>
-                </View>
-              </ScrollView>
-            )}
-          </Pressable>
-        </Pressable>
+            </>
+          ) : null}
+        </View>
       </Modal>
     </DictionaryContext.Provider>
   );
@@ -142,7 +170,7 @@ export function useDictionary(): DictionaryState {
 
 /**
  * Renders text where each English word (2+ letters) is tappable and opens the
- * dictionary sheet. Punctuation and spacing are preserved verbatim.
+ * meaning popover above it. Punctuation and spacing are preserved verbatim.
  */
 export function TappableText({
   children,
@@ -154,7 +182,6 @@ export function TappableText({
   color?: string;
 }) {
   const { lookup } = useDictionary();
-  // Split into word / non-word tokens, keeping the separators.
   const tokens = children.split(/([A-Za-z]+)/);
 
   return (
@@ -165,7 +192,12 @@ export function TappableText({
             key={i}
             variant={variant}
             color={color}
-            onPress={() => lookup(tok)}
+            onPress={(e: GestureResponderEvent) =>
+              lookup(tok, {
+                x: e.nativeEvent.pageX,
+                y: e.nativeEvent.pageY,
+              })
+            }
             suppressHighlighting
           >
             {tok}
@@ -178,80 +210,28 @@ export function TappableText({
   );
 }
 
-/**
- * Tiny inline markdown renderer for the explanation text. Supports **bold** and
- * *italic* only — that's all the backend produces. Anything fancier is overkill.
- */
-function Markdown({ text }: { text: string }) {
-  return (
-    <>
-      {text.split('\n').map((line, i) => (
-        <AppText key={i} variant="body" style={styles.line}>
-          {line.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/).map((part, j) => {
-            if (part.startsWith('**') && part.endsWith('**')) {
-              return (
-                <AppText key={j} variant="bodyStrong">
-                  {part.slice(2, -2)}
-                </AppText>
-              );
-            }
-            if (part.startsWith('*') && part.endsWith('*')) {
-              return (
-                <AppText key={j} variant="body" style={styles.italic}>
-                  {part.slice(1, -1)}
-                </AppText>
-              );
-            }
-            return part;
-          })}
-        </AppText>
-      ))}
-    </>
-  );
-}
-
 const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(24, 36, 74, 0.45)',
-    justifyContent: 'flex-end',
-  },
-  sheet: {
+  popover: {
+    position: 'absolute',
+    maxWidth: 280,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
     backgroundColor: colors.surface,
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.xxl,
-    paddingTop: spacing.sm,
-    maxHeight: '70%',
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
     ...elevation.float,
   },
-  handle: {
-    alignSelf: 'center',
-    width: 40,
-    height: 4,
+  translation: { flexShrink: 1 },
+  speaker: {
+    width: 30,
+    height: 30,
     borderRadius: radius.full,
-    backgroundColor: colors.borderStrong,
-    marginBottom: spacing.md,
-  },
-  header: {
-    flexDirection: 'row',
+    backgroundColor: colors.primarySoft,
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing.md,
-  },
-  body: { flexGrow: 0 },
-  line: { marginBottom: spacing.xs },
-  italic: { fontStyle: 'italic', color: colors.textSecondary },
-  center: { alignItems: 'center', paddingVertical: spacing.xl, gap: spacing.sm },
-  centerText: { marginTop: spacing.xs },
-  sourceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    marginTop: spacing.md,
-    paddingTop: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
+    justifyContent: 'center',
   },
 });

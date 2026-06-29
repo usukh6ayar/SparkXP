@@ -12,9 +12,20 @@ import { Word } from '../entities/word.entity';
 import { AiUsage } from '../entities/ai-usage.entity';
 import { Translation } from '../entities/translation.entity';
 import { AiUsageType } from '../common/enums';
+import { AiGatewayService } from '../ai-gateway/ai-gateway.service';
 import { geminiRetryDelayMs } from '../words/words.service';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+export interface WordLookup {
+  word: string;
+  /** Short Mongolian meaning. */
+  translation: string;
+  /** Pronunciation audio URL if already generated, else null. */
+  audioUrl: string | null;
+  /** True when served from the Word DB or the translation cache (no AI call). */
+  cached: boolean;
+}
 
 @Injectable()
 export class DictionaryService {
@@ -22,6 +33,7 @@ export class DictionaryService {
 
   constructor(
     private readonly config: ConfigService,
+    private readonly aiGateway: AiGatewayService,
     @InjectRepository(User) private readonly users: Repository<User>,
     @InjectRepository(Word) private readonly words: Repository<Word>,
     @InjectRepository(AiUsage) private readonly aiUsages: Repository<AiUsage>,
@@ -30,34 +42,35 @@ export class DictionaryService {
   ) {}
 
   /**
-   * Explain an English word in Mongolian. Lookup order:
+   * Look up the short Mongolian meaning of an English word. Lookup order:
    *   1. Word DB (the curated "swipe" vocabulary) — free, instant.
    *   2. Translation cache (previous AI lookups) — free, instant.
    *   3. Gemini — only here is the plan limit enforced; the result is saved to
    *      the translation cache so the same word never hits the AI twice.
    */
-  async explain(
-    userId: string,
-    word: string,
-  ): Promise<{ word: string; explanation: string; cached: boolean }> {
+  async explain(userId: string, word: string): Promise<WordLookup> {
     const normalised = word.trim().toLowerCase();
 
-    // 1. Word DB (authored vocabulary) — build a card from its fields.
+    // 1. Word DB (authored vocabulary).
     const dbWord = await this.words.findOne({ where: { english: normalised } });
     if (dbWord && dbWord.mongolian) {
-      const parts = [
-        `**Утга:** ${dbWord.mongolian}`,
-        dbWord.partOfSpeech ? `**Ангилал:** ${dbWord.partOfSpeech}` : null,
-        dbWord.exampleSentence ? `**Жишээ:** *${dbWord.exampleSentence}*` : null,
-        dbWord.exampleTranslation ? `*(${dbWord.exampleTranslation})*` : null,
-      ].filter(Boolean);
-      return { word: normalised, explanation: parts.join('\n'), cached: true };
+      return {
+        word: normalised,
+        translation: dbWord.mongolian,
+        audioUrl: dbWord.audioUrl ?? null,
+        cached: true,
+      };
     }
 
     // 2. Translation cache (a previous Gemini lookup).
     const cached = await this.translations.findOne({ where: { word: normalised } });
     if (cached) {
-      return { word: normalised, explanation: cached.explanation, cached: true };
+      return {
+        word: normalised,
+        translation: cached.translation,
+        audioUrl: cached.audioUrl,
+        cached: true,
+      };
     }
 
     // 3. Enforce the monthly plan limit only when we actually call the AI.
@@ -73,12 +86,17 @@ export class DictionaryService {
       }
     }
 
-    const { explanation, model, promptTokens, completionTokens } =
+    const { translation, model, promptTokens, completionTokens } =
       await this.askGemini(normalised);
 
     // Save to the translation cache so this word is never sent to AI again.
     await this.translations.save(
-      this.translations.create({ word: normalised, explanation, source: model }),
+      this.translations.create({
+        word: normalised,
+        translation,
+        audioUrl: null,
+        source: model,
+      }),
     );
 
     // Log usage + bump the user's monthly counter.
@@ -100,16 +118,56 @@ export class DictionaryService {
       await this.users.increment({ id: userId }, 'dictionaryAiCount', 1);
     }
 
-    return { word: normalised, explanation, cached: false };
+    return { word: normalised, translation, audioUrl: null, cached: false };
   }
 
   /**
-   * Ask Gemini for a short Mongolian explanation of an English word. Plain text
-   * (markdown), formatted to match the Word-DB card so the mobile renderer is
-   * identical. Retries transient 429/503/overload responses.
+   * Pronunciation audio for a word (ElevenLabs via the AI gateway). Generated
+   * lazily on the first speaker tap, then cached forever: reuses the Word DB's
+   * audio, else the translation cache's, else generates once and stores it.
+   */
+  async getAudio(userId: string, word: string): Promise<{ audioUrl: string }> {
+    const normalised = word.trim().toLowerCase();
+
+    // Reuse the curated word's audio if it exists.
+    const dbWord = await this.words.findOne({ where: { english: normalised } });
+    if (dbWord?.audioUrl) return { audioUrl: dbWord.audioUrl };
+
+    // Reuse a previously generated dictionary clip.
+    const row = await this.translations.findOne({ where: { word: normalised } });
+    if (row?.audioUrl) return { audioUrl: row.audioUrl };
+
+    // Generate once via ElevenLabs and cache the URL.
+    const { audioUrl } = await this.aiGateway.generateVocabularyAudio({
+      userId,
+      wordId: 'dictionary',
+      english: normalised,
+    });
+
+    if (row) {
+      row.audioUrl = audioUrl;
+      await this.translations.save(row);
+    } else {
+      // No translation row yet (audio tapped before/without a text lookup).
+      await this.translations.save(
+        this.translations.create({
+          word: normalised,
+          translation: '',
+          audioUrl,
+          source: 'elevenlabs',
+        }),
+      );
+    }
+
+    return { audioUrl };
+  }
+
+  /**
+   * Ask Gemini for ONLY the short Mongolian meaning of an English word (a few
+   * words, no explanation). Retries transient 429/503/overload responses.
    */
   private async askGemini(word: string): Promise<{
-    explanation: string;
+    translation: string;
     model: string;
     promptTokens: number;
     completionTokens: number;
@@ -121,11 +179,8 @@ export class DictionaryService {
     const model = this.config.get<string>('GEMINI_MODEL', 'gemini-2.5-flash');
 
     const prompt =
-      `"${word}" гэсэн Англи үгийг Монгол хэлээр товчхон тайлбарла.\n` +
-      'Зөвхөн доорх форматаар бич (markdown, нэмэлт тайлбаргүй):\n' +
-      '**Утга:** <монгол утга>\n' +
-      '**Жишээ:** *<богино англи өгүүлбэр>* (<монгол орчуулга>)\n' +
-      '**Хэрэглэх байдал:** <хаана, хэрхэн хэрэглэдэг тухай 1 өгүүлбэр>';
+      `"${word}" гэсэн англи үгийн монгол утгыг бич.\n` +
+      'Зөвхөн монгол орчуулгыг бич — богино (1-4 үг), тайлбар, жишээ, англи үг бүү нэм.';
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
     const requestInit = {
@@ -133,7 +188,7 @@ export class DictionaryService {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.4 },
+        generationConfig: { temperature: 0.3 },
       }),
     };
 
@@ -146,16 +201,16 @@ export class DictionaryService {
           usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
         };
         const parts = data.candidates?.[0]?.content?.parts ?? [];
-        const explanation = parts
+        const translation = parts
           .filter((p) => !p.thought && p.text)
           .map((p) => p.text)
           .join('')
           .trim();
-        if (!explanation) {
+        if (!translation) {
           throw new InternalServerErrorException('AI хоосон хариу буцаалаа');
         }
         return {
-          explanation,
+          translation,
           model,
           promptTokens: data.usageMetadata?.promptTokenCount ?? 0,
           completionTokens: data.usageMetadata?.candidatesTokenCount ?? 0,
@@ -178,7 +233,7 @@ export class DictionaryService {
       }
 
       this.logger.error(`Gemini dictionary failed (${response.status}): ${body}`);
-      throw new InternalServerErrorException('Тайлбар үүсгэхэд алдаа гарлаа');
+      throw new InternalServerErrorException('Орчуулга үүсгэхэд алдаа гарлаа');
     }
   }
 }

@@ -14,11 +14,16 @@ export class Translation extends BaseEntity {
   @Column()
   word: string;
 
-  /** Mongolian explanation (markdown: Утга / Жишээ / Хэрэглэх байдал). */
+  /** Short Mongolian meaning (a few words) — shown in the tap popover. */
   @Column({ type: 'text' })
-  explanation: string;
+  translation: string;
 
-  /** Which model produced it, e.g. 'gemini-2.5-flash'. */
+  /** Pronunciation audio (ElevenLabs → Cloudinary), generated lazily on the
+   *  first speaker tap and reused forever after. */
+  @Column({ name: 'audio_url', type: 'varchar', nullable: true })
+  audioUrl: string | null;
+
+  /** Which model produced the translation, e.g. 'gemini-2.5-flash'. */
   @Column({ type: 'varchar', nullable: true })
   source: string | null;
 }

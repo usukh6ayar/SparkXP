@@ -11,11 +11,21 @@ export class DictionaryController {
 
   /**
    * GET /api/dictionary/:word
-   * Returns a Mongolian explanation for the given English word.
+   * Short Mongolian meaning for an English word.
    * Word DB → translation cache → Gemini (plan-limited, result cached).
    */
   @Get(':word')
   explain(@Param('word') word: string, @CurrentUser() user: User) {
     return this.dictionary.explain(user.id, word);
+  }
+
+  /**
+   * GET /api/dictionary/:word/audio
+   * Pronunciation audio URL (ElevenLabs). Generated once on the first speaker
+   * tap, then cached and reused forever.
+   */
+  @Get(':word/audio')
+  audio(@Param('word') word: string, @CurrentUser() user: User) {
+    return this.dictionary.getAudio(user.id, word);
   }
 }
