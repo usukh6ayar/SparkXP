@@ -11,7 +11,10 @@ import {
   ParseUUIDPipe,
   HttpCode,
   BadRequestException,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { IdiomsService } from './idioms.service';
 import { CreateIdiomDto } from './dto/create-idiom.dto';
 import { UpdateIdiomDto } from './dto/update-idiom.dto';
@@ -52,6 +55,70 @@ export class IdiomsController {
   aiFill(@Body('phrase') phrase: string) {
     if (!phrase?.trim()) throw new BadRequestException('phrase оруулна уу');
     return this.idiomsService.aiFill(phrase.trim());
+  }
+
+  /**
+   * AI bulk import: a list of English idioms → AI fills every field (+ optional
+   * image/audio) per idiom. Always runs in the BACKGROUND (Gemini is slow for
+   * many phrases) and returns a jobId — poll GET /idioms/ai-bulk/:jobId.
+   * POST /api/idioms/ai-bulk  { phrases: string[], generateImages?, generateAudios? }
+   * Before `:id`.
+   */
+  @Post('ai-bulk')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  aiBulk(
+    @CurrentUser() user: User,
+    @Body('phrases') phrases: string[],
+    @Body('generateImages') generateImages?: boolean,
+    @Body('generateAudios') generateAudios?: boolean,
+  ) {
+    if (!Array.isArray(phrases) || phrases.length === 0) {
+      throw new BadRequestException('"phrases" массив шаардлагатай');
+    }
+    const maxPhrases = Number(process.env.AI_BULK_MAX_WORDS ?? 1000);
+    if (phrases.length > maxPhrases) {
+      throw new BadRequestException(
+        `Нэг удаад ${maxPhrases}-аас ихгүй хэлц (танай файлд ${phrases.length} байна). Багцлан оруулна уу.`,
+      );
+    }
+    const jobId = this.idiomsService.startAiBulk(
+      phrases,
+      generateImages ?? false,
+      generateAudios ?? false,
+      user.id,
+    );
+    return { started: true, requested: phrases.length, background: true, jobId };
+  }
+
+  /** Poll a background AI-bulk job: GET /api/idioms/ai-bulk/:jobId. Before `:id`. */
+  @Get('ai-bulk/:jobId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  aiBulkStatus(@Param('jobId') jobId: string) {
+    return this.idiomsService.getBulkJob(jobId) ?? { done: true, expired: true };
+  }
+
+  /** Stop a running AI-bulk job ("Зогсоох"). POST /api/idioms/ai-bulk/:jobId/cancel. */
+  @Post('ai-bulk/:jobId/cancel')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  cancelBulk(@Param('jobId') jobId: string) {
+    return { canceled: this.idiomsService.cancelBulkJob(jobId) };
+  }
+
+  /**
+   * CSV import (multipart, field: file). Required columns: phrase, mongolian.
+   * Returns a validation report. New idioms → draft. Before `:id`.
+   * POST /api/idioms/import
+   */
+  @Post('import')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 20 * 1024 * 1024 } }))
+  async importCsv(@UploadedFile() file: Express.Multer.File) {
+    if (!file) throw new BadRequestException('CSV файл шаардлагатай (field: file)');
+    return this.idiomsService.importCsv(file.buffer.toString('utf-8'));
   }
 
   /** Bulk-edit selected idioms (e.g. publish). Before `:id`. */

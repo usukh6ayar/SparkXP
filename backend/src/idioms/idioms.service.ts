@@ -119,12 +119,53 @@ export interface IdiomAiFill {
   exampleTranslation: string;
 }
 
+/**
+ * Live progress / result of a background AI-bulk job (list of phrases → AI fills
+ * every field, optional image/audio per idiom). Twin of the Words AiBulkReport.
+ */
+export interface IdiomAiBulkReport {
+  requested: number;
+  inserted: number;
+  skipped: number;
+  failed: { phrase: string; message: string }[];
+  total: number;
+  processed: number;
+  done: boolean;
+  /** Flipped by cancelBulkJob() — loops stop between batches; in-flight finish. */
+  canceled?: boolean;
+}
+
+/** Result of a CSV import with a row-by-row validation report. */
+export interface IdiomImportReport {
+  total: number;
+  inserted: number;
+  skipped: number;
+  errors: { row: number; field: string; message: string }[];
+  duplicates: { row: number; phrase: string }[];
+}
+
+/** RFC-4180 CSV line splitter — respects quoted fields with embedded commas. */
+function splitCsvLine(line: string): string[] {
+  const result: string[] = [];
+  let cur = '';
+  let inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    if (line[i] === '"') inQ = !inQ;
+    else if (line[i] === ',' && !inQ) { result.push(cur); cur = ''; }
+    else cur += line[i];
+  }
+  result.push(cur);
+  return result;
+}
+
 /** Idioms CRUD + AI fill (Gemini) + pronunciation audio (ElevenLabs). */
 @Injectable()
 export class IdiomsService {
   private readonly logger = new Logger(IdiomsService.name);
   /** In-memory bulk-image job progress, keyed by jobId (single instance — MVP). */
   private readonly imageJobs = new Map<string, IdiomImageJob>();
+  /** In-memory AI-bulk job progress (phrase list → AI fill), keyed by jobId. */
+  private readonly bulkJobs = new Map<string, IdiomAiBulkReport>();
 
   constructor(
     private readonly config: ConfigService,
@@ -206,6 +247,184 @@ export class IdiomsService {
     if (!ids.length) return { updated: 0 };
     const res = await this.idioms.update({ id: In(ids) }, changes);
     return { updated: res.affected ?? 0 };
+  }
+
+  // ── AI bulk import (list of phrases → AI fills every field) ─────────────────
+
+  /** Start a background AI-bulk job and return its id; poll getBulkJob() for %. */
+  startAiBulk(
+    rawPhrases: string[],
+    generateImages: boolean,
+    generateAudios: boolean,
+    userId: string,
+  ): string {
+    const jobId = randomUUID();
+    const report: IdiomAiBulkReport = {
+      requested: 0, inserted: 0, skipped: 0, failed: [],
+      total: 0, processed: 0, done: false,
+    };
+    this.bulkJobs.set(jobId, report);
+    void this.aiBulkImport(rawPhrases, generateImages, generateAudios, userId, report)
+      .catch((e) => this.logger.error(`[idiom AI bulk] job ${jobId} crashed: ${e?.message ?? e}`))
+      .finally(() => {
+        report.done = true;
+        // Keep the finished result briefly so the admin can read final counts.
+        setTimeout(() => this.bulkJobs.delete(jobId), 5 * 60_000);
+      });
+    return jobId;
+  }
+
+  getBulkJob(jobId: string): IdiomAiBulkReport | undefined {
+    return this.bulkJobs.get(jobId);
+  }
+
+  /** Request cancellation of a running AI-bulk job (in-flight items finish). */
+  cancelBulkJob(jobId: string): boolean {
+    const job = this.bulkJobs.get(jobId);
+    if (!job) return false;
+    job.canceled = true;
+    this.logger.log(`[idiom AI bulk] cancel requested for job ${jobId}`);
+    return true;
+  }
+
+  /**
+   * For each phrase: skip duplicates, let Gemini fill every field, save as a
+   * draft idiom, then (optionally) generate image + audio. Per-phrase failures
+   * are collected rather than aborting the whole batch.
+   */
+  private async aiBulkImport(
+    rawPhrases: string[],
+    generateImages: boolean,
+    generateAudios: boolean,
+    userId: string,
+    report: IdiomAiBulkReport,
+  ): Promise<void> {
+    const phrases = [...new Set(rawPhrases.map((p) => p.trim()).filter(Boolean))];
+    report.requested = phrases.length;
+    report.total = phrases.length;
+    this.logger.log(
+      `[idiom AI bulk] start: ${phrases.length} phrases (images=${generateImages}, audios=${generateAudios})`,
+    );
+
+    const CONCURRENCY = 3;
+    for (let i = 0; i < phrases.length; i += CONCURRENCY) {
+      if (report.canceled) {
+        this.logger.log(`[idiom AI bulk] canceled at ${report.processed}/${report.total}`);
+        break;
+      }
+      await Promise.all(
+        phrases.slice(i, i + CONCURRENCY).map(async (phrase) => {
+          try {
+            const dup = await this.idioms.findOne({
+              where: { phrase: ILike(phrase) },
+              select: { id: true },
+            });
+            if (dup) {
+              report.skipped++;
+              return;
+            }
+
+            const text = await this.aiFill(phrase);
+            const idiom = await this.idioms.save(
+              this.idioms.create({
+                phrase,
+                mongolian: text.mongolian,
+                meaning: text.meaning || null,
+                definition: text.definition || null,
+                exampleSentence: text.exampleSentence || null,
+                exampleTranslation: text.exampleTranslation || null,
+                // AI-generated idioms start as drafts → admin reviews then publishes.
+                isPublished: false,
+              }),
+            );
+
+            // Media is slow + optional; never let it fail the whole idiom.
+            if (generateImages) await this.generateImage(idiom.id, userId).catch(() => null);
+            if (generateAudios) await this.generateAudio(idiom.id, userId).catch(() => null);
+
+            report.inserted++;
+            this.logger.log(`[idiom AI bulk] inserted "${phrase}"`);
+          } catch (e) {
+            const message = e instanceof Error ? e.message : 'AI алдаа';
+            report.failed.push({ phrase, message });
+            this.logger.error(`[idiom AI bulk] failed "${phrase}": ${message}`);
+          } finally {
+            report.processed++;
+          }
+        }),
+      );
+    }
+    this.logger.log(
+      `[idiom AI bulk] done: inserted=${report.inserted}, skipped=${report.skipped}, failed=${report.failed.length}`,
+    );
+  }
+
+  // ── CSV import (full columns → validation report) ───────────────────────────
+
+  /**
+   * Import idioms from a CSV. Required columns: `phrase`, `mongolian`. Optional:
+   * `meaning`, `definition`, `exampleSentence`, `exampleTranslation`, `imageUrl`,
+   * `audioUrl`, `isPublished`. Duplicates (same phrase) are skipped; bad rows are
+   * reported. New idioms default to draft unless `isPublished` is truthy.
+   */
+  async importCsv(text: string): Promise<IdiomImportReport> {
+    const report: IdiomImportReport = {
+      total: 0, inserted: 0, skipped: 0, errors: [], duplicates: [],
+    };
+    const lines = text.split(/\r?\n/).filter((l) => l.trim());
+    if (lines.length < 2) return report;
+
+    const header = splitCsvLine(lines[0]).map((h) => h.trim());
+    const col = (name: string) => header.findIndex((h) => h.toLowerCase() === name.toLowerCase());
+    const iPhrase = col('phrase');
+    const iMongolian = col('mongolian');
+    if (iPhrase < 0 || iMongolian < 0) {
+      report.errors.push({ row: 1, field: 'header', message: 'phrase ба mongolian багана шаардлагатай' });
+      return report;
+    }
+    const iMeaning = col('meaning');
+    const iDefinition = col('definition');
+    const iExample = col('exampleSentence');
+    const iExampleTr = col('exampleTranslation');
+    const iImage = col('imageUrl');
+    const iAudio = col('audioUrl');
+    const iPublished = col('isPublished');
+    const at = (cells: string[], idx: number) => (idx >= 0 ? (cells[idx] ?? '').trim() : '');
+
+    for (let r = 1; r < lines.length; r++) {
+      report.total++;
+      const cells = splitCsvLine(lines[r]);
+      const phrase = at(cells, iPhrase).replace(/^"|"$/g, '');
+      const mongolian = at(cells, iMongolian).replace(/^"|"$/g, '');
+      const rowNo = r + 1; // 1-based incl. header, matching the spreadsheet
+      if (!phrase || !mongolian) {
+        report.errors.push({ row: rowNo, field: 'phrase/mongolian', message: 'phrase ба mongolian заавал' });
+        report.skipped++;
+        continue;
+      }
+      const dup = await this.idioms.findOne({ where: { phrase: ILike(phrase) }, select: { id: true } });
+      if (dup) {
+        report.duplicates.push({ row: rowNo, phrase });
+        report.skipped++;
+        continue;
+      }
+      const published = /^(1|true|yes|нийтэлсэн)$/i.test(at(cells, iPublished));
+      await this.idioms.save(
+        this.idioms.create({
+          phrase,
+          mongolian,
+          meaning: at(cells, iMeaning) || null,
+          definition: at(cells, iDefinition) || null,
+          exampleSentence: at(cells, iExample) || null,
+          exampleTranslation: at(cells, iExampleTr) || null,
+          imageUrl: at(cells, iImage) || null,
+          audioUrl: at(cells, iAudio) || null,
+          isPublished: published,
+        }),
+      );
+      report.inserted++;
+    }
+    return report;
   }
 
   /** Build the idiom-specific image prompt (env-overridable). */
