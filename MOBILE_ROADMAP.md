@@ -12,11 +12,12 @@ scale. Монгол хэл primary.
 
 ## 🎨 Дизайн / Брэнд — **SparkXP** 🦊
 
-> ⚠️ **UI/UX REDESIGN ЯВАГДАЖ БАЙНА (2026-06).** Брэндийг **бүрэн шинэ** чиглэл рүү
-> (Modern Mongol — гүн индиго + алт, Onest фонт, үнэг mascot хэвээр) шилжүүлж байна.
-> Дэлгэрэнгүй: **`mobile/DESIGN_BRIEF.md`** (requirement) + **`mobile/DESIGN_SYSTEM.md`**
-> (Figma spec). Эхлээд Figma-д design system, дараа нь кодод буулгана.
-> Доорх **хуучин SparkXP палитр** нь шилжилт дуустал кодод түр хэвээр.
+> ✅ **ДИЗАЙН ЧИГЛЭЛ БАТЛАГДСАН (2026-06-29): ЯГААН `#6C3BFF`.** Өмнө
+> `DESIGN_BRIEF.md`-д дурдсан "Modern Mongol — индиго + алт" хувилбарыг
+> **ХЭРЭГЛЭХГҮЙ** — код дээр аль хэдийн буусан ягаан чиглэлээр үргэлжилнэ.
+> UI/UX visual mockup гаргуулах эх prompt: **`mobile/UIUX_DESIGN_PROMPT.md`**
+> (гадны AI design tool-д хуулна). Брэнд токен эх сурвалж: `mobile/DESIGN.md`
+> + `SCREEN_SPECS.md`.
 
 Лого: гүйж буй үнэг + очирхон. Брэнд өнгө (`src/theme/theme.ts`):
 
@@ -33,15 +34,19 @@ scale. Монгол хэл primary.
 
 ## 👥 Ажлын хуваарь (хэн · аль branch)
 
-Бид 2 dev, тус бүр **нэг branch**-тай:
+**2026-06-29 reorg — баг 4 хүн боллоо.** Mobile-ыг **Choi + Boju** хариуцна
+(Усухбаяр → admin + lead, Бишрэлт → backend). Дэлгэцийг бүлгээр хувааж merge
+conflict-ээс зайлсхийнэ:
 
-| Dev | Branch | Хариуцах дэлгэцүүд |
+| Dev | Branch | Хариуцах дэлгэцүүд (mobile) |
 | --- | --- | --- |
-| **Усухбаяр** | **`usukhbayar`** | Auth · Home · Review(SRS) · Lessons · Leaderboard |
-| **Бишрэлт** | **`bishrelt`** | Quiz · AI chat · Profile · Sparks store |
+| **Choi** | **`choi`** | **Сурах цөм:** Auth (onboarding/login/register/forgot) · Home · Lessons (list+detail) · Review (SRS) · Swipe + Saved |
+| **Boju** | **`boju`** | **Тоглоом+сошл:** Quiz/Vocab-quiz · Soril · AI Найз chat · Leaderboard · Profile/Avatar/Assignments · Teacher · Join |
 
-Дэлгэцүүдийг **өөрсдийн бичсэн backend-тэй нь тааруулж** хуваасан.
-**Foundation (M0) бэлэн, `main`-д орсон тул хоёулаа ОДОО зэрэг эхэлж болно.**
+> Хуваалт screen-group-оор. **Shared `src/components` + `theme.ts`**-г 2уулаа
+> зэрэг бүү засаарай — жижиг PR-аар, энд зарлаад ор. Backend endpoint хэрэгтэй
+> бол **Бишрэлт**-д хэлж нэмүүлнэ (`API.md`). Foundation (M0) бэлэн тул хоёулаа
+> ОДОО зэрэг эхэлж болно.
 
 | Дэлгэц | Хэн | Branch | Backend | Төлөв |
 | --- | --- | --- | --- | --- |

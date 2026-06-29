@@ -18,13 +18,20 @@ organizations (e.g. law firms). Owner: Hustle Hive LLC.
 
 ### Work division (who owns what — avoid duplicate work!)
 
-- **Usukhbayar** → **Mobile app + student/user** features (`/mobile`, student-facing
-  backend). Branch: `usukhbayar`.
-- **Bishrelt** → **Admin web** dashboard (`/admin`) + admin-facing backend endpoints.
-  Branch: `bishrelt`.
-- The **backend (`/backend`) is shared** — whoever needs an endpoint adds it and
-  updates `API.md`. Don't both build the same module (this caused duplicate Phase 2
-  work before).
+**4 developers (2026-06-29 reorg).** Usukhbayar leads.
+
+- **Usukhbayar** → **Admin web** (`/admin`) + team lead. Branch: `usukhbayar`.
+- **Bishrelt** → **Backend** (`/backend`) — builds & maintains endpoints for both
+  mobile and admin, updates `API.md`. Branch: `bishrelt`.
+- **Choi** → **Mobile** (`/mobile`) learning core: Auth, Home, Lessons (list+detail),
+  Review (SRS), Swipe + Saved. Branch: `choi`.
+- **Boju** → **Mobile** (`/mobile`) games & social: Quiz, Soril, AI chat,
+  Leaderboard, Profile/Avatar/Assignments, Teacher, Join. Branch: `boju`.
+
+The **backend (`/backend`) is shared but Bishrelt-led** — mobile devs request an
+endpoint, Bishrelt builds it and updates `API.md`. Don't both build the same
+module. The mobile split (Choi vs Boju) is by screen group to avoid conflicts;
+shared `mobile/src/components` + `theme.ts` edits go in small PRs, announced here.
 
 ## Tech Stack
 
@@ -48,6 +55,10 @@ organizations (e.g. law firms). Owner: Hustle Hive LLC.
   permissions matrix (read this to understand who can do what)
 - `API.md` — full backend endpoint reference (path, auth level, purpose)
 - `ADMIN_ROADMAP.md` — web admin dashboard plan (tech, phases, features)
+- `TEAM_WORKFLOW.md` — **how the 4-dev team works to avoid code overlap /
+  conflicts** (file ownership, shared-file protocol, backend→Bishrelt funnel,
+  git rules). Read before touching shared files (`theme.ts`, `components/`,
+  `/backend`, `API.md`).
 - `VOCABULARY_SYSTEM.md` — **bulk vocabulary pipeline** (20k+ words: bulk
   upload → validate → media auto-match → review → publish → swipe + per-user
   progress + analytics). Read before any vocab/word/swipe/bulk-import work.
@@ -259,7 +270,13 @@ WordReview, XpLog, AiUsage, Message, Payment, SparksLog, LessonUnlock.
   never raw `fetch` inside a screen.
 - Full plan + brand colors: see **MOBILE_ROADMAP.md**.
 
-## Git Workflow (2-dev team)
+## Git Workflow (4-dev team)
+
+> Full anti-conflict guide: **`TEAM_WORKFLOW.md`**. Core idea: **each dev only
+> edits files in their own area** (Usukhbayar=`/admin`, Bishrelt=`/backend`,
+> Choi/Boju=split `/mobile` routes); shared files (`theme.ts`, `components/`,
+> `API.md`, `_layout.tsx`) are touched only via "announce → tiny PR → merge fast".
+> Mobile devs don't edit `/backend` directly — request the endpoint from Bishrelt.
 
 - **ALWAYS pull `main` BEFORE starting any task** (so you build on the other dev's
   latest and don't duplicate/conflict). This is the #1 rule — do it every time:
