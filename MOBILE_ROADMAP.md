@@ -12,12 +12,9 @@ scale. Монгол хэл primary.
 
 ## 🎨 Дизайн / Брэнд — **SparkXP** 🦊
 
-> ✅ **ДИЗАЙН ЧИГЛЭЛ БАТЛАГДСАН (2026-06-29): ЯГААН `#6C3BFF`.** Өмнө
-> `DESIGN_BRIEF.md`-д дурдсан "Modern Mongol — индиго + алт" хувилбарыг
-> **ХЭРЭГЛЭХГҮЙ** — код дээр аль хэдийн буусан ягаан чиглэлээр үргэлжилнэ.
-> UI/UX visual mockup гаргуулах эх prompt: **`mobile/UIUX_DESIGN_PROMPT.md`**
-> (гадны AI design tool-д хуулна). Брэнд токен эх сурвалж: `mobile/DESIGN.md`
-> + `SCREEN_SPECS.md`.
+> ✅ **ДИЗАЙН ЧИГЛЭЛ БАТЛАГДСАН: ЯГААН `#6C3BFF`** (код дээр буусан). "Modern
+> Mongol — индиго" хувилбар цуцлагдсан. Брэнд токен эх сурвалж: `mobile/DESIGN.md`
+> + `mobile/SCREEN_SPECS.md`.
 
 Лого: гүйж буй үнэг + очирхон. Брэнд өнгө (`src/theme/theme.ts`):
 
@@ -217,8 +214,7 @@ mobile/
 ## 🔄 UI/UX Redesign — Төлөв (2026-06-12)
 
 Брэндийг **бүрэн шинэ ягаан (purple) чиглэл** рүү шилжүүлж, гол дэлгэцүүдийг
-mockup-аар дахин зохион барьсан. Дизайны эх сурвалж: `DESIGN.md`,
-`DESIGN_PROMPT.md` (+ `DESIGN_BRIEF.md`, `SCREEN_SPECS.md`).
+mockup-аар дахин зохион барьсан. Дизайны эх сурвалж: `DESIGN.md`, `SCREEN_SPECS.md`.
 
 ### ✅ Хийгдсэн
 
@@ -345,6 +341,15 @@ mockup-аар дахин зохион барьсан. Дизайны эх сур
 
 > Эх сурвалж: `SparkXP_reading_feature_IT_spec_MN.docx`. Зарчим: цэвэр/хурдан UI,
 > хэт animation хэрэггүй; audio нэг удаа generate → storage (real-time биш).
+
+> **✅ Mobile-д орсон (2026-06-30):** Reading reader (`/reading/[id]`) +
+> **tap-to-translate** (2 удаа дарж утга + дуудлага + save) + дуусгах→+15XP;
+> хичээлийн дэлгэц **видео (expo-video) + 4 ангиллын тест**; Home **Дасгал** tiles →
+> `/skill/[key]` дасгал жагсаалт; quiz runner-т **word_match** нэмсэн; Idioms
+> (Хэлц үг) дэлгэц + reader. ⚠️ Choi Home/skill-ийг дахин зохиосон (island map,
+> sub-category menu) тул skill дэлгэц дэх Сэдэв шүүлтүүрийг түүн дээр уялдуулна.
+> Үлдсэн: F2 (reading streak/library), F3 (unknown words meter), F4 (shadow
+> playback UI), Ярих (STT).
 
 ### ✅ Усухбаяр хийчихсэн (backend + admin + суурь) — main-д орсон
 

@@ -198,7 +198,14 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
 
 ---
 
-## 📖 Reading feature backend `[ ]` — 👤 Бишрэлт (mobile: Choi/Boju)
+> ✅ **2026-06-30 — Reading/Idioms/Дасгал backend DONE (Usukhbayar).** Доорхын
+> ихэнх нь хийгдсэн: `ReadingPassage` (+ `category`/Сэдэв) module + F1 AI
+> guess-choices + F4 sentence audio + complete→XP (`XpSource.READING`); `Idiom`
+> module (CRUD + AI-fill + audio + image + bulk); `Translation` cache +
+> dictionary Gemini; quizzes `category`+`standalone` шүүлтүүр (Дасгал). Үлдсэн:
+> F2 reading-stats, F3 vocab-profile/difficulty, STT (Ярих). Дэлгэрэнгүй: `API.md`.
+
+## 📖 Reading feature backend `[x]` — 👤 Usukhbayar (mobile: Choi/Boju)
 
 > Mobile Phase M7-ийн дэмжлэг (`MOBILE_ROADMAP.md` + `SparkXP_reading_feature_IT_spec_MN.docx`).
 > Гол зарчим: **бүх learning action хадгалагдана** (review/recommendation/teacher
@@ -357,6 +364,3 @@ XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
   (зургийн URL эсвэл `default:avN`), шинэ `POST /users/me/avatar` (зураг upload,
   сурагчид нээлттэй). `/auth/me`/login user-д `avatarUrl` ирнэ.
 
-> 📋 **Bishrelt-д зориулсан дэлгэрэнгүй ажлын төлөвлөгөө** (хичээл→quiz урсгал,
-> thumbnail/parentLessonId/quiz-category admin холболт, lesson progress г.м):
-> **`BISHRELT_PLAN.md`**.
