@@ -4,7 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import { Quiz } from '../entities/quiz.entity';
 import { CreateQuizDto, QuestionDto } from './dto/create-quiz.dto';
 import { UpdateQuizDto } from './dto/update-quiz.dto';
@@ -147,6 +147,9 @@ export class QuizzesService {
     if (query.level) where.level = query.level;
     if (query.isPublished !== undefined) where.isPublished = query.isPublished;
     if (query.lessonId) where.lessonId = query.lessonId;
+    if (query.category) where.category = query.category;
+    // Standalone "Дасгал" = quizzes not attached to any lesson.
+    if (query.standalone) where.lessonId = IsNull();
 
     const [items, total] = await this.quizzes.findAndCount({
       where,

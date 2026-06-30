@@ -1,4 +1,4 @@
-import { IsOptional, IsEnum, IsBoolean, IsInt, Min, IsUUID } from 'class-validator';
+import { IsOptional, IsEnum, IsBoolean, IsInt, Min, IsUUID, IsString } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 import { ContentLevel } from '../../common/enums';
 
@@ -15,6 +15,17 @@ export class QueryQuizzesDto {
   @IsOptional()
   @IsUUID()
   lessonId?: string;
+
+  /** Filter by quiz category (e.g. the 4 Дасгал skills: listening/reading/writing/speaking). */
+  @IsOptional()
+  @IsString()
+  category?: string;
+
+  /** When true, return only standalone quizzes (Дасгал) — those with no lesson. */
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean()
+  standalone?: boolean;
 
   @IsOptional()
   @Type(() => Number)
