@@ -25,7 +25,9 @@ export function JoinCodeCard({ code, className }: { code: string; className?: st
       </AppText>
 
       <View style={styles.qrBox}>
-        <QRCode value={buildJoinLink(code)} size={140} backgroundColor="transparent" color={colors.navy} />
+        {/* QR ink must be dark on the white box. NOTE: `colors.navy` is white in
+            the dark theme, so use a guaranteed-dark colour for scannability. */}
+        <QRCode value={buildJoinLink(code)} size={140} backgroundColor={colors.white} color="#18244A" />
       </View>
 
       <AppText variant="display" color={colors.white} style={styles.code}>
