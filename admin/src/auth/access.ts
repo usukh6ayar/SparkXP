@@ -19,6 +19,7 @@ export const MODERATOR_PATHS = [
   '/words',
   '/lessons',
   '/reading',
+  '/idioms',
   '/quizzes',
   '/classes',
   '/buddy',

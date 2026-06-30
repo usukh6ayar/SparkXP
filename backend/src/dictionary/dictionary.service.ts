@@ -1,55 +1,86 @@
 import {
   Injectable,
   ForbiddenException,
+  InternalServerErrorException,
   Logger,
-  OnModuleInit,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import Anthropic from '@anthropic-ai/sdk';
 import { User } from '../entities/user.entity';
 import { Word } from '../entities/word.entity';
+import { WordReview } from '../entities/word-review.entity';
 import { AiUsage } from '../entities/ai-usage.entity';
-import { AiUsageType } from '../common/enums';
+import { Translation } from '../entities/translation.entity';
+import { AiUsageType, WordStatus, ContentLevel } from '../common/enums';
+import { AiGatewayService } from '../ai-gateway/ai-gateway.service';
+import { geminiRetryDelayMs } from '../words/words.service';
 
-const DICT_MODEL = 'claude-haiku-4-5-20251001';
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+export interface WordLookup {
+  word: string;
+  /** Short Mongolian meaning. */
+  translation: string;
+  /** Pronunciation audio URL if already generated, else null. */
+  audioUrl: string | null;
+  /** True when served from the Word DB or the translation cache (no AI call). */
+  cached: boolean;
+}
 
 @Injectable()
-export class DictionaryService implements OnModuleInit {
-  private anthropic: Anthropic;
+export class DictionaryService {
   private readonly logger = new Logger(DictionaryService.name);
 
   constructor(
     private readonly config: ConfigService,
+    private readonly aiGateway: AiGatewayService,
     @InjectRepository(User) private readonly users: Repository<User>,
     @InjectRepository(Word) private readonly words: Repository<Word>,
+    @InjectRepository(WordReview)
+    private readonly reviews: Repository<WordReview>,
     @InjectRepository(AiUsage) private readonly aiUsages: Repository<AiUsage>,
+    @InjectRepository(Translation)
+    private readonly translations: Repository<Translation>,
   ) {}
 
-  onModuleInit() {
-    this.anthropic = new Anthropic({ apiKey: this.config.get('ANTHROPIC_API_KEY') });
-  }
-
   /**
-   * Explain an English word in Mongolian.
-   * 1. Check user's plan limit (dictionaryAiLimit).
-   * 2. Try Words DB first (free, instant).
-   * 3. Fall back to Anthropic Haiku, log usage, increment counter.
+   * Look up the short Mongolian meaning of an English word. Lookup order:
+   *   1. Word DB (the curated "swipe" vocabulary) — free, instant.
+   *   2. Translation cache (previous AI lookups) — free, instant.
+   *   3. Gemini — only here is the plan limit enforced; the result is saved to
+   *      the translation cache so the same word never hits the AI twice.
    */
-  async explain(
-    userId: string,
-    word: string,
-  ): Promise<{ word: string; explanation: string; cached: boolean }> {
+  async explain(userId: string, word: string): Promise<WordLookup> {
     const normalised = word.trim().toLowerCase();
 
-    // Load user + plan
+    // 1. Word DB (authored vocabulary).
+    const dbWord = await this.words.findOne({ where: { english: normalised } });
+    if (dbWord && dbWord.mongolian) {
+      return {
+        word: normalised,
+        translation: dbWord.mongolian,
+        audioUrl: dbWord.audioUrl ?? null,
+        cached: true,
+      };
+    }
+
+    // 2. Translation cache (a previous Gemini lookup).
+    const cached = await this.translations.findOne({ where: { word: normalised } });
+    if (cached) {
+      return {
+        word: normalised,
+        translation: cached.translation,
+        audioUrl: cached.audioUrl,
+        cached: true,
+      };
+    }
+
+    // 3. Enforce the monthly plan limit only when we actually call the AI.
     const user = await this.users.findOne({
       where: { id: userId },
       relations: ['plan'],
     });
-
-    // Enforce plan limit
     if (user?.plan && user.plan.dictionaryAiLimit !== null) {
       if (user.dictionaryAiCount >= user.plan.dictionaryAiLimit) {
         throw new ForbiddenException(
@@ -58,46 +89,27 @@ export class DictionaryService implements OnModuleInit {
       }
     }
 
-    // DB cache — Words table
-    const dbWord = await this.words.findOne({ where: { english: normalised } });
-    if (dbWord && dbWord.mongolian) {
-      const parts = [
-        `**Утга:** ${dbWord.mongolian}`,
-        dbWord.partOfSpeech ? `**Ангилал:** ${dbWord.partOfSpeech}` : null,
-        dbWord.exampleSentence ? `**Жишээ:** *${dbWord.exampleSentence}*` : null,
-        dbWord.exampleTranslation ? `*(${dbWord.exampleTranslation})*` : null,
-      ].filter(Boolean);
-      return { word: normalised, explanation: parts.join('\n'), cached: true };
-    }
+    const { translation, model, promptTokens, completionTokens } =
+      await this.askGemini(normalised);
 
-    // Call Anthropic
-    this.logger.log(`Dictionary AI lookup: "${normalised}" for user ${userId}`);
-    const response = await this.anthropic.messages.create({
-      model: DICT_MODEL,
-      max_tokens: 300,
-      messages: [
-        {
-          role: 'user',
-          content:
-            `"${word}" гэсэн Англи үгийг Монгол хэлээр товчхон тайлбарла.\n` +
-            'Формат:\n- Утга: ...\n- Жишээ: ... (Монгол орчуулгатай)\n- Хэрэглэх байдал: ...',
-        },
-      ],
-    });
+    // Save to the translation cache so this word is never sent to AI again.
+    await this.translations.save(
+      this.translations.create({
+        word: normalised,
+        translation,
+        audioUrl: null,
+        source: model,
+      }),
+    );
 
-    const explanation =
-      response.content[0].type === 'text' ? response.content[0].text : '';
-    const promptTokens = response.usage.input_tokens;
-    const completionTokens = response.usage.output_tokens;
-
-    // Log AI usage
+    // Log usage + bump the user's monthly counter.
     const costMicroUsd =
-      Math.round(promptTokens * 0.0008) + Math.round(completionTokens * 0.004);
+      Math.round(promptTokens * 0.0001) + Math.round(completionTokens * 0.0004);
     await this.aiUsages.save(
       this.aiUsages.create({
         userId,
         type: AiUsageType.TEXT_CHAT,
-        model: DICT_MODEL,
+        model,
         promptTokens,
         completionTokens,
         voiceSeconds: 0,
@@ -105,12 +117,166 @@ export class DictionaryService implements OnModuleInit {
         metadata: { feature: 'dictionary', word: normalised },
       }),
     );
-
-    // Increment monthly counter
     if (user) {
       await this.users.increment({ id: userId }, 'dictionaryAiCount', 1);
     }
 
-    return { word: normalised, explanation, cached: false };
+    return { word: normalised, translation, audioUrl: null, cached: false };
+  }
+
+  /**
+   * Pronunciation audio for a word (ElevenLabs via the AI gateway). Generated
+   * lazily on the first speaker tap, then cached forever: reuses the Word DB's
+   * audio, else the translation cache's, else generates once and stores it.
+   */
+  async getAudio(userId: string, word: string): Promise<{ audioUrl: string }> {
+    const normalised = word.trim().toLowerCase();
+
+    // Reuse the curated word's audio if it exists.
+    const dbWord = await this.words.findOne({ where: { english: normalised } });
+    if (dbWord?.audioUrl) return { audioUrl: dbWord.audioUrl };
+
+    // Reuse a previously generated dictionary clip.
+    const row = await this.translations.findOne({ where: { word: normalised } });
+    if (row?.audioUrl) return { audioUrl: row.audioUrl };
+
+    // Generate once via ElevenLabs and cache the URL.
+    const { audioUrl } = await this.aiGateway.generateVocabularyAudio({
+      userId,
+      wordId: 'dictionary',
+      english: normalised,
+    });
+
+    if (row) {
+      row.audioUrl = audioUrl;
+      await this.translations.save(row);
+    } else {
+      // No translation row yet (audio tapped before/without a text lookup).
+      await this.translations.save(
+        this.translations.create({
+          word: normalised,
+          translation: '',
+          audioUrl,
+          source: 'elevenlabs',
+        }),
+      );
+    }
+
+    return { audioUrl };
+  }
+
+  /**
+   * Save a tapped word (with its Mongolian translation) to the user's saved
+   * vocabulary so it shows up in Saved Words / review. If the word isn't in the
+   * curated Word bank yet, create it as `needs_review` (kept out of everyone's
+   * learn deck, but visible in this user's saved list and reviewable by admin).
+   */
+  async saveWord(
+    userId: string,
+    word: string,
+  ): Promise<{ wordId: string; saved: boolean }> {
+    const normalised = word.trim().toLowerCase();
+
+    let dbWord = await this.words.findOne({ where: { english: normalised } });
+    if (!dbWord) {
+      // Reuse the cached translation; look it up (Gemini) if we somehow miss.
+      const cached = await this.translations.findOne({ where: { word: normalised } });
+      const mongolian = cached?.translation ?? (await this.explain(userId, normalised)).translation;
+      dbWord = await this.words.save(
+        this.words.create({
+          english: normalised,
+          mongolian,
+          status: WordStatus.NEEDS_REVIEW,
+          level: ContentLevel.A1,
+          audioUrl: cached?.audioUrl ?? null,
+        }),
+      );
+    }
+
+    let review = await this.reviews.findOne({
+      where: { userId, wordId: dbWord.id },
+    });
+    if (!review) {
+      review = this.reviews.create({ userId, wordId: dbWord.id });
+    }
+    review.saved = true;
+    await this.reviews.save(review);
+
+    return { wordId: dbWord.id, saved: true };
+  }
+
+  /**
+   * Ask Gemini for ONLY the short Mongolian meaning of an English word (a few
+   * words, no explanation). Retries transient 429/503/overload responses.
+   */
+  private async askGemini(word: string): Promise<{
+    translation: string;
+    model: string;
+    promptTokens: number;
+    completionTokens: number;
+  }> {
+    const apiKey = this.config.get<string>('GEMINI_API_KEY');
+    if (!apiKey) {
+      throw new InternalServerErrorException('GEMINI_API_KEY тохируулаагүй байна');
+    }
+    const model = this.config.get<string>('GEMINI_MODEL', 'gemini-2.5-flash');
+
+    const prompt =
+      `"${word}" гэсэн англи үгийн монгол утгыг бич.\n` +
+      'Зөвхөн монгол орчуулгыг бич — богино (1-4 үг), тайлбар, жишээ, англи үг бүү нэм.';
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    const requestInit = {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.3 },
+      }),
+    };
+
+    const MAX_ATTEMPTS = 5;
+    for (let attempt = 1; ; attempt++) {
+      const response = await fetch(url, requestInit);
+      if (response.ok) {
+        const data = (await response.json()) as {
+          candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] } }[];
+          usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
+        };
+        const parts = data.candidates?.[0]?.content?.parts ?? [];
+        const translation = parts
+          .filter((p) => !p.thought && p.text)
+          .map((p) => p.text)
+          .join('')
+          .trim();
+        if (!translation) {
+          throw new InternalServerErrorException('AI хоосон хариу буцаалаа');
+        }
+        return {
+          translation,
+          model,
+          promptTokens: data.usageMetadata?.promptTokenCount ?? 0,
+          completionTokens: data.usageMetadata?.candidatesTokenCount ?? 0,
+        };
+      }
+
+      const body = await response.text().catch(() => '');
+      const transient =
+        response.status === 429 ||
+        response.status === 503 ||
+        (response.status === 404 &&
+          /high demand|unavailable|overloaded|try again/i.test(body));
+      if (transient && attempt < MAX_ATTEMPTS) {
+        const waitMs = geminiRetryDelayMs(body, attempt);
+        this.logger.warn(
+          `Gemini ${response.status} for "${word}" — retry ${attempt}/${MAX_ATTEMPTS - 1} in ${waitMs}ms`,
+        );
+        await sleep(waitMs);
+        continue;
+      }
+
+      this.logger.error(`Gemini dictionary failed (${response.status}): ${body}`);
+      throw new InternalServerErrorException('Орчуулга үүсгэхэд алдаа гарлаа');
+    }
   }
 }

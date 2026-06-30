@@ -6,6 +6,7 @@ import Login from './pages/Login';
 import WordsPage from './pages/words/WordsPage';
 import LessonsPage from './pages/lessons/LessonsPage';
 import ReadingPage from './pages/reading/ReadingPage';
+import IdiomsPage from './pages/idioms/IdiomsPage';
 import QuizzesPage from './pages/quizzes/QuizzesPage';
 import UsersPage from './pages/users/UsersPage';
 import MonitorPage from './pages/monitor/MonitorPage';
@@ -36,6 +37,7 @@ export default function App() {
             <Route path="/words"         element={<WordsPage />} />
             <Route path="/lessons"       element={<LessonsPage />} />
             <Route path="/reading"       element={<ReadingPage />} />
+            <Route path="/idioms"        element={<IdiomsPage />} />
             <Route path="/quizzes"       element={<QuizzesPage />} />
             <Route path="/users"         element={<UsersPage />} />
             <Route path="/classes"       element={<ClassesPage />} />

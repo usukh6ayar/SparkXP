@@ -3,8 +3,8 @@
 Gamified English learning app for Mongolian students, schools, and
 organizations (e.g. law firms). Owner: Hustle Hive LLC.
 
-> **This file is the shared brain for both developers' Claude sessions.**
-> We are 2 devs, each on a separate Claude Pro account. Keep this file clear and
+> **This file is the shared brain for every developer's Claude session.**
+> We are 4 devs, each on a separate Claude Pro account. Keep this file clear and
 > up to date — whatever is written here is what each person's Claude will follow.
 > For the task list / what to build next, see **ROADMAP.md**.
 
@@ -12,7 +12,7 @@ organizations (e.g. law firms). Owner: Hustle Hive LLC.
 
 ## Team & Working Style
 
-- 2 developers, each using their own Claude Pro account.
+- 4 developers, each using their own Claude Pro account (Usukhbayar leads).
 - Keep code simple, readable, well-documented. MVP first, scale later.
 - Avoid over-engineering. Write code a junior dev can read.
 
@@ -285,8 +285,10 @@ WordReview, XpLog, AiUsage, Message, Payment, SparksLog, LessonUnlock.
   git checkout <your-branch> && git merge main   # bring in their merged work
   ```
 - `main` is always working/deployable. **Never push directly to `main`.**
-- One branch per dev/task: `usukhbayar`, `bishrelt`, or `feature/...` / `fix/...`.
-- Open a Pull Request, have the other dev review, then merge to `main`.
+- **Each dev works on their own branch** — `usukhbayar`, `bishrelt`, `choi`,
+  `boju` (or a `feature/...` / `fix/...` branch for a specific task). Never
+  commit on someone else's branch.
+- Open a Pull Request, have another dev review, then merge to `main`.
 - Keep PRs small and frequent. Split work by module to avoid conflicts.
 - `.env` is never committed (secrets). Update `.env.example` when adding new
   config keys so the other dev knows to set them.

@@ -44,3 +44,11 @@ export function getReadingList(
 export function getReadingPassage(id: string, token: string): Promise<ReadingPassage> {
   return apiRequest(`/reading/${id}`, { token });
 }
+
+/** Mark a passage finished → awards XP once (idempotent on the server). */
+export function completeReading(
+  id: string,
+  token: string,
+): Promise<{ passageId: string; alreadyCompleted: boolean; xpAwarded: number }> {
+  return apiRequest(`/reading/${id}/complete`, { method: 'POST', token });
+}

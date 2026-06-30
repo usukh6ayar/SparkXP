@@ -152,6 +152,9 @@ export interface VocabularyImageRequest {
   partOfSpeech?: string | null;
   exampleSentence?: string | null;
   cefr?: string | null;
+  /** When set, this exact prompt is used instead of the vocabulary template
+   *  (e.g. idioms supply their own idiom-specific prompt). */
+  prompt?: string;
 }
 
 export interface VocabularyImageResponse {
@@ -371,7 +374,7 @@ export class AiGatewayService implements OnModuleInit {
     const model = this.config.get<string>('OPENAI_IMAGE_MODEL', DEFAULT_IMAGE_MODEL);
     const quality = this.config.get<string>('OPENAI_IMAGE_QUALITY', 'low');
     const size = this.config.get<string>('OPENAI_IMAGE_SIZE', '1024x1024');
-    const prompt = this.buildVocabularyImagePrompt(input);
+    const prompt = input.prompt || this.buildVocabularyImagePrompt(input);
 
     const endpoint = 'https://api.openai.com/v1/images/generations';
     this.logger.log(
@@ -519,6 +522,77 @@ export class AiGatewayService implements OnModuleInit {
         metadata: {
           wordId: input.wordId,
           english: input.english,
+          provider: 'elevenlabs',
+          voiceId,
+        },
+      }),
+    );
+
+    return { audioUrl, model };
+  }
+
+  /**
+   * Generate speech audio (mp3) for arbitrary text via ElevenLabs and store it
+   * at a STABLE public_id (overwrite=true) so regenerating replaces the same
+   * file instead of orphaning clips. Used for reading-passage sentences —
+   * `filenameBase` becomes the Cloudinary id (e.g. reading-<passageId>-<index>).
+   */
+  async generateSpeechAudio(input: {
+    text: string;
+    userId: string;
+    filenameBase: string;
+    folder?: string;
+  }): Promise<{ audioUrl: string; model: string }> {
+    const apiKey = this.config.get<string>('ELEVENLABS_API_KEY');
+    if (!apiKey) {
+      throw new InternalServerErrorException('ELEVENLABS_API_KEY тохируулаагүй байна');
+    }
+    const voiceId = this.config.get<string>('ELEVENLABS_VOICE_ID', DEFAULT_TTS_VOICE_ID);
+    const model = this.config.get<string>('ELEVENLABS_MODEL', DEFAULT_TTS_MODEL);
+
+    const response = await fetch(
+      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
+      {
+        method: 'POST',
+        headers: {
+          'xi-api-key': apiKey,
+          'Content-Type': 'application/json',
+          Accept: 'audio/mpeg',
+        },
+        body: JSON.stringify({ text: input.text, model_id: model }),
+      },
+    );
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      this.logger.error(`ElevenLabs TTS failed (${response.status}): ${body}`);
+      throw new InternalServerErrorException('Аудио үүсгэхэд алдаа гарлаа');
+    }
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+    const audioUrl = await this.imageStorage.storeMedia({
+      buffer,
+      // Stable filename → stable Cloudinary public_id → overwrite on regen.
+      filename: `${this.safeFilename(input.filenameBase)}.mp3`,
+      mimeType: 'audio/mpeg',
+      resourceType: 'video',
+      folder:
+        input.folder ??
+        this.config.get<string>('CLOUDINARY_AUDIO_FOLDER', 'englishxp/audio'),
+      localSubdir: 'audio',
+    });
+
+    await this.aiUsages.save(
+      this.aiUsages.create({
+        userId: input.userId,
+        type: AiUsageType.TTS,
+        model,
+        promptTokens: 0,
+        completionTokens: 0,
+        voiceSeconds: 0,
+        costMicroUsd: AUDIO_COST_MICRO_USD,
+        metadata: {
+          feature: 'reading',
+          text: input.text.slice(0, 80),
           provider: 'elevenlabs',
           voiceId,
         },

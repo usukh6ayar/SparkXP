@@ -12,7 +12,10 @@ import { FileUpload } from '../../components/FileUpload';
 import { ImageCropUpload } from '../../components/ImageCropUpload';
 import { FormActions } from '../../components/FormActions';
 import { RowActions } from '../../components/RowActions';
+import { Pagination } from '../../components/Pagination';
 import { levelFormOptions as levelOptions } from '../../lib/options';
+
+const LIMIT = 20;
 
 interface Lesson {
   id: string;
@@ -86,6 +89,8 @@ const emptyForm: LessonForm = {
 
 export default function LessonsPage() {
   const [lessons, setLessons] = useState<Lesson[]>([]);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
   const [modal, setModal] = useState<null | 'create' | 'edit' | 'preview'>(null);
   const [editing, setEditing] = useState<Lesson | null>(null);
   const [preview, setPreview] = useState<Lesson | null>(null);
@@ -94,9 +99,10 @@ export default function LessonsPage() {
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
-    const data = await api.get<{ items: Lesson[] }>('/lessons');
+    const data = await api.get<{ items: Lesson[]; total: number }>(`/lessons?page=${page}&limit=${LIMIT}`);
     setLessons(data.items ?? []);
-  }, []);
+    setTotal(data.total ?? 0);
+  }, [page]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -184,6 +190,7 @@ export default function LessonsPage() {
         action={<Button onClick={openCreate}><Plus className="h-4 w-4" /> Хичээл нэмэх</Button>}
       />
       <Table columns={columns} rows={lessons} keyFn={(l) => l.id} empty="Хичээл байхгүй" />
+      <Pagination page={page} total={total} limit={LIMIT} onPage={setPage} />
 
       {/* Create / Edit modal */}
       {(modal === 'create' || modal === 'edit') && (
