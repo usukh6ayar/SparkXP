@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Eye, EyeOff } from 'lucide-react';
+import { Plus, Eye, EyeOff, Upload, Trash2 } from 'lucide-react';
 import { api } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
 import { Button } from '../../components/Button';
@@ -64,12 +64,24 @@ export default function ExercisesPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
+  // Selection (bulk publish/delete)
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  // CSV/JSON import
+  const [importOpen, setImportOpen] = useState(false);
+  const [impTitle, setImpTitle] = useState('');
+  const [impLevel, setImpLevel] = useState('a1');
+  const [impType, setImpType] = useState<QuestionType>('multiple_choice');
+  const [impText, setImpText] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [impError, setImpError] = useState('');
+
   const load = useCallback(async () => {
     if (cat === 'speaking' || cat === 'reading') { setItems([]); return; }
     const data = await api.get<{ items: Exercise[] }>(
       `/quizzes?standalone=true&category=${cat}&limit=200`,
     );
     setItems(data.items ?? []);
+    setSelected(new Set());
   }, [cat]);
   useEffect(() => { load(); }, [load]);
 
@@ -122,7 +134,85 @@ export default function ExercisesPage() {
     load();
   }
 
+  // ── Selection + bulk actions ──
+  function toggleRow(id: string) {
+    setSelected((s) => {
+      const n = new Set(s);
+      n.has(id) ? n.delete(id) : n.add(id);
+      return n;
+    });
+  }
+  function toggleAll() {
+    setSelected((s) => (s.size === items.length ? new Set() : new Set(items.map((i) => i.id))));
+  }
+  async function bulkPublish(isPublished: boolean) {
+    await Promise.all([...selected].map((id) => api.patch(`/quizzes/${id}`, { isPublished })));
+    load();
+  }
+  async function bulkDelete() {
+    if (!confirm(`${selected.size} дасгал устгах уу?`)) return;
+    await Promise.all([...selected].map((id) => api.delete(`/quizzes/${id}`)));
+    load();
+  }
+
+  // ── CSV / JSON import (rows = questions) ──
+  /** Parse pasted CSV (pipe-delimited) or a JSON array into a questions[]. */
+  function parseQuestions(text: string, type: QuestionType): Question[] {
+    const trimmed = text.trim();
+    if (trimmed.startsWith('[')) {
+      const arr = JSON.parse(trimmed) as Question[];
+      if (!Array.isArray(arr)) throw new Error('JSON массив байх ёстой');
+      return arr;
+    }
+    // Pipe-delimited lines, one question per line.
+    return trimmed
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const p = line.split('|').map((s) => s.trim());
+        if (type === 'fill_blank') {
+          return { type: 'fill_blank', question: p[0], answer: p[1] ?? '', points: Number(p[2] || 10) };
+        }
+        // multiple_choice: question | opt1 | opt2 | ... | correctNo | points
+        const points = Number(p[p.length - 1] || 10);
+        const correctNo = Number(p[p.length - 2] || 1);
+        const options = p.slice(1, p.length - 2);
+        return { type: 'multiple_choice', question: p[0], options, correct: Math.max(0, correctNo - 1), points };
+      });
+  }
+
+  async function runImport() {
+    if (!impTitle.trim()) { setImpError('Гарчиг оруулна уу'); return; }
+    let questions: Question[];
+    try {
+      questions = parseQuestions(impText, impType);
+    } catch (e) {
+      setImpError(e instanceof Error ? e.message : 'Задлахад алдаа гарлаа');
+      return;
+    }
+    if (questions.length === 0) { setImpError('Асуулт олдсонгүй'); return; }
+    setImporting(true); setImpError('');
+    try {
+      await api.post('/quizzes', {
+        title: impTitle.trim(), level: impLevel, category: cat,
+        quizType: impType, questions, xpReward: 50, isPublished: false,
+      });
+      setImportOpen(false); setImpTitle(''); setImpText('');
+      load();
+    } catch (e: unknown) {
+      setImpError(e instanceof Error ? e.message : 'Импорт амжилтгүй');
+    } finally { setImporting(false); }
+  }
+
+  const allChecked = items.length > 0 && selected.size === items.length;
   const columns = [
+    {
+      key: 'sel',
+      header: <input type="checkbox" checked={allChecked} onChange={toggleAll} />,
+      render: (e: Exercise) => <input type="checkbox" checked={selected.has(e.id)} onChange={() => toggleRow(e.id)} />,
+      className: 'w-8',
+    },
     { key: 'title', header: 'Гарчиг', render: (e: Exercise) => <span className="font-medium">{e.title}</span> },
     { key: 'level', header: 'Түвшин', render: (e: Exercise) => <Badge color="gray">{e.level.toUpperCase()}</Badge> },
     { key: 'qs', header: 'Асуулт', render: (e: Exercise) => <span className="text-gray-600">{e.questions?.length ?? 0}</span> },
@@ -157,7 +247,12 @@ export default function ExercisesPage() {
       <PageHeader
         title="Дасгал"
         description="Хичээлээс тусдаа, бие даасан дасгалууд (4 төрөл)"
-        action={!speaking && !reading && <Button onClick={openCreate}><Plus className="h-4 w-4" /> Дасгал нэмэх</Button>}
+        action={!speaking && !reading && (
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={() => { setImpError(''); setImportOpen(true); }}><Upload className="h-4 w-4" /> Импорт</Button>
+            <Button onClick={openCreate}><Plus className="h-4 w-4" /> Дасгал нэмэх</Button>
+          </div>
+        )}
       />
 
       {/* Category tabs */}
@@ -172,6 +267,16 @@ export default function ExercisesPage() {
           </button>
         ))}
       </div>
+
+      {/* Bulk action bar */}
+      {!speaking && !reading && selected.size > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <span className="text-sm text-gray-500">{selected.size} сонгосон:</span>
+          <Button variant="secondary" size="sm" onClick={() => bulkPublish(true)}>Нийтлэх</Button>
+          <Button variant="secondary" size="sm" onClick={() => bulkPublish(false)}>Ноорог болгох</Button>
+          <Button variant="danger" size="sm" onClick={bulkDelete}><Trash2 className="h-4 w-4" /> Устгах</Button>
+        </div>
+      )}
 
       {speaking ? (
         <div className="rounded-xl border border-dashed border-gray-200 bg-white p-10 text-center text-sm text-gray-400">
@@ -209,6 +314,50 @@ export default function ExercisesPage() {
 
             {error && <p className="text-sm text-red-500">{error}</p>}
             <FormActions onCancel={() => setModal(null)} onSave={save} saving={saving} />
+          </div>
+        </Modal>
+      )}
+
+      {/* CSV / JSON import — rows = questions → one new exercise */}
+      {importOpen && (
+        <Modal title={`Дасгал импорт (${CATS.find((c) => c.key === cat)?.label})`} onClose={() => setImportOpen(false)} size="2xl">
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <Input label="Гарчиг" value={impTitle} onChange={(e) => setImpTitle(e.target.value)} />
+              <Select label="Түвшин" options={LEVEL_OPTIONS} value={impLevel} onChange={(e) => setImpLevel(e.target.value)} />
+              <Select
+                label="Асуултын төрөл"
+                options={[{ value: 'multiple_choice', label: 'Олон сонголт' }, { value: 'fill_blank', label: 'Нөхөх' }]}
+                value={impType}
+                onChange={(e) => setImpType(e.target.value as QuestionType)}
+              />
+            </div>
+            <div className="rounded-lg bg-gray-50 p-3 text-xs text-gray-500">
+              <p className="font-medium text-gray-700">Формат (мөр бүр = 1 асуулт, `|`-аар тусгаарла):</p>
+              {impType === 'fill_blank' ? (
+                <p className="mt-1 font-mono">She ___ to school. | goes | 10</p>
+              ) : (
+                <p className="mt-1 font-mono">Нийслэл? | Улаанбаатар | Дархан | Эрдэнэт | 1 | 10</p>
+              )}
+              <p className="mt-1">
+                {impType === 'fill_blank'
+                  ? 'асуулт | зөв хариулт | оноо'
+                  : 'асуулт | сонголт1 | сонголт2 | … | зөв№(1-ээс) | оноо'}
+                . Эсвэл JSON массив ([{'{'}…{'}'}) буулгаж болно.
+              </p>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium text-gray-700">Өгөгдөл</label>
+              <textarea
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                rows={8}
+                value={impText}
+                onChange={(e) => setImpText(e.target.value)}
+                placeholder="Энд CSV (|-аар) эсвэл JSON буулгана..."
+              />
+            </div>
+            {impError && <p className="text-sm text-red-500">{impError}</p>}
+            <FormActions onCancel={() => setImportOpen(false)} onSave={runImport} saving={importing} saveLabel="Импортлох" />
           </div>
         </Modal>
       )}
