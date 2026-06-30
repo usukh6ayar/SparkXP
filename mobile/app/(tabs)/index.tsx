@@ -44,7 +44,7 @@ const CATS: {
   {
     key: "listening",
     label: "Сонсгол",
-    en: "Listening",
+    en: "Сонсох дасгал",
     icon: "headset",
     tint: tints.purple,
     progress: 0.45,
@@ -52,7 +52,7 @@ const CATS: {
   {
     key: "reading",
     label: "Унших",
-    en: "Reading",
+    en: "Унших материал",
     icon: "book",
     tint: tints.green,
     progress: 0.6,
@@ -60,7 +60,7 @@ const CATS: {
   {
     key: "writing",
     label: "Бичих",
-    en: "Writing",
+    en: "Бичих дасгал",
     icon: "create",
     tint: tints.blue,
     progress: 0.5,
@@ -68,7 +68,7 @@ const CATS: {
   {
     key: "speaking",
     label: "Ярих",
-    en: "Speaking",
+    en: "Ярих дасгал",
     icon: "mic",
     tint: tints.coral,
     progress: 0.3,

@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { View, StyleSheet, ScrollView, RefreshControl } from 'react-native';
+import { View, StyleSheet, ScrollView, RefreshControl, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/auth/AuthContext';
 import { getExercises, type Quiz } from '../../src/api/quizzes';
+import { getReadingList, type ReadingPassage } from '../../src/api/reading';
 import { TopBar } from '../../src/components/TopBar';
 import { AppText } from '../../src/components/Text';
 import { Card } from '../../src/components/Card';
@@ -27,23 +28,39 @@ export default function SkillScreen() {
   const skillKey = key ?? 'listening';
   const skill = SKILLS[skillKey] ?? SKILLS.listening;
   const isSpeaking = skillKey === 'speaking';
+  // Унших = админ дахь "Унших материал" (ReadingPassage), бусад нь дасгал (quiz).
+  const isReading = skillKey === 'reading';
   const { token } = useAuth();
   const router = useRouter();
 
   const [items, setItems] = useState<Quiz[]>([]);
+  const [passages, setPassages] = useState<ReadingPassage[]>([]);
+  // Сонгосон сэдэв (category) шүүлтүүр — зөвхөн Унших дээр. 'all' = бүгд.
+  const [cat, setCat] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Ачаалсан материалд бодитоор байгаа сэдвүүд (хоосон сэдэвтэйг алгасна).
+  const categories = [...new Set(passages.map((p) => p.category).filter(Boolean))] as string[];
+  const shownPassages = cat === 'all' ? passages : passages.filter((p) => p.category === cat);
+
   const load = useCallback(async () => {
-    if (!token || isSpeaking) { setItems([]); return; }
+    if (!token || isSpeaking) { setItems([]); setPassages([]); return; }
     try {
-      const r = await getExercises(token, skillKey);
-      setItems(r.items);
+      if (isReading) {
+        const r = await getReadingList(token);
+        setPassages(r.items);
+      } else {
+        const r = await getExercises(token, skillKey);
+        setItems(r.items);
+      }
     } catch (e) {
-      console.warn('Exercises load failed:', (e as Error)?.message ?? e);
-      setItems([]);
+      console.warn('Skill load failed:', (e as Error)?.message ?? e);
+      setItems([]); setPassages([]);
     }
-  }, [token, skillKey, isSpeaking]);
+  }, [token, skillKey, isSpeaking, isReading]);
+
+  const count = isReading ? shownPassages.length : items.length;
 
   useEffect(() => {
     setLoading(true);
@@ -73,10 +90,34 @@ export default function SkillScreen() {
             <AppText variant="caption" color="rgba(255,255,255,0.9)">{skill.sub}</AppText>
           </View>
           <View style={{ alignItems: 'center' }}>
-            <AppText variant="h2" color={colors.white}>{items.length}</AppText>
-            <AppText variant="overline" color="rgba(255,255,255,0.85)">ДАСГАЛ</AppText>
+            <AppText variant="h2" color={colors.white}>{count}</AppText>
+            <AppText variant="overline" color="rgba(255,255,255,0.85)">{isReading ? 'МАТЕРИАЛ' : 'ДАСГАЛ'}</AppText>
           </View>
         </LinearGradient>
+
+        {/* Сэдэв (category) шүүлтүүр — материалд сэдэв байгаа үед л харуулна. */}
+        {isReading && !loading && categories.length > 0 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.catRow}
+          >
+            {['all', ...categories].map((c) => {
+              const active = cat === c;
+              return (
+                <Pressable
+                  key={c}
+                  onPress={() => setCat(c)}
+                  style={[styles.catChip, active && { backgroundColor: skill.tint.fg, borderColor: skill.tint.fg }]}
+                >
+                  <AppText variant="caption" color={active ? colors.white : colors.textMuted}>
+                    {c === 'all' ? 'Бүгд' : c}
+                  </AppText>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        )}
 
         {isSpeaking ? (
           <View style={styles.soon}>
@@ -87,6 +128,25 @@ export default function SkillScreen() {
           </View>
         ) : loading ? (
           <Loading />
+        ) : isReading ? (
+          shownPassages.length === 0 ? (
+            <AppText variant="body" color={colors.textMuted} center style={styles.empty}>
+              Унших материал алга 🦊
+            </AppText>
+          ) : (
+            shownPassages.map((p) => (
+              <Card key={p.id} variant="raised" onPress={() => router.push(`/reading/${p.id}`)} padding="md" style={styles.row}>
+                <View style={[styles.icon, { backgroundColor: skill.tint.bg }]}>
+                  <Ionicons name={skill.icon} size={20} color={skill.tint.fg} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <AppText variant="h3" numberOfLines={2}>{p.title}</AppText>
+                  <AppText variant="caption">{p.wordCount} үг · {p.sentences?.length ?? 0} өгүүлбэр · {p.cefr.toUpperCase()}</AppText>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={colors.borderStrong} />
+              </Card>
+            ))
+          )
         ) : items.length === 0 ? (
           <AppText variant="body" color={colors.textMuted} center style={styles.empty}>
             Энэ төрлийн дасгал алга 🦊
@@ -121,6 +181,12 @@ const styles = StyleSheet.create({
   heroIcon: {
     width: 48, height: 48, borderRadius: radius.full, backgroundColor: colors.white,
     alignItems: 'center', justifyContent: 'center',
+  },
+  catRow: { gap: spacing.sm, paddingBottom: spacing.md },
+  catChip: {
+    paddingHorizontal: spacing.md, paddingVertical: spacing.xs,
+    borderRadius: radius.full, borderWidth: 1, borderColor: colors.border,
+    backgroundColor: colors.white,
   },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.md },
   icon: { width: 48, height: 48, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },

@@ -114,6 +114,7 @@ export default function ReadingDetailScreen() {
                 {passage.cefr.toUpperCase()}
               </AppText>
             </View>
+            {passage.category ? <Meta icon="pricetag-outline" text={passage.category} /> : null}
             <Meta icon="document-text-outline" text={`${passage.wordCount} үг`} />
             {time ? <Meta icon="time-outline" text={time} /> : null}
             <Meta icon="list-outline" text={`${passage.sentences.length} өгүүлбэр`} />
