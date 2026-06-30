@@ -13,6 +13,7 @@ import { ImageCropUpload } from '../../components/ImageCropUpload';
 import { FormActions } from '../../components/FormActions';
 import { RowActions } from '../../components/RowActions';
 import { Pagination } from '../../components/Pagination';
+import { LessonTests } from './LessonTests';
 import { levelFormOptions as levelOptions } from '../../lib/options';
 
 const LIMIT = 20;
@@ -128,7 +129,7 @@ export default function LessonsPage() {
       if (imageUrl) content.imageUrl = imageUrl;
       if (videoUrl) content.videoUrl = videoUrl;
       if (topic) content.topic = topic;
-      const payload = { ...rest, description: description || undefined, content, isPublished: true };
+      const payload = { ...rest, description: description || undefined, content, thumbnailUrl: imageUrl || undefined, isPublished: true };
       if (modal === 'create') await api.post('/lessons', payload);
       else if (editing) await api.patch(`/lessons/${editing.id}`, payload);
       setModal(null); load();
@@ -194,7 +195,7 @@ export default function LessonsPage() {
 
       {/* Create / Edit modal */}
       {(modal === 'create' || modal === 'edit') && (
-        <Modal title={modal === 'create' ? 'Хичээл нэмэх' : 'Хичээл засах'} onClose={() => setModal(null)}>
+        <Modal title={modal === 'create' ? 'Хичээл нэмэх' : 'Хичээл засах'} onClose={() => setModal(null)} size="2xl">
           <div className="space-y-4">
             <Input label="Гарчиг" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
             <div className="grid grid-cols-2 gap-4">
@@ -234,6 +235,13 @@ export default function LessonsPage() {
               onChange={(e) => setForm({ ...form, priceSparks: Number(e.target.value) })} />
             {error && <p className="text-sm text-red-500">{error}</p>}
             <FormActions onCancel={() => setModal(null)} onSave={save} saving={saving} />
+
+            {/* Per-lesson tests (4 categories) — needs a saved lesson id */}
+            {modal === 'edit' && editing ? (
+              <LessonTests lessonId={editing.id} level={form.level} />
+            ) : (
+              <p className="text-xs text-gray-400">💡 Тест нэмэхийн тулд эхлээд хичээлээ хадгална уу.</p>
+            )}
           </div>
         </Modal>
       )}

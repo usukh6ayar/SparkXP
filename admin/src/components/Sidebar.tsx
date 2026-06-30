@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import {
   BookOpen, FileText, HelpCircle, Users, BarChart2,
   Settings, LogOut, Zap, Trophy, Bot, GraduationCap,
-  Building2, Activity, Bell, LifeBuoy, BookText, Quote,
+  Building2, Activity, Bell, LifeBuoy, BookText, Quote, Dumbbell,
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { canAccess } from '../auth/access';
@@ -13,6 +13,7 @@ const nav = [
   { to: '/lessons',       label: 'Хичээл',       icon: FileText },
   { to: '/reading',       label: 'Унших',        icon: BookText },
   { to: '/idioms',        label: 'Хэлц үг',       icon: Quote },
+  { to: '/exercises',     label: 'Дасгал',        icon: Dumbbell },
   { to: '/quizzes',       label: 'Quiz',          icon: HelpCircle },
   { to: '/users',         label: 'Хэрэглэгч',   icon: Users },
   { to: '/classes',       label: 'Ангиуд',       icon: GraduationCap },

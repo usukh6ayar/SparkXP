@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput,
   Pressable, ActivityIndicator, Alert,
@@ -24,6 +24,9 @@ export default function QuizScreen() {
   const [answers, setAnswers] = useState<AnswerItem[]>([]);
   const [fillText, setFillText] = useState('');
   const [selected, setSelected] = useState<number | null>(null);
+  // word_match: leftIndex → chosen right value, plus the currently-picked left.
+  const [matches, setMatches] = useState<Record<number, string>>({});
+  const [selLeft, setSelLeft] = useState<number | null>(null);
   const [result, setResult] = useState<QuizResult | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -36,8 +39,23 @@ export default function QuizScreen() {
   const currentQ = quiz?.questions[currentIndex];
   const isLast = quiz ? currentIndex === quiz.questions.length - 1 : false;
 
+  // word_match: right column shuffled once per question.
+  const shuffledRights = useMemo(() => {
+    if (currentQ?.type !== 'word_match' || !currentQ.pairs) return [];
+    return [...currentQ.pairs.map((p) => p.right)].sort(() => Math.random() - 0.5);
+  }, [currentIndex, currentQ]);
+
+  /** The answer value for the current question, in the shape the server grades. */
+  function currentAnswer(): number | string {
+    if (currentQ?.type === 'multiple_choice') return selected!;
+    if (currentQ?.type === 'word_match') {
+      return JSON.stringify((currentQ.pairs ?? []).map((p, i) => ({ left: p.left, right: matches[i] ?? '' })));
+    }
+    return fillText.trim();
+  }
+
   function saveAnswer() {
-    const answer = currentQ?.type === 'multiple_choice' ? selected! : fillText.trim();
+    const answer = currentAnswer();
     setAnswers((prev) => {
       const next = prev.filter((a) => a.questionIndex !== currentIndex);
       return [...next, { questionIndex: currentIndex, answer }];
@@ -46,6 +64,10 @@ export default function QuizScreen() {
 
   function canAdvance() {
     if (currentQ?.type === 'multiple_choice') return selected !== null;
+    if (currentQ?.type === 'word_match') {
+      const n = currentQ.pairs?.length ?? 0;
+      return n > 0 && Object.keys(matches).length === n;
+    }
     return fillText.trim().length > 0;
   }
 
@@ -53,6 +75,8 @@ export default function QuizScreen() {
     saveAnswer();
     setSelected(null);
     setFillText('');
+    setMatches({});
+    setSelLeft(null);
     setCurrentIndex((i) => i + 1);
   }
 
@@ -60,10 +84,7 @@ export default function QuizScreen() {
     saveAnswer();
     const finalAnswers: AnswerItem[] = [
       ...answers.filter((a) => a.questionIndex !== currentIndex),
-      {
-        questionIndex: currentIndex,
-        answer: currentQ?.type === 'multiple_choice' ? selected! : fillText.trim(),
-      },
+      { questionIndex: currentIndex, answer: currentAnswer() },
     ];
     setSubmitting(true);
     try {
@@ -154,7 +175,9 @@ export default function QuizScreen() {
 
       <ScrollView contentContainerStyle={styles.container}>
         <Text style={styles.quizTitle}>{quiz!.title}</Text>
-        <Text style={styles.questionText}>{currentQ!.question}</Text>
+        <Text style={styles.questionText}>
+          {currentQ!.question ?? (currentQ!.type === 'word_match' ? 'Зөв хосыг нь холбоно уу' : '')}
+        </Text>
 
         {currentQ!.type === 'multiple_choice' && (
           <View style={styles.optionsContainer}>
@@ -184,6 +207,44 @@ export default function QuizScreen() {
             placeholderTextColor={colors.textMuted}
             autoCapitalize="none"
           />
+        )}
+
+        {currentQ!.type === 'word_match' && (
+          <View style={styles.wmRow}>
+            {/* Left column — tap to pick, shows the chosen match */}
+            <View style={styles.wmCol}>
+              {(currentQ!.pairs ?? []).map((p, i) => (
+                <Pressable
+                  key={i}
+                  style={[styles.wmItem, selLeft === i && styles.wmItemSel, matches[i] && styles.wmItemDone]}
+                  onPress={() => setSelLeft(i)}
+                >
+                  <Text style={styles.wmText}>{p.left}</Text>
+                  {matches[i] ? <Text style={styles.wmMatch}>→ {matches[i]}</Text> : null}
+                </Pressable>
+              ))}
+            </View>
+            {/* Right column — tap to assign to the picked left */}
+            <View style={styles.wmCol}>
+              {shuffledRights.map((r, i) => {
+                const used = Object.values(matches).includes(r);
+                return (
+                  <Pressable
+                    key={i}
+                    disabled={used}
+                    style={[styles.wmItem, used && styles.wmItemUsed]}
+                    onPress={() => {
+                      if (selLeft === null) return;
+                      setMatches((m) => ({ ...m, [selLeft]: r }));
+                      setSelLeft(null);
+                    }}
+                  >
+                    <Text style={[styles.wmText, used && styles.wmTextUsed]}>{r}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
         )}
 
         <Button
@@ -253,6 +314,19 @@ const styles = StyleSheet.create({
     fontSize: fontSize.md,
     color: colors.text,
   },
+  // word_match
+  wmRow: { flexDirection: 'row', gap: spacing.md },
+  wmCol: { flex: 1, gap: spacing.sm },
+  wmItem: {
+    borderWidth: 2, borderColor: colors.border, borderRadius: radius.md,
+    paddingVertical: spacing.md, paddingHorizontal: spacing.md, minHeight: 48, justifyContent: 'center',
+  },
+  wmItemSel: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  wmItemDone: { borderColor: colors.success, backgroundColor: colors.successSoft },
+  wmItemUsed: { opacity: 0.35 },
+  wmText: { fontSize: fontSize.md, color: colors.text, fontWeight: '600' },
+  wmTextUsed: { color: colors.textMuted },
+  wmMatch: { fontSize: fontSize.sm, color: colors.primary, marginTop: 2 },
   errorText: { color: colors.danger, fontSize: fontSize.md },
   // Result styles
   resultEmoji: { fontSize: 64, textAlign: 'center', marginBottom: spacing.sm },

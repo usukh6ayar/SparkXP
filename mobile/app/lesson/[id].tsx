@@ -3,6 +3,7 @@ import { View, StyleSheet, ScrollView, Pressable, Image, Alert } from 'react-nat
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../../src/auth/AuthContext';
 import * as lessonsApi from '../../src/api/lessons';
@@ -19,16 +20,10 @@ import { colors, spacing, radius, levelColor } from '../../src/theme/theme';
 
 const banner = require('../../assets/home-banner.png');
 
-interface Segment { title: string; time: string; locked?: boolean }
-
-// Видеоны бүлгүүд — `content.segments` байхгүй үед placeholder (admin бөглөнө).
-const MOCK_SEGMENTS: Segment[] = [
-  { title: 'Мэндчилгээний үгс', time: '02:15', locked: false },
-  { title: 'Танилцах хэллэгүүд', time: '01:45', locked: true },
-  { title: 'Гарын үг ашиглалт', time: '01:30', locked: true },
-  { title: 'Жишээ яриа', time: '01:15', locked: true },
-];
-const DEFAULT_TIP = 'Хүмүүстэй уулзах үед эелдэг мэндлэх нь сайн харилцааны эхлэл болдог.';
+/** Nice labels for the 4 lesson-test categories. */
+const CAT_LABELS: Record<string, string> = {
+  listening: 'Сонсгол', reading: 'Унших', writing: 'Бичих', speaking: 'Ярих', fill: 'Нөхөх',
+};
 
 export default function LessonDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -43,6 +38,13 @@ export default function LessonDetailScreen() {
   const [unlocking, setUnlocking] = useState(false);
 
   const doneKey = `lesson_done:${id}`;
+  const videoUrl = (lesson?.content as { videoUrl?: string } | undefined)?.videoUrl ?? null;
+  const player = useVideoPlayer(videoUrl, (p) => { p.loop = false; });
+
+  // Load the real video source once the lesson (and its URL) arrives.
+  useEffect(() => {
+    if (videoUrl) { try { player.replace(videoUrl); } catch { /* ignore */ } }
+  }, [videoUrl, player]);
 
   useEffect(() => {
     (async () => {
@@ -57,7 +59,6 @@ export default function LessonDetailScreen() {
         setHasAccess(access.hasAccess);
         setQuizzes(qz.items);
         setDone(savedDone === '1');
-        // Remember as the "Continue" lesson on Home.
         setLastLesson({ id: l.id, title: l.title, thumbnailUrl: l.thumbnailUrl, type: l.type, level: l.level });
       } catch {
         Alert.alert('Алдаа', 'Хичээл ачаалахад алдаа гарлаа.');
@@ -68,7 +69,6 @@ export default function LessonDetailScreen() {
     })();
   }, [id]);
 
-  // Re-read the watched flag when returning to the screen (e.g. after a quiz).
   useFocusEffect(
     useCallback(() => {
       AsyncStorage.getItem(doneKey).then((v) => setDone(v === '1'));
@@ -78,14 +78,11 @@ export default function LessonDetailScreen() {
   async function markDone() {
     await AsyncStorage.setItem(doneKey, '1');
     setDone(true);
-    // Award completion XP once (server is idempotent).
     if (token && id) {
       try {
         const res = await lessonsApi.completeLesson(id, token);
         if (res.xpAwarded > 0) Alert.alert('Бэрхшээлгүй!', `Хичээл дуусгаж +${res.xpAwarded} XP авлаа 🎉`);
-      } catch {
-        // non-critical
-      }
+      } catch { /* non-critical */ }
     }
   }
 
@@ -115,13 +112,11 @@ export default function LessonDetailScreen() {
     ]);
   }
 
-  const soon = () => Alert.alert('Тун удахгүй', 'Видео тоглуулагч удахгүй нэмэгдэнэ. 🦊');
-
-  // Group the lesson's quizzes by category for the unlocked quiz list.
+  // Group the lesson's quizzes by category (the 4 test types).
   function groupByCategory(items: Quiz[]): { category: string; quizzes: Quiz[] }[] {
     const map = new Map<string, Quiz[]>();
     for (const q of items) {
-      const cat = q.category?.trim() || 'Сорил';
+      const cat = q.category?.trim() || 'other';
       if (!map.has(cat)) map.set(cat, []);
       map.get(cat)!.push(q);
     }
@@ -134,11 +129,6 @@ export default function LessonDetailScreen() {
   const lvl = levelColor[lesson.level] ?? levelColor.a1;
   const skill = getSkill(lesson.type);
   const num = String(lesson.position ?? 1).padStart(2, '0');
-
-  const content = lesson.content as { duration?: string; segments?: Segment[]; tip?: string };
-  const duration = content?.duration ?? '06:45';
-  const segments = content?.segments?.length ? content.segments : MOCK_SEGMENTS;
-  const tip = content?.tip ?? DEFAULT_TIP;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -165,7 +155,6 @@ export default function LessonDetailScreen() {
         ) : null}
 
         {!hasAccess ? (
-          /* Locked — unlock flow preserved */
           <View style={styles.lockedBox}>
             <View style={styles.lockedIcon}>
               <Ionicons name="lock-closed" size={28} color={colors.primary} />
@@ -188,62 +177,29 @@ export default function LessonDetailScreen() {
           </View>
         ) : (
           <>
-            {/* Video player (placeholder) */}
-            <Pressable style={styles.video} onPress={soon}>
-              <Image source={banner} style={styles.videoImg} resizeMode="cover" />
-              <View style={styles.videoScrim} />
-              <View style={styles.playBig}>
-                <Ionicons name="play" size={26} color={colors.white} style={{ marginLeft: 3 }} />
-              </View>
-              <View style={styles.videoBar}>
-                <Ionicons name="play" size={16} color={colors.white} />
-                <AppText variant="caption" color={colors.white}>{segments[0].time}</AppText>
-                <View style={styles.scrubTrack}>
-                  <View style={styles.scrubFill} />
-                  <View style={styles.scrubThumb} />
+            {/* Video */}
+            {videoUrl ? (
+              <VideoView
+                player={player}
+                style={styles.video}
+                nativeControls
+                allowsFullscreen
+                contentFit="cover"
+              />
+            ) : (
+              <View style={styles.video}>
+                <Image source={banner} style={styles.videoImg} resizeMode="cover" />
+                <View style={styles.videoScrim} />
+                <View style={styles.noVideo}>
+                  <Ionicons name="videocam-off" size={22} color={colors.white} />
+                  <AppText variant="caption" color={colors.white}>Видео одоохондоо алга</AppText>
                 </View>
-                <AppText variant="caption" color={colors.white}>{duration}</AppText>
-                <Ionicons name="scan-outline" size={16} color={colors.white} />
               </View>
-            </Pressable>
+            )}
 
-            {/* Segments */}
-            <AppText variant="h2" style={styles.section}>Хичээлийн агуулга</AppText>
-            {segments.map((s, i) => {
-              const active = i === 0;
-              return (
-                <Pressable
-                  key={i}
-                  style={[styles.segRow, active && styles.segActive]}
-                  onPress={active ? soon : undefined}
-                >
-                  <AppText variant="bodyStrong" color={active ? colors.primary : colors.text} style={styles.segTitle} numberOfLines={1}>
-                    {i + 1}. {s.title}
-                  </AppText>
-                  <AppText variant="caption" style={styles.segTime}>{s.time}</AppText>
-                  <Ionicons
-                    name={s.locked ? 'lock-closed' : 'checkmark-circle'}
-                    size={18}
-                    color={s.locked ? colors.textMuted : colors.primary}
-                  />
-                </Pressable>
-              );
-            })}
-
-            {/* Tip */}
-            <View style={styles.tip}>
-              <View style={styles.tipIcon}>
-                <Ionicons name="bulb" size={16} color={colors.primary} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <AppText variant="h3" style={styles.tipTitle}>Санамж</AppText>
-                <AppText variant="caption" color={colors.textSecondary}>{tip}</AppText>
-              </View>
-            </View>
-
-            {/* Quizzes — unlocked once the lesson is marked watched */}
+            {/* Tests — unlocked once the lesson is marked watched */}
             <View style={styles.quizHead}>
-              <AppText variant="h2">Сорил</AppText>
+              <AppText variant="h2">Тест даалгавар</AppText>
               {!done ? <Ionicons name="lock-closed" size={16} color={colors.textMuted} /> : null}
             </View>
 
@@ -254,19 +210,19 @@ export default function LessonDetailScreen() {
                 </View>
                 <AppText variant="bodyStrong" center>Хичээлээ үзэж дуусга</AppText>
                 <AppText variant="caption" center color={colors.textSecondary} style={{ marginTop: 2 }}>
-                  Дуусгасны дараа сорилууд нээгдэнэ.
+                  Дуусгасны дараа тестүүд нээгдэнэ.
                 </AppText>
                 <Button label="Хичээл үзсэн ✓" icon="checkmark" onPress={markDone} style={{ marginTop: spacing.md, alignSelf: 'stretch' }} />
               </View>
             ) : quizzes.length === 0 ? (
               <View style={styles.quizEmpty}>
-                <AppText variant="body" center color={colors.textMuted}>Энэ хичээлд сорил алга 🦊</AppText>
+                <AppText variant="body" center color={colors.textMuted}>Энэ хичээлд тест алга 🦊</AppText>
               </View>
             ) : (
               groupByCategory(quizzes).map((group) => (
                 <View key={group.category} style={styles.catGroup}>
                   <AppText variant="overline" color={colors.textSecondary} style={styles.catLabel}>
-                    {group.category.toUpperCase()}
+                    {(CAT_LABELS[group.category] ?? group.category).toUpperCase()}
                   </AppText>
                   {group.quizzes.map((q) => (
                     <Pressable
@@ -304,55 +260,18 @@ const styles = StyleSheet.create({
   desc: { marginTop: spacing.md },
 
   // Video
-  video: {
-    height: 200, borderRadius: radius.xl, overflow: 'hidden', marginTop: spacing.lg, backgroundColor: colors.navy,
-  },
+  video: { height: 200, borderRadius: radius.xl, overflow: 'hidden', marginTop: spacing.lg, backgroundColor: colors.navy },
   videoImg: { width: '100%', height: '100%' },
-  videoScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(20,16,48,0.18)' },
-  playBig: {
-    position: 'absolute', top: '50%', left: '50%', width: 56, height: 56, marginLeft: -28, marginTop: -28,
-    borderRadius: radius.full, backgroundColor: 'rgba(124,92,252,0.92)', alignItems: 'center', justifyContent: 'center',
-  },
-  videoBar: {
-    position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    paddingHorizontal: spacing.md, paddingVertical: spacing.sm, backgroundColor: 'rgba(20,16,48,0.45)',
-  },
-  scrubTrack: { flex: 1, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.3)', justifyContent: 'center' },
-  scrubFill: { width: '35%', height: 4, borderRadius: 2, backgroundColor: colors.white },
-  scrubThumb: { position: 'absolute', left: '35%', width: 11, height: 11, borderRadius: 6, backgroundColor: colors.white },
+  videoScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(20,16,48,0.35)' },
+  noVideo: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', gap: 6 },
 
-  // Segments
-  section: { marginTop: spacing.xl, marginBottom: spacing.md },
-  segRow: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.sm,
-    borderWidth: 1, borderColor: colors.border,
-  },
-  segActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
-  segTitle: { flex: 1 },
-  segTime: { },
-
-  // Tip
-  tip: {
-    flexDirection: 'row', gap: spacing.md, alignItems: 'flex-start',
-    backgroundColor: colors.primarySoft, borderRadius: radius.lg, padding: spacing.md, marginTop: spacing.md,
-  },
-  tipIcon: {
-    width: 32, height: 32, borderRadius: radius.full, backgroundColor: colors.white,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  tipTitle: { marginBottom: 2 },
-  cta: { marginTop: spacing.lg },
-
-  // Quizzes
+  // Tests
   quizHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.xl, marginBottom: spacing.md },
   quizLocked: {
     backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.lg, alignItems: 'center',
     borderWidth: 1, borderColor: colors.border,
   },
-  quizEmpty: {
-    backgroundColor: colors.surfaceAlt, borderRadius: radius.lg, padding: spacing.lg,
-  },
+  quizEmpty: { backgroundColor: colors.surfaceAlt, borderRadius: radius.lg, padding: spacing.lg },
   catGroup: { marginBottom: spacing.md },
   catLabel: { marginBottom: spacing.sm },
   quizRow: {
