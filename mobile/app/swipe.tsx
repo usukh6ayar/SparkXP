@@ -211,25 +211,21 @@ export default function SwipeScreen() {
         </View>
       )}
 
-      {/* ── Gesture hint + 3 pill actions ────────────────────────────── */}
+      {/* ── Forgot · Swipe · Know footer ─────────────────────────────── */}
       {current ? (
-        <>
-          <View style={styles.hint}>
-            <AppText variant="caption" color={colors.danger}>← Мэдэхгүй</AppText>
-            <Ionicons name="hand-left-outline" size={16} color={colors.textMuted} />
-            <AppText variant="caption" color={colors.success}>Мэднэ →</AppText>
-          </View>
-          <View style={styles.actions}>
-            <Pressable style={[styles.pill, styles.pillForgot]} onPress={() => fling('forgot')}>
-              <AppText style={styles.pillEmoji}>😵</AppText>
-              <AppText variant="label" color={colors.danger}>Мэдэхгүй</AppText>
-            </Pressable>
-            <Pressable style={[styles.pill, styles.pillKnow]} onPress={() => fling('know')}>
-              <AppText style={styles.pillEmoji}>✅</AppText>
-              <AppText variant="label" color={colors.success}>Мэднэ</AppText>
-            </Pressable>
-          </View>
-        </>
+        <View style={styles.footer}>
+          <Pressable style={[styles.action, styles.actionForgot]} onPress={() => fling('forgot')}>
+            <Ionicons name="arrow-back" size={20} color={colors.danger} />
+            <AppText variant="bodyStrong" color={colors.danger}>Мэдэхгүй</AppText>
+          </Pressable>
+          <AppText variant="caption" color={colors.textMuted} style={styles.swipeHint}>
+            — Шудрах —
+          </AppText>
+          <Pressable style={[styles.action, styles.actionKnow]} onPress={() => fling('know')}>
+            <AppText variant="bodyStrong" color={colors.success}>Мэднэ</AppText>
+            <Ionicons name="arrow-forward" size={20} color={colors.success} />
+          </Pressable>
+        </View>
       ) : null}
     </SafeAreaView>
   );
@@ -255,21 +251,17 @@ const styles = StyleSheet.create({
   cardWrap: { position: 'absolute', left: spacing.lg, right: spacing.lg },
   cardBehind: { transform: [{ scale: 0.97 }, { translateY: 8 }], opacity: 0.6 },
   tint: { ...StyleSheet.absoluteFillObject, borderRadius: radius.xl },
-  hint: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: spacing.md, paddingBottom: spacing.sm,
+  footer: {
+    flexDirection: 'row', alignItems: 'center',
+    gap: spacing.sm, paddingHorizontal: spacing.lg, paddingBottom: spacing.lg, paddingTop: spacing.xs,
   },
-  actions: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    gap: spacing.md, paddingHorizontal: spacing.lg, paddingBottom: spacing.lg,
+  action: {
+    flex: 1, height: 58, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, borderRadius: radius.lg,
   },
-  pill: {
-    flex: 1, height: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 6, borderRadius: radius.full, borderWidth: 1.5, ...(elevation.sm as object),
-  },
-  pillEmoji: { fontSize: 16 },
-  pillForgot: { borderColor: colors.danger, backgroundColor: colors.dangerSoft },
-  pillKnow: { borderColor: colors.success, backgroundColor: colors.successSoft },
+  actionForgot: { backgroundColor: colors.dangerSoft },
+  actionKnow: { backgroundColor: colors.successSoft },
+  swipeHint: { paddingHorizontal: spacing.xs },
   done: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
   doneEmoji: { fontSize: 56 },
   doneTitle: { marginTop: spacing.md, marginBottom: spacing.xs },

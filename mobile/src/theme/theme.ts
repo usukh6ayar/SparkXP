@@ -1,10 +1,10 @@
 /**
  * SparkXP design system — the single source of truth for the mobile UI.
  *
- * Brand (from the running-fox logo):
- *   Orange = energy / XP / primary actions
- *   Navy   = headings / text / stability
- *   Cream  = warm accent surfaces
+ * Theme: a deep purple "magical night-sky" DARK theme (DESIGN_PROMPT.md):
+ *   Purple     = brand / primary actions, with a glowing violet gradient
+ *   Night-sky  = deep indigo background + raised purple card panels
+ *   Gold/Cyan  = XP gold, gem-blue, orange streak — warm reward accents
  *
  * Everything visual (color, space, radius, type, elevation) comes from here.
  * Screens compose tokens + the shared components — they never hardcode hex,
@@ -14,44 +14,48 @@
 import { Platform, TextStyle } from 'react-native';
 
 export const colors = {
-  // Brand — premium purple (DESIGN.md)
+  // Brand — premium purple (DESIGN_PROMPT.md)
   primary: '#6C3BFF', // Primary 500
   primaryDark: '#5A28F0', // Primary 600
   primaryPressed: '#4B1ED8', // Primary 700
-  primarySoft: '#F1EEFF', // light purple tint (chips, highlights)
-  // Hero gradient stops (#7A4DFF → #6C3BFF → #5A28F0)
+  primarySoft: 'rgba(124,77,255,0.18)', // translucent purple tint on dark (icon circles, chips)
+  // Glowing CTA gradient stops (#7A4DFF → #6C3BFF → #5A28F0)
   primaryGradient: ['#7A4DFF', '#6C3BFF', '#5A28F0'] as const,
+  glow: '#9D7BFF', // neon halo / selected border / mascot rim light
 
-  navy: '#18244A', // deep ink — primary text / dark surfaces
-  navySoft: '#4A5578',
+  // navy — historically "deep ink". On this dark theme it now means the
+  // primary LIGHT text/ink (so screens using `colors.navy` stay readable).
+  navy: '#FFFFFF',
+  navySoft: '#B9A9E6',
 
-  // Surfaces — off-white screen, white cards, gray nested (DESIGN.md)
-  background: '#F8F8FC', // app background
-  surface: '#FFFFFF', // cards / elevated surfaces (white)
-  surfaceAlt: '#F2F3FA', // secondary surface — inputs, chips, tracks
-  cream: '#FFF6E8', // warm accent surface
+  // Surfaces — deep night-sky background, raised purple cards, darker nested
+  backgroundGradient: ['#1B1147', '#2A1A5E'] as const, // night-sky (top → bottom)
+  background: '#191040', // app background (solid base / fallback)
+  surface: '#2A1E5C', // cards / elevated surfaces
+  surfaceAlt: '#372A7A', // secondary surface — inputs, chips, tracks
+  cream: '#372A7A', // (legacy warm accent) — dark elevated on this theme
 
-  // Text (high → low emphasis)
-  text: '#18244A', // primary text
-  textSecondary: '#5F698A', // secondary copy
-  textMuted: '#97A0B8', // captions, hints, inactive
+  // Text (high → low emphasis) — light on dark
+  text: '#FFFFFF', // primary text
+  textSecondary: '#B9A9E6', // secondary copy (lavender)
+  textMuted: '#8E80BC', // captions, hints, inactive (muted lavender)
   textOnDark: '#FFFFFF',
   textOnDarkMuted: '#DCD7FF', // on-purple secondary
 
-  border: '#ECEEF5',
-  borderStrong: '#D7DCEC',
+  border: '#3D2F73',
+  borderStrong: '#4A3A85',
 
   // Semantic
-  success: '#22C55E',
-  successSoft: '#EAFBF0',
-  danger: '#EF4444',
-  dangerSoft: '#FEECEC',
-  warning: '#FF8A00', // orange (DESIGN.md)
+  success: '#34D399',
+  successSoft: 'rgba(52,211,153,0.16)',
+  danger: '#F87171',
+  dangerSoft: 'rgba(248,113,113,0.16)',
+  warning: '#FF8A3D', // orange
 
   // Gamification
-  xp: '#F5A623', // XP — gold
-  sparks: '#38BDF8', // Очирхон / Gems — diamond blue
-  streak: '#FF8A00', // streak — orange (DESIGN.md)
+  xp: '#FFC93C', // XP — gold
+  sparks: '#4FC3F7', // Очирхон / Gems — diamond blue
+  streak: '#FF8A3D', // streak — orange
 
   white: '#FFFFFF',
 };
@@ -118,13 +122,16 @@ export const fontSize = {
 };
 
 /** Soft elevation presets (iOS shadow + Android elevation). */
-/** Soft shadows (DESIGN.md): cards 0 8 24 / 0.06 · floating 0 12 30 purple 0.20. */
+/**
+ * On the dark theme, dark drop-shadows are invisible, so cards "lift" with a
+ * soft violet glow instead. Floating elements glow a bit stronger.
+ */
 export const elevation = {
   none: {},
   sm: Platform.select({
     ios: {
-      shadowColor: '#1A1240',
-      shadowOpacity: 0.05,
+      shadowColor: '#9D7BFF',
+      shadowOpacity: 0.12,
       shadowRadius: 10,
       shadowOffset: { width: 0, height: 4 },
     },
@@ -133,8 +140,8 @@ export const elevation = {
   }),
   md: Platform.select({
     ios: {
-      shadowColor: '#1A1240',
-      shadowOpacity: 0.07,
+      shadowColor: '#9D7BFF',
+      shadowOpacity: 0.18,
       shadowRadius: 14,
       shadowOffset: { width: 0, height: 8 },
     },
@@ -154,16 +161,20 @@ export const elevation = {
   }),
 };
 
-/** Soft tint pairs (bg + foreground) for category / game / icon tiles. */
+/**
+ * Tint pairs (bg + foreground) for category / game / icon tiles. On the dark
+ * theme `bg` is a translucent colored panel that sits on the night-sky surface,
+ * with a vivid `fg` for the icon/label.
+ */
 export const tints = {
-  purple: { bg: '#F1EEFF', fg: '#6C3BFF' }, // listening / brand
-  green: { bg: '#EAFBF0', fg: '#22C55E' }, // reading / success
-  coral: { bg: '#FFF1E5', fg: '#FF8A00' }, // fill / streak
-  blue: { bg: '#EAF4FF', fg: '#3B82F6' }, // writing / info
-  amber: { bg: '#FFF7E3', fg: '#D97706' },
-  pink: { bg: '#FDECF5', fg: '#DB2777' },
-  teal: { bg: '#E8FBF7', fg: '#0F9D8A' },
-  orange: { bg: '#FFF1E5', fg: '#FF8A00' },
+  purple: { bg: 'rgba(124,77,255,0.18)', fg: '#9D7BFF' }, // listening / brand
+  green: { bg: 'rgba(52,211,153,0.16)', fg: '#34D399' }, // reading / success
+  coral: { bg: 'rgba(255,138,61,0.18)', fg: '#FF8A3D' }, // fill / streak
+  blue: { bg: 'rgba(79,195,247,0.16)', fg: '#4FC3F7' }, // writing / info
+  amber: { bg: 'rgba(255,201,60,0.16)', fg: '#FFC93C' },
+  pink: { bg: 'rgba(244,114,182,0.16)', fg: '#F472B6' },
+  teal: { bg: 'rgba(45,212,191,0.16)', fg: '#2DD4BF' },
+  orange: { bg: 'rgba(255,138,61,0.18)', fg: '#FF8A3D' },
 };
 
 /** CEFR level tag colors (a1, a2, ...). */
