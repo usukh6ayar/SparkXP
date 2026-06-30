@@ -2,9 +2,23 @@ import { useEffect } from "react";
 import { View, ActivityIndicator, StyleSheet } from "react-native";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { ThemeProvider, DarkTheme } from "@react-navigation/native";
 import { AuthProvider, useAuth } from "../src/auth/AuthContext";
 import { DictionaryProvider } from "../src/components/DictionaryProvider";
 import { colors } from "../src/theme/theme";
+
+// Dark navigation theme so every navigator container (stack + tabs) uses our
+// night-sky background instead of React Navigation's default WHITE. Without
+// this, the white container shows through the transparent floating tab bar as a
+// white strip under the bar.
+const navTheme = {
+  ...DarkTheme,
+  colors: {
+    ...DarkTheme.colors,
+    background: colors.background,
+    card: colors.background,
+  },
+};
 
 /**
  * Auth gate: redirects based on whether the user is logged in.
@@ -52,11 +66,13 @@ function RootNavigator() {
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
-      <AuthProvider>
-        <DictionaryProvider>
-          <RootNavigator />
-        </DictionaryProvider>
-      </AuthProvider>
+      <ThemeProvider value={navTheme}>
+        <AuthProvider>
+          <DictionaryProvider>
+            <RootNavigator />
+          </DictionaryProvider>
+        </AuthProvider>
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 }

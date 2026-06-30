@@ -17,6 +17,7 @@ import { getStats } from "../../src/api/users";
 import { getGamification, type Gamification } from "../../src/api/gamification";
 import { getDue } from "../../src/api/reviews";
 import { getLessons } from "../../src/api/lessons";
+import { getExercises } from "../../src/api/quizzes";
 import { getLastLesson, type LastLesson } from "../../src/lib/lastLesson";
 import { useDictionary } from "../../src/components/DictionaryProvider";
 import { AppText } from "../../src/components/Text";
@@ -35,7 +36,7 @@ type IconName = keyof typeof Ionicons.glyphMap;
 // pre-composited onto the island as ONE image. Baking the fox + island together
 // means the fox is ALWAYS standing on the grass on every device — no per-screen
 // alignment math to drift. Both layers scale to the screen width ("flexible").
-const skyImg = require("../../assets/hero-sky.png");
+const skyImg = require("../../assets/background.png");
 const sceneImg = require("../../assets/fox-island.png");
 
 const SCENE_RATIO = 1081 / 963; // h / w of fox-island.png
@@ -62,20 +63,21 @@ const BODY_OVERLAP = Math.round(SCENE_H * 0.08);
 // Translucent dark pill used for the hero overlay badges.
 const HERO_PILL = "rgba(18,10,40,0.45)";
 
-// "Өнөөдрийн даалгавар" tiles. Tapping stays inside Home (no navigation yet);
-// the `completed`/`total` counts are placeholders — real per-task data comes later.
+// "Өнөөдрийн даалгавар" tiles → the 4 Дасгал skill categories. Each tile opens
+// the matching skill screen (/skill/<key>), which lists that category's
+// standalone exercises (quizzes with standalone=true) from the SAME database
+// admins author them in. `key` must match the backend quiz `category`
+// (listening/reading/writing/speaking). The per-tile count is fetched live.
 const TASKS: {
   key: string;
   label: string;
   icon: IconName;
   tint: { bg: string; fg: string };
-  completed: number;
-  total: number;
 }[] = [
-  { key: "fill", label: "Нөхөх", icon: "create", tint: tints.green, completed: 1, total: 1 },
-  { key: "reading", label: "Унших", icon: "reader", tint: tints.blue, completed: 1, total: 1 },
-  { key: "listening", label: "Сонсох", icon: "headset", tint: tints.purple, completed: 1, total: 1 },
-  { key: "speaking", label: "Ярих", icon: "mic", tint: tints.coral, completed: 0, total: 1 },
+  { key: "reading", label: "Унших", icon: "book", tint: tints.green },
+  { key: "listening", label: "Сонсох", icon: "headset", tint: tints.blue },
+  { key: "speaking", label: "Ярих", icon: "mic", tint: tints.pink },
+  { key: "writing", label: "Бичих", icon: "create", tint: tints.orange },
 ];
 
 export default function HomeScreen() {
@@ -91,6 +93,8 @@ export default function HomeScreen() {
   const [cont, setCont] = useState<{ lesson: LastLesson; resume: boolean } | null>(null);
   const [gam, setGam] = useState<Gamification | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  // How many published exercises each skill category has (keyed by TASKS.key).
+  const [taskCounts, setTaskCounts] = useState<Record<string, number>>({});
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -106,6 +110,20 @@ export default function HomeScreen() {
       if (gamification) setGam(gamification);
     } catch {
       // keep last values
+    }
+    // Exercise counts per skill — independent of the stats above, so a failure
+    // here never blocks the rest of the home screen.
+    try {
+      const results = await Promise.all(
+        TASKS.map((t) =>
+          getExercises(token, t.key)
+            .then((r) => [t.key, r.items.length] as const)
+            .catch(() => [t.key, 0] as const),
+        ),
+      );
+      setTaskCounts(Object.fromEntries(results));
+    } catch {
+      // keep last counts
     }
   }, [token]);
 
@@ -149,7 +167,8 @@ export default function HomeScreen() {
   const streak = gam?.currentStreak ?? 0;
   // TODO(data): real per-lesson progress — visual placeholder for now.
   const continueProgress = 0.75;
-  const doneCount = TASKS.filter((t) => t.completed >= t.total).length;
+  // Total published exercises across all skills (header count pill).
+  const totalExercises = Object.values(taskCounts).reduce((a, b) => a + b, 0);
 
   return (
     <View style={styles.root}>
@@ -211,7 +230,7 @@ export default function HomeScreen() {
               </View>
               <View style={styles.headerIcons}>
                 {/* TODO: notifications screen */}
-                <IconBtn icon="notifications-outline" onPress={() => {}} />
+                <IconBtn icon="notifications-outline" dot onPress={() => {}} />
                 {/* Dictionary — in-place search overlay (no screen change) */}
                 <IconBtn icon="search" onPress={openSearch} />
               </View>
@@ -297,7 +316,7 @@ export default function HomeScreen() {
           {/* Review reminder */}
           <View style={styles.reviewCard}>
             <View style={styles.reviewIcon}>
-              <Ionicons name="time" size={24} color={colors.primary} />
+              <Ionicons name="alarm" size={26} color={tints.purple.fg} />
             </View>
             <View style={styles.reviewBody}>
               <AppText variant="h3">Давтах үгс</AppText>
@@ -330,8 +349,8 @@ export default function HomeScreen() {
             style={({ pressed }) => [styles.joinCard, pressed && styles.pressed]}
             onPress={() => router.push("/assignments")}
           >
-            <View style={[styles.joinIcon, { backgroundColor: tints.green.bg }]}>
-              <Ionicons name="clipboard" size={22} color={tints.green.fg} />
+            <View style={[styles.joinIcon, { backgroundColor: tints.green.bg, borderColor: tints.green.fg }]}>
+              <Ionicons name="clipboard" size={24} color={tints.green.fg} />
             </View>
             <View style={{ flex: 1 }}>
               <AppText variant="h3">Миний даалгаврууд</AppText>
@@ -340,37 +359,39 @@ export default function HomeScreen() {
             <Ionicons name="chevron-forward" size={20} color={colors.borderStrong} />
           </Pressable>
 
-          {/* Today's tasks — stays inside Home (no navigation yet) */}
+          {/* Today's tasks — each tile opens its skill screen of exercises */}
           <View style={styles.sectionRow}>
             <AppText variant="h2">Өнөөдрийн даалгавар</AppText>
             <View style={styles.countPill}>
               <AppText variant="label" color={colors.textSecondary}>
-                {doneCount}/{TASKS.length}
+                {totalExercises} дасгал
               </AppText>
             </View>
           </View>
           <View style={styles.grid}>
-            {TASKS.map((t) => (
-              <Pressable
-                key={t.key}
-                style={({ pressed }) => [styles.task, pressed && styles.pressed]}
-                // TODO: open in-home task view + real data
-                onPress={() => {}}
-              >
-                <View style={[styles.taskIcon, { backgroundColor: t.tint.bg }]}>
-                  <Ionicons name={t.icon} size={22} color={t.tint.fg} />
-                </View>
-                <AppText variant="label" numberOfLines={1}>
-                  {t.label}
-                </AppText>
-                <View style={styles.taskCount}>
-                  <Ionicons name="ribbon" size={12} color={colors.xp} />
-                  <AppText variant="caption">
-                    {t.completed}/{t.total}
+            {TASKS.map((t) => {
+              const count = taskCounts[t.key] ?? 0;
+              return (
+                <Pressable
+                  key={t.key}
+                  style={({ pressed }) => [styles.task, pressed && styles.pressed]}
+                  onPress={() => router.push(`/skill/${t.key}`)}
+                >
+                  <View style={[styles.taskIcon, { backgroundColor: t.tint.bg, borderColor: t.tint.fg }]}>
+                    <Ionicons name={t.icon} size={24} color={t.tint.fg} />
+                  </View>
+                  <AppText variant="label" numberOfLines={1}>
+                    {t.label}
                   </AppText>
-                </View>
-              </Pressable>
-            ))}
+                  <View style={styles.taskCount}>
+                    <Ionicons name="ribbon" size={12} color={colors.xp} />
+                    <AppText variant="caption">
+                      {count} дасгал
+                    </AppText>
+                  </View>
+                </Pressable>
+              );
+            })}
           </View>
 
           <View style={{ height: 110 }} />
@@ -380,13 +401,23 @@ export default function HomeScreen() {
   );
 }
 
-function IconBtn({ icon, onPress }: { icon: IconName; onPress?: () => void }) {
+function IconBtn({
+  icon,
+  onPress,
+  dot,
+}: {
+  icon: IconName;
+  onPress?: () => void;
+  /** Small red notification dot (attention cue). */
+  dot?: boolean;
+}) {
   return (
     <Pressable
       style={({ pressed }) => [styles.iconBtn, pressed && styles.pressed]}
       onPress={onPress}
     >
       <Ionicons name={icon} size={20} color={colors.text} />
+      {dot ? <View style={styles.iconDot} /> : null}
     </Pressable>
   );
 }
@@ -429,9 +460,23 @@ const styles = StyleSheet.create({
     height: 44,
     borderRadius: radius.full,
     backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
     alignItems: "center",
     justifyContent: "center",
     ...(elevation.sm as object),
+  },
+  // Small red notification dot on a header icon button.
+  iconDot: {
+    position: "absolute",
+    top: 9,
+    right: 10,
+    width: 9,
+    height: 9,
+    borderRadius: radius.full,
+    backgroundColor: colors.danger,
+    borderWidth: 1.5,
+    borderColor: colors.surface,
   },
 
   // Hero overlay badges
@@ -509,11 +554,15 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
     ...(elevation.sm as object),
   },
+  // Shared premium icon chip — rounded square with a soft tint + matching
+  // outline so every feature icon reads as one consistent, vivid set.
   reviewIcon: {
     width: 52,
     height: 52,
-    borderRadius: radius.full,
-    backgroundColor: colors.primarySoft,
+    borderRadius: radius.md,
+    backgroundColor: tints.purple.bg,
+    borderWidth: 1,
+    borderColor: tints.purple.fg,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -541,8 +590,8 @@ const styles = StyleSheet.create({
   joinIcon: {
     width: 52,
     height: 52,
-    borderRadius: radius.full,
-    backgroundColor: colors.primarySoft,
+    borderRadius: radius.md,
+    borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -579,7 +628,8 @@ const styles = StyleSheet.create({
   taskIcon: {
     width: 44,
     height: 44,
-    borderRadius: radius.full,
+    borderRadius: radius.md,
+    borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
   },
