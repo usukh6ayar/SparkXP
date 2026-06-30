@@ -32,7 +32,8 @@
           "cameraPermission": "Анги нэгдэх QR код уншихад камер ашиглана."
         }
       ],
-      "expo-audio"
+      "expo-audio",
+      "expo-video"
     ]
   }
 }
