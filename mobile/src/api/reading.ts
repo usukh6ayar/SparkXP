@@ -22,6 +22,8 @@ export interface ReadingPassage {
   id: string;
   title: string;
   cefr: string;
+  /** Topic/category (сэдэв) — free text, null = no topic. */
+  category: string | null;
   wordCount: number;
   estimatedReadingTime: number; // seconds
   coverImageUrl: string | null;

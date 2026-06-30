@@ -13,6 +13,11 @@ export class QueryReadingDto {
   @IsEnum(ContentLevel)
   cefr?: ContentLevel;
 
+  /** Filter by topic/category (сэдэв) — exact match on the stored label. */
+  @IsOptional()
+  @IsString()
+  category?: string;
+
   /** Admin only: when true, return passages of every status (incl. drafts). */
   @IsOptional()
   @Transform(({ value }) => value === 'true' || value === true)

@@ -5,7 +5,6 @@ import { Layout } from './components/Layout';
 import Login from './pages/Login';
 import WordsPage from './pages/words/WordsPage';
 import LessonsPage from './pages/lessons/LessonsPage';
-import ReadingPage from './pages/reading/ReadingPage';
 import IdiomsPage from './pages/idioms/IdiomsPage';
 import ExercisesPage from './pages/exercises/ExercisesPage';
 import QuizzesPage from './pages/quizzes/QuizzesPage';
@@ -37,7 +36,6 @@ export default function App() {
             <Route index element={<Navigate to="/words" replace />} />
             <Route path="/words"         element={<WordsPage />} />
             <Route path="/lessons"       element={<LessonsPage />} />
-            <Route path="/reading"       element={<ReadingPage />} />
             <Route path="/idioms"        element={<IdiomsPage />} />
             <Route path="/exercises"     element={<ExercisesPage />} />
             <Route path="/quizzes"       element={<QuizzesPage />} />

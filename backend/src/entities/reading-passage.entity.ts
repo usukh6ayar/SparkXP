@@ -52,6 +52,15 @@ export class ReadingPassage extends BaseEntity {
   @Column({ type: 'enum', enum: ContentLevel, default: ContentLevel.A1 })
   cefr: ContentLevel;
 
+  /**
+   * Topic/category (сэдэв) — free text, suggestions in
+   * READING_CATEGORY_SUGGESTIONS. The stored value is the display label so the
+   * mobile reading screen can group/tab on it directly. Nullable = "no topic".
+   */
+  @Index()
+  @Column({ type: 'varchar', nullable: true })
+  category: string | null;
+
   /** Total word count, computed server-side from the sentence text on save. */
   @Column({ name: 'word_count', type: 'int', default: 0 })
   wordCount: number;
