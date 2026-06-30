@@ -2,7 +2,7 @@ import { View, Text, Pressable, Image, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
-import { colors, spacing, fontSize } from "../theme/theme";
+import { colors, spacing, fontSize, radius } from "../theme/theme";
 
 const buddy = require("../../assets/buddy-menu.png");
 
@@ -28,9 +28,15 @@ export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
 
   return (
-    <View
-      style={[styles.bar, { paddingBottom: (insets.bottom || spacing.sm) + 4 }]}
-    >
+    // Dark backing fills the square corners behind the rounded bar so the
+    // navigator's default (white) background never peeks above the curve.
+    <View style={styles.wrap}>
+      <View
+        style={[
+          styles.bar,
+          { paddingBottom: (insets.bottom || spacing.sm) + 4 },
+        ]}
+      >
       {state.routes.map((route, index) => {
         const focused = state.index === index;
         const onPress = () => {
@@ -72,7 +78,7 @@ export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
             <Ionicons
               name={focused ? meta.icon : meta.iconOutline}
               size={24}
-              color={focused ? colors.primary : colors.textMuted}
+              color={focused ? colors.glow : colors.textMuted}
             />
             <Text style={[styles.label, focused && styles.labelActive]}>
               {meta.label}
@@ -80,23 +86,31 @@ export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
           </Pressable>
         );
       })}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  wrap: { backgroundColor: colors.background },
   bar: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: colors.white,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingTop: spacing.sm,
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    paddingTop: spacing.md,
+    // Float above the screen with a soft upward shadow.
+    shadowColor: "#000",
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: -6 },
+    elevation: 20,
   },
   tab: { flex: 1, alignItems: "center", gap: 2 },
   icon: { fontSize: 22 },
   label: { fontSize: fontSize.xs, fontWeight: "700", color: colors.textMuted },
-  labelActive: { color: colors.primary },
+  labelActive: { color: colors.glow },
   centerWrap: { flex: 1, alignItems: "center" },
   centerImg: {
     width: 72,

@@ -23,33 +23,60 @@ The UI must feel:
 
 ## Color Palette
 
+Overall mood: a **deep purple "magical night sky"** theme — glowing violet
+gradients, a starry indigo background, and warm gold + cyan reward accents.
+Think a premium fantasy game (floating islands, treasure chests, glowing league
+badges) crossed with Duolingo polish. **Dark theme, not light.**
+
 Primary Purple
 
 #6C3BFF
 
-Gradient
+Primary Gradient (glowing buttons / CTAs)
 
 #7A4DFF → #5A28F0
 
-Success
+Background (deep night-sky gradient, top → bottom)
 
-#22C55E
+#1B1147 → #2A1A5E
 
-Blue
+(base / scaffold) #191040
 
-#3B82F6
+Surface / Cards (raised panels on the dark bg)
 
-Orange
+#2A1E5C
 
-#FF8A00
+Surface Elevated (badges, inner cards)
 
-Background
+#372A7A
 
-#F8F8FC
+Neon Glow Accent (halos, selected borders, mascot rim light)
 
-Cards
+#9D7BFF
 
-#FFFFFF
+Gold — XP, coins, rewards, league trophies
+
+#FFC93C  (gradient #FFD86B → #F5A623)
+
+Gem Blue — gems / "Очирхон" diamonds
+
+#4FC3F7
+
+Streak Orange — flame / streak
+
+#FF8A3D
+
+Success Green
+
+#34D399
+
+Text on dark
+
+Primary #FFFFFF · Muted lavender #B9A9E6
+
+Borders / Dividers
+
+rgba(255,255,255,0.08) or #3D2F73
 
 ---
 
@@ -69,13 +96,13 @@ High contrast.
 
 ## Design Rules
 
-1. Large white space.
-2. Soft shadows only.
+1. Generous breathing room on a dark night-sky background.
+2. Soft glows + colored shadows (violet/gold halos), not flat drop shadows.
 3. Rounded corners (20-32px).
-4. Premium card-based layout.
+4. Premium card-based layout — raised purple panels on the dark scaffold.
 5. Consistent spacing system.
 6. Gamification visible everywhere.
-7. Reward mechanics visually emphasized.
+7. Reward mechanics visually emphasized (gold coins, gems, glowing badges).
 8. Avoid clutter.
 9. Avoid outdated Android-style UI.
 10. Every screen should feel App Store featured quality.
@@ -190,9 +217,10 @@ Achievements should be visually rich and collectible.
 
 Use:
 
-- High-quality 3D illustrations
-- Bright colors
-- Soft lighting
+- High-quality 3D illustrations in a magical fantasy-game style
+  (floating islands, castles, treasure chests, glowing league badges)
+- Rich purples + warm gold/cyan accents against a starry night sky
+- Soft, glowing lighting (neon rim light on the mascot and badges)
 - Premium gradients
 
 Mascot:
@@ -213,7 +241,7 @@ Create:
 
 - Pixel-perfect mobile UI
 - iPhone 16 Pro frame
-- Light theme
+- Dark, magical purple theme (deep night-sky background)
 - Production-ready design
 - Consistent design system
 - Premium startup quality

@@ -1,5 +1,6 @@
 import { Tabs } from 'expo-router';
 import { CustomTabBar } from '../../src/components/CustomTabBar';
+import { colors } from '../../src/theme/theme';
 
 /**
  * Main tabs with the custom SparkXP bottom bar.
@@ -9,7 +10,12 @@ export default function TabsLayout() {
   return (
     <Tabs
       tabBar={(props) => <CustomTabBar {...props} />}
-      screenOptions={{ headerShown: false }}
+      // sceneStyle dark = no white default background peeking behind the
+      // rounded top corners of the custom tab bar.
+      screenOptions={{
+        headerShown: false,
+        sceneStyle: { backgroundColor: colors.background },
+      }}
     >
       <Tabs.Screen name="index" />
       <Tabs.Screen name="lessons" />

@@ -12,6 +12,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useState,
   type ReactNode,
 } from 'react';
@@ -22,27 +23,42 @@ import {
   StyleSheet,
   ActivityIndicator,
   ScrollView,
+  TextInput,
+  Keyboard,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../auth/AuthContext';
 import { lookupWord, type WordExplanation } from '../api/dictionary';
 import { ApiError } from '../api/client';
 import { AppText } from './Text';
 import { colors, spacing, radius, elevation } from '../theme/theme';
 
+const RECENTS_KEY = 'dictionary_recents';
+const MAX_RECENTS = 12;
+
 interface DictionaryState {
   /** Look a word up and open the explanation sheet. */
   lookup: (word: string) => void;
+  /** Open the in-place search overlay (transparent — no screen change). */
+  openSearch: () => void;
 }
 
 const DictionaryContext = createContext<DictionaryState | undefined>(undefined);
 
 export function DictionaryProvider({ children }: { children: ReactNode }) {
   const { token } = useAuth();
+  const insets = useSafeAreaInsets();
   const [word, setWord] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<WordExplanation | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // In-place search overlay state.
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [recents, setRecents] = useState<string[]>([]);
 
   const close = useCallback(() => setWord(null), []);
 
@@ -69,9 +85,97 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
     [token],
   );
 
+  useEffect(() => {
+    AsyncStorage.getItem(RECENTS_KEY).then((v) => {
+      if (!v) return;
+      try {
+        setRecents(JSON.parse(v));
+      } catch {
+        // ignore corrupt cache
+      }
+    });
+  }, []);
+
+  const openSearch = useCallback(() => {
+    setQuery('');
+    setSearchOpen(true);
+  }, []);
+
+  // Search from the overlay: remember it, close the overlay, open the sheet.
+  const runSearch = useCallback(
+    (raw: string) => {
+      const clean = raw.trim().toLowerCase();
+      if (!clean) return;
+      Keyboard.dismiss();
+      setSearchOpen(false);
+      setRecents((prev) => {
+        const next = [clean, ...prev.filter((w) => w !== clean)].slice(0, MAX_RECENTS);
+        AsyncStorage.setItem(RECENTS_KEY, JSON.stringify(next)).catch(() => {});
+        return next;
+      });
+      lookup(clean);
+    },
+    [lookup],
+  );
+
   return (
-    <DictionaryContext.Provider value={{ lookup }}>
+    <DictionaryContext.Provider value={{ lookup, openSearch }}>
       {children}
+
+      {/* In-place search overlay — transparent backdrop, no screen change */}
+      <Modal
+        visible={searchOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSearchOpen(false)}
+      >
+        <Pressable style={styles.searchBackdrop} onPress={() => setSearchOpen(false)}>
+          {/* Top panel; taps inside don't close. */}
+          <Pressable
+            style={[styles.searchPanel, { paddingTop: insets.top + spacing.sm }]}
+            onPress={() => {}}
+          >
+            <View style={styles.searchBar}>
+              <Ionicons name="search" size={20} color={colors.textMuted} />
+              <TextInput
+                style={styles.searchInput}
+                value={query}
+                onChangeText={setQuery}
+                placeholder="Англи үг хайх..."
+                placeholderTextColor={colors.textMuted}
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="search"
+                onSubmitEditing={() => runSearch(query)}
+                autoFocus
+              />
+              {query ? (
+                <Pressable hitSlop={8} onPress={() => setQuery('')}>
+                  <Ionicons name="close-circle" size={20} color={colors.textMuted} />
+                </Pressable>
+              ) : null}
+              <Pressable hitSlop={8} onPress={() => setSearchOpen(false)}>
+                <AppText variant="label" color={colors.primary}>Болих</AppText>
+              </Pressable>
+            </View>
+
+            {recents.length > 0 ? (
+              <View style={styles.searchRecents}>
+                {recents.map((w) => (
+                  <Pressable
+                    key={w}
+                    style={styles.recentChip}
+                    onPress={() => runSearch(w)}
+                  >
+                    <Ionicons name="time-outline" size={14} color={colors.textMuted} />
+                    <AppText variant="label">{w}</AppText>
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <Modal
         visible={word !== null}
@@ -215,6 +319,46 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'rgba(24, 36, 74, 0.45)',
     justifyContent: 'flex-end',
+  },
+
+  // In-place search overlay
+  searchBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(10, 6, 30, 0.6)',
+    justifyContent: 'flex-start',
+  },
+  searchPanel: {
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.md,
+    borderBottomLeftRadius: radius.xl,
+    borderBottomRightRadius: radius.xl,
+    ...elevation.float,
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    height: 48,
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+  },
+  searchInput: { flex: 1, fontSize: 15, color: colors.text, height: '100%' },
+  searchRecents: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+  },
+  recentChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 7,
   },
   sheet: {
     backgroundColor: colors.surface,
