@@ -58,20 +58,20 @@ const CATS: {
     progress: 0.6,
   },
   {
-    key: "fill",
-    label: "Нөхөх",
-    en: "Fill in the blank",
-    icon: "pencil",
-    tint: tints.coral,
-    progress: 0.3,
-  },
-  {
     key: "writing",
     label: "Бичих",
     en: "Writing",
     icon: "create",
     tint: tints.blue,
     progress: 0.5,
+  },
+  {
+    key: "speaking",
+    label: "Ярих",
+    en: "Speaking",
+    icon: "mic",
+    tint: tints.coral,
+    progress: 0.3,
   },
 ];
 

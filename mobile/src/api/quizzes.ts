@@ -1,9 +1,10 @@
 import { apiRequest } from './client';
 
 export interface QuizQuestion {
-  type: 'multiple_choice' | 'fill_blank';
-  question: string;
+  type: 'multiple_choice' | 'fill_blank' | 'word_match';
+  question?: string;
   options?: string[];   // multiple_choice only
+  pairs?: { left: string; right: string }[]; // word_match only
   points: number;
   // correct & answer are NOT returned to the client (server-side only)
 }
@@ -48,6 +49,18 @@ export function getQuizzes(
   let q = '?isPublished=true';
   if (params.lessonId) q += `&lessonId=${params.lessonId}`;
   return apiRequest<{ items: Quiz[]; total: number }>(`/quizzes${q}`, { token });
+}
+
+/** GET standalone exercises (Дасгал) of a given category — not tied to a lesson.
+ *  Students get published only. Used by the Home skill screens. */
+export function getExercises(
+  token: string,
+  category: string,
+): Promise<{ items: Quiz[]; total: number }> {
+  return apiRequest<{ items: Quiz[]; total: number }>(
+    `/quizzes?standalone=true&isPublished=true&category=${category}&limit=100`,
+    { token },
+  );
 }
 
 export function submitQuiz(
