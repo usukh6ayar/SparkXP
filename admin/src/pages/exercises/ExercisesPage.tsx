@@ -16,6 +16,7 @@ import {
   type Question,
   type QuestionType,
 } from '../../components/QuizQuestionsEditor';
+import ReadingPage from '../reading/ReadingPage';
 
 /** The 4 exercise (Дасгал) categories. Speaking = coming soon for now. */
 const CATS = [
@@ -64,7 +65,7 @@ export default function ExercisesPage() {
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
-    if (cat === 'speaking') { setItems([]); return; }
+    if (cat === 'speaking' || cat === 'reading') { setItems([]); return; }
     const data = await api.get<{ items: Exercise[] }>(
       `/quizzes?standalone=true&category=${cat}&limit=200`,
     );
@@ -149,13 +150,14 @@ export default function ExercisesPage() {
   ];
 
   const speaking = cat === 'speaking';
+  const reading = cat === 'reading';
 
   return (
     <>
       <PageHeader
         title="Дасгал"
         description="Хичээлээс тусдаа, бие даасан дасгалууд (4 төрөл)"
-        action={!speaking && <Button onClick={openCreate}><Plus className="h-4 w-4" /> Дасгал нэмэх</Button>}
+        action={!speaking && !reading && <Button onClick={openCreate}><Plus className="h-4 w-4" /> Дасгал нэмэх</Button>}
       />
 
       {/* Category tabs */}
@@ -175,6 +177,8 @@ export default function ExercisesPage() {
         <div className="rounded-xl border border-dashed border-gray-200 bg-white p-10 text-center text-sm text-gray-400">
           🎤 Ярих дасгал — тун удахгүй (яриа таних дэд бүтэц бэлэн болоход)
         </div>
+      ) : reading ? (
+        <ReadingPage embedded />
       ) : (
         <Table columns={columns} rows={items} keyFn={(e) => e.id} empty="Дасгал байхгүй" />
       )}

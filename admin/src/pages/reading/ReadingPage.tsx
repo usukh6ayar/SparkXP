@@ -22,7 +22,7 @@ import { ImageCropUpload } from '../../components/ImageCropUpload';
 import { FormActions } from '../../components/FormActions';
 import { RowActions } from '../../components/RowActions';
 import { Pagination } from '../../components/Pagination';
-import { levelFormOptions as levelOptions } from '../../lib/options';
+import { levelFormOptions as levelOptions, readingCategoryOptions } from '../../lib/options';
 
 const LIMIT = 20;
 
@@ -42,6 +42,7 @@ interface Passage {
   id: string;
   title: string;
   cefr: string;
+  category: string | null;
   wordCount: number;
   estimatedReadingTime: number;
   coverImageUrl?: string | null;
@@ -57,6 +58,7 @@ interface SentenceForm {
 interface ReadingForm {
   title: string;
   cefr: string;
+  category: string;
   coverImageUrl: string;
   keyVocab: KeyVocab[];
   rawText: string;
@@ -66,6 +68,7 @@ interface ReadingForm {
 const emptyForm: ReadingForm = {
   title: '',
   cefr: 'a1',
+  category: '',
   coverImageUrl: '',
   keyVocab: [],
   rawText: '',
@@ -95,7 +98,7 @@ function fmtTime(sec: number): string {
   return m > 0 ? `${m}м ${s}с` : `${s}с`;
 }
 
-export default function ReadingPage() {
+export default function ReadingPage({ embedded = false }: { embedded?: boolean } = {}) {
   const [passages, setPassages] = useState<Passage[]>([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -137,6 +140,7 @@ export default function ReadingPage() {
     setForm({
       title: p.title,
       cefr: p.cefr,
+      category: p.category ?? '',
       coverImageUrl: p.coverImageUrl ?? '',
       keyVocab: p.keyVocab ?? [],
       rawText: '',
@@ -298,6 +302,7 @@ export default function ReadingPage() {
       const payload = {
         title: form.title.trim(),
         cefr: form.cefr,
+        category: form.category || null,
         coverImageUrl: form.coverImageUrl || undefined,
         keyVocab: form.keyVocab,
         sentences,
@@ -341,6 +346,12 @@ export default function ReadingPage() {
     },
     { key: 'title', header: 'Гарчиг', render: (p: Passage) => <span className="font-medium">{p.title}</span> },
     { key: 'cefr', header: 'CEFR', render: (p: Passage) => <Badge color="blue">{p.cefr.toUpperCase()}</Badge> },
+    {
+      key: 'category',
+      header: 'Сэдэв',
+      render: (p: Passage) =>
+        p.category ? <Badge color="yellow">{p.category}</Badge> : <span className="text-gray-300">—</span>,
+    },
     { key: 'words', header: 'Үг', render: (p: Passage) => <span className="text-gray-600">{p.wordCount}</span> },
     {
       key: 'sentences',
@@ -377,11 +388,18 @@ export default function ReadingPage() {
 
   return (
     <>
-      <PageHeader
-        title="Унших материал"
-        description={`Нийт: ${passages.length} · Нийтэлсэн: ${publishedCount}`}
-        action={<Button onClick={openCreate}><Plus className="h-4 w-4" /> Материал нэмэх</Button>}
-      />
+      {embedded ? (
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <p className="text-sm text-gray-500">Нийт: {passages.length} · Нийтэлсэн: {publishedCount}</p>
+          <Button onClick={openCreate}><Plus className="h-4 w-4" /> Материал нэмэх</Button>
+        </div>
+      ) : (
+        <PageHeader
+          title="Унших материал"
+          description={`Нийт: ${passages.length} · Нийтэлсэн: ${publishedCount}`}
+          action={<Button onClick={openCreate}><Plus className="h-4 w-4" /> Материал нэмэх</Button>}
+        />
+      )}
       <Table columns={columns} rows={passages} keyFn={(p) => p.id} empty="Унших материал байхгүй" />
       <Pagination page={page} total={total} limit={LIMIT} onPage={setPage} />
 
@@ -391,8 +409,9 @@ export default function ReadingPage() {
             <Input label="Гарчиг" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Select label="CEFR түвшин" options={levelOptions} value={form.cefr} onChange={(e) => setForm({ ...form, cefr: e.target.value })} />
-              <ImageCropUpload label="Cover зураг (заавал биш)" value={form.coverImageUrl} onChange={(url) => setForm({ ...form, coverImageUrl: url })} />
+              <Select label="Сэдэв (category)" options={readingCategoryOptions} value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} />
             </div>
+            <ImageCropUpload label="Cover зураг (заавал биш)" value={form.coverImageUrl} onChange={(url) => setForm({ ...form, coverImageUrl: url })} />
 
             {/* ── F1: Key vocab + AI guess choices ── */}
             <div className="rounded-lg border border-gray-200 p-4">
