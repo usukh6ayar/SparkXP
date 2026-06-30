@@ -16,6 +16,12 @@ const ICON_ACTIVE = "#FFFFFF";
 
 /** Icon (filled + outline) + label per tab route. The `chat` route is rendered
  *  as the raised center fox button instead of a normal tab. */
+/** Dark-themed tabs → bottom safe-area fill color (matches each screen's bg). */
+const DARK_TAB_BG: Record<string, string> = {
+  lessons: "#0E0A2A",
+  profile: "#0C0918",
+};
+
 const TAB_META: Record<
   string,
   { icon: IconName; iconOutline: IconName; label: string }
@@ -33,17 +39,18 @@ const TAB_META: Record<
  */
 export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
-  // The lessons tab is a dark full-screen map, so fill the bar's safe-area gap
-  // dark there — otherwise the app's light background shows as a white strip
-  // around the icons. Other (light-themed) tabs keep the transparent wrap.
-  const darkBottom = state.routes[state.index]?.name === "lessons";
+  // Dark full-screen tabs (lessons map, profile) need the bar's safe-area gap
+  // filled with their own dark bg — otherwise the app's light background shows
+  // as a white strip around the icons. Value = that screen's bottom bg color.
+  // Light-themed tabs keep the transparent wrap.
+  const darkBg = DARK_TAB_BG[state.routes[state.index]?.name];
 
   return (
     <View
       style={[
         styles.wrap,
         { paddingBottom: insets.bottom || spacing.sm },
-        darkBottom && styles.wrapDark,
+        darkBg ? { backgroundColor: darkBg } : null,
       ]}
     >
       <View style={styles.bar}>
@@ -107,8 +114,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     backgroundColor: "transparent",
   },
-  // Dark fill for the lessons tab so no white strip shows under the bar.
-  wrapDark: { backgroundColor: "#0E0A2A" },
   bar: {
     flexDirection: "row",
     alignItems: "center",

@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { View, StyleSheet, ScrollView, Pressable, Image, Modal, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { setStatusBarStyle } from 'expo-status-bar';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -12,12 +13,11 @@ import { MN_PROVINCES as PROVINCES, UB_DISTRICTS } from '../../src/constants/loc
 import { TopBar } from '../../src/components/TopBar';
 import { AppText } from '../../src/components/Text';
 import { Pill } from '../../src/components/Pill';
-import { SectionHeader } from '../../src/components/SectionHeader';
 import { TextField } from '../../src/components/TextField';
 import { SelectField } from '../../src/components/SelectField';
 import { Button } from '../../src/components/Button';
 import { resolveAvatar } from '../../src/lib/avatar';
-import { colors, spacing, radius, tints, elevation } from '../../src/theme/theme';
+import { colors, spacing, radius, tints } from '../../src/theme/theme';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -27,9 +27,46 @@ const avatarImg = require('../../assets/buddy-menu.png');
 const STREAK = 0;
 const LEVEL_SIZE = 1000;
 
+/**
+ * Dark "premium" palette — local to this screen so the rest of the app (light)
+ * and the shared components stay untouched. Matches the dark profile mockup:
+ * glowing purple on a deep navy/black background.
+ */
+const d = {
+  bg: ['#0C0918', '#140E2A', '#0C0918'] as const,
+  bgFlat: '#0C0918',
+  card: '#171231',
+  cardBorder: 'rgba(138,91,255,0.16)',
+  text: '#FFFFFF',
+  textSecondary: '#B9B2D6',
+  textMuted: '#8A83A8',
+  primary: '#6C3BFF',
+  primaryLight: '#8A5BFF',
+  track: '#241B45',
+  divider: 'rgba(255,255,255,0.08)',
+};
+
+/** Append an alpha channel to a 6-digit hex (e.g. tint fg → translucent circle). */
+const alpha = (hex: string, a: number) =>
+  hex + Math.round(a * 255).toString(16).padStart(2, '0');
+
 const ROLE_LABEL: Record<string, string> = {
   student: 'Сурагч', teacher: 'Багш', admin: 'Админ', super_admin: 'Супер админ',
 };
+
+/** Dark section header — h2 title + optional "see all" action (SectionHeader is light-only). */
+function SectionHead({ title, actionLabel, onAction, style }: { title: string; actionLabel?: string; onAction?: () => void; style?: object }) {
+  return (
+    <View style={[styles.sectionHead, style]}>
+      <AppText variant="h2" color={d.text}>{title}</AppText>
+      {actionLabel && onAction ? (
+        <Pressable onPress={onAction} hitSlop={8}>
+          <AppText variant="label" color={d.primaryLight}>{actionLabel}</AppText>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
 
 /** A usage / limit row with a thin progress bar (turns red when over). */
 function UsageBar({ label, used, limit, unit }: { label: string; used: number; limit: number; unit: string }) {
@@ -39,13 +76,13 @@ function UsageBar({ label, used, limit, unit }: { label: string; used: number; l
   return (
     <View style={{ gap: 4 }}>
       <View style={styles.usageTop}>
-        <AppText variant="caption" color={colors.textSecondary}>{label}</AppText>
-        <AppText variant="caption" color={over ? colors.danger : colors.textSecondary}>
+        <AppText variant="caption" color={d.textSecondary}>{label}</AppText>
+        <AppText variant="caption" color={over ? colors.danger : d.textSecondary}>
           {used}{u} / {limit}{u}
         </AppText>
       </View>
       <View style={styles.usageTrack}>
-        <View style={[styles.usageFill, { width: `${Math.max(pct * 100, 3)}%`, backgroundColor: over ? colors.danger : colors.primary }]} />
+        <View style={[styles.usageFill, { width: `${Math.max(pct * 100, 3)}%`, backgroundColor: over ? colors.danger : d.primaryLight }]} />
       </View>
     </View>
   );
@@ -81,9 +118,12 @@ export default function ProfileScreen() {
     }
   }, [token]);
 
+  // Refetch on focus + switch the status bar to light text for this dark screen.
   useFocusEffect(
     useCallback(() => {
       loadProfile();
+      setStatusBarStyle('light');
+      return () => setStatusBarStyle('dark');
     }, [loadProfile]),
   );
 
@@ -106,10 +146,10 @@ export default function ProfileScreen() {
   const quizzesDone = gam?.quizzesDone ?? 0;
 
   const STATS = [
-    { icon: 'book' as IconName, value: lessonsDone, label: 'Хичээл', tint: tints.purple },
-    { icon: 'trophy' as IconName, value: quizzesDone, label: 'Сорил', tint: tints.green },
-    { icon: 'flame' as IconName, value: streak, label: 'Өдөр дараалал', tint: tints.blue },
-    { icon: 'diamond' as IconName, value: sparks, label: 'Очирхон', tint: tints.amber },
+    { icon: 'flame' as IconName, value: streak, label: 'Өдөр дараалал', color: colors.streak },
+    { icon: 'diamond' as IconName, value: sparks, label: 'Очирхон', color: colors.sparks },
+    { icon: 'trophy' as IconName, value: quizzesDone, label: 'Сорил', color: colors.xp },
+    { icon: 'book' as IconName, value: lessonsDone, label: 'Хичээл', color: d.primaryLight },
   ];
 
   const QUICK: { icon: IconName; label: string; tint: { bg: string; fg: string }; onPress: () => void }[] = [
@@ -125,23 +165,24 @@ export default function ProfileScreen() {
 
   return (
     <View style={styles.root}>
+      <LinearGradient colors={d.bg} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} style={StyleSheet.absoluteFill} />
       <SafeAreaView style={styles.safe} edges={['top']}>
         <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
           {/* Header */}
           <View style={styles.header}>
-            <AppText variant="h1">Профайл</AppText>
+            <AppText variant="h1" color={d.text}>Профайл</AppText>
             <View style={styles.diamondBadge}>
               <Ionicons name="diamond" size={16} color={colors.sparks} />
-              <AppText variant="label" color={colors.text}>{sparks}</AppText>
+              <AppText variant="label" color={d.text}>{sparks}</AppText>
             </View>
           </View>
 
-          {/* Profile hero — gradient panel + glowing avatar */}
-          <LinearGradient colors={['#FFFFFF', '#F4EEFF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
+          {/* Profile hero — dark panel + glowing avatar */}
+          <View style={styles.hero}>
             <View style={styles.avatarOuter}>
               <View style={styles.avatarGlow} />
               <Pressable onPress={() => router.push('/avatar')}>
-                <LinearGradient colors={['#8A5BFF', '#6C3BFF']} style={styles.avatarRing}>
+                <LinearGradient colors={[d.primaryLight, d.primary]} style={styles.avatarRing}>
                   <Image source={resolveAvatar(user?.avatarUrl) ?? avatarImg} style={styles.avatar} resizeMode="cover" />
                 </LinearGradient>
               </Pressable>
@@ -152,36 +193,34 @@ export default function ProfileScreen() {
 
             <View style={styles.heroInfo}>
               <View style={styles.nameRow}>
-                <AppText variant="h2" numberOfLines={1}>{user?.fullName}</AppText>
-                <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
+                <AppText variant="h2" color={d.text} numberOfLines={1}>{user?.fullName}</AppText>
+                <Ionicons name="checkmark-circle" size={18} color={d.primaryLight} />
               </View>
-              <Pill label={ROLE_LABEL[user?.role ?? 'student'] ?? 'Сурагч'} bg={colors.primarySoft} fg={colors.primaryDark} />
+              <Pill label={ROLE_LABEL[user?.role ?? 'student'] ?? 'Сурагч'} bg={alpha(d.primary, 0.22)} fg={d.primaryLight} />
               <View style={styles.levelRow}>
                 <Ionicons name="star" size={15} color={colors.xp} />
-                <AppText variant="bodyStrong">Түвшин {level}</AppText>
+                <AppText variant="bodyStrong" color={d.text}>Түвшин {level}</AppText>
               </View>
               {/* Premium XP progress */}
               <View style={styles.xpTrack}>
                 <LinearGradient
-                  colors={['#9A6DFF', '#6C3BFF']}
+                  colors={[d.primaryLight, d.primary]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
                   style={[styles.xpFill, { width: `${Math.max(pct, 4)}%` }]}
                 />
               </View>
-              <AppText variant="caption" style={styles.levelXp}>{levelXp} / {levelTarget} XP</AppText>
+              <AppText variant="caption" color={d.textMuted} style={styles.levelXp}>{levelXp} / {levelTarget} XP</AppText>
             </View>
-          </LinearGradient>
+          </View>
 
-          {/* Stats — colorful elevated cells */}
+          {/* Stats — one dark card, four divided columns */}
           <View style={styles.statsCard}>
-            {STATS.map((s) => (
-              <View key={s.label} style={[styles.statCell, { backgroundColor: s.tint.bg }]}>
-                <View style={[styles.statIcon, { backgroundColor: colors.white }]}>
-                  <Ionicons name={s.icon} size={20} color={s.tint.fg} />
-                </View>
-                <AppText variant="h3" style={styles.statValue}>{s.value}</AppText>
-                <AppText variant="caption" center numberOfLines={2}>{s.label}</AppText>
+            {STATS.map((s, i) => (
+              <View key={s.label} style={[styles.statCell, i > 0 && styles.statCellBorder]}>
+                <Ionicons name={s.icon} size={22} color={s.color} />
+                <AppText variant="h3" color={d.text} style={styles.statValue}>{s.value}</AppText>
+                <AppText variant="caption" color={d.textMuted} center numberOfLines={2}>{s.label}</AppText>
               </View>
             ))}
           </View>
@@ -191,12 +230,12 @@ export default function ProfileScreen() {
             <View style={styles.planCard}>
               <View style={styles.planTop}>
                 <View style={{ flex: 1 }}>
-                  <AppText variant="overline" color={colors.textSecondary}>МИНИЙ БАГЦ</AppText>
-                  <AppText variant="h3">{plan.planName}</AppText>
+                  <AppText variant="overline" color={d.textMuted}>МИНИЙ БАГЦ</AppText>
+                  <AppText variant="h3" color={d.text}>{plan.planName}</AppText>
                 </View>
-                <View style={[styles.planBadge, { backgroundColor: plan.isFree ? colors.surfaceAlt : colors.xp }]}>
-                  <Ionicons name={plan.isFree ? 'leaf' : 'star'} size={12} color={plan.isFree ? colors.textSecondary : colors.white} />
-                  <AppText variant="caption" color={plan.isFree ? colors.textSecondary : colors.white}>
+                <View style={[styles.planBadge, { backgroundColor: plan.isFree ? alpha(d.primary, 0.22) : colors.xp }]}>
+                  <Ionicons name={plan.isFree ? 'leaf' : 'star'} size={12} color={plan.isFree ? d.primaryLight : colors.white} />
+                  <AppText variant="caption" color={plan.isFree ? d.primaryLight : colors.white}>
                     {plan.isFree ? 'Үнэгүй' : 'Premium'}
                   </AppText>
                 </View>
@@ -214,7 +253,7 @@ export default function ProfileScreen() {
                   ) : null}
                 </View>
               ) : (
-                <AppText variant="caption" color={colors.textSecondary} style={{ marginTop: 6 }}>
+                <AppText variant="caption" color={d.textSecondary} style={{ marginTop: 6 }}>
                   Premium багцаар AI яриа, толь бичиг зэрэг илүү боломжийг нээгээрэй.
                 </AppText>
               )}
@@ -222,39 +261,39 @@ export default function ProfileScreen() {
           ) : null}
 
           {/* Achievements — large collectible badges */}
-          <SectionHeader title="Миний амжилтууд" actionLabel="Бүгдийг харах ›" onAction={soon} style={styles.section} />
+          <SectionHead title="Миний амжилтууд" actionLabel="Бүгдийг харах ›" onAction={soon} style={styles.section} />
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.achRow}>
             {ACHIEVEMENTS.map((a) => (
               <View key={a.label} style={styles.achItem}>
                 {a.earned ? (
-                  <LinearGradient colors={['#FFFFFF', a.tint.bg]} style={[styles.achBadge, styles.achEarned]}>
+                  <View style={[styles.achBadge, { backgroundColor: alpha(a.tint.fg, 0.14), borderColor: alpha(a.tint.fg, 0.4) }]}>
                     <Ionicons name={a.icon} size={32} color={a.tint.fg} />
-                  </LinearGradient>
+                  </View>
                 ) : (
                   <View style={[styles.achBadge, styles.achLocked]}>
-                    <Ionicons name="lock-closed" size={28} color={colors.textMuted} />
+                    <Ionicons name="lock-closed" size={28} color={d.textMuted} />
                   </View>
                 )}
-                <AppText variant="caption" center numberOfLines={2} style={styles.achLabel}>{a.label}</AppText>
+                <AppText variant="caption" color={d.textSecondary} center numberOfLines={2} style={styles.achLabel}>{a.label}</AppText>
               </View>
             ))}
           </ScrollView>
 
-          {/* Quick menu — premium soft cards */}
-          <SectionHeader title="Түргэн цэс" style={styles.section} />
+          {/* Quick menu — premium dark cards */}
+          <SectionHead title="Түргэн цэс" style={styles.section} />
           <View style={styles.quickGrid}>
             {QUICK.map((q) => (
               <Pressable key={q.label} style={({ pressed }) => [styles.quickItem, pressed && styles.pressed]} onPress={q.onPress}>
-                <View style={[styles.quickIcon, { backgroundColor: q.tint.bg }]}>
+                <View style={[styles.quickIcon, { backgroundColor: alpha(q.tint.fg, 0.16) }]}>
                   <Ionicons name={q.icon} size={22} color={q.tint.fg} />
                 </View>
-                <AppText variant="caption" center numberOfLines={1} style={styles.quickLabel}>{q.label}</AppText>
+                <AppText variant="caption" color={d.textSecondary} center numberOfLines={1} style={styles.quickLabel}>{q.label}</AppText>
               </Pressable>
             ))}
           </View>
 
           {/* My classes — which teacher's class the student joined */}
-          <SectionHeader
+          <SectionHead
             title="Миний ангиуд"
             actionLabel="Анги нэгдэх ›"
             onAction={() => router.push('/join')}
@@ -262,18 +301,18 @@ export default function ProfileScreen() {
           />
           {classes.length === 0 ? (
             <Pressable style={styles.joinEmpty} onPress={() => router.push('/join')}>
-              <Ionicons name="add-circle-outline" size={20} color={colors.primary} />
-              <AppText variant="body" color={colors.textSecondary}>Анги нэгдээгүй байна — нэгдэх</AppText>
+              <Ionicons name="add-circle-outline" size={20} color={d.primaryLight} />
+              <AppText variant="body" color={d.textSecondary}>Анги нэгдээгүй байна — нэгдэх</AppText>
             </Pressable>
           ) : (
             classes.map((c) => (
               <View key={c.id} style={styles.classRow}>
                 <View style={styles.classIcon}>
-                  <Ionicons name="people" size={18} color={colors.primary} />
+                  <Ionicons name="people" size={18} color={d.primaryLight} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <AppText variant="bodyStrong" numberOfLines={1}>{c.name}</AppText>
-                  {c.teacherName ? <AppText variant="caption">Багш: {c.teacherName}</AppText> : null}
+                  <AppText variant="bodyStrong" color={d.text} numberOfLines={1}>{c.name}</AppText>
+                  {c.teacherName ? <AppText variant="caption" color={d.textMuted}>Багш: {c.teacherName}</AppText> : null}
                 </View>
               </View>
             ))
@@ -350,7 +389,7 @@ function EditProfileModal({
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      <SafeAreaView style={styles.modalSafe} edges={['top', 'bottom']}>
         <TopBar title="Профайл засах" showBadges={false} />
         <ScrollView contentContainerStyle={{ padding: spacing.lg }}>
           <TextField label="Бүтэн нэр" value={fullName} onChangeText={setFullName} placeholder="Нэрээ оруулна уу" />
@@ -370,58 +409,54 @@ function EditProfileModal({
   );
 }
 
-const PURPLE_SHADOW = {
-  shadowColor: colors.primary,
-  shadowOpacity: 0.18,
-  shadowRadius: 20,
-  shadowOffset: { width: 0, height: 10 },
-  elevation: 6,
-};
-
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.background },
+  root: { flex: 1, backgroundColor: d.bgFlat },
   safe: { flex: 1 },
+  modalSafe: { flex: 1, backgroundColor: colors.background },
   container: { paddingHorizontal: spacing.lg, paddingTop: spacing.xs },
+
+  sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md },
 
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   diamondBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: colors.surface, paddingHorizontal: spacing.md, paddingVertical: 8, borderRadius: radius.full,
-    ...(elevation.sm as object),
+    backgroundColor: d.card, paddingHorizontal: spacing.md, paddingVertical: 8, borderRadius: radius.full,
+    borderWidth: 1, borderColor: d.cardBorder,
   },
 
   // Hero
   hero: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.lg,
     borderRadius: radius.xl, padding: spacing.lg, marginTop: spacing.lg,
-    ...PURPLE_SHADOW,
+    backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder,
   },
   avatarOuter: { width: 100, height: 100, alignItems: 'center', justifyContent: 'center' },
   avatarGlow: {
     position: 'absolute', top: -8, left: -8, width: 116, height: 116, borderRadius: 58,
-    backgroundColor: 'rgba(124,77,255,0.25)',
+    backgroundColor: 'rgba(124,77,255,0.35)',
   },
   avatarRing: {
     width: 100, height: 100, borderRadius: 50, alignItems: 'center', justifyContent: 'center', padding: 4,
   },
-  avatar: { width: 92, height: 92, borderRadius: 46, backgroundColor: '#EEE6FF' },
+  avatar: { width: 92, height: 92, borderRadius: 46, backgroundColor: d.track },
   editBtn: {
     position: 'absolute', right: -2, bottom: -2, width: 30, height: 30, borderRadius: 15,
-    backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center',
-    borderWidth: 3, borderColor: colors.white,
+    backgroundColor: d.primary, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 3, borderColor: d.card,
   },
   heroInfo: { flex: 1, gap: spacing.xs },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   levelRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
-  xpTrack: { height: 12, borderRadius: 6, backgroundColor: '#E4DBFF', overflow: 'hidden', marginTop: 4 },
+  xpTrack: { height: 12, borderRadius: 6, backgroundColor: d.track, overflow: 'hidden', marginTop: 4 },
   xpFill: { height: 12, borderRadius: 6 },
   levelXp: { alignSelf: 'flex-end', marginTop: 3 },
 
-  // Stats
   section: { marginTop: spacing.xxl },
+
+  // Plan
   planCard: {
-    backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.lg,
-    marginTop: spacing.lg, borderWidth: 1, borderColor: colors.border,
+    backgroundColor: d.card, borderRadius: radius.lg, padding: spacing.lg,
+    marginTop: spacing.lg, borderWidth: 1, borderColor: d.cardBorder,
   },
   planTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   planBadge: {
@@ -430,43 +465,48 @@ const styles = StyleSheet.create({
   },
   planUsage: { marginTop: spacing.md, gap: spacing.sm },
   usageTop: { flexDirection: 'row', justifyContent: 'space-between' },
-  usageTrack: { height: 6, borderRadius: 3, backgroundColor: colors.surfaceAlt, overflow: 'hidden' },
+  usageTrack: { height: 6, borderRadius: 3, backgroundColor: d.track, overflow: 'hidden' },
   usageFill: { height: 6, borderRadius: 3 },
+
+  // Classes
   joinEmpty: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    backgroundColor: colors.primarySoft, borderRadius: radius.lg, padding: spacing.md,
+    backgroundColor: alpha('#6C3BFF', 0.14), borderRadius: radius.lg, padding: spacing.md,
+    borderWidth: 1, borderColor: d.cardBorder,
   },
   classRow: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.sm,
-    borderWidth: 1, borderColor: colors.border,
+    backgroundColor: d.card, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.sm,
+    borderWidth: 1, borderColor: d.cardBorder,
   },
   classIcon: {
-    width: 40, height: 40, borderRadius: radius.full, backgroundColor: colors.primarySoft,
+    width: 40, height: 40, borderRadius: radius.full, backgroundColor: alpha('#6C3BFF', 0.18),
     alignItems: 'center', justifyContent: 'center',
   },
+
+  // Stats
   statsCard: {
-    flexDirection: 'row', gap: spacing.sm, backgroundColor: colors.surface,
-    borderRadius: radius.xl, padding: spacing.sm, marginTop: spacing.xl, ...(elevation.md as object),
+    flexDirection: 'row', backgroundColor: d.card,
+    borderRadius: radius.xl, paddingVertical: spacing.lg, marginTop: spacing.lg,
+    borderWidth: 1, borderColor: d.cardBorder,
   },
-  statCell: { flex: 1, borderRadius: radius.lg, paddingVertical: spacing.md, paddingHorizontal: 4, alignItems: 'center', gap: 4 },
-  statIcon: { width: 40, height: 40, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center', ...(elevation.sm as object) },
+  statCell: { flex: 1, alignItems: 'center', gap: 5, paddingHorizontal: 4 },
+  statCellBorder: { borderLeftWidth: 1, borderLeftColor: d.divider },
   statValue: { marginTop: 2 },
 
   // Achievements
   achRow: { gap: spacing.md, paddingRight: spacing.lg, paddingVertical: spacing.xs },
   achItem: { alignItems: 'center', width: 84 },
-  achBadge: { width: 74, height: 74, borderRadius: radius.lg, alignItems: 'center', justifyContent: 'center' },
-  achEarned: { borderWidth: 1, borderColor: 'rgba(124,77,255,0.15)', ...(elevation.sm as object) },
-  achLocked: { backgroundColor: colors.surfaceAlt },
+  achBadge: { width: 74, height: 74, borderRadius: radius.lg, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
+  achLocked: { backgroundColor: d.track, borderColor: d.divider },
   achLabel: { marginTop: spacing.sm },
 
   // Quick menu
   quickGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: spacing.md },
   quickItem: {
-    width: '23%', aspectRatio: 0.86, backgroundColor: colors.surface, borderRadius: radius.lg,
+    width: '23%', aspectRatio: 0.86, backgroundColor: d.card, borderRadius: radius.lg,
     alignItems: 'center', justifyContent: 'center', gap: spacing.sm, paddingHorizontal: 2,
-    ...(elevation.sm as object),
+    borderWidth: 1, borderColor: d.cardBorder,
   },
   quickIcon: { width: 44, height: 44, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center' },
   quickLabel: { marginTop: 2 },
@@ -475,7 +515,7 @@ const styles = StyleSheet.create({
   premium: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
     borderRadius: radius.xl, padding: spacing.lg, marginTop: spacing.xxl, overflow: 'hidden',
-    ...PURPLE_SHADOW, shadowOpacity: 0.3,
+    shadowColor: '#6C3BFF', shadowOpacity: 0.4, shadowRadius: 20, shadowOffset: { width: 0, height: 10 }, elevation: 8,
   },
   premGlow: { position: 'absolute', top: -40, right: -20, width: 160, height: 160, borderRadius: 80, backgroundColor: 'rgba(255,255,255,0.12)' },
   premiumTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
