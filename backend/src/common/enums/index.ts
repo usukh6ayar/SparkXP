@@ -67,6 +67,26 @@ export const VOCAB_CATEGORY_SUGGESTIONS = [
   "Academic",
 ] as const;
 
+/**
+ * Open-ended reading-passage topics (сэдэв). Like VOCAB_CATEGORY_SUGGESTIONS
+ * these are plain string suggestions (NOT a DB enum) — admins can add new topics
+ * from the panel without a code change. `ReadingPassage.category` is free text,
+ * and the stored value IS the display label (Mongolian) so admin + mobile show
+ * the same string without a slug→label map.
+ */
+export const READING_CATEGORY_SUGGESTIONS = [
+  "Өдөр тутам",
+  "Шинжлэх ухаан",
+  "Технологи",
+  "Түүх",
+  "Байгаль",
+  "Спорт",
+  "Соёл",
+  "Аялал",
+  "Бизнес",
+  "Эрүүл мэнд",
+] as const;
+
 /** CEFR-style difficulty, reused by Lesson and Word. */
 export enum ContentLevel {
   A1 = "a1",

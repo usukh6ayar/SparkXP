@@ -113,6 +113,7 @@ export class ReadingService {
     const passage = this.passages.create({
       title: dto.title,
       cefr: dto.cefr,
+      category: dto.category ?? null,
       coverImageUrl: dto.coverImageUrl ?? null,
       keyVocab: dto.keyVocab ?? [],
       sentences: (dto.sentences ?? []) as ReadingSentence[],
@@ -130,6 +131,7 @@ export class ReadingService {
     // Students only ever see published passages; admin passes all=true for drafts.
     if (!query.all) where.isPublished = true;
     if (query.cefr) where.cefr = query.cefr;
+    if (query.category) where.category = query.category;
     if (query.search) where.title = ILike(`%${query.search}%`);
 
     const [items, total] = await this.passages.findAndCount({
@@ -151,6 +153,7 @@ export class ReadingService {
     const passage = await this.findOne(id);
     if (dto.title !== undefined) passage.title = dto.title;
     if (dto.cefr !== undefined) passage.cefr = dto.cefr;
+    if (dto.category !== undefined) passage.category = dto.category ?? null;
     if (dto.coverImageUrl !== undefined) passage.coverImageUrl = dto.coverImageUrl;
     if (dto.keyVocab !== undefined) passage.keyVocab = dto.keyVocab;
     if (dto.sentences !== undefined)

@@ -77,6 +77,12 @@ export class CreateReadingDto {
   @IsEnum(ContentLevel)
   cefr?: ContentLevel;
 
+  /** Topic/category (сэдэв) — free text, see READING_CATEGORY_SUGGESTIONS. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  category?: string | null;
+
   @IsOptional()
   @IsString()
   @MaxLength(500)
