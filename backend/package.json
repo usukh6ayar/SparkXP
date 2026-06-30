@@ -15,6 +15,7 @@
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "seed": "ts-node -r tsconfig-paths/register src/scripts/seed.ts",
+    "seed:demo": "ts-node -r tsconfig-paths/register src/scripts/seed-demo.ts",
     "import-words": "ts-node -r tsconfig-paths/register src/scripts/import-words.ts",
     "backfill-slugs": "ts-node -r tsconfig-paths/register src/scripts/backfill-slugs.ts",
     "lint": "eslint \"{src,test}/**/*.ts\" --fix",
