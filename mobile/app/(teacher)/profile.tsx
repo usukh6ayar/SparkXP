@@ -1,9 +1,11 @@
+import { useCallback, useState } from 'react';
 import { View, ScrollView, Pressable, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/auth/AuthContext';
+import * as classesApi from '../../src/api/classes';
 import { t } from '../../src/i18n';
 import { AppText } from '../../src/components/Text';
 import { Avatar } from '../../src/components/Avatar';
@@ -11,8 +13,29 @@ import { Button } from '../../src/components/Button';
 import { colors, spacing, radius, elevation } from '../../src/theme/theme';
 
 export default function TeacherProfileScreen() {
-  const { user, logout } = useAuth();
+  const { user, token, logout } = useAuth();
   const router = useRouter();
+  const [classCount, setClassCount] = useState<number | null>(null);
+  const [studentCount, setStudentCount] = useState<number | null>(null);
+
+  // Load lightweight teaching stats: number of classes + total enrolled students.
+  const loadStats = useCallback(async () => {
+    if (!token) return;
+    try {
+      const { teaching } = await classesApi.getMyClasses(token);
+      setClassCount(teaching.length);
+      const details = await Promise.all(teaching.map((c) => classesApi.getClass(c.id, token)));
+      setStudentCount(details.reduce((sum, d) => sum + d.students.length, 0));
+    } catch {
+      // leave whatever we had; stats are non-critical
+    }
+  }, [token]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadStats();
+    }, [loadStats]),
+  );
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -44,6 +67,20 @@ export default function TeacherProfileScreen() {
             <AppText variant="label" color={colors.primary}>{t('teacher')}</AppText>
           </View>
         </LinearGradient>
+
+        {/* Teaching stats */}
+        <View style={styles.statsRow}>
+          <View style={styles.statCard}>
+            <Ionicons name="people" size={20} color={colors.primary} />
+            <AppText variant="h2">{classCount ?? '—'}</AppText>
+            <AppText variant="caption" color={colors.textSecondary}>{t('statClasses')}</AppText>
+          </View>
+          <View style={styles.statCard}>
+            <Ionicons name="school" size={20} color={colors.primary} />
+            <AppText variant="h2">{studentCount ?? '—'}</AppText>
+            <AppText variant="caption" color={colors.textSecondary}>{t('statStudents')}</AppText>
+          </View>
+        </View>
 
         {/* Info */}
         <View style={styles.infoCard}>
@@ -99,6 +136,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: spacing.sm,
     backgroundColor: colors.white,
     paddingHorizontal: spacing.md, paddingVertical: 5, borderRadius: radius.full,
+  },
+  statsRow: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.lg },
+  statCard: {
+    flex: 1, alignItems: 'center', gap: 2,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    paddingVertical: spacing.lg,
+    ...(elevation.sm as object),
   },
   infoCard: {
     backgroundColor: colors.surface,

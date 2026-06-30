@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { View, ScrollView, Pressable, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { View, ScrollView, Pressable, StyleSheet, ActivityIndicator, Alert, RefreshControl, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,6 +12,7 @@ import type { ClassDetail, ClassStudent } from '../../../src/api/classes';
 import type { Assignment } from '../../../src/api/assignments';
 import { t } from '../../../src/i18n';
 import { AppText } from '../../../src/components/Text';
+import { Avatar } from '../../../src/components/Avatar';
 import { JoinCodeCard } from '../../../src/components/JoinCodeCard';
 import { StudentRow } from '../../../src/components/StudentRow';
 import { RequestRow } from '../../../src/components/RequestRow';
@@ -43,7 +44,9 @@ export default function ClassDetailScreen() {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [titles, setTitles] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [actingId, setActingId] = useState<string | null>(null);
+  const [selectedStudent, setSelectedStudent] = useState<ClassStudent | null>(null);
 
   const load = useCallback(async () => {
     if (!token || !id) return;
@@ -72,6 +75,12 @@ export default function ClassDetailScreen() {
       load();
     }, [load]),
   );
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  }, [load]);
 
   async function onApprove(studentId: string) {
     if (!token || !id) return;
@@ -140,7 +149,13 @@ export default function ClassDetailScreen() {
         <View style={{ width: 36 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />
+        }
+      >
         <JoinCodeCard code={detail.joinCode} className={detail.name} />
 
         {/* Pending join requests (highlighted) */}
@@ -180,6 +195,7 @@ export default function ClassDetailScreen() {
                 username={s.username}
                 avatarUrl={s.avatarUrl}
                 xp={s.xp}
+                onPress={() => setSelectedStudent(s)}
               />
             ))}
           </Card>
@@ -213,6 +229,57 @@ export default function ClassDetailScreen() {
         />
         <View style={{ height: spacing.xxl }} />
       </ScrollView>
+
+      {/* Student detail bottom sheet (read-only summary from the roster data). */}
+      <Modal
+        visible={selectedStudent != null}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSelectedStudent(null)}
+      >
+        <Pressable style={styles.backdrop} onPress={() => setSelectedStudent(null)}>
+          <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.sheetHandle} />
+            {selectedStudent ? (
+              <>
+                <View style={styles.sheetHead}>
+                  <Avatar
+                    avatarUrl={selectedStudent.avatarUrl}
+                    name={selectedStudent.fullName}
+                    size={56}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <AppText variant="h3" numberOfLines={1}>{selectedStudent.fullName}</AppText>
+                    {selectedStudent.username ? (
+                      <AppText variant="caption" color={colors.textSecondary}>
+                        @{selectedStudent.username}
+                      </AppText>
+                    ) : null}
+                  </View>
+                </View>
+                <View style={styles.statRow}>
+                  <View style={styles.statBox}>
+                    <Ionicons name="flash" size={18} color={colors.xp} />
+                    <AppText variant="h3">{selectedStudent.xp}</AppText>
+                    <AppText variant="caption" color={colors.textSecondary}>{t('xp')}</AppText>
+                  </View>
+                  <View style={styles.statBox}>
+                    <Ionicons name="diamond" size={18} color={colors.sparks} />
+                    <AppText variant="h3">{selectedStudent.sparks}</AppText>
+                    <AppText variant="caption" color={colors.textSecondary}>{t('sparks')}</AppText>
+                  </View>
+                </View>
+                <Button
+                  label={t('close')}
+                  variant="secondary"
+                  onPress={() => setSelectedStudent(null)}
+                  style={{ marginTop: spacing.lg }}
+                />
+              </>
+            ) : null}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -239,4 +306,22 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceAlt, alignItems: 'center', justifyContent: 'center',
   },
   requestCard: { borderWidth: 1, borderColor: colors.streak },
+  backdrop: { flex: 1, backgroundColor: 'rgba(15,10,40,0.45)', justifyContent: 'flex-end' },
+  sheet: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    padding: spacing.xl,
+    paddingBottom: spacing.xxl,
+  },
+  sheetHandle: {
+    width: 40, height: 4, borderRadius: 2, backgroundColor: colors.borderStrong,
+    alignSelf: 'center', marginBottom: spacing.lg,
+  },
+  sheetHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.lg },
+  statRow: { flexDirection: 'row', gap: spacing.md },
+  statBox: {
+    flex: 1, alignItems: 'center', gap: 2,
+    backgroundColor: colors.surfaceAlt, borderRadius: radius.md, paddingVertical: spacing.md,
+  },
 });

@@ -38,10 +38,13 @@ function RootNavigator() {
     if (PREVIEW_AUTH || loading) return;
     const inAuthGroup = segments[0] === "(auth)";
     const inTeacherGroup = segments[0] === "(teacher)";
+    const inTabsGroup = segments[0] === "(tabs)";
     const isTeacher = user?.role === "teacher";
     if (token) {
-      // Logged in — route by role and keep out of the auth/onboarding screens.
-      if (isTeacher && !inTeacherGroup) {
+      // Logged in — keep each role out of the *other* role's screens and out of
+      // auth/onboarding. Standalone shared routes (e.g. /avatar) are left alone
+      // so both roles can open them.
+      if (isTeacher && (inAuthGroup || inTabsGroup)) {
         router.replace("/(teacher)");
       } else if (!isTeacher && (inAuthGroup || inTeacherGroup)) {
         router.replace("/(tabs)");

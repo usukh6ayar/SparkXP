@@ -186,6 +186,10 @@ const mn = {
   delete: 'Устгах',
   teacher: 'Багш',
   teacherProfile: 'Багшийн профайл',
+  studentDetail: 'Сурагчийн мэдээлэл',
+  close: 'Хаах',
+  statClasses: 'Анги',
+  statStudents: 'Сурагч',
 
   // Student — join a class
   joinClass: 'Анги нэгдэх',

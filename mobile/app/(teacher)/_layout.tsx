@@ -45,6 +45,7 @@ export default function TeacherLayout() {
         }}
       />
       {/* Hidden from the tab bar — navigated to from the class list. */}
+      <Tabs.Screen name="class/new" options={{ href: null }} />
       <Tabs.Screen name="class/[id]" options={{ href: null }} />
       <Tabs.Screen name="class/[id]/assign" options={{ href: null }} />
     </Tabs>

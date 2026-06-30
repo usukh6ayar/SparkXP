@@ -1,25 +1,28 @@
-import { View, StyleSheet } from 'react-native';
+import { View, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AppText } from './Text';
 import { Avatar } from './Avatar';
 import { colors, spacing, radius } from '../theme/theme';
 
-/** A roster row: rank, avatar, name (+ @username), lifetime XP. */
+/** A roster row: rank, avatar, name (+ @username), lifetime XP. Tappable when `onPress` is given. */
 export function StudentRow({
   name,
   username,
   avatarUrl,
   xp,
   rank,
+  onPress,
 }: {
   name: string;
   username?: string | null;
   avatarUrl?: string | null;
   xp: number;
   rank?: number;
+  onPress?: () => void;
 }) {
+  const Row = onPress ? Pressable : View;
   return (
-    <View style={styles.row}>
+    <Row style={styles.row} onPress={onPress}>
       {rank != null ? (
         <AppText variant="label" color={colors.textMuted} style={styles.rank}>
           {rank}
@@ -36,7 +39,7 @@ export function StudentRow({
         <Ionicons name="flash" size={13} color={colors.xp} />
         <AppText variant="label" color={colors.textSecondary}>{xp}</AppText>
       </View>
-    </View>
+    </Row>
   );
 }
 

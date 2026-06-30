@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { View, ScrollView, Modal, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, ScrollView, Pressable, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -8,15 +8,11 @@ import { useAuth } from '../../src/auth/AuthContext';
 import * as classesApi from '../../src/api/classes';
 import type { ClassSummary } from '../../src/api/classes';
 import { getOrganizations, type Organization } from '../../src/api/organizations';
-import { ApiError } from '../../src/api/client';
 import { t } from '../../src/i18n';
 import { AppText } from '../../src/components/Text';
 import { Avatar } from '../../src/components/Avatar';
 import { ClassCard } from '../../src/components/ClassCard';
 import { SectionHeader } from '../../src/components/SectionHeader';
-import { TextField } from '../../src/components/TextField';
-import { SelectField } from '../../src/components/SelectField';
-import { Button } from '../../src/components/Button';
 import { colors, spacing, radius, elevation } from '../../src/theme/theme';
 
 export default function TeacherClassesScreen() {
@@ -24,25 +20,13 @@ export default function TeacherClassesScreen() {
   const router = useRouter();
   const [classes, setClasses] = useState<ClassSummary[]>([]);
   const [loading, setLoading] = useState(true);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [name, setName] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
   const [orgs, setOrgs] = useState<Organization[]>([]);
-  const [schoolName, setSchoolName] = useState<string | undefined>();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  const loadOrgs = useCallback(() => {
+  // Orgs are only needed to show each class's school name on its card.
+  useEffect(() => {
     if (token) getOrganizations(token).then(setOrgs).catch(() => {});
   }, [token]);
-  useEffect(() => {
-    loadOrgs();
-  }, [loadOrgs]);
-
-  function openCreate() {
-    loadOrgs();
-    setError(null);
-    setModalOpen(true);
-  }
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -62,30 +46,23 @@ export default function TeacherClassesScreen() {
     }, [load]),
   );
 
-  async function onCreate() {
-    const org = orgs.find((o) => o.name === schoolName);
-    if (!token || !name.trim() || !org) return;
-    setError(null);
-    setBusy(true);
-    try {
-      const created = await classesApi.createClass(name.trim(), org.id, token);
-      setModalOpen(false);
-      setName('');
-      setSchoolName(undefined);
-      await load();
-      router.push(`/(teacher)/class/${created.id}`);
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : t('errorGeneric'));
-    } finally {
-      setBusy(false);
-    }
-  }
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  }, [load]);
 
   const schoolOf = (id: string | null) => orgs.find((o) => o.id === id)?.name ?? null;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />
+        }
+      >
         {/* Gradient hero */}
         <LinearGradient
           colors={colors.primaryGradient}
@@ -104,7 +81,7 @@ export default function TeacherClassesScreen() {
             <Ionicons name="people" size={15} color={colors.white} />
             <AppText variant="label" color={colors.white}>{classes.length} анги</AppText>
           </View>
-          <Pressable style={styles.heroBtn} onPress={openCreate}>
+          <Pressable style={styles.heroBtn} onPress={() => router.push('/(teacher)/class/new')}>
             <Ionicons name="add" size={18} color={colors.primary} />
             <AppText variant="bodyStrong" color={colors.primary}>{t('createClass')}</AppText>
           </Pressable>
@@ -138,44 +115,6 @@ export default function TeacherClassesScreen() {
         )}
         <View style={{ height: spacing.xxl }} />
       </ScrollView>
-
-      {/* Create-class bottom sheet */}
-      <Modal visible={modalOpen} transparent animationType="slide" onRequestClose={() => setModalOpen(false)}>
-        <Pressable style={styles.backdrop} onPress={() => setModalOpen(false)}>
-          <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
-            <View style={styles.sheetHandle} />
-            <AppText variant="h2" style={{ marginBottom: spacing.lg }}>{t('createClass')}</AppText>
-            <SelectField
-              label={t('school')}
-              placeholder={t('selectSchool')}
-              value={schoolName}
-              options={orgs.map((o) => o.name)}
-              onSelect={setSchoolName}
-            />
-            <TextField
-              label={t('className')}
-              placeholder={t('classNamePlaceholder')}
-              value={name}
-              onChangeText={setName}
-            />
-            {orgs.length === 0 ? (
-              <AppText variant="caption" color={colors.textSecondary} style={{ marginBottom: spacing.sm }}>
-                {t('noSchools')}
-              </AppText>
-            ) : null}
-            {error ? (
-              <AppText variant="caption" color={colors.danger} style={{ marginBottom: spacing.sm }}>{error}</AppText>
-            ) : null}
-            <Button
-              label={t('createClass')}
-              iconRight="arrow-forward"
-              onPress={onCreate}
-              loading={busy}
-              disabled={!name.trim() || !schoolName}
-            />
-          </Pressable>
-        </Pressable>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -205,17 +144,5 @@ const styles = StyleSheet.create({
   emptyIcon: {
     width: 80, height: 80, borderRadius: radius.full, backgroundColor: colors.primarySoft,
     alignItems: 'center', justifyContent: 'center',
-  },
-  backdrop: { flex: 1, backgroundColor: 'rgba(15,10,40,0.45)', justifyContent: 'flex-end' },
-  sheet: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
-    padding: spacing.xl,
-    paddingBottom: spacing.xxl,
-  },
-  sheetHandle: {
-    width: 40, height: 4, borderRadius: 2, backgroundColor: colors.borderStrong,
-    alignSelf: 'center', marginBottom: spacing.lg,
   },
 });
