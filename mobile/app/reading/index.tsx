@@ -6,7 +6,7 @@ import { useAuth } from '../../src/auth/AuthContext';
 import { getReadingList, type ReadingPassage } from '../../src/api/reading';
 import { TopBar } from '../../src/components/TopBar';
 import { CategoryBrowser, type BrowserItem } from '../../src/components/CategoryBrowser';
-import { colors } from '../../src/theme/theme';
+import { useColors } from '../../src/settings/SettingsContext';
 
 /**
  * Reading (Унших материал), two levels via CategoryBrowser:
@@ -18,6 +18,7 @@ import { colors } from '../../src/theme/theme';
 export default function ReadingListScreen() {
   const { token } = useAuth();
   const router = useRouter();
+  const c = useColors();
 
   const [passages, setPassages] = useState<ReadingPassage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,6 +58,10 @@ export default function ReadingListScreen() {
     [passages],
   );
 
+  const styles = StyleSheet.create({
+    safe: { flex: 1, backgroundColor: c.background },
+  });
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <TopBar
@@ -78,7 +83,3 @@ export default function ReadingListScreen() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
-});
