@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState, useMemo } from 'react';
 import { View, StyleSheet, ScrollView, Pressable, RefreshControl } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { View, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -8,20 +10,20 @@ import { useAuth } from '../../src/auth/AuthContext';
 import { getExercises, type Quiz } from '../../src/api/quizzes';
 import { TopBar } from '../../src/components/TopBar';
 import { AppText } from '../../src/components/Text';
-import { Loading } from '../../src/components/Loading';
 import { ProgressBar } from '../../src/components/ProgressBar';
 import { useColors } from '../../src/settings/SettingsContext';
 import { spacing, radius, tints, type AppColors } from '../../src/theme/theme';
+import { CategoryBrowser, type BrowserItem } from '../../src/components/CategoryBrowser';
+import { colors, spacing, radius } from '../../src/theme/theme';
 
 type IconName = keyof typeof Ionicons.glyphMap;
-type TintName = keyof typeof tints;
 
 /**
- * One skill screen (Сонсгол / Унших / Бичих / Ярих) = one admin exercise
- * category. There is NO fixed sub-category taxonomy — the categories live in the
- * DB and are authored in admin (`/quizzes?standalone=true&category=<skill>`).
- * This screen shows a progress hero + the REAL, DB-authored exercises for the
- * skill, so mobile always matches admin. Tapping an exercise opens it.
+ * One skill screen (Сонсгол / Бичих / Ярих) = one admin exercise category.
+ * Exercises are DB-authored (`/quizzes?standalone=true&category=<skill>`) and
+ * grouped by their сэдэв (`topic`) — a two-level browse (сэдэв → exercises) that
+ * always matches whatever admin created. (Унших/reading has its own screen
+ * because it is passages, not quizzes.)
  */
 const SKILLS: Record<
   string,
@@ -32,18 +34,6 @@ const SKILLS: Record<
   speaking: { label: 'Ярих', en: 'Speaking', icon: 'mic', grad: ['#D6418F', '#6B1648'], percent: 68 },
   writing: { label: 'Бичих', en: 'Writing', icon: 'create', grad: ['#C9821F', '#5A3410'], percent: 52 },
 };
-
-// Row visuals cycle through a small palette so the DB list still looks lively.
-const ROW_STYLES: { icon: IconName; tint: TintName }[] = [
-  { icon: 'book', tint: 'green' },
-  { icon: 'newspaper', tint: 'amber' },
-  { icon: 'chatbubbles', tint: 'pink' },
-  { icon: 'grid', tint: 'purple' },
-  { icon: 'search', tint: 'blue' },
-  { icon: 'sparkles', tint: 'teal' },
-  { icon: 'flash', tint: 'orange' },
-  { icon: 'trophy', tint: 'amber' },
-];
 
 export default function SkillScreen() {
   const { key } = useLocalSearchParams<{ key: string }>();
@@ -57,6 +47,7 @@ export default function SkillScreen() {
   const [items, setItems] = useState<Quiz[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedCat, setSelectedCat] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!token) { setItems([]); return; }
@@ -146,9 +137,64 @@ export default function SkillScreen() {
             })}
           </View>
         )}
+  // Map exercises → browser rows, bucketed by сэдэв (topic).
+  const rows: BrowserItem[] = useMemo(
+    () =>
+      items.map((q) => ({
+        id: q.id,
+        title: q.title,
+        subtitle: `${q.questions?.length ?? 0} асуулт · ${q.xpReward} XP · ${q.level.toUpperCase()}`,
+        category: q.topic,
+      })),
+    [items],
+  );
 
-        <View style={{ height: 110 }} />
-      </ScrollView>
+  const hero = (
+    <LinearGradient colors={skill.grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
+      <View style={styles.heroLeft}>
+        <AppText variant="overline" color="rgba(255,255,255,0.85)">
+          ӨНӨӨ ДӨР · {skill.en.toUpperCase()}
+        </AppText>
+        <AppText variant="display" color={colors.white} style={styles.heroPercent}>
+          {skill.percent}%
+        </AppText>
+        <AppText variant="caption" color="rgba(255,255,255,0.9)">Явц</AppText>
+        <ProgressBar
+          value={skill.percent / 100}
+          color={colors.white}
+          track="rgba(255,255,255,0.28)"
+          height={8}
+          style={styles.heroBar}
+        />
+      </View>
+      {/* Illustration placeholder — drop a 3D PNG here for pixel-match. */}
+      <View style={styles.heroArt}>
+        <Ionicons name={skill.icon} size={64} color="rgba(255,255,255,0.95)" />
+      </View>
+    </LinearGradient>
+  );
+
+  return (
+    <SafeAreaView style={styles.safe} edges={['top']}>
+      <TopBar
+        title={selectedCat ?? skill.label}
+        back
+        showBadges={false}
+        // Inside a сэдэв, Back returns to the сэдэв list, not off-screen.
+        onBack={selectedCat ? () => setSelectedCat(null) : undefined}
+      />
+      <CategoryBrowser
+        items={rows}
+        loading={loading}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
+        selectedCat={selectedCat}
+        onSelectCat={setSelectedCat}
+        onOpen={(id) => router.push(`/quiz/${id}`)}
+        // Hero only on the сэдэв list (level 1), so level 2 is a clean list.
+        hero={selectedCat === null ? hero : undefined}
+        emptyText="Энэ төрлийн дасгал алга 🦊"
+      />
     </SafeAreaView>
   );
 }
@@ -156,6 +202,8 @@ export default function SkillScreen() {
 const makeStyles = (c: AppColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: c.background },
   container: { paddingHorizontal: spacing.lg, paddingTop: spacing.xs },
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: colors.background },
 
   // Today's <skill> hero
   hero: {
