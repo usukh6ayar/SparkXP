@@ -9,6 +9,7 @@ import { getSaved, toggleSave, type LearnWord } from '../src/api/reviews';
 import { TopBar } from '../src/components/TopBar';
 import { AppText } from '../src/components/Text';
 import { Loading } from '../src/components/Loading';
+import { t } from '../src/i18n';
 import { useColors } from '../src/settings/SettingsContext';
 import { spacing, radius, elevation, type AppColors } from '../src/theme/theme';
 
@@ -55,7 +56,7 @@ export default function SavedScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      <TopBar title="Хадгалсан үгс" back />
+      <TopBar title={t('savedWords')} back />
       <FlatList
         data={words}
         keyExtractor={(w) => w.id}
@@ -64,9 +65,9 @@ export default function SavedScreen() {
         ListEmptyComponent={
           <View style={styles.empty}>
             <AppText style={styles.emptyEmoji}>⭐</AppText>
-            <AppText variant="h3" center>Хадгалсан үг алга</AppText>
+            <AppText variant="h3" center>{t('noSavedWords')}</AppText>
             <AppText variant="body" color={c.textSecondary} center style={styles.emptyHint}>
-              Үг сурах үед картны ⭐ дээр дарж хадгална.
+              {t('noSavedWordsHint')}
             </AppText>
           </View>
         }

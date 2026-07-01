@@ -257,6 +257,21 @@ const mn = {
   logoutConfirm: 'Гарах уу?',
   comingSoonBody: 'Энэ хэсэг удахгүй нэмэгдэнэ.',
 
+  // Saved words
+  savedWords: 'Хадгалсан үгс',
+  noSavedWords: 'Хадгалсан үг алга',
+  noSavedWordsHint: 'Үг сурах үед картны ⭐ дээр дарж хадгална.',
+
+  // Reading
+  readingMaterials: 'Унших материал',
+  noReadingMaterials: 'Унших материал алга 🦊',
+  reading: 'Унших',
+  passageNotFound: 'Материал олдсонгүй 🦊',
+  keyVocabulary: 'Гол үгс',
+  readingDone: 'Уншиж дууслаа ✓',
+  readingFinish: 'Уншиж дууслаа (+15 XP)',
+  tapWordHint: '💡 Үг дээр 2 удаа дарвал монгол утга гарч ирнэ',
+
   // Common
   back: 'Буцах',
   continue: 'Үргэлжлүүлэх',
@@ -501,6 +516,19 @@ const en: Record<TranslationKey, string> = {
   privacyPolicy: 'Privacy Policy',
   logoutConfirm: 'Log out?',
   comingSoonBody: 'This section is coming soon.',
+
+  savedWords: 'Saved words',
+  noSavedWords: 'No saved words',
+  noSavedWordsHint: 'Tap ⭐ on a card while learning to save it here.',
+
+  readingMaterials: 'Reading materials',
+  noReadingMaterials: 'No reading materials 🦊',
+  reading: 'Reading',
+  passageNotFound: 'Passage not found 🦊',
+  keyVocabulary: 'Key vocabulary',
+  readingDone: 'Finished reading ✓',
+  readingFinish: 'Finished reading (+15 XP)',
+  tapWordHint: '💡 Double-tap a word to see its Mongolian meaning',
 
   back: 'Back',
   continue: 'Continue',
