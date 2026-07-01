@@ -43,6 +43,10 @@ interface LevelMeta {
   desc: string; // one-line subtitle
 }
 
+// TODO(i18n/copy): name/tier/desc are English-only "world map" narrative
+// content (Forest/Village/Castle...), not plain UI chrome — needs Boju's
+// call on Mongolian names before this goes through i18n like the rest of
+// the app's copy (CLAUDE.md: Mongolian-primary).
 const LEVEL: Record<string, LevelMeta> = {
   a1: { name: 'Forest',    color: '#22C55E', emoji: '🌿', tier: 'Beginner',          desc: 'Learn greetings and basic words' },
   a2: { name: 'Village',   color: '#22C55E', emoji: '🏡', tier: 'Elementary',        desc: 'Everyday phrases and simple talk' },
