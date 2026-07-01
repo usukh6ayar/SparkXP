@@ -260,6 +260,7 @@ const mn = {
   // Common
   back: 'Буцах',
   continue: 'Үргэлжлүүлэх',
+  error: 'Алдаа',
   errorGeneric: 'Алдаа гарлаа. Дахин оролдоно уу.',
   required: 'Заавал бөглөнө үү',
   comingSoon: 'Тун удахгүй',
@@ -484,6 +485,7 @@ const en: Record<TranslationKey, string> = {
 
   back: 'Back',
   continue: 'Continue',
+  error: 'Error',
   errorGeneric: 'An error occurred. Please try again.',
   required: 'Required',
   comingSoon: 'Coming soon',

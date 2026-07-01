@@ -10,6 +10,7 @@ import * as lessonsApi from '../../src/api/lessons';
 import type { Lesson } from '../../src/api/lessons';
 import { getQuizzes, type Quiz } from '../../src/api/quizzes';
 import { setLastLesson } from '../../src/lib/lastLesson';
+import { alertError, confirm } from '../../src/lib/alerts';
 import { TopBar } from '../../src/components/TopBar';
 import { AppText } from '../../src/components/Text';
 import { Pill } from '../../src/components/Pill';
@@ -64,7 +65,7 @@ export default function LessonDetailScreen() {
         setDone(savedDone === '1');
         setLastLesson({ id: l.id, title: l.title, thumbnailUrl: l.thumbnailUrl, type: l.type, level: l.level });
       } catch {
-        Alert.alert('Алдаа', 'Хичээл ачаалахад алдаа гарлаа.');
+        alertError('Хичээл ачаалахад алдаа гарлаа.');
         router.back();
       } finally {
         setLoading(false);
@@ -92,27 +93,26 @@ export default function LessonDetailScreen() {
   function unlock() {
     if (!lesson) return;
     if ((user?.sparks ?? 0) < lesson.priceSparks) {
-      Alert.alert('Очирхон хүрэлцэхгүй', `Танд ${user?.sparks ?? 0} 💎 байна. Энэ хичээлд ${lesson.priceSparks} 💎 шаардлагатай.`);
+      alertError(`Танд ${user?.sparks ?? 0} 💎 байна. Энэ хичээлд ${lesson.priceSparks} 💎 шаардлагатай.`, 'Очирхон хүрэлцэхгүй');
       return;
     }
-    Alert.alert('Хичээл нээх үү?', `${lesson.priceSparks} 💎 Очирхон зарцуулна`, [
-      { text: 'Болих' },
-      {
-        text: `Нээх (${lesson.priceSparks} 💎)`,
-        onPress: async () => {
-          setUnlocking(true);
-          try {
-            await lessonsApi.unlockLesson(id!, token!);
-            setHasAccess(true);
-            Alert.alert('Амжилттай', 'Хичээл нээгдлээ!');
-          } catch {
-            Alert.alert('Алдаа', 'Нээхэд алдаа гарлаа.');
-          } finally {
-            setUnlocking(false);
-          }
-        },
+    confirm({
+      title: 'Хичээл нээх үү?',
+      message: `${lesson.priceSparks} 💎 Очирхон зарцуулна`,
+      confirmLabel: `Нээх (${lesson.priceSparks} 💎)`,
+      onConfirm: async () => {
+        setUnlocking(true);
+        try {
+          await lessonsApi.unlockLesson(id!, token!);
+          setHasAccess(true);
+          Alert.alert('Амжилттай', 'Хичээл нээгдлээ!');
+        } catch {
+          alertError('Нээхэд алдаа гарлаа.');
+        } finally {
+          setUnlocking(false);
+        }
       },
-    ]);
+    });
   }
 
   // Group the lesson's quizzes by category (the 4 test types).

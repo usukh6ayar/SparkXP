@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput,
-  Pressable, ActivityIndicator, Alert,
+  Pressable, ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,6 +9,7 @@ import { useAuth } from '../../src/auth/AuthContext';
 import * as quizzesApi from '../../src/api/quizzes';
 import type { Quiz, AnswerItem, QuizResult } from '../../src/api/quizzes';
 import { Button } from '../../src/components/Button';
+import { alertError } from '../../src/lib/alerts';
 import { useColors } from '../../src/settings/SettingsContext';
 import { spacing, radius, fontSize, type AppColors } from '../../src/theme/theme';
 
@@ -95,7 +96,7 @@ export default function QuizScreen() {
       setResult(res);
       setPhase('result');
     } catch {
-      Alert.alert('Алдаа', 'Хариулт илгээхэд алдаа гарлаа.');
+      alertError('Хариулт илгээхэд алдаа гарлаа.');
     } finally {
       setSubmitting(false);
     }

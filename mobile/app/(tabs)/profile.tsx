@@ -19,6 +19,7 @@ import { SelectField } from '../../src/components/SelectField';
 import { Button } from '../../src/components/Button';
 import { resolveAvatar } from '../../src/lib/avatar';
 import { useLogoutConfirm, useComingSoon } from '../../src/lib/useLogoutConfirm';
+import { alertError } from '../../src/lib/alerts';
 import { ROLE_LABEL } from '../../src/constants/roles';
 import { colors, spacing, radius, tints, elevation, type PremiumPalette } from '../../src/theme/theme';
 
@@ -360,7 +361,7 @@ function EditProfileModal({
   const isUB = province === 'Улаанбаатар';
 
   async function save() {
-    if (!fullName.trim()) { Alert.alert('Алдаа', 'Нэрээ оруулна уу.'); return; }
+    if (!fullName.trim()) { alertError('Нэрээ оруулна уу.'); return; }
     setSaving(true);
     try {
       await usersApi.updateProfile(
@@ -370,7 +371,7 @@ function EditProfileModal({
       Alert.alert('Амжилттай', 'Профайл шинэчлэгдлээ.');
       onClose();
     } catch {
-      Alert.alert('Алдаа', 'Хадгалахад алдаа гарлаа.');
+      alertError('Хадгалахад алдаа гарлаа.');
     } finally {
       setSaving(false);
     }
