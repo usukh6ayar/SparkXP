@@ -42,6 +42,9 @@ const mn = {
   // Login
   welcomeBack: 'Тавтай морил! 👋',
   loginSubtitle: 'Бүртгэлтэй хэрэглэгч бол нэвтэрч орно уу.',
+  continueWithEmail: 'Имэйлээр үргэлжлүүлэх',
+  continueWithGoogle: 'Google-ээр үргэлжлүүлэх',
+  continueWithApple: 'Apple-ээр үргэлжлүүлэх',
   rememberMe: 'Намайг санаарай',
   forgotPassword: 'Нууц үгээ мартсан уу?',
   orDivider: 'эсвэл',
@@ -108,6 +111,23 @@ const mn = {
   reviewDone: 'Бүгдийг давталаа!',
   reviewDoneHint: 'Маргааш дахин давтаарай 🦊',
   backHome: 'Нүүр рүү',
+  // Flashcard redesign
+  flipHint: 'Эргүүлж хариуг харах',
+  tipLabel: 'Зөвлөмж',
+  memMastered: 'Эзэмшсэн',
+  memLearning: 'Сурч байна',
+  memNew: 'Шинэ',
+  reviewComplete: 'Дасгал дууслаа!',
+  accuracy: 'Нарийвчлал',
+  remembered: 'Санасан',
+  difficult: 'Хэцүү',
+  swipeToNavigate: 'Хажуу тийш шудрахад дараагийн үг',
+  swipeKnow: 'МЭДНЭ',
+  swipeReview: 'МЭДЭХГҮЙ',
+  swipeFav: 'ДУРТАЙ',
+  knownLabel: 'Мэдсэн',
+  reviewLabel: 'Мэдэхгүй',
+  swipeCardHint: '← Мэдэхгүй  ·  Мэднэ →  ·  ↑ Дуртай',
 
   // Сорил (quiz)
   quiz: 'Сорил',
