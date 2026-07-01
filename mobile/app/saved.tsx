@@ -9,6 +9,7 @@ import { getSaved, toggleSave, type LearnWord } from '../src/api/reviews';
 import { TopBar } from '../src/components/TopBar';
 import { AppText } from '../src/components/Text';
 import { Loading } from '../src/components/Loading';
+import { IconButton } from '../src/components/IconButton';
 import { t } from '../src/i18n';
 import { useColors } from '../src/settings/SettingsContext';
 import { spacing, radius, elevation, type AppColors } from '../src/theme/theme';
@@ -84,12 +85,8 @@ export default function SavedScreen() {
               <AppText variant="h3" color={c.navy} numberOfLines={1}>{item.english}</AppText>
               <AppText variant="caption" color={c.primary} numberOfLines={1}>{item.mongolian}</AppText>
             </View>
-            <Pressable onPress={() => play(item)} hitSlop={8} style={styles.iconBtn}>
-              <Ionicons name="volume-high" size={20} color={c.primary} />
-            </Pressable>
-            <Pressable onPress={() => unsave(item)} hitSlop={8} style={styles.iconBtn}>
-              <Ionicons name="star" size={20} color={c.xp} />
-            </Pressable>
+            <IconButton icon="volume-high" size={38} variant="filled" iconColor={c.primary} onPress={() => play(item)} />
+            <IconButton icon="star" size={38} variant="filled" iconColor={c.xp} onPress={() => unsave(item)} />
           </View>
         )}
       />
@@ -116,10 +113,6 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   },
   thumbImg: { width: '100%', height: '100%' },
   info: { flex: 1 },
-  iconBtn: {
-    width: 38, height: 38, borderRadius: radius.full,
-    backgroundColor: c.surfaceAlt, alignItems: 'center', justifyContent: 'center',
-  },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
   emptyEmoji: { fontSize: 52, marginBottom: spacing.md },
   emptyHint: { marginTop: spacing.xs },

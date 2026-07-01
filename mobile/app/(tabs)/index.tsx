@@ -23,6 +23,7 @@ import { getLastLesson, type LastLesson } from "../../src/lib/lastLesson";
 import { useDictionary } from "../../src/components/DictionaryProvider";
 import { AppText } from "../../src/components/Text";
 import { ProgressBar } from "../../src/components/ProgressBar";
+import { IconButton } from "../../src/components/IconButton";
 import { useColors, useSettings } from "../../src/settings/SettingsContext";
 import {
   spacing,
@@ -250,9 +251,9 @@ export default function HomeScreen() {
               </View>
               <View style={styles.headerIcons}>
                 {/* TODO: notifications screen */}
-                <IconBtn icon="notifications-outline" dot onPress={() => {}} />
+                <IconButton icon="notifications-outline" dot size={44} style={styles.headerIconBtn} onPress={() => {}} />
                 {/* Dictionary — in-place search overlay (no screen change) */}
-                <IconBtn icon="search" onPress={openSearch} />
+                <IconButton icon="search" size={44} style={styles.headerIconBtn} onPress={openSearch} />
               </View>
             </View>
 
@@ -423,29 +424,6 @@ export default function HomeScreen() {
   );
 }
 
-function IconBtn({
-  icon,
-  onPress,
-  dot,
-}: {
-  icon: IconName;
-  onPress?: () => void;
-  /** Small red notification dot (attention cue). */
-  dot?: boolean;
-}) {
-  const c = useColors();
-  const styles = useMemo(() => makeStyles(c), [c]);
-  return (
-    <Pressable
-      style={({ pressed }) => [styles.iconBtn, pressed && styles.pressed]}
-      onPress={onPress}
-    >
-      <Ionicons name={icon} size={20} color={c.text} />
-      {dot ? <View style={styles.iconDot} /> : null}
-    </Pressable>
-  );
-}
-
 const makeStyles = (c: AppColors) => StyleSheet.create({
   root: { flex: 1, backgroundColor: c.background },
   container: { paddingTop: 0 },
@@ -479,29 +457,7 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   headerText: { flex: 1, paddingTop: 2 },
   sub: { marginTop: 4 },
   headerIcons: { flexDirection: "row", gap: spacing.sm },
-  iconBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.full,
-    backgroundColor: c.surface,
-    borderWidth: 1,
-    borderColor: c.border,
-    alignItems: "center",
-    justifyContent: "center",
-    ...(elevation.sm as object),
-  },
-  // Small red notification dot on a header icon button.
-  iconDot: {
-    position: "absolute",
-    top: 9,
-    right: 10,
-    width: 9,
-    height: 9,
-    borderRadius: radius.full,
-    backgroundColor: c.danger,
-    borderWidth: 1.5,
-    borderColor: c.surface,
-  },
+  headerIconBtn: { borderWidth: 1, borderColor: c.border },
 
   // Hero overlay badges
   heroTop: {
