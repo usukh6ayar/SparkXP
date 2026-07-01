@@ -1,20 +1,21 @@
 import { Tabs } from 'expo-router';
 import { CustomTabBar } from '../../src/components/CustomTabBar';
-import { colors } from '../../src/theme/theme';
+import { useColors } from '../../src/settings/SettingsContext';
 
 /**
  * Main tabs with the custom SparkXP bottom bar.
  * Order = tab order: Нүүр · Хичээл · [AI fox center] · Сорил · Профайл.
  */
 export default function TabsLayout() {
+  const c = useColors();
   return (
     <Tabs
       tabBar={(props) => <CustomTabBar {...props} />}
-      // sceneStyle dark = no white default background peeking behind the
+      // sceneStyle = active theme bg so no default background peeks behind the
       // rounded top corners of the custom tab bar.
       screenOptions={{
         headerShown: false,
-        sceneStyle: { backgroundColor: colors.background },
+        sceneStyle: { backgroundColor: c.background },
       }}
     >
       <Tabs.Screen name="index" />

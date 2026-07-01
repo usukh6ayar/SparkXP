@@ -1,5 +1,6 @@
 import { View, StyleSheet, type ViewStyle } from 'react-native';
 import { colors, radius } from '../theme/theme';
+import { useColors } from '../settings/SettingsContext';
 
 /**
  * Thin rounded progress track. One implementation for daily goals, lesson
@@ -8,7 +9,7 @@ import { colors, radius } from '../theme/theme';
 export function ProgressBar({
   value,
   color = colors.primary,
-  track = colors.border,
+  track,
   height = 8,
   style,
 }: {
@@ -19,9 +20,11 @@ export function ProgressBar({
   height?: number;
   style?: ViewStyle;
 }) {
+  const c = useColors();
+  const trackColor = track ?? c.border;
   const pct = Math.max(0, Math.min(1, value)) * 100;
   return (
-    <View style={[styles.track, { height, borderRadius: height, backgroundColor: track }, style]}>
+    <View style={[styles.track, { height, borderRadius: height, backgroundColor: trackColor }, style]}>
       <View style={{ width: `${pct}%`, height, borderRadius: height, backgroundColor: color }} />
     </View>
   );

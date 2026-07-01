@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   View,
   StyleSheet,
@@ -22,12 +22,13 @@ import { getLastLesson, type LastLesson } from "../../src/lib/lastLesson";
 import { useDictionary } from "../../src/components/DictionaryProvider";
 import { AppText } from "../../src/components/Text";
 import { ProgressBar } from "../../src/components/ProgressBar";
+import { useColors } from "../../src/settings/SettingsContext";
 import {
-  colors,
   spacing,
   radius,
   tints,
   elevation,
+  type AppColors,
 } from "../../src/theme/theme";
 
 type IconName = keyof typeof Ionicons.glyphMap;
@@ -82,6 +83,8 @@ const TASKS: {
 
 export default function HomeScreen() {
   const { user, token } = useAuth();
+  const c = useColors();
+  const styles = useMemo(() => makeStyles(c), [c]);
   const router = useRouter();
   const { openSearch } = useDictionary();
   const firstName =
@@ -181,7 +184,7 @@ export default function HomeScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor={colors.primary}
+            tintColor={c.primary}
           />
         }
       >
@@ -219,10 +222,11 @@ export default function HomeScreen() {
             {/* Header: greeting + notification / search */}
             <View style={styles.header}>
               <View style={styles.headerText}>
-                <AppText variant="h1">Сайн уу, {firstName} 👋</AppText>
+                {/* On the dark sky hero — always light text, both themes. */}
+                <AppText variant="h1" color={c.white}>Сайн уу, {firstName} 👋</AppText>
                 <AppText
                   variant="body"
-                  color={colors.textSecondary}
+                  color={c.textOnDarkMuted}
                   style={styles.sub}
                 >
                   Өнөөдөр шинэ зүйл сурч, өөрийгөө ахиулцгаая! ✨
@@ -239,27 +243,27 @@ export default function HomeScreen() {
             {/* Streak / gem / XP badges over the scene */}
             <View style={styles.heroTop}>
               <View style={styles.streakBadge}>
-                <Ionicons name="flame" size={25} color={colors.streak} />
-                <AppText variant="h2" color={colors.white}>{streak}</AppText>
+                <Ionicons name="flame" size={25} color={c.streak} />
+                <AppText variant="h2" color={c.white}>{streak}</AppText>
                 <View>
-                  <AppText variant="caption" color={colors.textOnDark}>
+                  <AppText variant="caption" color={c.textOnDark}>
                     Өдөр дараалал
                   </AppText>
-                  <AppText variant="caption" color={colors.textOnDarkMuted}>
+                  <AppText variant="caption" color={c.textOnDarkMuted}>
                     Keep going!
                   </AppText>
                 </View>
               </View>
               <View style={styles.heroPillCol}>
                 <View style={styles.heroPill}>
-                  <Ionicons name="diamond" size={25} color={colors.sparks} />
-                  <AppText variant="label" color={colors.white}>
+                  <Ionicons name="diamond" size={25} color={c.sparks} />
+                  <AppText variant="label" color={c.white}>
                     {sparks} Очирхон
                   </AppText>
                 </View>
                 <View style={styles.heroPill}>
-                  <Ionicons name="flash" size={25} color={colors.xp} />
-                  <AppText variant="label" color={colors.white}>
+                  <Ionicons name="flash" size={25} color={c.xp} />
+                  <AppText variant="label" color={c.white}>
                     {xp.toLocaleString()} XP
                   </AppText>
                 </View>
@@ -277,38 +281,38 @@ export default function HomeScreen() {
               onPress={() => router.push(`/lesson/${cont.lesson.id}`)}
             >
               <LinearGradient
-                colors={colors.primaryGradient}
+                colors={c.primaryGradient}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={StyleSheet.absoluteFill}
               />
               <View style={styles.continueBody}>
-                <AppText variant="overline" color={colors.textOnDarkMuted}>
+                <AppText variant="overline" color={c.textOnDarkMuted}>
                   {cont.resume ? "ҮРГЭЛЖЛҮҮЛЖ СУРАХ" : "СУРАЛЦАЖ ЭХЛЭХ"}
                 </AppText>
-                <AppText variant="h2" color={colors.white} numberOfLines={1}>
+                <AppText variant="h2" color={c.white} numberOfLines={1}>
                   {cont.lesson.title}
                 </AppText>
                 <View style={styles.progressRow}>
-                  <AppText variant="caption" color={colors.textOnDark}>
+                  <AppText variant="caption" color={c.textOnDark}>
                     {Math.round(continueProgress * 100)}%
                   </AppText>
                   <ProgressBar
                     value={continueProgress}
-                    color={colors.white}
+                    color={c.white}
                     track="rgba(255,255,255,0.25)"
                     height={8}
                     style={styles.continueBarInline}
                   />
                 </View>
                 <View style={styles.continueBtn}>
-                  <AppText variant="bodyStrong" color={colors.primary}>
+                  <AppText variant="bodyStrong" color={c.primary}>
                     Үргэлжлүүлэх →
                   </AppText>
                 </View>
               </View>
               <View style={styles.continueIcon}>
-                <AppText variant="display" color={colors.white}>Aa</AppText>
+                <AppText variant="display" color={c.white}>Aa</AppText>
               </View>
             </Pressable>
           ) : null}
@@ -332,7 +336,7 @@ export default function HomeScreen() {
                 ]}
                 onPress={() => router.push("/swipe")}
               >
-                <AppText variant="bodyStrong" color={colors.white}>
+                <AppText variant="bodyStrong" color={c.white}>
                   Давтах эхлэх
                 </AppText>
               </Pressable>
@@ -340,7 +344,7 @@ export default function HomeScreen() {
             <Ionicons
               name="chevron-forward"
               size={20}
-              color={colors.borderStrong}
+              color={c.borderStrong}
             />
           </View>
 
@@ -356,14 +360,14 @@ export default function HomeScreen() {
               <AppText variant="h3">Миний даалгаврууд</AppText>
               <AppText variant="caption">Багшийн оноосон хичээл, сорил</AppText>
             </View>
-            <Ionicons name="chevron-forward" size={20} color={colors.borderStrong} />
+            <Ionicons name="chevron-forward" size={20} color={c.borderStrong} />
           </Pressable>
 
           {/* Today's tasks — each tile opens its skill screen of exercises */}
           <View style={styles.sectionRow}>
             <AppText variant="h2">Өнөөдрийн даалгавар</AppText>
             <View style={styles.countPill}>
-              <AppText variant="label" color={colors.textSecondary}>
+              <AppText variant="label" color={c.textSecondary}>
                 {totalExercises} дасгал
               </AppText>
             </View>
@@ -384,7 +388,7 @@ export default function HomeScreen() {
                     {t.label}
                   </AppText>
                   <View style={styles.taskCount}>
-                    <Ionicons name="ribbon" size={12} color={colors.xp} />
+                    <Ionicons name="ribbon" size={12} color={c.xp} />
                     <AppText variant="caption">
                       {count} дасгал
                     </AppText>
@@ -411,19 +415,21 @@ function IconBtn({
   /** Small red notification dot (attention cue). */
   dot?: boolean;
 }) {
+  const c = useColors();
+  const styles = useMemo(() => makeStyles(c), [c]);
   return (
     <Pressable
       style={({ pressed }) => [styles.iconBtn, pressed && styles.pressed]}
       onPress={onPress}
     >
-      <Ionicons name={icon} size={20} color={colors.text} />
+      <Ionicons name={icon} size={20} color={c.text} />
       {dot ? <View style={styles.iconDot} /> : null}
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.background },
+const makeStyles = (c: AppColors) => StyleSheet.create({
+  root: { flex: 1, backgroundColor: c.background },
   container: { paddingTop: 0 },
 
   // Full-bleed top: the layered fox scene reads as the screen background.
@@ -459,9 +465,9 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: radius.full,
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     alignItems: "center",
     justifyContent: "center",
     ...(elevation.sm as object),
@@ -474,9 +480,9 @@ const styles = StyleSheet.create({
     width: 9,
     height: 9,
     borderRadius: radius.full,
-    backgroundColor: colors.danger,
+    backgroundColor: c.danger,
     borderWidth: 1.5,
-    borderColor: colors.surface,
+    borderColor: c.surface,
   },
 
   // Hero overlay badges
@@ -514,7 +520,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     padding: spacing.lg,
     marginTop: spacing.lg,
-    backgroundColor: colors.primary,
+    backgroundColor: c.primary,
     ...(elevation.md as object),
   },
   continueBody: { flex: 1, gap: 2 },
@@ -528,7 +534,7 @@ const styles = StyleSheet.create({
   continueBarInline: { flex: 1 },
   continueBtn: {
     alignSelf: "flex-start",
-    backgroundColor: colors.white,
+    backgroundColor: c.white,
     borderRadius: radius.md,
     paddingVertical: 10,
     paddingHorizontal: spacing.lg,
@@ -548,7 +554,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md,
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderRadius: radius.lg,
     padding: spacing.md,
     marginTop: spacing.lg,
@@ -570,7 +576,7 @@ const styles = StyleSheet.create({
   reviewSub: { marginBottom: spacing.sm },
   reviewBtn: {
     alignSelf: "flex-start",
-    backgroundColor: colors.primary,
+    backgroundColor: c.primary,
     borderRadius: radius.md,
     paddingVertical: 9,
     paddingHorizontal: spacing.lg,
@@ -581,7 +587,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md,
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderRadius: radius.lg,
     padding: spacing.md,
     marginTop: spacing.md,
@@ -605,7 +611,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   countPill: {
-    backgroundColor: colors.surfaceAlt,
+    backgroundColor: c.surfaceAlt,
     borderRadius: radius.full,
     paddingHorizontal: spacing.md,
     paddingVertical: 4,
@@ -622,7 +628,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     alignItems: "center",
     gap: spacing.sm,
-    backgroundColor: colors.surface, // dark tile so the colored icon chip pops
+    backgroundColor: c.surface, // dark tile so the colored icon chip pops
     ...(elevation.sm as object),
   },
   taskIcon: {

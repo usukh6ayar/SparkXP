@@ -1,6 +1,7 @@
 import { type ReactNode } from 'react';
 import { View, Pressable, StyleSheet, type ViewStyle } from 'react-native';
-import { colors, radius, spacing, elevation } from '../theme/theme';
+import { radius, spacing, elevation } from '../theme/theme';
+import { useColors } from '../settings/SettingsContext';
 
 interface Props {
   children: ReactNode;
@@ -15,14 +16,15 @@ interface Props {
  * The base surface for everything boxed (lessons, list rows, panels).
  * Replaces the half-dozen near-identical `borderRadius + border + padding`
  * blocks that were copy-pasted across screens. Tappable cards get a built-in
- * press state so feedback is consistent app-wide.
+ * press state so feedback is consistent app-wide. Colors follow the active theme.
  */
 export function Card({ children, onPress, variant = 'flat', padding = 'lg', style }: Props) {
+  const c = useColors();
   const base = [
     styles.base,
-    variant === 'flat' && styles.flat,
-    variant === 'raised' && styles.raised,
-    variant === 'filled' && styles.filled,
+    { backgroundColor: variant === 'filled' ? c.surfaceAlt : c.surface },
+    variant === 'flat' && { borderWidth: 1, borderColor: c.border },
+    variant === 'raised' && (elevation.sm as object),
     padding !== 0 && { padding: spacing[padding] },
     style,
   ];
@@ -41,9 +43,6 @@ export function Card({ children, onPress, variant = 'flat', padding = 'lg', styl
 }
 
 const styles = StyleSheet.create({
-  base: { borderRadius: radius.lg, backgroundColor: colors.surface },
-  flat: { borderWidth: 1, borderColor: colors.border },
-  raised: { ...(elevation.sm as object) },
-  filled: { backgroundColor: colors.surfaceAlt },
+  base: { borderRadius: radius.lg },
   pressed: { opacity: 0.9, transform: [{ scale: 0.99 }] },
 });

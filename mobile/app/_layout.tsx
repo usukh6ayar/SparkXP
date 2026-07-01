@@ -6,6 +6,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 import { ThemeProvider, DarkTheme } from "@react-navigation/native";
 import { AuthProvider, useAuth } from "../src/auth/AuthContext";
+import { SettingsProvider } from "../src/settings/SettingsContext";
 import { DictionaryProvider } from "../src/components/DictionaryProvider";
 import { colors } from "../src/theme/theme";
 
@@ -73,13 +74,15 @@ export default function RootLayout() {
     <GestureHandlerRootView style={styles.flex}>
       <SafeAreaProvider>
         <ThemeProvider value={navTheme}>
-          <AuthProvider>
-            <DictionaryProvider>
-              <BottomSheetModalProvider>
-                <RootNavigator />
-              </BottomSheetModalProvider>
-            </DictionaryProvider>
-          </AuthProvider>
+          <SettingsProvider>
+            <AuthProvider>
+              <DictionaryProvider>
+                <BottomSheetModalProvider>
+                  <RootNavigator />
+                </BottomSheetModalProvider>
+              </DictionaryProvider>
+            </AuthProvider>
+          </SettingsProvider>
         </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

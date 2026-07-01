@@ -1,15 +1,16 @@
 import { View, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AppText } from './Text';
-import { colors, radius, spacing } from '../theme/theme';
+import { radius, spacing } from '../theme/theme';
+import { useColors } from '../settings/SettingsContext';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
 /** Small rounded tag — CEFR level, lesson state, counts. Optional leading icon. */
 export function Pill({
   label,
-  bg = colors.surfaceAlt,
-  fg = colors.textSecondary,
+  bg,
+  fg,
   icon,
 }: {
   label: string;
@@ -17,10 +18,13 @@ export function Pill({
   fg?: string;
   icon?: IconName;
 }) {
+  const c = useColors();
+  const bgColor = bg ?? c.surfaceAlt;
+  const fgColor = fg ?? c.textSecondary;
   return (
-    <View style={[styles.pill, { backgroundColor: bg }]}>
-      {icon ? <Ionicons name={icon} size={12} color={fg} /> : null}
-      <AppText variant="caption" color={fg} style={styles.text}>
+    <View style={[styles.pill, { backgroundColor: bgColor }]}>
+      {icon ? <Ionicons name={icon} size={12} color={fgColor} /> : null}
+      <AppText variant="caption" color={fgColor} style={styles.text}>
         {label}
       </AppText>
     </View>

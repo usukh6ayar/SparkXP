@@ -6,12 +6,14 @@ import {
   StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, spacing } from '../theme/theme';
+import { spacing } from '../theme/theme';
+import { useColors } from '../settings/SettingsContext';
 
 /**
  * Shared scrollable screen wrapper that handles safe-area insets, the keyboard
  * and padding. Used by auth screens so the layout isn't duplicated. `centered`
  * vertically centers the content (login/register); off for top-aligned screens.
+ * Background follows the active theme.
  */
 export function Screen({
   children,
@@ -20,8 +22,9 @@ export function Screen({
   children: ReactNode;
   centered?: boolean;
 }) {
+  const c = useColors();
   return (
-    <SafeAreaView style={styles.flex} edges={['top', 'bottom']}>
+    <SafeAreaView style={[styles.flex, { backgroundColor: c.background }]} edges={['top', 'bottom']}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -38,7 +41,7 @@ export function Screen({
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: colors.background },
+  flex: { flex: 1 },
   content: { flexGrow: 1, padding: spacing.lg },
   centered: { justifyContent: 'center' },
 });

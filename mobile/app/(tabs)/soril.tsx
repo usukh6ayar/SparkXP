@@ -1,4 +1,4 @@
-import { Fragment, useState, useEffect } from "react";
+import { Fragment, useState, useEffect, useMemo } from "react";
 import {
   View,
   StyleSheet,
@@ -16,12 +16,13 @@ import { AppText } from "../../src/components/Text";
 import { IconTile } from "../../src/components/IconTile";
 import { Pill } from "../../src/components/Pill";
 import { ProgressBar } from "../../src/components/ProgressBar";
+import { useColors } from "../../src/settings/SettingsContext";
 import {
-  colors,
   spacing,
   radius,
   tints,
   elevation,
+  type AppColors,
 } from "../../src/theme/theme";
 
 type IconName = keyof typeof Ionicons.glyphMap;
@@ -100,6 +101,8 @@ const PATH = [1, 2, 3, 4, 5]; // node-ууд (тухайн level доторх а
 
 export default function SorilScreen() {
   const { user, token } = useAuth();
+  const c = useColors();
+  const styles = useMemo(() => makeStyles(c), [c]);
   const [gam, setGam] = useState<Gamification | null>(null);
   useEffect(() => {
     if (token) getGamification(token).then(setGam).catch(() => {});
@@ -122,15 +125,15 @@ export default function SorilScreen() {
         <View style={styles.header}>
           <AppText variant="h1">Сорил</AppText>
           <View style={styles.diamondBadge}>
-            <Ionicons name="diamond" size={16} color={colors.sparks} />
-            <AppText variant="label" color={colors.text}>
+            <Ionicons name="diamond" size={16} color={c.sparks} />
+            <AppText variant="label" color={c.text}>
               {user?.sparks ?? 0}
             </AppText>
           </View>
         </View>
         <AppText
           variant="body"
-          color={colors.textSecondary}
+          color={c.textSecondary}
           style={styles.subtitle}
         >
           Мэдлэгээ шалгаж, амжилтаа ахиулаарай!
@@ -145,15 +148,15 @@ export default function SorilScreen() {
         >
           <View style={styles.heroBody}>
             <View style={styles.heroPill}>
-              <Ionicons name="flame" size={12} color={colors.streak} />
-              <AppText variant="overline" color={colors.white}>
+              <Ionicons name="flame" size={12} color={c.streak} />
+              <AppText variant="overline" color={c.white}>
                 ӨНӨӨДРИЙН CHALLENGE
               </AppText>
             </View>
-            <AppText variant="h3" color={colors.white} style={styles.heroTitle}>
+            <AppText variant="h3" color={c.white} style={styles.heroTitle}>
               Өнөөдөр 50 XP авахад
             </AppText>
-            <AppText variant="bodyStrong" color={colors.xp}>
+            <AppText variant="bodyStrong" color={c.xp}>
               20 XP bonus хүлээж байна!
             </AppText>
             <AppText
@@ -165,7 +168,7 @@ export default function SorilScreen() {
             </AppText>
             <ProgressBar
               value={DAILY_DONE / DAILY_GOAL}
-              color={colors.success}
+              color={c.success}
               track="rgba(255,255,255,0.3)"
               height={8}
             />
@@ -176,7 +179,7 @@ export default function SorilScreen() {
               ]}
               onPress={open}
             >
-              <AppText variant="bodyStrong" color={colors.primary}>
+              <AppText variant="bodyStrong" color={c.primary}>
                 Үргэлжлүүлэх →
               </AppText>
             </Pressable>
@@ -187,13 +190,13 @@ export default function SorilScreen() {
         <View style={styles.sectionRow}>
           <AppText variant="h2">Сорилууд</AppText>
           <Pressable style={styles.filterChip} onPress={open}>
-            <AppText variant="label" color={colors.text}>
+            <AppText variant="label" color={c.text}>
               Бүгд
             </AppText>
             <Ionicons
               name="chevron-down"
               size={14}
-              color={colors.textSecondary}
+              color={c.textSecondary}
             />
           </Pressable>
         </View>
@@ -230,7 +233,7 @@ export default function SorilScreen() {
                     label="+10 XP"
                     icon="flash"
                     bg={tints.purple.bg}
-                    fg={colors.primary}
+                    fg={c.primary}
                   />
                 </View>
               </View>
@@ -253,8 +256,8 @@ export default function SorilScreen() {
             </View>
             <Pill
               label={`Level ${level}`}
-              bg={colors.primarySoft}
-              fg={colors.primaryDark}
+              bg={c.primarySoft}
+              fg={c.primaryDark}
             />
           </View>
 
@@ -276,14 +279,14 @@ export default function SorilScreen() {
                       <Ionicons
                         name="checkmark"
                         size={16}
-                        color={colors.white}
+                        color={c.white}
                       />
                     ) : last ? (
-                      <Ionicons name="star" size={16} color={colors.xp} />
+                      <Ionicons name="star" size={16} color={c.xp} />
                     ) : (
                       <AppText
                         variant="label"
-                        color={current ? colors.white : colors.textMuted}
+                        color={current ? c.white : c.textMuted}
                       >
                         {n}
                       </AppText>
@@ -309,8 +312,8 @@ export default function SorilScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
+const makeStyles = (c: AppColors) => StyleSheet.create({
+  safe: { flex: 1, backgroundColor: c.background },
   container: { paddingHorizontal: spacing.lg, paddingTop: spacing.xs },
 
   header: {
@@ -322,7 +325,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     paddingHorizontal: spacing.md,
     paddingVertical: 8,
     borderRadius: radius.full,
@@ -337,7 +340,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     minHeight: 180,
     justifyContent: "center",
-    backgroundColor: colors.primary, // зураг ачаалагдах хүртэлх fallback
+    backgroundColor: c.primary, // зураг ачаалагдах хүртэлх fallback
   },
   heroImg: { borderRadius: radius.xl },
   heroBody: { maxWidth: "62%" },
@@ -356,7 +359,7 @@ const styles = StyleSheet.create({
   heroProg: { marginTop: spacing.md, marginBottom: 6 },
   heroBtn: {
     alignSelf: "flex-start",
-    backgroundColor: colors.white,
+    backgroundColor: c.white,
     borderRadius: radius.md,
     paddingVertical: 11,
     paddingHorizontal: spacing.lg,
@@ -375,9 +378,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     paddingHorizontal: spacing.md,
     paddingVertical: 8,
     borderRadius: radius.full,
@@ -393,7 +396,7 @@ const styles = StyleSheet.create({
   card: {
     width: "48.5%",
     flexDirection: "row",
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderRadius: radius.lg,
     padding: spacing.md,
     gap: spacing.sm,
@@ -405,7 +408,7 @@ const styles = StyleSheet.create({
 
   // Progress path
   pathCard: {
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderRadius: radius.xl,
     padding: spacing.lg,
     marginTop: spacing.xl,
@@ -425,16 +428,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  nodeOn: { backgroundColor: colors.primary },
-  nodeOff: { backgroundColor: colors.surfaceAlt },
-  nodeCurrent: { borderWidth: 3, borderColor: colors.primarySoft },
+  nodeOn: { backgroundColor: c.primary },
+  nodeOff: { backgroundColor: c.surfaceAlt },
+  nodeCurrent: { borderWidth: 3, borderColor: c.primarySoft },
   connector: {
     flex: 1,
     height: 3,
-    backgroundColor: colors.surfaceAlt,
+    backgroundColor: c.surfaceAlt,
     marginHorizontal: 2,
   },
-  connectorOn: { backgroundColor: colors.primary },
+  connectorOn: { backgroundColor: c.primary },
 
   pressed: { opacity: 0.92, transform: [{ scale: 0.99 }] },
 });

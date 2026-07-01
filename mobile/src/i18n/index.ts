@@ -1,5 +1,10 @@
 /**
  * Minimal i18n. Mongolian is primary (CLAUDE.md); English secondary.
+ *
+ * `t(key)` reads the current language from a module variable. To switch
+ * language reactively, use `useT()` from SettingsContext, which re-renders the
+ * component when the language changes (the language itself is set via
+ * `setLanguage`, called by SettingsProvider).
  */
 const mn = {
   appName: 'SparkXP',
@@ -226,6 +231,32 @@ const mn = {
   joinPendingHint: 'Багш зөвшөөрсний дараа та ангид нэгдэнэ.',
   cancel: 'Болих',
 
+  // Settings
+  settings: 'Тохиргоо',
+  appearance: 'Харагдац',
+  languageLabel: 'Хэл',
+  dark: 'Хар',
+  light: 'Цайвар',
+  mongolian: 'Монгол',
+  english: 'English',
+  notificationsSound: 'Мэдэгдэл ба дуу',
+  notifications: 'Мэдэгдэл',
+  sound: 'Дуу чимээ',
+  haptics: 'Чичиргээ',
+  account: 'Бүртгэл',
+  changePassword: 'Нууц үг солих',
+  privacy: 'Хувийн нууцлал',
+  support: 'Тусламж',
+  helpFaq: 'Тусламж ба түгээмэл асуулт',
+  sendFeedback: 'Санал хүсэлт илгээх',
+  rateApp: 'Апп-д үнэлгээ өгөх',
+  shareApp: 'Найзаддаа хуваалцах',
+  legal: 'Хууль эрх зүй',
+  terms: 'Үйлчилгээний нөхцөл',
+  privacyPolicy: 'Нууцлалын бодлого',
+  logoutConfirm: 'Гарах уу?',
+  comingSoonBody: 'Энэ хэсэг удахгүй нэмэгдэнэ.',
+
   // Common
   back: 'Буцах',
   continue: 'Үргэлжлүүлэх',
@@ -236,11 +267,239 @@ const mn = {
 
 export type TranslationKey = keyof typeof mn;
 
-const dictionaries = { mn };
-let lang: keyof typeof dictionaries = 'mn';
+/** English dictionary — mirrors every key in `mn`. */
+const en: Record<TranslationKey, string> = {
+  appName: 'SparkXP',
+  tagline: 'Learn • Practice • Achieve',
+  loading: 'Loading...',
 
-export function setLanguage(next: keyof typeof dictionaries) {
+  login: 'Log in',
+  register: 'Sign up',
+  email: 'Email',
+  password: 'Password',
+  fullName: 'Full name',
+  province: 'Province / City',
+  district: 'District',
+  logout: 'Log out',
+  noAccount: "Don't have an account?",
+  haveAccount: 'Already have an account?',
+  selectProvince: 'Select province/city',
+  selectDistrict: 'Select district',
+  optional: 'optional',
+
+  skip: 'Skip',
+  onbNext: 'Next',
+  onbStart: 'Get started',
+  onb1Title: 'Welcome to\nSparkXP! 👋',
+  onb1Body: 'A new, easier and more effective way to learn English like a game.',
+  onb2Title: 'Collect XP and\nlevel up',
+  onb2Body:
+    'Earn XP from every lesson and exercise, keep your streak and win more rewards.',
+  onb3Title: 'Practice with\nyour AI buddy',
+  onb3Body:
+    'Your AI buddy Spark helps you improve English through speaking, writing and pronunciation.',
+
+  welcomeBack: 'Welcome back! 👋',
+  loginSubtitle: 'Log in if you already have an account.',
+  rememberMe: 'Remember me',
+  forgotPassword: 'Forgot password?',
+  orDivider: 'or',
+  username: 'Username',
+  usernamePlaceholder: 'e.g. bataa_2010',
+  usernameOrEmail: 'Username or email',
+
+  otpTitle: 'Verify your email',
+  otpSentTo: 'We sent a code to:',
+  otpCode: 'Verification code',
+  verify: 'Verify',
+  resendOtp: 'Resend code',
+  otpResent: 'Code resent',
+
+  forgotTitle: 'Reset password',
+  forgotSubtitle: 'Enter your registered email — we will send a code.',
+  sendCode: 'Send code',
+  newPassword: 'New password',
+  resetPassword: 'Change password',
+  resetDone: 'Password updated! ✓',
+  backToLogin: 'Back to login',
+
+  registerSubtitle: 'Enter your personal information.',
+  confirmPassword: 'Confirm password',
+  passwordRules: 'Password requirements',
+  ruleMinLen: 'More than 8 characters',
+  ruleCase: 'Upper and lower case letters',
+  ruleNumber: 'Contains a number or symbol',
+  passwordMismatch: 'Passwords do not match.',
+  locationTitle: 'Choose your location',
+  locationSubtitle: 'This is used for your scores and rankings.',
+  stepInfo: 'Info',
+  stepLocation: 'Location',
+  stepDone: 'Done',
+  placementTitle: 'Choose your level',
+  placementSubtitle: 'Used to suggest suitable lessons for you.',
+  englishName: 'English name (optional)',
+  successTitle: 'Success!',
+  successBody: 'Your account was created.\nWelcome to SparkXP! 🎉',
+
+  home: 'Home',
+  greeting: 'Hello',
+  todayGoal: "Today's goal",
+  reviewWords: 'Review words',
+  startLearning: 'Start learning',
+  xp: 'XP',
+  sparks: 'Sparks',
+  streak: 'Streak',
+
+  reviewTitle: 'Review words',
+  tapToFlip: 'Tap to see the answer',
+  example: 'Example',
+  again: 'Again',
+  hard: 'Hard',
+  good: 'Good',
+  easy: 'Easy',
+  noReviews: 'No words to review right now 🎉',
+  noReviewsHint: 'Come back later to learn new words.',
+  reviewDone: 'You reviewed everything!',
+  reviewDoneHint: 'Review again tomorrow 🦊',
+  backHome: 'Home',
+
+  quiz: 'Quiz',
+  question: 'Question',
+  submit: 'Submit',
+  next: 'Next →',
+  result: 'Result',
+  passed: 'You passed! 🎉',
+  failed: 'Try again 😅',
+  xpEarned: 'XP earned',
+  yourAnswer: 'Type your answer...',
+
+  aiChat: 'AI Assistant',
+  aiBuddy: 'English AI buddy',
+  newChat: '+ New',
+  typeMessage: 'Type a message...',
+  aiTyping: 'AI is typing...',
+
+  profile: 'Profile',
+  editProfile: 'Edit profile',
+  save: 'Save',
+  saving: 'Saving...',
+
+  avatarTitle: 'Profile picture',
+  editAvatar: 'Change picture',
+  chooseFromPhotos: 'Choose a photo',
+  defaultAvatars: 'Default pictures',
+  uploading: 'Uploading...',
+  photoPermission: 'Permission is needed to choose a photo.',
+
+  myAssignments: 'My assignments',
+  noAssignmentsStudent: 'You have no assignments',
+  noAssignmentsStudentHint: 'Assignments from your teacher will appear here.',
+  dueLabel: 'Due',
+  overdue: 'Overdue',
+
+  lessons: 'Lessons',
+  unlock: 'Unlock',
+  locked: 'Locked 🔒',
+  free: 'Free',
+  myBalance: 'Your balance',
+
+  teacherClasses: 'My classes',
+  createClass: 'Create class',
+  school: 'School',
+  selectSchool: 'Select school',
+  noSchools: 'No schools registered. Contact the admin.',
+  className: 'Class name',
+  classNamePlaceholder: 'e.g. 10A, 11B',
+  noClasses: 'No classes yet',
+  noClassesHint: 'Create a class and share the join code with your students.',
+  joinCode: 'Join code',
+  joinCodeHint: 'Students join the class with this code.',
+  shareCode: 'Share code',
+  students: 'Students',
+  studentCount: 'students',
+  noStudents: 'No students yet',
+  noStudentsHint: 'Share your join code to invite students.',
+  joinRequests: 'Join requests',
+  noRequests: 'No new requests',
+  approve: 'Approve',
+  reject: 'Reject',
+  rejectRequestConfirm: 'Reject this request?',
+  assignments: 'Assignments',
+  assignHomework: 'Assign homework',
+  noAssignments: 'No assignments yet',
+  assignType: 'Type',
+  assignLesson: 'Lesson',
+  assignQuiz: 'Quiz',
+  selectContent: 'Select content',
+  dueDate: 'Due date',
+  noDueDate: 'No due date',
+  assign: 'Assign',
+  deleteAssignment: 'Delete assignment?',
+  delete: 'Delete',
+  teacher: 'Teacher',
+  teacherProfile: 'Teacher profile',
+  studentDetail: 'Student details',
+  close: 'Close',
+  statClasses: 'Classes',
+  statStudents: 'Students',
+
+  joinClass: 'Join class',
+  joinClassSubtitle: 'Enter the code from your teacher or scan the QR.',
+  enterCode: 'Join code',
+  enterCodePlaceholder: 'e.g. ABC123',
+  joinBtn: 'Join',
+  scanQr: 'Scan QR code',
+  scanHint: 'Place the QR code inside the frame',
+  cameraNeeded: 'Camera permission is needed to scan QR.',
+  grantPermission: 'Grant permission',
+  invalidCode: 'Invalid QR/code',
+  joinPending: 'Request sent! ⏳',
+  joinPendingHint: 'You will join the class after the teacher approves.',
+  cancel: 'Cancel',
+
+  settings: 'Settings',
+  appearance: 'Appearance',
+  languageLabel: 'Language',
+  dark: 'Dark',
+  light: 'Light',
+  mongolian: 'Mongolian',
+  english: 'English',
+  notificationsSound: 'Notifications & Sound',
+  notifications: 'Notifications',
+  sound: 'Sound',
+  haptics: 'Haptics',
+  account: 'Account',
+  changePassword: 'Change password',
+  privacy: 'Privacy',
+  support: 'Support',
+  helpFaq: 'Help & FAQ',
+  sendFeedback: 'Send feedback',
+  rateApp: 'Rate the app',
+  shareApp: 'Share with friends',
+  legal: 'Legal',
+  terms: 'Terms of Service',
+  privacyPolicy: 'Privacy Policy',
+  logoutConfirm: 'Log out?',
+  comingSoonBody: 'This section is coming soon.',
+
+  back: 'Back',
+  continue: 'Continue',
+  errorGeneric: 'An error occurred. Please try again.',
+  required: 'Required',
+  comingSoon: 'Coming soon',
+};
+
+const dictionaries = { mn, en };
+export type Lang = keyof typeof dictionaries;
+
+let lang: Lang = 'mn';
+
+export function setLanguage(next: Lang) {
   lang = next;
+}
+
+export function getLanguage(): Lang {
+  return lang;
 }
 
 export function t(key: TranslationKey): string {

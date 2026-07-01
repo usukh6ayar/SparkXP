@@ -8,7 +8,8 @@ import {
   type TextInputProps,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, radius, spacing, fontSize } from '../theme/theme';
+import { radius, spacing, fontSize } from '../theme/theme';
+import { useColors } from '../settings/SettingsContext';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -35,24 +36,25 @@ export function TextField({
   InputComponent = TextInput,
   ...rest
 }: Props) {
+  const c = useColors();
   const [hidden, setHidden] = useState(true);
   const isSecure = secureToggle ? hidden : secureTextEntry;
 
   return (
     <View style={styles.wrap}>
-      {label ? <Text style={styles.label}>{label}</Text> : null}
-      <View style={styles.field}>
+      {label ? <Text style={[styles.label, { color: c.navy }]}>{label}</Text> : null}
+      <View style={[styles.field, { borderColor: c.border, backgroundColor: c.surfaceAlt }]}>
         {leftIcon ? (
           <Ionicons
             name={leftIcon}
             size={20}
-            color={colors.textMuted}
+            color={c.textMuted}
             style={styles.leftIcon}
           />
         ) : null}
         <InputComponent
-          style={styles.input}
-          placeholderTextColor={colors.textMuted}
+          style={[styles.input, { color: c.text }]}
+          placeholderTextColor={c.textMuted}
           secureTextEntry={isSecure}
           {...rest}
         />
@@ -65,7 +67,7 @@ export function TextField({
             <Ionicons
               name={hidden ? 'eye-off-outline' : 'eye-outline'}
               size={20}
-              color={colors.textMuted}
+              color={c.textMuted}
             />
           </Pressable>
         ) : null}
@@ -79,7 +81,6 @@ const styles = StyleSheet.create({
   label: {
     fontSize: fontSize.sm,
     fontWeight: '600',
-    color: colors.navy,
     marginBottom: spacing.xs,
   },
   field: {
@@ -87,16 +88,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     height: 52,
     borderWidth: 1.5,
-    borderColor: colors.border,
     borderRadius: radius.md,
     paddingHorizontal: spacing.md,
-    backgroundColor: colors.surfaceAlt,
   },
   leftIcon: { marginRight: spacing.sm },
   input: {
     flex: 1,
     fontSize: fontSize.md,
-    color: colors.text,
     height: '100%',
   },
   eye: { paddingLeft: spacing.sm },
