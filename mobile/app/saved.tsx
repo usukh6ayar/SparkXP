@@ -10,9 +10,10 @@ import { TopBar } from '../src/components/TopBar';
 import { AppText } from '../src/components/Text';
 import { Loading } from '../src/components/Loading';
 import { IconButton } from '../src/components/IconButton';
+import { Card } from '../src/components/Card';
 import { t } from '../src/i18n';
 import { useColors } from '../src/settings/SettingsContext';
-import { spacing, radius, elevation, type AppColors } from '../src/theme/theme';
+import { spacing, radius, type AppColors } from '../src/theme/theme';
 
 /**
  * Saved words (⭐). Lists everything the user starred from the flashcard deck.
@@ -73,7 +74,7 @@ export default function SavedScreen() {
           </View>
         }
         renderItem={({ item }) => (
-          <View style={styles.row}>
+          <Card variant="raised" padding="md" style={styles.row}>
             <View style={styles.thumb}>
               {item.imageUrl ? (
                 <Image source={{ uri: item.imageUrl }} style={styles.thumbImg} />
@@ -87,7 +88,7 @@ export default function SavedScreen() {
             </View>
             <IconButton icon="volume-high" size={38} variant="filled" iconColor={c.primary} onPress={() => play(item)} />
             <IconButton icon="star" size={38} variant="filled" iconColor={c.xp} onPress={() => unsave(item)} />
-          </View>
+          </Card>
         )}
       />
     </SafeAreaView>
@@ -98,15 +99,7 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: c.background },
   list: { padding: spacing.lg, gap: spacing.sm },
   emptyWrap: { flexGrow: 1 },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    backgroundColor: c.surface,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    ...(elevation.sm as object),
-  },
+  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   thumb: {
     width: 48, height: 48, borderRadius: radius.md,
     backgroundColor: c.surfaceAlt, alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
