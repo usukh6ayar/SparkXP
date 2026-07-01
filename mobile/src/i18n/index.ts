@@ -359,6 +359,13 @@ const mn = {
   catSpeaking: 'Ярих',
   catFill: 'Нөхөх',
 
+  // Shared: CategoryBrowser / ReadingQuiz
+  selectTopic: 'Сэдэв сонгох',
+  noContent: 'Агуулга алга 🦊',
+  questionsHeading: 'Асуултууд',
+  correctAnswerPrefix: 'Зөв:',
+  checkAnswers: 'Шалгах',
+
   // Common
   back: 'Буцах',
   continue: 'Үргэлжлүүлэх',
@@ -697,6 +704,12 @@ const en: Record<TranslationKey, string> = {
   catWriting: 'Writing',
   catSpeaking: 'Speaking',
   catFill: 'Fill-in',
+
+  selectTopic: 'Select a topic',
+  noContent: 'No content yet 🦊',
+  questionsHeading: 'Questions',
+  correctAnswerPrefix: 'Correct:',
+  checkAnswers: 'Check',
 
   back: 'Back',
   continue: 'Continue',
