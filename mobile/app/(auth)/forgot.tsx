@@ -51,7 +51,7 @@ export default function ForgotPasswordScreen() {
     <Screen>
       <Pressable
         style={styles.back}
-        onPress={() => router.replace('/(auth)/login')}
+        onPress={() => router.replace({ pathname: '/(auth)/login', params: { signin: '1' } })}
         hitSlop={8}
       >
         <Ionicons name="chevron-back" size={26} color={colors.text} />
@@ -65,7 +65,7 @@ export default function ForgotPasswordScreen() {
           </AppText>
           <Button
             label={t('backToLogin')}
-            onPress={() => router.replace('/(auth)/login')}
+            onPress={() => router.replace({ pathname: '/(auth)/login', params: { signin: '1' } })}
             style={styles.button}
           />
         </View>

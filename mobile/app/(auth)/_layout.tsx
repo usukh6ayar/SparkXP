@@ -1,6 +1,14 @@
 import { Stack } from 'expo-router';
 
-/** Auth screens (login, register) — no header. */
+/** Auth screens (welcome, signin, register…) — no header, smooth slide between. */
 export default function AuthLayout() {
-  return <Stack screenOptions={{ headerShown: false }} />;
+  return (
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        animation: 'slide_from_right',
+        animationDuration: 260,
+      }}
+    />
+  );
 }

@@ -1,232 +1,303 @@
 import { useEffect, useRef, useState } from 'react';
-import {
-  View, StyleSheet, Animated, PanResponder, Dimensions, Pressable,
-} from 'react-native';
+import { View, StyleSheet, Dimensions, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useAudioPlayer } from 'expo-audio';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, {
+  interpolate,
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withSpring,
+  withTiming,
+  Extrapolation,
+} from 'react-native-reanimated';
+import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import * as Haptics from 'expo-haptics';
 import * as Speech from 'expo-speech';
 import { useAuth } from '../src/auth/AuthContext';
-import {
-  getLearnQueue, submitReview, toggleSave, type LearnWord,
-} from '../src/api/reviews';
+import { getLearnQueue, submitReview, toggleSave, type LearnWord } from '../src/api/reviews';
+import { getGamification } from '../src/api/gamification';
 import { AppText } from '../src/components/Text';
 import { Loading } from '../src/components/Loading';
-import { Button } from '../src/components/Button';
 import { ProgressBar } from '../src/components/ProgressBar';
-import { VocabCard } from '../src/components/VocabCard';
+import { FlashCard, type MemoryStatus } from '../src/components/FlashCard';
+import { ReviewStats } from '../src/components/ReviewStats';
+import { t } from '../src/i18n';
 import { colors, spacing, radius, elevation } from '../src/theme/theme';
 
 const SCREEN_W = Dimensions.get('window').width;
-const THRESHOLD = SCREEN_W * 0.25;
-const OUT_DURATION = 300;
+const SCREEN_H = Dimensions.get('window').height;
+const CARD_H = Math.min(Math.round(SCREEN_H * 0.6), 540);
+const THRESH_X = SCREEN_W * 0.28;
+const THRESH_Y = SCREEN_H * 0.16;
 
-/** SM-2 quality per verdict. */
-const QUALITY = { forgot: 1, know: 5 } as const;
-type Verdict = keyof typeof QUALITY;
+type Verdict = 'know' | 'review' | 'favorite';
 
-/**
- * Flashcard review (design spec): Tinder-style swipe deck for vocabulary.
- * - Swipe RIGHT / "Мэднэ"     → quality 5, card leaves the deck.
- * - Swipe LEFT  / "Мэдэхгүй"  → quality 1, card returns to the back.
- * Card stack, swipe tint + rotation, first-run gesture hint, haptics.
- * Only published, not-yet-known words come from the server.
- */
-export default function SwipeScreen() {
-  const { token, user } = useAuth();
+export default function ReviewFlashcardsScreen() {
+  const { token } = useAuth();
   const router = useRouter();
-  const [queue, setQueue] = useState<LearnWord[]>([]);
-  const [total, setTotal] = useState(0);
-  const [known, setKnown] = useState(0);
-  const [loading, setLoading] = useState(true);
 
-  const position = useRef(new Animated.ValueXY()).current;
+  const [queue, setQueue] = useState<LearnWord[]>([]);
+  const [index, setIndex] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [ttsSpeaking, setTtsSpeaking] = useState(false);
+  const [streak, setStreak] = useState(0);
+  const [known, setKnown] = useState(0);
+  const [review, setReview] = useState(0);
+  const [xpEarned, setXpEarned] = useState(0);
+
   const player = useAudioPlayer();
-  const queueRef = useRef<LearnWord[]>([]);
-  queueRef.current = queue;
-  const tokenRef = useRef(token);
-  tokenRef.current = token;
+  const audioStatus = useAudioPlayerStatus(player);
+  const speaking = ttsSpeaking || audioStatus.playing;
+
+  // Reanimated (UI thread → 60fps).
+  const tx = useSharedValue(0);
+  const ty = useSharedValue(0);
+  const spin = useSharedValue(0); // top card flip
+  const zero = useSharedValue(0); // behind card is always front
+  const flipped = useRef(false);
+
+  const total = queue.length;
+  const stateRef = useRef({ index: 0 });
+  stateRef.current = { index };
 
   useEffect(() => {
     if (!token) return;
-    getLearnQueue(token)
-      .then((q) => { setQueue(q); setTotal(q.length); })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    getLearnQueue(token).then(setQueue).catch(() => {}).finally(() => setLoading(false));
+    getGamification(token).then((g) => setStreak(g.currentStreak)).catch(() => {});
   }, [token]);
 
-  // Gesture affordance: ONLY the first card (when the screen opens) gets a
-  // subtle left↔right nudge to show it can be swiped both ways. Later cards
-  // don't repeat it. Resets on each fresh visit to the screen.
-  const hintedRef = useRef(false);
-  const firstId = queue[0]?.id;
-  useEffect(() => {
-    if (loading || !firstId || hintedRef.current) return;
-    hintedRef.current = true;
-    position.setValue({ x: 0, y: 0 });
-    const wiggle = Animated.sequence([
-      Animated.timing(position, { toValue: { x: -10, y: 0 }, duration: 180, useNativeDriver: false }),
-      Animated.timing(position, { toValue: { x: 10, y: 0 }, duration: 260, useNativeDriver: false }),
-      Animated.spring(position, { toValue: { x: 0, y: 0 }, friction: 5, useNativeDriver: false }),
-    ]);
-    wiggle.start();
-    return () => wiggle.stop();
-  }, [firstId, loading, position]);
+  const current = queue[index];
+  const next = queue[index + 1];
+  const done = total > 0 && index >= total;
 
-  function playAudio() {
-    const card = queueRef.current[0];
-    if (!card) return;
-    // Prefer an uploaded audio file; otherwise speak the word with device TTS
-    // so pronunciation works for every word without any audio content.
-    if (card.audioUrl) {
-      try { player.replace({ uri: card.audioUrl }); player.play(); return; } catch { /* fall through to TTS */ }
+  /* ── Audio ─────────────────────────────────────────────────────────────── */
+  function playAudio(word?: LearnWord) {
+    const w = word ?? queue[stateRef.current.index];
+    if (!w) return;
+    if (w.audioUrl) {
+      try {
+        player.replace({ uri: w.audioUrl });
+        player.play();
+        return;
+      } catch {
+        /* fall through to TTS */
+      }
     }
+    setTtsSpeaking(true);
     Speech.stop();
-    Speech.speak(card.english, { language: 'en-US', rate: 0.9 });
+    Speech.speak(w.english, {
+      language: 'en-US',
+      rate: 0.9,
+      onDone: () => setTtsSpeaking(false),
+      onStopped: () => setTtsSpeaking(false),
+      onError: () => setTtsSpeaking(false),
+    });
   }
+
+  /* ── Flip (tap) ────────────────────────────────────────────────────────── */
+  function flip() {
+    flipped.current = !flipped.current;
+    spin.value = withSpring(flipped.current ? 1 : 0, { damping: 22, stiffness: 140, overshootClamping: true });
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }
+
+  /* ── Verdict side-effects + advance ───────────────────────────────────── */
+  function haptic(kind: Verdict) {
+    if (kind === 'know') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    else if (kind === 'review') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    else Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  }
+
+  function applyVerdict(kind: Verdict) {
+    const w = queue[stateRef.current.index];
+    if (!w) return;
+    if (kind === 'know') {
+      if (token) submitReview(token, w.id, 5).catch(() => {});
+      setKnown((k) => k + 1);
+      setXpEarned((x) => x + 10);
+    } else if (kind === 'review') {
+      if (token) submitReview(token, w.id, 1).catch(() => {});
+      setReview((r) => r + 1);
+      setXpEarned((x) => x + 2);
+    } else if (kind === 'favorite') {
+      if (token && !w.saved) toggleSave(token, w.id).catch(() => {});
+      setQueue((q) => q.map((x, i) => (i === stateRef.current.index ? { ...x, saved: true } : x)));
+    }
+  }
+
+  function afterFling(kind: Verdict) {
+    applyVerdict(kind);
+    flipped.current = false;
+    spin.value = 0;
+    tx.value = 0;
+    ty.value = 0;
+    setIndex((i) => i + 1);
+  }
+
+  function fling(kind: Verdict) {
+    const cfg = { duration: 230 } as const;
+    const cb = (fin?: boolean) => {
+      'worklet';
+      if (fin) runOnJS(afterFling)(kind);
+    };
+    if (kind === 'know') {
+      ty.value = withTiming(ty.value + 40, cfg);
+      tx.value = withTiming(SCREEN_W * 1.5, cfg, cb);
+    } else if (kind === 'review') {
+      ty.value = withTiming(ty.value + 40, cfg);
+      tx.value = withTiming(-SCREEN_W * 1.5, cfg, cb);
+    } else {
+      // favorite (swipe up)
+      tx.value = withTiming(tx.value, cfg);
+      ty.value = withTiming(-SCREEN_H * 1.2, cfg, cb);
+    }
+  }
+
+  function handleEnd(dx: number, dy: number, vx: number, vy: number) {
+    const absX = Math.abs(dx);
+    const absY = Math.abs(dy);
+    if (absX >= absY) {
+      if (dx > THRESH_X || vx > 900) return void (haptic('know'), fling('know'));
+      if (dx < -THRESH_X || vx < -900) return void (haptic('review'), fling('review'));
+    } else if (dy < -THRESH_Y || vy < -900) {
+      // Swipe up = favorite. Swipe down does nothing → springs back.
+      return void (haptic('favorite'), fling('favorite'));
+    }
+    tx.value = withSpring(0, { damping: 18, stiffness: 150 });
+    ty.value = withSpring(0, { damping: 18, stiffness: 150 });
+  }
+
+  const pan = Gesture.Pan()
+    .activeOffsetX([-12, 12])
+    .activeOffsetY([-12, 12])
+    .onUpdate((e) => {
+      tx.value = e.translationX;
+      ty.value = e.translationY;
+    })
+    .onEnd((e) => {
+      runOnJS(handleEnd)(e.translationX, e.translationY, e.velocityX, e.velocityY);
+    });
 
   function onToggleSave() {
-    const card = queueRef.current[0];
-    if (!card) return;
-    // optimistic ⭐ flip on the visible card
-    setQueue((q) => q.map((w, i) => (i === 0 ? { ...w, saved: !w.saved } : w)));
-    const t = tokenRef.current;
-    if (t) toggleSave(t, card.id).catch(() => {});
+    const w = queue[index];
+    if (!w) return;
+    setQueue((q) => q.map((x, i) => (i === index ? { ...x, saved: !x.saved } : x)));
+    if (token) toggleSave(token, w.id).catch(() => {});
   }
 
-  function haptic(v: Verdict) {
-    if (v === 'know') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    else Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  function memOf(w: LearnWord): MemoryStatus {
+    return w.saved ? 'learning' : 'new';
   }
 
-  function resolve(v: Verdict) {
-    const card = queueRef.current[0];
-    if (!card) return;
-    const t = tokenRef.current;
-    if (t) submitReview(t, card.id, QUALITY[v]).catch(() => {});
-    if (v === 'know') {
-      setKnown((k) => k + 1);
-      setQueue((q) => q.slice(1)); // mastered → remove
-    } else {
-      setQueue((q) => [...q.slice(1), card]); // forgot / unsure → back of deck
-    }
-    position.setValue({ x: 0, y: 0 });
-  }
-
-  /** Animate the top card away, then apply the verdict. */
-  function fling(v: Verdict) {
-    haptic(v);
-    const to = v === 'know'
-      ? { x: SCREEN_W * 1.4, y: 0 }
-      : { x: -SCREEN_W * 1.4, y: 0 };
-    Animated.timing(position, { toValue: to, duration: OUT_DURATION, useNativeDriver: false })
-      .start(() => resolve(v));
-  }
-
-  function reset() {
-    Animated.spring(position, { toValue: { x: 0, y: 0 }, useNativeDriver: false }).start();
-  }
-
-  const pan = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 6 || Math.abs(g.dy) > 6,
-      onPanResponderMove: (_, g) => position.setValue({ x: g.dx, y: g.dy }),
-      onPanResponderRelease: (_, g) => {
-        if (g.dx > THRESHOLD) fling('know');
-        else if (g.dx < -THRESHOLD) fling('forgot');
-        else reset();
-      },
-    }),
-  ).current;
+  /* ── Animated styles ──────────────────────────────────────────────────── */
+  const topStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: tx.value },
+      { translateY: ty.value },
+      { rotateZ: `${interpolate(tx.value, [-SCREEN_W, 0, SCREEN_W], [-10, 0, 10], Extrapolation.CLAMP)}deg` },
+    ],
+  }));
+  const behindStyle = useAnimatedStyle(() => {
+    const p = Math.min(Math.max(Math.abs(tx.value), Math.abs(ty.value)) / THRESH_X, 1);
+    return {
+      transform: [{ scale: 0.94 + 0.06 * p }, { translateY: 14 * (1 - p) }],
+      opacity: 0.55 + 0.45 * p,
+    };
+  });
+  const knowTint = useAnimatedStyle(() => ({ opacity: interpolate(tx.value, [0, THRESH_X], [0, 0.28], Extrapolation.CLAMP) }));
+  const reviewTint = useAnimatedStyle(() => ({ opacity: interpolate(tx.value, [-THRESH_X, 0], [0.28, 0], Extrapolation.CLAMP) }));
+  const favTint = useAnimatedStyle(() => ({ opacity: interpolate(ty.value, [-THRESH_Y, 0], [0.26, 0], Extrapolation.CLAMP) }));
+  const knowStamp = useAnimatedStyle(() => ({ opacity: interpolate(tx.value, [10, THRESH_X], [0, 1], Extrapolation.CLAMP) }));
+  const reviewStamp = useAnimatedStyle(() => ({ opacity: interpolate(tx.value, [-THRESH_X, -10], [1, 0], Extrapolation.CLAMP) }));
+  const favStamp = useAnimatedStyle(() => ({ opacity: interpolate(ty.value, [-THRESH_Y, -10], [1, 0], Extrapolation.CLAMP) }));
 
   if (loading) return <Loading />;
 
-  const current = queue[0];
-  const next = queue[1];
-
-  const rotate = position.x.interpolate({
-    inputRange: [-SCREEN_W * 1.4, 0, SCREEN_W * 1.4],
-    outputRange: ['-12deg', '0deg', '12deg'],
-  });
-  const knowTint = position.x.interpolate({ inputRange: [0, THRESHOLD], outputRange: [0, 0.18], extrapolate: 'clamp' });
-  const forgotTint = position.x.interpolate({ inputRange: [-THRESHOLD, 0], outputRange: [0.18, 0], extrapolate: 'clamp' });
-
-  const done = Math.min(known, total);
-
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      {/* ── Header ───────────────────────────────────────────────────── */}
+      {/* Header */}
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.iconBtn} hitSlop={8}>
           <Ionicons name="arrow-back" size={20} color={colors.primary} />
         </Pressable>
-        <AppText variant="h3" color={colors.navy}>
-          {done} <AppText variant="h3" color={colors.textMuted}>/ {total}</AppText>
-        </AppText>
-        <View style={styles.xpPill}>
-          <Ionicons name="flash" size={15} color={colors.xp} />
-          <AppText variant="label" color={colors.navy}>{user?.xp ?? 0}</AppText>
+        <View style={styles.headerCenter}>
+          <AppText variant="label" color={colors.textMuted}>{t('reviewWords')}</AppText>
+          {total > 0 && !done ? <AppText variant="h3">{Math.min(index + 1, total)} / {total}</AppText> : null}
+        </View>
+        <View style={styles.streakPill}>
+          <Ionicons name="flame" size={15} color={colors.streak} />
+          <AppText variant="label">{streak}</AppText>
         </View>
       </View>
-      <View style={styles.progressWrap}>
-        <ProgressBar value={total > 0 ? done / total : 0} color={colors.primary} />
-      </View>
-
-      {!current ? (
-        <View style={styles.done}>
-          <AppText style={styles.doneEmoji}>🎉</AppText>
-          <AppText variant="h1" center style={styles.doneTitle}>Бүх үгийг давтлаа!</AppText>
-          <AppText variant="body" color={colors.textSecondary} center>Энэ удаад {known} үг сурлаа.</AppText>
-          <Button label="Нүүр рүү" icon="home" onPress={() => router.back()} style={{ marginTop: spacing.xl }} />
-        </View>
-      ) : (
-        <View style={styles.deck}>
-          {/* Next card peek (8px lower, 97%) */}
-          {next ? (
-            <View style={[styles.cardWrap, styles.cardBehind]} pointerEvents="none">
-              <VocabCard word={next} onPlayAudio={() => {}} />
-            </View>
-          ) : null}
-
-          {/* Current card */}
-          <Animated.View
-            {...pan.panHandlers}
-            style={[
-              styles.cardWrap,
-              { transform: [{ translateX: position.x }, { translateY: position.y }, { rotate }] },
-            ]}
-          >
-            <VocabCard
-              word={current}
-              onPlayAudio={playAudio}
-              saved={current.saved}
-              onToggleSave={onToggleSave}
-            />
-            {/* swipe tint overlays */}
-            <Animated.View pointerEvents="none" style={[styles.tint, { backgroundColor: colors.success, opacity: knowTint }]} />
-            <Animated.View pointerEvents="none" style={[styles.tint, { backgroundColor: colors.danger, opacity: forgotTint }]} />
-          </Animated.View>
-        </View>
-      )}
-
-      {/* ── Forgot · Swipe · Know footer ─────────────────────────────── */}
-      {current ? (
-        <View style={styles.footer}>
-          <Pressable style={[styles.action, styles.actionForgot]} onPress={() => fling('forgot')}>
-            <Ionicons name="arrow-back" size={20} color={colors.danger} />
-            <AppText variant="bodyStrong" color={colors.danger}>Мэдэхгүй</AppText>
-          </Pressable>
-          <AppText variant="caption" color={colors.textMuted} style={styles.swipeHint}>
-            — Шудрах —
-          </AppText>
-          <Pressable style={[styles.action, styles.actionKnow]} onPress={() => fling('know')}>
-            <AppText variant="bodyStrong" color={colors.success}>Мэднэ</AppText>
-            <Ionicons name="arrow-forward" size={20} color={colors.success} />
-          </Pressable>
+      {!done ? (
+        <View style={styles.progressWrap}>
+          <ProgressBar value={total > 0 ? index / total : 0} color={colors.primary} />
         </View>
       ) : null}
+
+      {total === 0 ? (
+        <View style={styles.empty}>
+          <AppText style={styles.emoji}>🎉</AppText>
+          <AppText variant="h2" center>{t('noReviews')}</AppText>
+          <AppText variant="body" center color={colors.textSecondary} style={{ marginTop: 4 }}>{t('noReviewsHint')}</AppText>
+        </View>
+      ) : done ? (
+        <ReviewStats known={known} review={review} xpEarned={xpEarned} streak={streak} onContinue={() => router.back()} />
+      ) : (
+        <View style={styles.deck}>
+          <View style={styles.stack}>
+            {/* Behind (next) card */}
+            {next ? (
+              <Animated.View style={[StyleSheet.absoluteFill, behindStyle]} pointerEvents="none">
+                <FlashCard word={next} spin={zero} speaking={false} saved={next.saved} memory={memOf(next)} onToggleSave={() => {}} onPlayAudio={() => {}} />
+              </Animated.View>
+            ) : null}
+
+            {/* Top card */}
+            <GestureDetector gesture={pan}>
+              <Animated.View style={[StyleSheet.absoluteFill, topStyle]}>
+                <Pressable style={styles.press} onPress={flip} onLongPress={() => playAudio(current)} delayLongPress={280}>
+                  {current ? (
+                    <FlashCard
+                      word={current}
+                      spin={spin}
+                      speaking={speaking}
+                      saved={current.saved}
+                      memory={memOf(current)}
+                      onToggleSave={onToggleSave}
+                      onPlayAudio={() => playAudio(current)}
+                    />
+                  ) : null}
+
+                  {/* Colored tints */}
+                  <Animated.View pointerEvents="none" style={[styles.tint, { backgroundColor: colors.success }, knowTint]} />
+                  <Animated.View pointerEvents="none" style={[styles.tint, { backgroundColor: colors.danger }, reviewTint]} />
+                  <Animated.View pointerEvents="none" style={[styles.tint, { backgroundColor: colors.xp }, favTint]} />
+
+                  {/* Stamps */}
+                  <Animated.View pointerEvents="none" style={[styles.stamp, styles.stampLeft, { borderColor: colors.success, transform: [{ rotate: '-16deg' }] }, knowStamp]}>
+                    <AppText style={[styles.stampText, { color: colors.success }]}>✓ {t('swipeKnow')}</AppText>
+                  </Animated.View>
+                  <Animated.View pointerEvents="none" style={[styles.stamp, styles.stampRight, { borderColor: colors.danger, transform: [{ rotate: '16deg' }] }, reviewStamp]}>
+                    <AppText style={[styles.stampText, { color: colors.danger }]}>✕ {t('swipeReview')}</AppText>
+                  </Animated.View>
+                  <Animated.View pointerEvents="none" style={[styles.stamp, styles.stampTop, { borderColor: colors.xp }, favStamp]}>
+                    <AppText style={[styles.stampText, { color: colors.xp }]}>♥ {t('swipeFav')}</AppText>
+                  </Animated.View>
+                </Pressable>
+              </Animated.View>
+            </GestureDetector>
+          </View>
+
+          <AppText variant="caption" color={colors.textMuted} center style={styles.hint}>
+            {t('swipeCardHint')}
+          </AppText>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -237,32 +308,36 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: spacing.lg, paddingTop: spacing.xs, paddingBottom: spacing.sm,
   },
+  headerCenter: { alignItems: 'center' },
   iconBtn: {
     width: 40, height: 40, borderRadius: radius.full, backgroundColor: colors.surface,
     alignItems: 'center', justifyContent: 'center', ...(elevation.sm as object),
   },
-  xpPill: {
+  streakPill: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     backgroundColor: colors.surface, paddingHorizontal: spacing.md, paddingVertical: 8,
     borderRadius: radius.full, ...(elevation.sm as object),
   },
   progressWrap: { paddingHorizontal: spacing.lg, marginBottom: spacing.sm },
-  deck: { flex: 1, justifyContent: 'center', paddingHorizontal: spacing.lg },
-  cardWrap: { position: 'absolute', left: spacing.lg, right: spacing.lg },
-  cardBehind: { transform: [{ scale: 0.97 }, { translateY: 8 }], opacity: 0.6 },
-  tint: { ...StyleSheet.absoluteFillObject, borderRadius: radius.xl },
-  footer: {
-    flexDirection: 'row', alignItems: 'center',
-    gap: spacing.sm, paddingHorizontal: spacing.lg, paddingBottom: spacing.lg, paddingTop: spacing.xs,
+
+  deck: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: spacing.lg },
+  stack: { width: SCREEN_W - spacing.lg * 2, height: CARD_H },
+  press: { flex: 1 },
+  tint: { ...StyleSheet.absoluteFillObject, borderRadius: 30 },
+  stamp: {
+    position: 'absolute',
+    borderWidth: 4,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(15,10,40,0.25)',
   },
-  action: {
-    flex: 1, height: 58, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 8, borderRadius: radius.lg,
-  },
-  actionForgot: { backgroundColor: colors.dangerSoft },
-  actionKnow: { backgroundColor: colors.successSoft },
-  swipeHint: { paddingHorizontal: spacing.xs },
-  done: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
-  doneEmoji: { fontSize: 56 },
-  doneTitle: { marginTop: spacing.md, marginBottom: spacing.xs },
+  stampLeft: { top: 28, left: 24 },
+  stampRight: { top: 28, right: 24 },
+  stampTop: { top: 20, alignSelf: 'center' },
+  stampText: { fontSize: 22, fontWeight: '900', letterSpacing: 1 },
+  hint: { marginTop: spacing.lg },
+
+  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
+  emoji: { fontSize: 56, marginBottom: spacing.md },
 });

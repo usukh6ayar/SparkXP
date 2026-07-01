@@ -1,121 +1,203 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { View, Image, Pressable, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
-import { useAuth } from '../../src/auth/AuthContext';
-import { ApiError } from '../../src/api/client';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { t } from '../../src/i18n';
-import { spacing, colors } from '../../src/theme/theme';
-import { Screen } from '../../src/components/Screen';
-import { Logo } from '../../src/components/Logo';
+import { colors, spacing, radius } from '../../src/theme/theme';
 import { AppText } from '../../src/components/Text';
-import { TextField } from '../../src/components/TextField';
-import { Button } from '../../src/components/Button';
-import { Checkbox } from '../../src/components/Checkbox';
-import { SocialRow } from '../../src/components/SocialRow';
-import { FormError } from '../../src/components/FormError';
-import { AuthFooter } from '../../src/components/AuthFooter';
+import { SignInSheet } from '../../src/components/SignInSheet';
 
-const fox = require('../../assets/onboarding/onb-welcome.png');
+const wordmark = require('../../assets/logoSparkXP.png');
+const hero = require('../../assets/logo.png');
 
-export default function LoginScreen() {
-  const { login } = useAuth();
+type IconName = keyof typeof Ionicons.glyphMap;
+
+/**
+ * Welcome / get-started screen — the first thing a logged-out user sees.
+ * Email → register, social sign-up, and a "Log in" link that opens the sign-in
+ * form as an in-place frosted-glass bottom sheet (no jump to a separate screen).
+ */
+export default function WelcomeScreen() {
   const router = useRouter();
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [remember, setRemember] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const { signin } = useLocalSearchParams<{ signin?: string }>();
+  const [notice, setNotice] = useState<string | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
-  async function onSubmit() {
-    setError(null);
-    setBusy(true);
-    try {
-      await login(username.trim(), password); // auth gate redirects on success
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : t('errorGeneric'));
-    } finally {
-      setBusy(false);
-    }
-  }
+  // Auto-open the sheet when arriving with ?signin=1 (from register/forgot).
+  useEffect(() => {
+    if (signin === '1') setSheetOpen(true);
+  }, [signin]);
 
-  const soon = () => setError(t('comingSoon'));
+  const soon = () => setNotice(t('comingSoon'));
 
   return (
-    <Screen>
-      <Logo size="md" wordmarkOnly align="left" />
-      <AppText variant="h1" style={styles.title}>
-        {t('welcomeBack')}
-      </AppText>
-      <AppText variant="body" color={colors.textSecondary} style={styles.subtitle}>
-        {t('loginSubtitle')}
-      </AppText>
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      <View style={styles.container}>
+        {/* Brand — wordmark on top, hero fills the space above the actions. */}
+        <View style={styles.brand}>
+          {/* Soft radial glow behind the logo (concentric discs → gentle falloff). */}
+          <View pointerEvents="none" style={styles.glowWrap}>
+            <View style={styles.glow3}>
+              <View style={styles.glow2}>
+                <View style={styles.glow1} />
+              </View>
+            </View>
+          </View>
+          {/* Decorative only — never intercept touches meant for the buttons below. */}
+          <Image source={wordmark} style={styles.wordmark} resizeMode="contain" />
+          <Image source={hero} style={styles.hero} resizeMode="contain" />
+        </View>
 
-      <TextField
-        leftIcon="person-outline"
-        placeholder={t('usernameOrEmail')}
-        autoCapitalize="none"
-        autoCorrect={false}
-        value={username}
-        onChangeText={setUsername}
-      />
-      <TextField
-        leftIcon="lock-closed-outline"
-        placeholder={t('password')}
-        secureToggle
-        value={password}
-        onChangeText={setPassword}
-      />
+        {/* Actions */}
+        <View style={styles.actions}>
+          <AuthButton
+            icon="mail"
+            label={t('continueWithEmail')}
+            filled
+            onPress={() => router.push('/(auth)/register')}
+          />
+          <AuthButton icon="logo-google" label={t('continueWithGoogle')} onPress={soon} />
+          <AuthButton icon="logo-apple" label={t('continueWithApple')} onPress={soon} />
 
-      <View style={styles.row}>
-        <Checkbox checked={remember} onToggle={() => setRemember((v) => !v)} label={t('rememberMe')} />
-        <Pressable onPress={() => router.push('/(auth)/forgot')} hitSlop={6}>
-          <AppText variant="caption" color={colors.primary}>
-            {t('forgotPassword')}
-          </AppText>
-        </Pressable>
+          {notice ? (
+            <AppText variant="caption" center color={colors.textSecondary} style={styles.notice}>
+              {notice}
+            </AppText>
+          ) : null}
+
+          <View style={styles.footer}>
+            <AppText variant="body" color={colors.textSecondary}>
+              {t('haveAccount')}{' '}
+            </AppText>
+            <Pressable onPress={() => setSheetOpen(true)} hitSlop={8}>
+              <AppText variant="bodyStrong" color={colors.primary}>
+                {t('login')}
+              </AppText>
+            </Pressable>
+          </View>
+        </View>
       </View>
 
-      <FormError message={error} />
-      <Button
-        label={t('login')}
-        iconRight="arrow-forward"
-        onPress={onSubmit}
-        loading={busy}
-        style={styles.button}
+      {sheetOpen ? <SignInSheet onClose={() => setSheetOpen(false)} /> : null}
+    </SafeAreaView>
+  );
+}
+
+/** A full-width auth button — gradient when `filled`, real frosted glass otherwise. */
+function AuthButton({
+  icon,
+  label,
+  filled = false,
+  onPress,
+}: {
+  icon: IconName;
+  label: string;
+  filled?: boolean;
+  onPress: () => void;
+}) {
+  const content = (
+    <View style={styles.btnContent}>
+      <Ionicons name={icon} size={22} color={colors.white} />
+      <AppText variant="bodyStrong" color={colors.white} style={styles.btnLabel}>
+        {label}
+      </AppText>
+    </View>
+  );
+
+  if (filled) {
+    return (
+      <Pressable onPress={onPress} style={({ pressed }) => pressed && styles.pressed}>
+        <LinearGradient
+          colors={colors.primaryGradient}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={[styles.btn, styles.btnFilled]}
+        >
+          {content}
+        </LinearGradient>
+      </Pressable>
+    );
+  }
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.btn, styles.btnGlass, pressed && styles.pressed]}
+    >
+      <BlurView
+        intensity={24}
+        tint="dark"
+        experimentalBlurMethod="dimezisBlurView"
+        style={StyleSheet.absoluteFill}
       />
-
-      <View style={styles.divider}>
-        <View style={styles.line} />
-        <AppText variant="caption" color={colors.textMuted}>
-          {t('orDivider')}
-        </AppText>
-        <View style={styles.line} />
-      </View>
-      <SocialRow onPress={soon} />
-
-      <AuthFooter prompt={t('noAccount')} linkLabel={t('register')} href="/(auth)/register" />
-
-      <Image source={fox} style={styles.fox} resizeMode="contain" />
-    </Screen>
+      <View style={[StyleSheet.absoluteFill, styles.glassTint]} />
+      {/* Glass top-edge highlight. */}
+      <View style={styles.glassHighlight} />
+      {content}
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  title: { marginTop: spacing.xl },
-  subtitle: { marginTop: spacing.xs, marginBottom: spacing.xl },
-  row: {
+  safe: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1, paddingBottom: spacing.lg },
+  brand: { flex: 1, alignItems: 'center', paddingTop: spacing.sm },
+  glowWrap: { position: 'absolute', top: 10, left: 0, right: 0, alignItems: 'center' },
+  glow3: {
+    width: 320, height: 320, borderRadius: 160,
+    backgroundColor: 'rgba(157,123,255,0.06)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  glow2: {
+    width: 210, height: 210, borderRadius: 105,
+    backgroundColor: 'rgba(157,123,255,0.09)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  glow1: {
+    width: 120, height: 120, borderRadius: 60,
+    backgroundColor: 'rgba(124,59,255,0.16)',
+  },
+  wordmark: { width: '100%', height: 200, marginTop: -30, transform: [{ scale: 1.1 }], pointerEvents: 'none' },
+  hero: { flex: 1, width: '100%', marginTop: -30, transform: [{ scale: 1.1 }], pointerEvents: 'none' },
+
+  actions: { gap: spacing.md, paddingHorizontal: spacing.xl },
+  btn: {
+    height: 58,
+    borderRadius: radius.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.lg,
+    overflow: 'hidden',
+  },
+  btnFilled: {
+    // Soft violet glow on the primary CTA.
+    shadowColor: colors.primary,
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
+  },
+  btnGlass: { borderWidth: 1, borderColor: colors.glassBorder },
+  glassTint: { backgroundColor: colors.glassBg },
+  glassHighlight: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+  },
+  btnContent: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  btnLabel: { fontWeight: '700' },
+  pressed: { opacity: 0.9, transform: [{ scale: 0.99 }] },
+  notice: { marginTop: spacing.xs },
+
+  footer: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing.lg,
+    justifyContent: 'center',
+    marginTop: spacing.sm,
   },
-  button: { marginTop: spacing.sm },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    marginVertical: spacing.lg,
-  },
-  line: { flex: 1, height: 1, backgroundColor: colors.border },
-  fox: { width: 120, height: 120, alignSelf: 'flex-start', marginTop: spacing.md },
 });

@@ -265,7 +265,11 @@ export default function RegisterScreen() {
             disabled={!infoValid}
             style={styles.button}
           />
-          <AuthFooter prompt={t('haveAccount')} linkLabel={t('login')} href="/(auth)/login" />
+          <AuthFooter
+            prompt={t('haveAccount')}
+            linkLabel={t('login')}
+            href={{ pathname: '/(auth)/login', params: { signin: '1' } }}
+          />
         </>
       ) : step === 'location' ? (
         <>

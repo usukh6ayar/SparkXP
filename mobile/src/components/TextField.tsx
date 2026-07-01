@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ComponentType } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,12 @@ interface Props extends TextInputProps {
   leftIcon?: IconName;
   /** When the field is a password, show an eye toggle to reveal the text. */
   secureToggle?: boolean;
+  /**
+   * Swap the underlying input (defaults to RN `TextInput`). Pass
+   * `BottomSheetTextInput` when used inside a @gorhom bottom sheet so the sheet
+   * lifts above the keyboard on focus.
+   */
+  InputComponent?: ComponentType<TextInputProps>;
 }
 
 /** Labeled text input with brand styling, optional left icon + password reveal. */
@@ -26,6 +32,7 @@ export function TextField({
   leftIcon,
   secureToggle,
   secureTextEntry,
+  InputComponent = TextInput,
   ...rest
 }: Props) {
   const [hidden, setHidden] = useState(true);
@@ -43,7 +50,7 @@ export function TextField({
             style={styles.leftIcon}
           />
         ) : null}
-        <TextInput
+        <InputComponent
           style={styles.input}
           placeholderTextColor={colors.textMuted}
           secureTextEntry={isSecure}
