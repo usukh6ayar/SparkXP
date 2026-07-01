@@ -45,6 +45,7 @@ import {
 } from '../api/dictionary';
 import { ApiError } from '../api/client';
 import { AppText } from './Text';
+import { t } from '../i18n';
 import { colors, spacing, radius, elevation } from '../theme/theme';
 
 const RECENTS_KEY = 'dictionary_recents';
@@ -236,7 +237,7 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
                 </Pressable>
               ) : null}
               <Pressable hitSlop={8} onPress={() => setSearchOpen(false)}>
-                <AppText variant="label" color={colors.primary}>Болих</AppText>
+                <AppText variant="label" color={colors.primary}>{t('cancel')}</AppText>
               </Pressable>
             </View>
 

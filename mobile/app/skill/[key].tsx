@@ -10,8 +10,9 @@ import { TopBar } from '../../src/components/TopBar';
 import { AppText } from '../../src/components/Text';
 import { ProgressBar } from '../../src/components/ProgressBar';
 import { CategoryBrowser, type BrowserItem } from '../../src/components/CategoryBrowser';
+import { t } from '../../src/i18n';
 import { useColors } from '../../src/settings/SettingsContext';
-import { spacing, radius, type AppColors } from '../../src/theme/theme';
+import { spacing, radius, skillGradients, type AppColors } from '../../src/theme/theme';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -26,10 +27,10 @@ const SKILLS: Record<
   string,
   { label: string; en: string; icon: IconName; grad: readonly [string, string]; percent: number }
 > = {
-  listening: { label: 'Сонсох', en: 'Listening', icon: 'headset', grad: ['#1E5AE0', '#142A6B'], percent: 60 },
-  reading: { label: 'Унших', en: 'Reading', icon: 'book', grad: ['#2BA86A', '#14532D'], percent: 75 },
-  speaking: { label: 'Ярих', en: 'Speaking', icon: 'mic', grad: ['#D6418F', '#6B1648'], percent: 68 },
-  writing: { label: 'Бичих', en: 'Writing', icon: 'create', grad: ['#C9821F', '#5A3410'], percent: 52 },
+  listening: { label: 'Сонсох', en: 'Listening', icon: 'headset', grad: skillGradients.listening, percent: 60 },
+  reading: { label: 'Унших', en: 'Reading', icon: 'book', grad: skillGradients.reading, percent: 75 },
+  speaking: { label: 'Ярих', en: 'Speaking', icon: 'mic', grad: skillGradients.speaking, percent: 68 },
+  writing: { label: 'Бичих', en: 'Writing', icon: 'create', grad: skillGradients.writing, percent: 52 },
 };
 
 export default function SkillScreen() {
@@ -84,12 +85,12 @@ export default function SkillScreen() {
     <LinearGradient colors={skill.grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
       <View style={styles.heroLeft}>
         <AppText variant="overline" color="rgba(255,255,255,0.85)">
-          ӨНӨӨ ДӨР · {skill.en.toUpperCase()}
+          {t('todayLabel')} · {skill.en.toUpperCase()}
         </AppText>
         <AppText variant="display" color={c.white} style={styles.heroPercent}>
           {skill.percent}%
         </AppText>
-        <AppText variant="caption" color="rgba(255,255,255,0.9)">Явц</AppText>
+        <AppText variant="caption" color="rgba(255,255,255,0.9)">{t('progressLabel')}</AppText>
         <ProgressBar
           value={skill.percent / 100}
           color={c.white}
@@ -124,7 +125,7 @@ export default function SkillScreen() {
         onOpen={(id) => router.push(`/quiz/${id}`)}
         // Hero only on the сэдэв list (level 1), so level 2 is a clean list.
         hero={selectedCat === null ? hero : undefined}
-        emptyText="Энэ төрлийн дасгал алга 🦊"
+        emptyText={t('noSkillExercises')}
       />
     </SafeAreaView>
   );

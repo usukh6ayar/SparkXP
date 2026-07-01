@@ -3,6 +3,7 @@ import { View, StyleSheet, Pressable, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AppText } from './Text';
 import { type ReadingQuestion } from '../api/reading';
+import { t } from '../i18n';
 import { useColors } from '../settings/SettingsContext';
 import { spacing, radius, type AppColors } from '../theme/theme';
 
@@ -48,7 +49,7 @@ export function ReadingQuiz({ questions }: { questions: ReadingQuestion[] }) {
 
   return (
     <View style={styles.wrap}>
-      <AppText variant="h3" style={styles.heading}>Асуултууд</AppText>
+      <AppText variant="h3" style={styles.heading}>{t('questionsHeading')}</AppText>
 
       {questions.map((q, i) => {
         const a = answers[i];
@@ -94,7 +95,7 @@ export function ReadingQuiz({ questions }: { questions: ReadingQuestion[] }) {
                   editable={!submitted}
                   value={typeof a === 'string' ? a : ''}
                   onChangeText={(t) => setAnswers((m) => ({ ...m, [i]: t }))}
-                  placeholder="Хариултаа бичнэ үү"
+                  placeholder={t('yourAnswer')}
                   placeholderTextColor={c.textMuted}
                   style={[
                     styles.input,
@@ -103,7 +104,7 @@ export function ReadingQuiz({ questions }: { questions: ReadingQuestion[] }) {
                 />
                 {submitted && !fillCorrect(q, (a as string) ?? '') && (
                   <AppText variant="caption" color={c.success} style={styles.answerHint}>
-                    Зөв: {q.answer}
+                    {t('correctAnswerPrefix')} {q.answer}
                   </AppText>
                 )}
               </>
@@ -115,7 +116,7 @@ export function ReadingQuiz({ questions }: { questions: ReadingQuestion[] }) {
       {submitted ? (
         <View style={styles.result}>
           <Ionicons name="ribbon" size={20} color={c.xp} />
-          <AppText variant="bodyStrong">{score} / {questions.length} зөв</AppText>
+          <AppText variant="bodyStrong">{score} / {questions.length} {t('correctSuffix')}</AppText>
         </View>
       ) : (
         <Pressable
@@ -123,7 +124,7 @@ export function ReadingQuiz({ questions }: { questions: ReadingQuestion[] }) {
           disabled={!allAnswered}
           style={[styles.checkBtn, !allAnswered && styles.checkBtnOff]}
         >
-          <AppText variant="bodyStrong" color={c.white}>Шалгах</AppText>
+          <AppText variant="bodyStrong" color={c.white}>{t('checkAnswers')}</AppText>
         </Pressable>
       )}
     </View>

@@ -13,6 +13,7 @@ import { AppText } from '../../src/components/Text';
 import { TappableText } from '../../src/components/DictionaryProvider';
 import { Card } from '../../src/components/Card';
 import { Loading } from '../../src/components/Loading';
+import { t } from '../../src/i18n';
 import { colors, spacing, radius } from '../../src/theme/theme';
 
 /** Idiom detail: phrase, Mongolian, meaning, definition, example, audio. */
@@ -55,12 +56,12 @@ export default function IdiomDetailScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <TopBar title="Хэлц үг" back showBadges={false} />
+      <TopBar title={t('idiomsTitle')} back showBadges={false} />
       {loading ? (
         <Loading />
       ) : !idiom ? (
         <AppText variant="body" color={colors.textMuted} center style={styles.empty}>
-          Хэлц олдсонгүй 🦊
+          {t('idiomNotFound')}
         </AppText>
       ) : (
         <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
@@ -85,19 +86,19 @@ export default function IdiomDetailScreen() {
           <AppText variant="h3" color={colors.primary} style={styles.mongolian}>{idiom.mongolian}</AppText>
 
           {idiom.meaning ? (
-            <Section label="Жинхэнэ утга">
+            <Section label={t('meaningLabel')}>
               <AppText variant="body">{idiom.meaning}</AppText>
             </Section>
           ) : null}
 
           {idiom.definition ? (
-            <Section label="Тайлбар">
+            <Section label={t('definitionLabel')}>
               <AppText variant="body">{idiom.definition}</AppText>
             </Section>
           ) : null}
 
           {idiom.exampleSentence ? (
-            <Section label="Жишээ">
+            <Section label={t('exampleLabel')}>
               <Card variant="filled" style={styles.example}>
                 <TappableText variant="body">{idiom.exampleSentence}</TappableText>
                 {idiom.exampleTranslation ? (

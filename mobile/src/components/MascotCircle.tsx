@@ -1,7 +1,8 @@
 import { type ReactNode } from 'react';
 import { View, Image, StyleSheet, type ImageSourcePropType } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { colors } from '../theme/theme';
+import { useColors } from '../settings/SettingsContext';
+import { type AppColors } from '../theme/theme';
 
 /**
  * Round mascot backdrop used on onboarding / success screens: a soft (or
@@ -19,12 +20,14 @@ export function MascotCircle({
   gradient?: boolean;
   children?: ReactNode;
 }) {
+  const c = useColors();
+  const styles = makeStyles(c);
   const circle = { width: size, height: size, borderRadius: size / 2 };
   return (
     <View style={[styles.wrap, { width: size, height: size }]}>
       {gradient ? (
         <LinearGradient
-          colors={[...colors.primaryGradient]}
+          colors={[...c.primaryGradient]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={[styles.circle, circle]}
@@ -42,8 +45,8 @@ export function MascotCircle({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (c: AppColors) => StyleSheet.create({
   wrap: { alignItems: 'center', justifyContent: 'center' },
   circle: { position: 'absolute' },
-  soft: { backgroundColor: colors.primarySoft },
+  soft: { backgroundColor: c.primarySoft },
 });

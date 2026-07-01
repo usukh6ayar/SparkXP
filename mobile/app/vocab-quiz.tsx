@@ -5,12 +5,13 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../src/auth/AuthContext';
 import { getMe } from '../src/api/auth';
-import { getQuiz, submitQuiz, type QuizQuestion, type QuizResult } from '../src/api/quiz';
+import { getQuiz, submitQuiz, type QuizQuestion, type QuizResult } from '../src/api/wordQuiz';
 import { TopBar } from '../src/components/TopBar';
 import { AppText } from '../src/components/Text';
 import { Loading } from '../src/components/Loading';
 import { Button } from '../src/components/Button';
 import { ProgressBar } from '../src/components/ProgressBar';
+import { t } from '../src/i18n';
 import { colors, spacing, radius, elevation } from '../src/theme/theme';
 
 const QUESTION_COUNT = 10;
@@ -79,13 +80,13 @@ export default function VocabQuizScreen() {
   if (error || questions.length === 0) {
     return (
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-        <TopBar title="Үг ангууч" back />
+        <TopBar title={t('gameVocabQuizTitle')} back />
         <View style={styles.center}>
           <AppText style={styles.emoji}>😕</AppText>
           <AppText variant="body" color={colors.textSecondary} center>
-            Сорил ачаалж чадсангүй. Дараа дахин оролдоно уу.
+            {t('quizLoadError')}
           </AppText>
-          <Button label="Буцах" icon="arrow-back" onPress={() => router.back()} style={{ marginTop: spacing.xl }} />
+          <Button label={t('back')} icon="arrow-back" onPress={() => router.back()} style={{ marginTop: spacing.xl }} />
         </View>
       </SafeAreaView>
     );
@@ -96,11 +97,11 @@ export default function VocabQuizScreen() {
     const perfect = result.correct === result.total;
     return (
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-        <TopBar title="Дүн" back />
+        <TopBar title={t('scoreTitle')} back />
         <View style={styles.center}>
           <AppText style={styles.emoji}>{perfect ? '🏆' : '🎉'}</AppText>
           <AppText variant="h1" center>
-            {result.correct} / {result.total} зөв
+            {result.correct} / {result.total} {t('correctSuffix')}
           </AppText>
           <View style={styles.rewards}>
             <View style={[styles.rewardPill, { backgroundColor: colors.cream }]}>
@@ -113,7 +114,7 @@ export default function VocabQuizScreen() {
             </View>
           </View>
           <Button
-            label="Дахин тоглох"
+            label={t('playAgain')}
             icon="refresh"
             onPress={() => {
               setResult(null); setIndex(0); setChoices({}); setPicked(null);
@@ -123,7 +124,7 @@ export default function VocabQuizScreen() {
             style={{ marginTop: spacing.xl, alignSelf: 'stretch' }}
           />
           <Pressable onPress={() => router.back()} style={styles.backLink}>
-            <AppText variant="label" color={colors.textSecondary}>Сорил руу буцах</AppText>
+            <AppText variant="label" color={colors.textSecondary}>{t('backToQuizzes')}</AppText>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -134,7 +135,7 @@ export default function VocabQuizScreen() {
   const q = questions[index];
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      <TopBar title="Үг ангууч" back />
+      <TopBar title={t('gameVocabQuizTitle')} back />
 
       <View style={styles.progressWrap}>
         <ProgressBar value={(index + (picked ? 1 : 0)) / questions.length} color={colors.primary} />
@@ -145,7 +146,7 @@ export default function VocabQuizScreen() {
 
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
         <View style={styles.prompt}>
-          <AppText variant="caption" color={colors.textMuted}>Энэ үгийн утга?</AppText>
+          <AppText variant="caption" color={colors.textMuted}>{t('whatDoesItMean')}</AppText>
           <AppText style={styles.word}>{q.english}</AppText>
           {q.phonetic ? (
             <AppText variant="body" color={colors.textMuted}>{q.phonetic}</AppText>
@@ -171,7 +172,7 @@ export default function VocabQuizScreen() {
 
       {submitting ? (
         <View style={styles.submitting}>
-          <AppText variant="label" color={colors.textSecondary}>Дүн бодож байна…</AppText>
+          <AppText variant="label" color={colors.textSecondary}>{t('scoring')}</AppText>
         </View>
       ) : null}
     </SafeAreaView>

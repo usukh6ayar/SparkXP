@@ -10,21 +10,29 @@ import * as lessonsApi from '../../src/api/lessons';
 import type { Lesson } from '../../src/api/lessons';
 import { getQuizzes, type Quiz } from '../../src/api/quizzes';
 import { setLastLesson } from '../../src/lib/lastLesson';
+import { alertError, confirm } from '../../src/lib/alerts';
 import { TopBar } from '../../src/components/TopBar';
 import { AppText } from '../../src/components/Text';
 import { Pill } from '../../src/components/Pill';
 import { Button } from '../../src/components/Button';
 import { Loading } from '../../src/components/Loading';
 import { getSkill } from '../../src/constants/skills';
+import { t } from '../../src/i18n';
 import { useColors } from '../../src/settings/SettingsContext';
 import { spacing, radius, levelColor, type AppColors } from '../../src/theme/theme';
 
 const banner = require('../../assets/home-banner.png');
 
 /** Nice labels for the 4 lesson-test categories. */
-const CAT_LABELS: Record<string, string> = {
-  listening: 'Сонсгол', reading: 'Унших', writing: 'Бичих', speaking: 'Ярих', fill: 'Нөхөх',
-};
+function catLabels(): Record<string, string> {
+  return {
+    listening: t('catListening'),
+    reading: t('catReading'),
+    writing: t('catWriting'),
+    speaking: t('catSpeaking'),
+    fill: t('catFill'),
+  };
+}
 
 export default function LessonDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -64,7 +72,7 @@ export default function LessonDetailScreen() {
         setDone(savedDone === '1');
         setLastLesson({ id: l.id, title: l.title, thumbnailUrl: l.thumbnailUrl, type: l.type, level: l.level });
       } catch {
-        Alert.alert('Алдаа', 'Хичээл ачаалахад алдаа гарлаа.');
+        alertError(t('lessonLoadError'));
         router.back();
       } finally {
         setLoading(false);
@@ -84,7 +92,7 @@ export default function LessonDetailScreen() {
     if (token && id) {
       try {
         const res = await lessonsApi.completeLesson(id, token);
-        if (res.xpAwarded > 0) Alert.alert('Бэрхшээлгүй!', `Хичээл дуусгаж +${res.xpAwarded} XP авлаа 🎉`);
+        if (res.xpAwarded > 0) Alert.alert(t('lessonCompleteTitle'), `${t('lessonCompletePrefix')} +${res.xpAwarded} XP ${t('lessonCompleteSuffix')}`);
       } catch { /* non-critical */ }
     }
   }
@@ -92,27 +100,31 @@ export default function LessonDetailScreen() {
   function unlock() {
     if (!lesson) return;
     if ((user?.sparks ?? 0) < lesson.priceSparks) {
-      Alert.alert('Очирхон хүрэлцэхгүй', `Танд ${user?.sparks ?? 0} 💎 байна. Энэ хичээлд ${lesson.priceSparks} 💎 шаардлагатай.`);
+      alertError(
+        t('insufficientSparksBody')
+          .replace('{have}', String(user?.sparks ?? 0))
+          .replace('{need}', String(lesson.priceSparks)),
+        t('insufficientSparksTitle'),
+      );
       return;
     }
-    Alert.alert('Хичээл нээх үү?', `${lesson.priceSparks} 💎 Очирхон зарцуулна`, [
-      { text: 'Болих' },
-      {
-        text: `Нээх (${lesson.priceSparks} 💎)`,
-        onPress: async () => {
-          setUnlocking(true);
-          try {
-            await lessonsApi.unlockLesson(id!, token!);
-            setHasAccess(true);
-            Alert.alert('Амжилттай', 'Хичээл нээгдлээ!');
-          } catch {
-            Alert.alert('Алдаа', 'Нээхэд алдаа гарлаа.');
-          } finally {
-            setUnlocking(false);
-          }
-        },
+    confirm({
+      title: t('unlockConfirmTitle'),
+      message: `${lesson.priceSparks} 💎 ${t('unlockConfirmBodySuffix')}`,
+      confirmLabel: `${t('unlockLabel')} (${lesson.priceSparks} 💎)`,
+      onConfirm: async () => {
+        setUnlocking(true);
+        try {
+          await lessonsApi.unlockLesson(id!, token!);
+          setHasAccess(true);
+          Alert.alert(t('unlockSuccessTitle'), t('unlockSuccessBody'));
+        } catch {
+          alertError(t('unlockError'));
+        } finally {
+          setUnlocking(false);
+        }
       },
-    ]);
+    });
   }
 
   // Group the lesson's quizzes by category (the 4 test types).
@@ -132,6 +144,7 @@ export default function LessonDetailScreen() {
   const lvl = levelColor[lesson.level] ?? levelColor.a1;
   const skill = getSkill(lesson.type);
   const num = String(lesson.position ?? 1).padStart(2, '0');
+  const CAT_LABELS = catLabels();
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -162,16 +175,16 @@ export default function LessonDetailScreen() {
             <View style={styles.lockedIcon}>
               <Ionicons name="lock-closed" size={28} color={c.primary} />
             </View>
-            <AppText variant="h3" style={styles.lockedTitle}>Хичээл түгжээтэй</AppText>
+            <AppText variant="h3" style={styles.lockedTitle}>{t('lessonLocked')}</AppText>
             <AppText variant="body" color={c.textSecondary} center>
-              Нээхийн тулд {lesson.priceSparks} 💎 Очирхон зарцуулна.
+              {t('lessonLockedBodyPrefix')} {lesson.priceSparks} {t('lessonLockedBodySuffix')}
             </AppText>
             <View style={styles.balance}>
               <Ionicons name="diamond" size={15} color={c.sparks} />
-              <AppText variant="bodyStrong" color={c.sparks}>Үлдэгдэл: {user?.sparks ?? 0}</AppText>
+              <AppText variant="bodyStrong" color={c.sparks}>{t('balanceLabel')}: {user?.sparks ?? 0}</AppText>
             </View>
             <Button
-              label={unlocking ? 'Нээж байна...' : `Нээх · ${lesson.priceSparks} 💎`}
+              label={unlocking ? t('unlocking') : `${t('unlockLabel')} · ${lesson.priceSparks} 💎`}
               icon="lock-open"
               onPress={unlock}
               disabled={unlocking}
@@ -195,14 +208,14 @@ export default function LessonDetailScreen() {
                 <View style={styles.videoScrim} />
                 <View style={styles.noVideo}>
                   <Ionicons name="videocam-off" size={22} color={c.white} />
-                  <AppText variant="caption" color={c.white}>Видео одоохондоо алга</AppText>
+                  <AppText variant="caption" color={c.white}>{t('videoUnavailable')}</AppText>
                 </View>
               </View>
             )}
 
             {/* Tests — unlocked once the lesson is marked watched */}
             <View style={styles.quizHead}>
-              <AppText variant="h2">Тест даалгавар</AppText>
+              <AppText variant="h2">{t('testsHeading')}</AppText>
               {!done ? <Ionicons name="lock-closed" size={16} color={c.textMuted} /> : null}
             </View>
 
@@ -211,15 +224,15 @@ export default function LessonDetailScreen() {
                 <View style={styles.lockedIcon}>
                   <Ionicons name="play-circle" size={28} color={c.primary} />
                 </View>
-                <AppText variant="bodyStrong" center>Хичээлээ үзэж дуусга</AppText>
+                <AppText variant="bodyStrong" center>{t('watchLessonFirst')}</AppText>
                 <AppText variant="caption" center color={c.textSecondary} style={{ marginTop: 2 }}>
-                  Дуусгасны дараа тестүүд нээгдэнэ.
+                  {t('watchLessonFirstHint')}
                 </AppText>
-                <Button label="Хичээл үзсэн ✓" icon="checkmark" onPress={markDone} style={{ marginTop: spacing.md, alignSelf: 'stretch' }} />
+                <Button label={t('lessonWatched')} icon="checkmark" onPress={markDone} style={{ marginTop: spacing.md, alignSelf: 'stretch' }} />
               </View>
             ) : quizzes.length === 0 ? (
               <View style={styles.quizEmpty}>
-                <AppText variant="body" center color={c.textMuted}>Энэ хичээлд тест алга 🦊</AppText>
+                <AppText variant="body" center color={c.textMuted}>{t('noLessonQuizzes')}</AppText>
               </View>
             ) : (
               groupByCategory(quizzes).map((group) => (

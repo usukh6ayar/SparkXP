@@ -16,6 +16,7 @@ import { TappableText } from '../../src/components/DictionaryProvider';
 import { Card } from '../../src/components/Card';
 import { Loading } from '../../src/components/Loading';
 import { ReadingQuiz } from '../../src/components/ReadingQuiz';
+import { t } from '../../src/i18n';
 import { colors, spacing, radius, levelColor } from '../../src/theme/theme';
 
 function fmtTime(sec: number): string {
@@ -67,12 +68,12 @@ export default function ReadingDetailScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <TopBar title="Унших" back showBadges={false} />
+      <TopBar title={t('reading')} back showBadges={false} />
       {loading ? (
         <Loading />
       ) : !passage ? (
         <AppText variant="body" color={colors.textMuted} center style={styles.empty}>
-          Материал олдсонгүй 🦊
+          {t('passageNotFound')}
         </AppText>
       ) : (
         <ScrollView
@@ -125,7 +126,7 @@ export default function ReadingDetailScreen() {
           {passage.keyVocab?.length > 0 && (
             <View style={styles.section}>
               <AppText variant="h3" style={styles.sectionTitle}>
-                Гол үгс
+                {t('keyVocabulary')}
               </AppText>
               <View style={styles.vocabWrap}>
                 {passage.keyVocab.map((v, i) => (
@@ -149,7 +150,7 @@ export default function ReadingDetailScreen() {
             ))}
           </Card>
           <AppText variant="caption" color={colors.textMuted} style={styles.hint}>
-            💡 Үг дээр 2 удаа дарвал монгол утга гарч ирнэ
+            {t('tapWordHint')}
           </AppText>
 
           <Pressable
@@ -167,7 +168,7 @@ export default function ReadingDetailScreen() {
               color={colors.white}
             />
             <AppText variant="bodyStrong" color={colors.white}>
-              {done ? 'Уншиж дууслаа ✓' : 'Уншиж дууслаа (+15 XP)'}
+              {done ? t('readingDone') : t('readingFinish')}
             </AppText>
           </Pressable>
 

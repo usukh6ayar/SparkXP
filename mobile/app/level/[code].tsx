@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/auth/AuthContext';
 import { getLessons, type Lesson } from '../../src/api/lessons';
 import { AppText } from '../../src/components/Text';
+import { colors, islandMap } from '../../src/theme/theme';
 
 /**
  * Level journey — the lessons of one CEFR level laid out as numbered nodes
@@ -43,13 +44,17 @@ interface LevelMeta {
   desc: string; // one-line subtitle
 }
 
+// TODO(i18n/copy): name/tier/desc are English-only "world map" narrative
+// content (Forest/Village/Castle...), not plain UI chrome — needs Boju's
+// call on Mongolian names before this goes through i18n like the rest of
+// the app's copy (CLAUDE.md: Mongolian-primary).
 const LEVEL: Record<string, LevelMeta> = {
-  a1: { name: 'Forest',    color: '#22C55E', emoji: '🌿', tier: 'Beginner',          desc: 'Learn greetings and basic words' },
-  a2: { name: 'Village',   color: '#22C55E', emoji: '🏡', tier: 'Elementary',        desc: 'Everyday phrases and simple talk' },
-  b1: { name: 'Castle',    color: '#38BDF8', emoji: '🏰', tier: 'Intermediate',      desc: 'Hold conversations with confidence' },
-  b2: { name: 'Mountain',  color: '#38BDF8', emoji: '⛰️', tier: 'Upper-Intermediate', desc: 'Express ideas on complex topics' },
-  c1: { name: 'Space',     color: '#8B5CF6', emoji: '🪐', tier: 'Advanced',          desc: 'Fluent, nuanced communication' },
-  c2: { name: 'Sky Realm', color: '#8B5CF6', emoji: '✨', tier: 'Proficient',        desc: 'Near-native mastery of English' },
+  a1: { name: 'Forest',    color: islandMap.green,  emoji: '🌿', tier: 'Beginner',          desc: 'Learn greetings and basic words' },
+  a2: { name: 'Village',   color: islandMap.green,  emoji: '🏡', tier: 'Elementary',        desc: 'Everyday phrases and simple talk' },
+  b1: { name: 'Castle',    color: islandMap.blue,   emoji: '🏰', tier: 'Intermediate',      desc: 'Hold conversations with confidence' },
+  b2: { name: 'Mountain',  color: islandMap.blue,   emoji: '⛰️', tier: 'Upper-Intermediate', desc: 'Express ideas on complex topics' },
+  c1: { name: 'Space',     color: islandMap.purple, emoji: '🪐', tier: 'Advanced',          desc: 'Fluent, nuanced communication' },
+  c2: { name: 'Sky Realm', color: islandMap.purple, emoji: '✨', tier: 'Proficient',        desc: 'Near-native mastery of English' },
 };
 
 // Node anchors as fractions of the screen — sampled from line.png's curve so
@@ -69,7 +74,7 @@ const NODE = 60;
 export default function LevelScreen() {
   const { code } = useLocalSearchParams<{ code: string }>();
   const levelCode = (code ?? 'a1').toLowerCase();
-  const meta = LEVEL[levelCode] ?? { name: 'Level', color: '#8B5CF6', emoji: '✨', tier: '', desc: '' };
+  const meta = LEVEL[levelCode] ?? { name: 'Level', color: islandMap.purple, emoji: '✨', tier: '', desc: '' };
   const { token, user } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -116,30 +121,30 @@ export default function LevelScreen() {
         {/* Top row: back + streak + gems */}
         <View style={styles.topRow}>
           <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
-            <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
+            <Ionicons name="chevron-back" size={24} color={colors.white} />
           </Pressable>
           <View style={{ flex: 1 }} />
           <View style={styles.statPill}>
-            <Ionicons name="flame" size={16} color="#FF7A1A" />
-            <AppText variant="bodyStrong" color="#FFFFFF">{streak}</AppText>
+            <Ionicons name="flame" size={16} color={islandMap.streak} />
+            <AppText variant="bodyStrong" color={colors.white}>{streak}</AppText>
           </View>
           <View style={styles.statPill}>
-            <Ionicons name="diamond" size={16} color="#38BDF8" />
-            <AppText variant="bodyStrong" color="#FFFFFF">{gems}</AppText>
+            <Ionicons name="diamond" size={16} color={islandMap.blue} />
+            <AppText variant="bodyStrong" color={colors.white}>{gems}</AppText>
             <View style={styles.plusBtn}>
-              <Ionicons name="add" size={14} color="#FFFFFF" />
+              <Ionicons name="add" size={14} color={colors.white} />
             </View>
           </View>
         </View>
 
         {/* Title + tier + description */}
         <View style={styles.titleBlock}>
-          <AppText variant="h1" color="#FFFFFF" style={styles.bigTitle}>
+          <AppText variant="h1" color={colors.white} style={styles.bigTitle}>
             {meta.name} {meta.emoji}
           </AppText>
           <View style={styles.tierRow}>
             <View style={[styles.levelChip, { backgroundColor: meta.color }]}>
-              <AppText variant="overline" color="#FFFFFF">{levelCode.toUpperCase()}</AppText>
+              <AppText variant="overline" color={colors.white}>{levelCode.toUpperCase()}</AppText>
             </View>
             {!!meta.tier && <AppText variant="bodyStrong" color={meta.color}>{meta.tier}</AppText>}
           </View>
@@ -154,14 +159,14 @@ export default function LevelScreen() {
         <View style={styles.progressCard}>
           <View style={styles.progressTop}>
             <AppText variant="label" color="rgba(255,255,255,0.85)">Progress</AppText>
-            <AppText variant="bodyStrong" color="#FFFFFF">{pct}%</AppText>
+            <AppText variant="bodyStrong" color={colors.white}>{pct}%</AppText>
           </View>
           <View style={styles.track}>
             <View style={[styles.fill, { width: `${pct}%` }]} />
           </View>
           <View style={styles.starsRow}>
-            <Ionicons name="star" size={16} color="#F5C518" />
-            <AppText variant="bodyStrong" color="#FFFFFF">{done}/{total}</AppText>
+            <Ionicons name="star" size={16} color={islandMap.gold} />
+            <AppText variant="bodyStrong" color={colors.white}>{done}/{total}</AppText>
           </View>
         </View>
       </View>
@@ -183,7 +188,7 @@ export default function LevelScreen() {
 
       {/* Lesson nodes along the path */}
       {loading ? (
-        <ActivityIndicator size="large" color="#FFFFFF" style={StyleSheet.absoluteFill} />
+        <ActivityIndicator size="large" color={colors.white} style={StyleSheet.absoluteFill} />
       ) : (
         ANCHORS.map((a, i) => {
           const lesson = lessons[i];
@@ -203,7 +208,7 @@ export default function LevelScreen() {
               {locked ? (
                 <Ionicons name="lock-closed" size={22} color="rgba(255,255,255,0.7)" />
               ) : (
-                <AppText variant="h3" color="#FFFFFF">{i + 1}</AppText>
+                <AppText variant="h3" color={colors.white}>{i + 1}</AppText>
               )}
             </Pressable>
           );
@@ -262,7 +267,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     marginTop: 8,
   },
-  fill: { height: '100%', borderRadius: 999, backgroundColor: '#22C55E' },
+  fill: { height: '100%', borderRadius: 999, backgroundColor: islandMap.green },
   starsRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 },
   backBtn: {
     width: 38,

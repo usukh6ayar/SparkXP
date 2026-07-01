@@ -16,6 +16,7 @@ import { AppText } from "../../src/components/Text";
 import { IconTile } from "../../src/components/IconTile";
 import { Pill } from "../../src/components/Pill";
 import { ProgressBar } from "../../src/components/ProgressBar";
+import { t } from "../../src/i18n";
 import { useColors } from "../../src/settings/SettingsContext";
 import {
   spacing,
@@ -48,51 +49,55 @@ interface Game {
   route?: string;
 }
 
-const GAMES: Game[] = [
-  {
-    icon: "locate",
-    // img: imgTarget,
-    title: "Үг ангууч",
-    desc: "Англи үгийн зөв утгыг сонго.",
-    tint: tints.purple,
-    route: "/vocab-quiz",
-  },
-  {
-    icon: "headset",
-    // img: imgHeadphones,
-    title: "Сонсож барь",
-    desc: "Аудио сонсож, зөв хариул.",
-    tint: tints.blue,
-  },
-  {
-    icon: "flash",
-    // img: imgBolt,
-    title: "Хурдан бууд",
-    desc: "Хугацаанд багтааж хариул!",
-    tint: tints.amber,
-  },
-  {
-    icon: "link",
-    // img: imgLink,
-    title: "Холбож ял",
-    desc: "Үг, зургийг зөв холбо.",
-    tint: tints.teal,
-  },
-  {
-    icon: "extension-puzzle",
-    // img: imgPuzzle,
-    title: "Нөхөж дуусга",
-    desc: "Хоосон зайг зөв нөх.",
-    tint: tints.pink,
-  },
-  {
-    icon: "book",
-    // img: imgBook,
-    title: "Grammar Boss",
-    desc: "Грамматик мэдлэгээ шалга.",
-    tint: tints.green,
-  },
-];
+/** Game cards. `title`/`desc` have no matching backend content — this is
+ *  static UI copy, so it goes through i18n like everything else in the app. */
+function games(t: (key: import("../../src/i18n").TranslationKey) => string): Game[] {
+  return [
+    {
+      icon: "locate",
+      // img: imgTarget,
+      title: t("gameVocabQuizTitle"),
+      desc: t("gameVocabQuizDesc"),
+      tint: tints.purple,
+      route: "/vocab-quiz",
+    },
+    {
+      icon: "headset",
+      // img: imgHeadphones,
+      title: t("gameListenTitle"),
+      desc: t("gameListenDesc"),
+      tint: tints.blue,
+    },
+    {
+      icon: "flash",
+      // img: imgBolt,
+      title: t("gameSpeedTitle"),
+      desc: t("gameSpeedDesc"),
+      tint: tints.amber,
+    },
+    {
+      icon: "link",
+      // img: imgLink,
+      title: t("gameMatchTitle"),
+      desc: t("gameMatchDesc"),
+      tint: tints.teal,
+    },
+    {
+      icon: "extension-puzzle",
+      // img: imgPuzzle,
+      title: t("gameFillTitle"),
+      desc: t("gameFillDesc"),
+      tint: tints.pink,
+    },
+    {
+      icon: "book",
+      // img: imgBook,
+      title: t("gameGrammarTitle"),
+      desc: t("gameGrammarDesc"),
+      tint: tints.green,
+    },
+  ];
+}
 
 // TODO: бодит daily-challenge backend-ээс.
 const DAILY_DONE = 2;
@@ -114,6 +119,7 @@ export default function SorilScreen() {
   const open = () =>
     Alert.alert("Тун удахгүй", "Энэ тоглоом удахгүй нэмэгдэнэ. 🦊");
   const openGame = (g: Game) => (g.route ? router.push(g.route as never) : open());
+  const GAMES = games(t);
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -123,7 +129,7 @@ export default function SorilScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <AppText variant="h1">Сорил</AppText>
+          <AppText variant="h1">{t("quiz")}</AppText>
           <View style={styles.diamondBadge}>
             <Ionicons name="diamond" size={16} color={c.sparks} />
             <AppText variant="label" color={c.text}>
@@ -136,7 +142,7 @@ export default function SorilScreen() {
           color={c.textSecondary}
           style={styles.subtitle}
         >
-          Мэдлэгээ шалгаж, амжилтаа ахиулаарай!
+          {t("sorilSubtitle")}
         </AppText>
 
         {/* Daily challenge hero — banner image as background (same as Home) */}
@@ -150,21 +156,21 @@ export default function SorilScreen() {
             <View style={styles.heroPill}>
               <Ionicons name="flame" size={12} color={c.streak} />
               <AppText variant="overline" color={c.white}>
-                ӨНӨӨДРИЙН CHALLENGE
+                {t("dailyChallenge")}
               </AppText>
             </View>
             <AppText variant="h3" color={c.white} style={styles.heroTitle}>
-              Өнөөдөр 50 XP авахад
+              {t("dailyChallengeTitle")}
             </AppText>
             <AppText variant="bodyStrong" color={c.xp}>
-              20 XP bonus хүлээж байна!
+              {t("dailyChallengeBonus")}
             </AppText>
             <AppText
               variant="caption"
               color="rgba(255,255,255,0.9)"
               style={styles.heroProg}
             >
-              {DAILY_DONE} / {DAILY_GOAL} дууссан
+              {DAILY_DONE} / {DAILY_GOAL} {t("completedOf")}
             </AppText>
             <ProgressBar
               value={DAILY_DONE / DAILY_GOAL}
@@ -180,7 +186,7 @@ export default function SorilScreen() {
               onPress={open}
             >
               <AppText variant="bodyStrong" color={c.primary}>
-                Үргэлжлүүлэх →
+                {t("continue")} →
               </AppText>
             </Pressable>
           </View>
@@ -188,10 +194,10 @@ export default function SorilScreen() {
 
         {/* Section */}
         <View style={styles.sectionRow}>
-          <AppText variant="h2">Сорилууд</AppText>
+          <AppText variant="h2">{t("quizzesSection")}</AppText>
           <Pressable style={styles.filterChip} onPress={open}>
             <AppText variant="label" color={c.text}>
-              Бүгд
+              {t("allLabel")}
             </AppText>
             <Ionicons
               name="chevron-down"
@@ -251,8 +257,8 @@ export default function SorilScreen() {
               size={44}
             />
             <View style={{ flex: 1 }}>
-              <AppText variant="h3">Амжилтын зам</AppText>
-              <AppText variant="caption">Сорил тоглож, level ахицгаая!</AppText>
+              <AppText variant="h3">{t("progressPath")}</AppText>
+              <AppText variant="caption">{t("progressPathHint")}</AppText>
             </View>
             <Pill
               label={`Level ${level}`}
