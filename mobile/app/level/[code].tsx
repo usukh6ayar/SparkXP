@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/auth/AuthContext';
 import { getLessons, type Lesson } from '../../src/api/lessons';
 import { AppText } from '../../src/components/Text';
+import { islandMap } from '../../src/theme/theme';
 
 /**
  * Level journey — the lessons of one CEFR level laid out as numbered nodes
@@ -48,12 +49,12 @@ interface LevelMeta {
 // call on Mongolian names before this goes through i18n like the rest of
 // the app's copy (CLAUDE.md: Mongolian-primary).
 const LEVEL: Record<string, LevelMeta> = {
-  a1: { name: 'Forest',    color: '#22C55E', emoji: '🌿', tier: 'Beginner',          desc: 'Learn greetings and basic words' },
-  a2: { name: 'Village',   color: '#22C55E', emoji: '🏡', tier: 'Elementary',        desc: 'Everyday phrases and simple talk' },
-  b1: { name: 'Castle',    color: '#38BDF8', emoji: '🏰', tier: 'Intermediate',      desc: 'Hold conversations with confidence' },
-  b2: { name: 'Mountain',  color: '#38BDF8', emoji: '⛰️', tier: 'Upper-Intermediate', desc: 'Express ideas on complex topics' },
-  c1: { name: 'Space',     color: '#8B5CF6', emoji: '🪐', tier: 'Advanced',          desc: 'Fluent, nuanced communication' },
-  c2: { name: 'Sky Realm', color: '#8B5CF6', emoji: '✨', tier: 'Proficient',        desc: 'Near-native mastery of English' },
+  a1: { name: 'Forest',    color: islandMap.green,  emoji: '🌿', tier: 'Beginner',          desc: 'Learn greetings and basic words' },
+  a2: { name: 'Village',   color: islandMap.green,  emoji: '🏡', tier: 'Elementary',        desc: 'Everyday phrases and simple talk' },
+  b1: { name: 'Castle',    color: islandMap.blue,   emoji: '🏰', tier: 'Intermediate',      desc: 'Hold conversations with confidence' },
+  b2: { name: 'Mountain',  color: islandMap.blue,   emoji: '⛰️', tier: 'Upper-Intermediate', desc: 'Express ideas on complex topics' },
+  c1: { name: 'Space',     color: islandMap.purple, emoji: '🪐', tier: 'Advanced',          desc: 'Fluent, nuanced communication' },
+  c2: { name: 'Sky Realm', color: islandMap.purple, emoji: '✨', tier: 'Proficient',        desc: 'Near-native mastery of English' },
 };
 
 // Node anchors as fractions of the screen — sampled from line.png's curve so
@@ -124,7 +125,7 @@ export default function LevelScreen() {
           </Pressable>
           <View style={{ flex: 1 }} />
           <View style={styles.statPill}>
-            <Ionicons name="flame" size={16} color="#FF7A1A" />
+            <Ionicons name="flame" size={16} color={islandMap.streak} />
             <AppText variant="bodyStrong" color="#FFFFFF">{streak}</AppText>
           </View>
           <View style={styles.statPill}>
@@ -164,7 +165,7 @@ export default function LevelScreen() {
             <View style={[styles.fill, { width: `${pct}%` }]} />
           </View>
           <View style={styles.starsRow}>
-            <Ionicons name="star" size={16} color="#F5C518" />
+            <Ionicons name="star" size={16} color={islandMap.gold} />
             <AppText variant="bodyStrong" color="#FFFFFF">{done}/{total}</AppText>
           </View>
         </View>
@@ -266,7 +267,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     marginTop: 8,
   },
-  fill: { height: '100%', borderRadius: 999, backgroundColor: '#22C55E' },
+  fill: { height: '100%', borderRadius: 999, backgroundColor: islandMap.green },
   starsRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 },
   backBtn: {
     width: 38,

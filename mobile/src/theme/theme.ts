@@ -276,3 +276,17 @@ export const levelColor: Record<string, { bg: string; fg: string }> = {
   c1: tints.purple,
   c2: tints.pink,
 };
+
+/**
+ * Shared palette for the "Хичээлийн ертөнц" adventure map — (tabs)/lessons.tsx's
+ * island tiers and level/[code].tsx's node path both tint by CEFR tier using
+ * these same three colors + gold star, matched to the map artwork (not the
+ * regular tints.* palette, which is a slightly different shade for each).
+ */
+export const islandMap = {
+  green: '#22C55E',
+  blue: '#38BDF8',
+  purple: '#8B5CF6',
+  gold: '#F5C518',
+  streak: '#FF7A1A',
+};
