@@ -18,6 +18,8 @@ export interface Quiz {
   isPublished: boolean;
   lessonId: string | null;
   category: string | null;
+  /** Sub-category (сэдэв) within the skill — used to group exercises on mobile. */
+  topic: string | null;
   questions: QuizQuestion[];
 }
 

@@ -34,9 +34,19 @@ export class Quiz extends BaseEntity {
   /**
    * Topic category for grouping a lesson's quizzes on the lesson screen
    * (e.g. "Дүрэм", "Үг", "Сонсгол"). Admin-set, free text.
+   * For a standalone exercise (Дасгал) this holds the SKILL
+   * (listening/reading/writing/speaking).
    */
   @Column({ type: 'varchar', nullable: true })
   category: string | null;
+
+  /**
+   * Sub-category (сэдэв) within a skill — e.g. a listening exercise's
+   * "Өдөр тутмын яриа". Free text: the stored value IS the label, so admin and
+   * mobile show the same string (mobile groups the skill's exercises by it).
+   */
+  @Column({ type: 'varchar', nullable: true })
+  topic: string | null;
 
   /** XP awarded for a passing attempt. */
   @Column({ name: 'xp_reward', type: 'int', default: 0 })

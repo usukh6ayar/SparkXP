@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import { View, StyleSheet, ScrollView, Pressable, RefreshControl } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { View, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -8,19 +8,18 @@ import { useAuth } from '../../src/auth/AuthContext';
 import { getExercises, type Quiz } from '../../src/api/quizzes';
 import { TopBar } from '../../src/components/TopBar';
 import { AppText } from '../../src/components/Text';
-import { Loading } from '../../src/components/Loading';
 import { ProgressBar } from '../../src/components/ProgressBar';
-import { colors, spacing, radius, tints } from '../../src/theme/theme';
+import { CategoryBrowser, type BrowserItem } from '../../src/components/CategoryBrowser';
+import { colors, spacing, radius } from '../../src/theme/theme';
 
 type IconName = keyof typeof Ionicons.glyphMap;
-type TintName = keyof typeof tints;
 
 /**
- * One skill screen (Сонсгол / Унших / Бичих / Ярих) = one admin exercise
- * category. There is NO fixed sub-category taxonomy — the categories live in the
- * DB and are authored in admin (`/quizzes?standalone=true&category=<skill>`).
- * This screen shows a progress hero + the REAL, DB-authored exercises for the
- * skill, so mobile always matches admin. Tapping an exercise opens it.
+ * One skill screen (Сонсгол / Бичих / Ярих) = one admin exercise category.
+ * Exercises are DB-authored (`/quizzes?standalone=true&category=<skill>`) and
+ * grouped by their сэдэв (`topic`) — a two-level browse (сэдэв → exercises) that
+ * always matches whatever admin created. (Унших/reading has its own screen
+ * because it is passages, not quizzes.)
  */
 const SKILLS: Record<
   string,
@@ -32,18 +31,6 @@ const SKILLS: Record<
   writing: { label: 'Бичих', en: 'Writing', icon: 'create', grad: ['#C9821F', '#5A3410'], percent: 52 },
 };
 
-// Row visuals cycle through a small palette so the DB list still looks lively.
-const ROW_STYLES: { icon: IconName; tint: TintName }[] = [
-  { icon: 'book', tint: 'green' },
-  { icon: 'newspaper', tint: 'amber' },
-  { icon: 'chatbubbles', tint: 'pink' },
-  { icon: 'grid', tint: 'purple' },
-  { icon: 'search', tint: 'blue' },
-  { icon: 'sparkles', tint: 'teal' },
-  { icon: 'flash', tint: 'orange' },
-  { icon: 'trophy', tint: 'amber' },
-];
-
 export default function SkillScreen() {
   const { key } = useLocalSearchParams<{ key: string }>();
   const skillKey = key ?? 'listening';
@@ -54,6 +41,7 @@ export default function SkillScreen() {
   const [items, setItems] = useState<Quiz[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedCat, setSelectedCat] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!token) { setItems([]); return; }
@@ -77,82 +65,70 @@ export default function SkillScreen() {
     setRefreshing(false);
   }, [load]);
 
+  // Map exercises → browser rows, bucketed by сэдэв (topic).
+  const rows: BrowserItem[] = useMemo(
+    () =>
+      items.map((q) => ({
+        id: q.id,
+        title: q.title,
+        subtitle: `${q.questions?.length ?? 0} асуулт · ${q.xpReward} XP · ${q.level.toUpperCase()}`,
+        category: q.topic,
+      })),
+    [items],
+  );
+
+  const hero = (
+    <LinearGradient colors={skill.grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
+      <View style={styles.heroLeft}>
+        <AppText variant="overline" color="rgba(255,255,255,0.85)">
+          ӨНӨӨ ДӨР · {skill.en.toUpperCase()}
+        </AppText>
+        <AppText variant="display" color={colors.white} style={styles.heroPercent}>
+          {skill.percent}%
+        </AppText>
+        <AppText variant="caption" color="rgba(255,255,255,0.9)">Явц</AppText>
+        <ProgressBar
+          value={skill.percent / 100}
+          color={colors.white}
+          track="rgba(255,255,255,0.28)"
+          height={8}
+          style={styles.heroBar}
+        />
+      </View>
+      {/* Illustration placeholder — drop a 3D PNG here for pixel-match. */}
+      <View style={styles.heroArt}>
+        <Ionicons name={skill.icon} size={64} color="rgba(255,255,255,0.95)" />
+      </View>
+    </LinearGradient>
+  );
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <TopBar title={skill.label} back showBadges={false} />
-      <ScrollView
-        contentContainerStyle={styles.container}
-        showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
-      >
-        {/* Today's <skill> — progress hero card */}
-        <LinearGradient colors={skill.grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
-          <View style={styles.heroLeft}>
-            <AppText variant="overline" color="rgba(255,255,255,0.85)">
-              ӨНӨӨ ДӨР · {skill.en.toUpperCase()}
-            </AppText>
-            <AppText variant="display" color={colors.white} style={styles.heroPercent}>
-              {skill.percent}%
-            </AppText>
-            <AppText variant="caption" color="rgba(255,255,255,0.9)">Явц</AppText>
-            <ProgressBar
-              value={skill.percent / 100}
-              color={colors.white}
-              track="rgba(255,255,255,0.28)"
-              height={8}
-              style={styles.heroBar}
-            />
-          </View>
-          {/* Illustration placeholder — drop a 3D PNG here for pixel-match. */}
-          <View style={styles.heroArt}>
-            <Ionicons name={skill.icon} size={64} color="rgba(255,255,255,0.95)" />
-          </View>
-        </LinearGradient>
-
-        <AppText variant="h2" style={styles.sectionTitle}>Дасгалууд</AppText>
-
-        {loading ? (
-          <Loading />
-        ) : items.length === 0 ? (
-          <AppText variant="body" color={colors.textMuted} center style={styles.empty}>
-            Энэ төрлийн дасгал алга 🦊
-          </AppText>
-        ) : (
-          <View style={styles.listCard}>
-            {items.map((q, i) => {
-              const rs = ROW_STYLES[i % ROW_STYLES.length];
-              const t = tints[rs.tint];
-              return (
-                <Pressable
-                  key={q.id}
-                  style={({ pressed }) => [styles.row, i > 0 && styles.rowBorder, pressed && styles.pressed]}
-                  onPress={() => router.push(`/quiz/${q.id}`)}
-                >
-                  <View style={[styles.rowIcon, { backgroundColor: t.bg }]}>
-                    <Ionicons name={rs.icon} size={20} color={t.fg} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <AppText variant="h3" numberOfLines={1}>{q.title}</AppText>
-                    <AppText variant="caption">
-                      {q.questions?.length ?? 0} асуулт · {q.xpReward} XP · {q.level.toUpperCase()}
-                    </AppText>
-                  </View>
-                  <Ionicons name="chevron-forward" size={20} color={colors.borderStrong} />
-                </Pressable>
-              );
-            })}
-          </View>
-        )}
-
-        <View style={{ height: 110 }} />
-      </ScrollView>
+      <TopBar
+        title={selectedCat ?? skill.label}
+        back
+        showBadges={false}
+        // Inside a сэдэв, Back returns to the сэдэв list, not off-screen.
+        onBack={selectedCat ? () => setSelectedCat(null) : undefined}
+      />
+      <CategoryBrowser
+        items={rows}
+        loading={loading}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
+        selectedCat={selectedCat}
+        onSelectCat={setSelectedCat}
+        onOpen={(id) => router.push(`/quiz/${id}`)}
+        // Hero only on the сэдэв list (level 1), so level 2 is a clean list.
+        hero={selectedCat === null ? hero : undefined}
+        emptyText="Энэ төрлийн дасгал алга 🦊"
+      />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
-  container: { paddingHorizontal: spacing.lg, paddingTop: spacing.xs },
 
   // Today's <skill> hero
   hero: {
@@ -175,21 +151,4 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginLeft: spacing.md,
   },
-
-  sectionTitle: { marginBottom: spacing.md },
-
-  // Grouped premium menu
-  listCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    overflow: 'hidden',
-  },
-  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md },
-  rowBorder: { borderTopWidth: 1, borderTopColor: colors.border },
-  rowIcon: { width: 44, height: 44, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
-
-  empty: { marginTop: spacing.xxl },
-  pressed: { opacity: 0.85 },
 });

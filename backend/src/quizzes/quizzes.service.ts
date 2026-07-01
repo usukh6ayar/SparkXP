@@ -148,6 +148,7 @@ export class QuizzesService {
     if (query.isPublished !== undefined) where.isPublished = query.isPublished;
     if (query.lessonId) where.lessonId = query.lessonId;
     if (query.category) where.category = query.category;
+    if (query.topic) where.topic = query.topic;
     // Standalone "Дасгал" = quizzes not attached to any lesson.
     if (query.standalone) where.lessonId = IsNull();
 
