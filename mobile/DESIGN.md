@@ -36,84 +36,137 @@ UI нь:
 
 ---
 
-# Color System
+# Theming — Light / Dark (ЭНЭ ХЭСГИЙГ ЗААВАЛ УНШ)
 
-## Primary
+> **Гол дүрэм:** Settings дэх appearance toggle-ийг (☀️ Light / 🌙 Dark) дарахад
+> **дэлгэц дээрх БҮХ дизайны элемент** (background, card, текст, border, track,
+> divider, icon tint …) дагаад солигдох ёстой. Ганц ч hardcode хийсэн өнгө
+> үлдээж болохгүй — үлдвэл тэр элемент горим солиход "гацна".
 
-Purple Brand
+## Яаж ажилладаг (архитектур)
 
-- Primary 500: #6C3BFF
-- Primary 600: #5A28F0
-- Primary 700: #4B1ED8
+Өнгөний **ганц эх сурвалж (single source of truth)** нь `mobile/src/theme/theme.ts`.
+Тэнд хоёр palette тодорхойлогдсон:
 
-Gradient:
+- **`appThemes`** = `{ dark, light }` — апп даяарх ерөнхий palette (`AppColors`).
+  Ихэнх дэлгэц / компонент үүнийг ашиглана.
+- **`premiumThemes`** = `{ dark, light }` — Profile / Settings маягийн "premium
+  surface" дэлгэцүүдийн palette (`PremiumPalette`).
 
-- #7A4DFF
-- #6C3BFF
-- #5A28F0
+Идэвхтэй горимыг хадгалж, солих логик нь `mobile/src/settings/SettingsContext.tsx`.
+Сонголт **AsyncStorage**-д хадгалагдаж, апп дахин нээхэд сэргэдэг. Default = **dark**.
 
-Used for:
+## Дэлгэц / компонент дотор өнгийг ЯАЖ авах вэ
 
-- CTA buttons
-- Progress
-- XP
-- Active states
+Screen эсвэл component дотор өнгийг **hook-оор** ав — импортоор биш:
+
+```tsx
+import { useColors } from '../src/settings/SettingsContext'; // ерөнхий palette
+// эсвэл
+import { useTheme } from '../src/settings/SettingsContext';  // premium palette
+
+function Screen() {
+  const c = useColors();            // идэвхтэй (light/dark) palette
+  const styles = makeStyles(c);     // style-г palette-аас БҮТЭЭ
+  return <View style={styles.card} />;
+}
+```
+
+- ✅ `const c = useColors()` → `c.background`, `c.text`, `c.surface`, `c.border` …
+  Toggle солиход энэ компонент дахин render хийгдэж, шинэ өнгө автоматаар орно.
+- ✅ StyleSheet-ээ palette-аас бүтээ (`makeStyles(c)`) эсвэл inline `style={{ color: c.text }}`.
+- ❌ `import { colors } from '.../theme'` дараа `colors.background` гэж
+  **шууд ашиглаж болохгүй** — энэ бол dark горимд царцсан статик утга,
+  toggle-ийг дагахгүй.
+- ❌ `'#191040'`, `'#FFFFFF'` гэх мэт hex-ийг дэлгэцэнд шууд бичиж болохгүй.
+
+> **Legacy тэмдэглэл:** `theme.ts` доторх экспортлосон `colors` объект нь
+> `appThemes.dark`-тай тэнцүү бөгөөд зөвхөн **шилжүүлж амжаагүй хуучин дэлгэцүүд**
+> ажилласаар байхын тулд үлдээсэн. Шинэ болон засварласан код **заавал**
+> `useColors()` / `useTheme()` ашиглана. `static colors` импорт = migration өр.
+
+## Одоогийн migration статус (2026-07)
+
+Theme дэд бүтэц бэлэн, гэхдээ дэлгэцүүд бүрэн шилжиж амжаагүй:
+
+- ✅ `useColors()` / `useTheme()` reactive-аар ашигладаг: ~16 файл (солигддог).
+- ⚠️ static `colors`-г шууд импортолсон: ~56 файл (dark-д царцсан, солигдохгүй).
+
+**Definition of done (light/dark бүрэн ажиллаж дуусах):** аппын аль ч дэлгэц дээр
+static `colors` импорт үлдээгүй, бүх screen `useColors()`/`useTheme()`-аар өнгө
+авдаг болсон үед л "элемент бүр дагаж солигдоно" гэсэн шаардлага биелнэ. Энэ
+migration нь `theme.ts` + `src/components/*` (shared файлууд) хамардаг тул
+багтай зохицуулж, жижиг PR-аар хийнэ (`TEAM_WORKFLOW.md`).
+
+## Семантик токен зарчим (өнгийг УТГА-аар нь нэрлэ)
+
+Toggle-г дагаж зөв солигдохын тулд токенийг **утгаар** (intent) нь ашигла,
+шаталсан hex-ээр биш. Ижил токен light/dark хоёулаа "зөв" харагдана:
+
+| Токен (`useColors()`)       | Утга / хаана                                  |
+| --------------------------- | --------------------------------------------- |
+| `background`                | Дэлгэцний суурь дэвсгэр                        |
+| `backgroundGradient`        | Дэвсгэрийн градиент (2 өнгө)                   |
+| `surface`                   | Карт / өргөгдсөн гадаргуу                      |
+| `surfaceAlt`                | Хоёрдогч гадаргуу — input, chip, track        |
+| `text`                      | Үндсэн текст (эрчимтэй)                        |
+| `textSecondary`             | Хоёрдогч текст                                 |
+| `textMuted`                 | Caption / hint / идэвхгүй                      |
+| `border` / `borderStrong`   | Зөөлөн / хүчтэй хүрээ                          |
+| `primary` / `primaryGradient` | Brand үйлдэл, CTA, XP, active state          |
+| `success` `warning` `danger`| Семантик төлөв                                |
+| `xp` `sparks` `streak`      | Gamification accent                            |
+
+**Brand / gamification / semantic өнгө** (`primary`, `success`, `xp`, `streak`,
+`sparks`, `danger`…) light/dark хоёулаа **ижил** байна — зөвхөн гадаргуу, текст,
+хүрээ ялгаатай. Тиймээс горим солиход брэнд царай хадгалагдана.
 
 ---
 
-## Success
+# Color System (Light / Dark palette)
 
-Green
+> Утгууд `theme.ts`-тэй тааруулагдсан. `theme.ts` = эх сурвалж; энэ хүснэгт бол
+> лавлагаа. Зөрвөл `theme.ts` зөв.
 
-- #22C55E
+## Brand — Primary (Purple) — light/dark ижил
 
-Used for:
+- Primary 500: `#6C3BFF`
+- Primary 600 (dark): `#5A28F0`
+- Primary 700 (pressed): `#4B1ED8`
+- Gradient: `#7A4DFF → #6C3BFF → #5A28F0`
+- Glow / halo: `#9D7BFF`
 
-- Completed lessons
-- Reading category
-- Success states
+Хэрэглээ: CTA товч, progress, XP, active state.
 
----
+## Semantic — light/dark ижил
 
-## Warning
+- Success (green): `#34D399` — дууссан хичээл, reading category
+- Warning / Streak (orange): `#FF8A3D` — streak, өдрийн mission
+- Info (blue): `#4FC3F7` — writing category, статистик
+- Danger (red): `#F87171`
 
-Orange
+## Gamification accent — light/dark ижил
 
-- #FF8A00
+- XP (gold): `#FFC93C`
+- Sparks / Очирхон (gem blue): `#4FC3F7`
+- Streak (orange): `#FF8A3D`
 
-Used for:
+## Гадаргуу ба текст (горим бүрд ялгаатай)
 
-- Streak
-- Daily missions
+| Токен              | 🌙 Dark (default) | ☀️ Light   |
+| ------------------ | ----------------- | ---------- |
+| `background`       | `#191040`         | `#F4F2FC`  |
+| `backgroundGradient` | `#1B1147→#2A1A5E` | `#F4F2FC→#FFFFFF` |
+| `surface` (card)   | `#2A1E5C`         | `#FFFFFF`  |
+| `surfaceAlt`       | `#372A7A`         | `#EFEBFA`  |
+| `text`             | `#FFFFFF`         | `#1A1430`  |
+| `textSecondary`    | `#B9A9E6`         | `#5A5470`  |
+| `textMuted`        | `#8E80BC`         | `#8A83A8`  |
+| `border`           | `#3D2F73`         | `#E4DFF4`  |
+| `borderStrong`     | `#4A3A85`         | `#D5CEEC`  |
 
----
-
-## Info
-
-Blue
-
-- #3B82F6
-
-Used for:
-
-- Writing category
-- Statistics
-
----
-
-## Background
-
-Primary Background:
-
-#F8F8FC
-
-Cards:
-
-#FFFFFF
-
-Secondary Surface:
-
-#F2F3FA
+`textOnDark` / `textOnDarkMuted` нь өнгөт гадаргуу (primary товч гэх мэт) дээр
+суудаг тул хоёр горимд **цайвар хэвээр** үлдэнэ.
 
 ---
 
@@ -124,89 +177,54 @@ Font:
 - Inter
 - SF Pro
 
-Headings:
+| Style   | Size | Weight   | Хэрэглээ                 |
+| ------- | ---- | -------- | ------------------------ |
+| display | 30   | 800      | Hero тоо / баяр хүргэлт   |
+| h1      | 24   | 800      | Дэлгэцний гарчиг          |
+| h2      | 19   | 700      | Секцийн гарчиг            |
+| h3      | 16   | 700      | Карт / мөрийн гарчиг      |
+| body    | 15   | 400      | Үндсэн текст              |
+| bodyStrong | 15 | 600     | Товчны шошго, түлхүүр утга |
+| label   | 13   | 600      | Талбарын шошго, chip      |
+| caption | 12   | 500      | Caption, hint             |
+| overline | 11  | 700      | UPPERCASE eyebrow / tag   |
 
-H1
-
-- 36
-- Bold
-
-H2
-
-- 28
-- Bold
-
-H3
-
-- 22
-- SemiBold
-
-Body
-
-- 16
-- Medium
-
-Caption
-
-- 13
-- Medium
+Текстний өнгийг `typography.*` дотор битгий царцаа — screen дотор
+`useColors()`-оос `c.text` / `c.textMuted` өг (light/dark дагахын тулд).
 
 ---
 
 # Border Radius
 
-Small
-
-12
-
-Medium
-
-20
-
-Large
-
-28
-
-Hero Cards
-
-32
-
-Floating Avatar
-
-999
+- Small: 12
+- Medium: 16 / 20
+- Large: 28
+- Hero Cards: 28–32
+- Floating Avatar / full: 999
 
 ---
 
-# Shadows
+# Shadows / Elevation
 
-Cards
+Elevation нь **горимоос хамаарна**:
 
-0 8 24 rgba(0,0,0,0.06)
+- **Light** горимд: сонгодог зөөлөн хар сүүдэр — `0 8 24 rgba(0,0,0,0.06)`.
+- **Dark** горимд: хар сүүдэр харагдахгүй тул картыг **зөөлөн ягаан гэрлээр**
+  (`#9D7BFF` glow) "хөвүүлнэ". Floating элемент (FAB / төв таб) арай хүчтэй
+  primary glow-той.
 
-Floating Elements
-
-0 12 30 rgba(108,59,255,0.20)
+Хатуу хар хүрээ (harsh border) хэзээ ч бүү хэрэглэ.
 
 ---
 
 # Spacing
 
-Base unit
+Base unit: **8px** (4pt scale-тэй нийцүүлсэн).
 
-8px
+Common: 4 · 8 · 12 · 16 · 20 · 24 · 32
 
-Common:
-
-- 8
-- 12
-- 16
-- 20
-- 24
-- 32
-
-Avoid cramped layouts.
-
-Large white space is encouraged.
+- `lg` (16) = дэлгэцний default gutter.
+- Cramped layout-аас зайлсхий. Том цагаан зай (whitespace) урамшуулна.
 
 ---
 
@@ -216,182 +234,90 @@ Large white space is encouraged.
 
 Primary
 
-- Purple gradient
+- Purple gradient (`primaryGradient`)
 - White text
-- Radius 18
+- Radius ~18
 
 Secondary
 
-- White background
-- Purple border
+- Surface background (`surface`)
+- Purple border (`primary`)
 
 Ghost
 
 - Transparent
-- Purple text
-
----
+- Purple text (`primary`)
 
 ## Cards
 
-All cards:
+Бүх карт:
 
-- White background
-- Radius 24
-- Soft shadow
+- `surface` дэвсгэр (light = цагаан, dark = өргөгдсөн ягаан)
+- Radius ~20–24
+- Зөөлөн elevation (горимоор)
 
-Never use harsh borders.
-
----
+Хатуу хүрээ бүү хэрэглэ.
 
 ## Lesson Card
 
-Contains:
+Агуулга: Lesson number · Illustration · Title · Description · Skill tag · Progress state.
 
-- Lesson number
-- Illustration
-- Title
-- Description
-- Skill tag
-- Progress state
-
-States:
-
-- Locked
-- Available
-- In Progress
-- Completed
-
----
+Төлөв: Locked · Available · In Progress · Completed.
 
 ## XP Card
 
-Hero component.
-
-Contains:
-
-- Daily XP Goal
-- Progress Bar
-- Mascot
-
-Gradient background.
-
----
+Hero component. Агуулга: Daily XP Goal · Progress Bar · Mascot. Gradient background.
 
 ## Achievement Card
 
-Visual priority:
-
-1. Badge
-2. Title
-3. Description
-
-Large colorful 3D icon.
-
----
+Visual priority: 1) Badge 2) Title 3) Description. Том өнгөлөг 3D icon.
 
 ## Bottom Navigation
 
-Height:
-
-88-96
-
-Style:
-
-Floating
-
-Background:
-
-White
-
-Shadow:
-
-Soft
-
-Center:
-
-Spark Fox mascot button
-
-Larger than other tabs.
+- Height: 88–96
+- Style: Floating
+- Background: `surface`
+- Shadow: зөөлөн (горимоор)
+- Center: Spark Fox mascot button — бусад таб-аас том.
 
 ---
 
 # Mascot Guidelines
 
-Character:
+Character: **Spark Fox**
 
-Spark Fox
+Rules: Always smiling · Friendly · Confident · Purple hoodie.
 
-Rules:
+Never: Angry · Sad · Aggressive.
 
-- Always smiling
-- Friendly
-- Confident
-- Purple hoodie
-
-Never:
-
-- Angry
-- Sad
-- Aggressive
-
-Use mascot in:
-
-- Home Hero
-- AI Friend
-- Lesson Completion
-- Empty States
+Use mascot in: Home Hero · AI Friend · Lesson Completion · Empty States.
 
 ---
 
 # Gamification
 
-Core Rewards
+Core Rewards: XP · Gems (Sparks) · Streaks · Achievements.
 
-- XP
-- Gems
-- Streaks
-- Achievements
+Reward feedback дор: Animation · Glow · Scale effect.
 
-Reward feedback should include:
-
-- Animation
-- Glow
-- Scale effect
-
-Every success action should feel rewarding.
+Амжилттай үйлдэл бүр урамшуулсан мэдрэмж төрүүлэх ёстой.
 
 ---
 
 # Accessibility
 
-Minimum touch area:
-
-44x44
-
-Text contrast:
-
-WCAG AA
-
-Never use light gray text on white backgrounds.
+- Minimum touch area: 44×44
+- Text contrast: WCAG AA
+- Цагаан дэвсгэр дээр цайвар саарал текст (light горим) бүү хэрэглэ; харанхуй
+  дэвсгэр дээр бүдэг лаванда текстийг хэт бага контрасттай бүү болго.
+- Light/dark аль алинд контраст шалга — токен солиход контраст алдагдаж
+  болзошгүй.
 
 ---
 
 # Motion Design
 
-Duration
-
-200-300ms
-
-Use:
-
-- Scale
-- Fade
-- Slide
-
-Avoid:
-
-- Bounce overload
-- Excessive rotation
-
-Motion should feel premium.
+- Duration: 200–300ms
+- Use: Scale · Fade · Slide
+- Avoid: Bounce overload · Excessive rotation
+- Motion premium мэдрэмжтэй байх ёстой.
