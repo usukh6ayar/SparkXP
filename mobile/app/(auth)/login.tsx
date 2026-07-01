@@ -147,12 +147,12 @@ const styles = StyleSheet.create({
   glowWrap: { position: 'absolute', top: 10, left: 0, right: 0, alignItems: 'center' },
   glow3: {
     width: 320, height: 320, borderRadius: 160,
-    backgroundColor: 'rgba(157,123,255,0.06)',
+    backgroundColor: `${colors.glow}0F`, // ~6% alpha
     alignItems: 'center', justifyContent: 'center',
   },
   glow2: {
     width: 210, height: 210, borderRadius: 105,
-    backgroundColor: 'rgba(157,123,255,0.09)',
+    backgroundColor: `${colors.glow}17`, // ~9% alpha
     alignItems: 'center', justifyContent: 'center',
   },
   glow1: {
