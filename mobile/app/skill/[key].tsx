@@ -12,7 +12,7 @@ import { ProgressBar } from '../../src/components/ProgressBar';
 import { CategoryBrowser, type BrowserItem } from '../../src/components/CategoryBrowser';
 import { t } from '../../src/i18n';
 import { useColors } from '../../src/settings/SettingsContext';
-import { spacing, radius, type AppColors } from '../../src/theme/theme';
+import { spacing, radius, skillGradients, type AppColors } from '../../src/theme/theme';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -27,10 +27,10 @@ const SKILLS: Record<
   string,
   { label: string; en: string; icon: IconName; grad: readonly [string, string]; percent: number }
 > = {
-  listening: { label: 'Сонсох', en: 'Listening', icon: 'headset', grad: ['#1E5AE0', '#142A6B'], percent: 60 },
-  reading: { label: 'Унших', en: 'Reading', icon: 'book', grad: ['#2BA86A', '#14532D'], percent: 75 },
-  speaking: { label: 'Ярих', en: 'Speaking', icon: 'mic', grad: ['#D6418F', '#6B1648'], percent: 68 },
-  writing: { label: 'Бичих', en: 'Writing', icon: 'create', grad: ['#C9821F', '#5A3410'], percent: 52 },
+  listening: { label: 'Сонсох', en: 'Listening', icon: 'headset', grad: skillGradients.listening, percent: 60 },
+  reading: { label: 'Унших', en: 'Reading', icon: 'book', grad: skillGradients.reading, percent: 75 },
+  speaking: { label: 'Ярих', en: 'Speaking', icon: 'mic', grad: skillGradients.speaking, percent: 68 },
+  writing: { label: 'Бичих', en: 'Writing', icon: 'create', grad: skillGradients.writing, percent: 52 },
 };
 
 export default function SkillScreen() {

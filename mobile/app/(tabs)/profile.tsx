@@ -310,7 +310,7 @@ export default function ProfileScreen() {
 
           {/* Premium banner — gradient feature card */}
           <Pressable onPress={soon} style={({ pressed }) => pressed && styles.pressed}>
-            <LinearGradient colors={['#7A4DFF', '#5A28F0']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.premium}>
+            <LinearGradient colors={[colors.primaryGradient[0], colors.primaryGradient[2]]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.premium}>
               <View style={styles.premGlow} pointerEvents="none" />
               <View style={{ flex: 1 }}>
                 <View style={styles.premiumTitleRow}>
@@ -475,7 +475,7 @@ const makeStyles = (p: PremiumPalette, isDark: boolean) => {
   // Classes
   joinEmpty: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    backgroundColor: alpha('#6C3BFF', 0.14), borderRadius: radius.lg, padding: spacing.md,
+    backgroundColor: alpha(colors.primary, 0.14), borderRadius: radius.lg, padding: spacing.md,
     ...cardEdge,
   },
   classRow: {
@@ -484,7 +484,7 @@ const makeStyles = (p: PremiumPalette, isDark: boolean) => {
     ...cardEdge,
   },
   classIcon: {
-    width: 40, height: 40, borderRadius: radius.full, backgroundColor: alpha('#6C3BFF', 0.18),
+    width: 40, height: 40, borderRadius: radius.full, backgroundColor: alpha(colors.primary, 0.18),
     alignItems: 'center', justifyContent: 'center',
   },
 
@@ -519,7 +519,7 @@ const makeStyles = (p: PremiumPalette, isDark: boolean) => {
   premium: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
     borderRadius: radius.xl, padding: spacing.lg, marginTop: spacing.xxl, overflow: 'hidden',
-    shadowColor: '#6C3BFF', shadowOpacity: 0.4, shadowRadius: 20, shadowOffset: { width: 0, height: 10 }, elevation: 8,
+    shadowColor: colors.primary, shadowOpacity: 0.4, shadowRadius: 20, shadowOffset: { width: 0, height: 10 }, elevation: 8,
   },
   premGlow: { position: 'absolute', top: -40, right: -20, width: 160, height: 160, borderRadius: 80, backgroundColor: 'rgba(255,255,255,0.12)' },
   premiumTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },

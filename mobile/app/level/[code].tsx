@@ -15,7 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/auth/AuthContext';
 import { getLessons, type Lesson } from '../../src/api/lessons';
 import { AppText } from '../../src/components/Text';
-import { islandMap } from '../../src/theme/theme';
+import { colors, islandMap } from '../../src/theme/theme';
 
 /**
  * Level journey — the lessons of one CEFR level laid out as numbered nodes
@@ -74,7 +74,7 @@ const NODE = 60;
 export default function LevelScreen() {
   const { code } = useLocalSearchParams<{ code: string }>();
   const levelCode = (code ?? 'a1').toLowerCase();
-  const meta = LEVEL[levelCode] ?? { name: 'Level', color: '#8B5CF6', emoji: '✨', tier: '', desc: '' };
+  const meta = LEVEL[levelCode] ?? { name: 'Level', color: islandMap.purple, emoji: '✨', tier: '', desc: '' };
   const { token, user } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -121,30 +121,30 @@ export default function LevelScreen() {
         {/* Top row: back + streak + gems */}
         <View style={styles.topRow}>
           <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
-            <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
+            <Ionicons name="chevron-back" size={24} color={colors.white} />
           </Pressable>
           <View style={{ flex: 1 }} />
           <View style={styles.statPill}>
             <Ionicons name="flame" size={16} color={islandMap.streak} />
-            <AppText variant="bodyStrong" color="#FFFFFF">{streak}</AppText>
+            <AppText variant="bodyStrong" color={colors.white}>{streak}</AppText>
           </View>
           <View style={styles.statPill}>
-            <Ionicons name="diamond" size={16} color="#38BDF8" />
-            <AppText variant="bodyStrong" color="#FFFFFF">{gems}</AppText>
+            <Ionicons name="diamond" size={16} color={islandMap.blue} />
+            <AppText variant="bodyStrong" color={colors.white}>{gems}</AppText>
             <View style={styles.plusBtn}>
-              <Ionicons name="add" size={14} color="#FFFFFF" />
+              <Ionicons name="add" size={14} color={colors.white} />
             </View>
           </View>
         </View>
 
         {/* Title + tier + description */}
         <View style={styles.titleBlock}>
-          <AppText variant="h1" color="#FFFFFF" style={styles.bigTitle}>
+          <AppText variant="h1" color={colors.white} style={styles.bigTitle}>
             {meta.name} {meta.emoji}
           </AppText>
           <View style={styles.tierRow}>
             <View style={[styles.levelChip, { backgroundColor: meta.color }]}>
-              <AppText variant="overline" color="#FFFFFF">{levelCode.toUpperCase()}</AppText>
+              <AppText variant="overline" color={colors.white}>{levelCode.toUpperCase()}</AppText>
             </View>
             {!!meta.tier && <AppText variant="bodyStrong" color={meta.color}>{meta.tier}</AppText>}
           </View>
@@ -159,14 +159,14 @@ export default function LevelScreen() {
         <View style={styles.progressCard}>
           <View style={styles.progressTop}>
             <AppText variant="label" color="rgba(255,255,255,0.85)">Progress</AppText>
-            <AppText variant="bodyStrong" color="#FFFFFF">{pct}%</AppText>
+            <AppText variant="bodyStrong" color={colors.white}>{pct}%</AppText>
           </View>
           <View style={styles.track}>
             <View style={[styles.fill, { width: `${pct}%` }]} />
           </View>
           <View style={styles.starsRow}>
             <Ionicons name="star" size={16} color={islandMap.gold} />
-            <AppText variant="bodyStrong" color="#FFFFFF">{done}/{total}</AppText>
+            <AppText variant="bodyStrong" color={colors.white}>{done}/{total}</AppText>
           </View>
         </View>
       </View>
@@ -188,7 +188,7 @@ export default function LevelScreen() {
 
       {/* Lesson nodes along the path */}
       {loading ? (
-        <ActivityIndicator size="large" color="#FFFFFF" style={StyleSheet.absoluteFill} />
+        <ActivityIndicator size="large" color={colors.white} style={StyleSheet.absoluteFill} />
       ) : (
         ANCHORS.map((a, i) => {
           const lesson = lessons[i];
@@ -208,7 +208,7 @@ export default function LevelScreen() {
               {locked ? (
                 <Ionicons name="lock-closed" size={22} color="rgba(255,255,255,0.7)" />
               ) : (
-                <AppText variant="h3" color="#FFFFFF">{i + 1}</AppText>
+                <AppText variant="h3" color={colors.white}>{i + 1}</AppText>
               )}
             </Pressable>
           );

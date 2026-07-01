@@ -290,3 +290,16 @@ export const islandMap = {
   gold: '#F5C518',
   streak: '#FF7A1A',
 };
+
+/**
+ * Per-skill hero gradients for skill/[key].tsx (listening/reading/speaking/
+ * writing). Deliberately deeper/darker than tints.* — those are for small
+ * icon chips, these need to stay readable behind white hero text — so this
+ * is a genuinely new set of tokens, not a rename of an existing one.
+ */
+export const skillGradients: Record<string, readonly [string, string]> = {
+  listening: ['#1E5AE0', '#142A6B'],
+  reading: ['#2BA86A', '#14532D'],
+  speaking: ['#D6418F', '#6B1648'],
+  writing: ['#C9821F', '#5A3410'],
+};
