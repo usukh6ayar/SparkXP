@@ -1,12 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { View, Image, Pressable, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { t } from '../../src/i18n';
-import { colors, spacing, radius } from '../../src/theme/theme';
+import { spacing, radius, type AppColors } from '../../src/theme/theme';
+import { useColors, useSettings } from '../../src/settings/SettingsContext';
 import { AppText } from '../../src/components/Text';
 import { SignInSheet } from '../../src/components/SignInSheet';
 
@@ -21,6 +22,11 @@ type IconName = keyof typeof Ionicons.glyphMap;
  * form as an in-place frosted-glass bottom sheet (no jump to a separate screen).
  */
 export default function WelcomeScreen() {
+  const colors = useColors();
+  const { theme, setTheme } = useSettings();
+  const isLight = theme === 'light';
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const { signin } = useLocalSearchParams<{ signin?: string }>();
   const [notice, setNotice] = useState<string | null>(null);
@@ -81,6 +87,16 @@ export default function WelcomeScreen() {
         </View>
       </View>
 
+      {/* Theme toggle — sits beside the SparkXP wordmark, top-right. Rendered
+          LAST so it stays above the brand/actions for reliable single taps. */}
+      <Pressable
+        onPress={() => setTheme(isLight ? 'dark' : 'light')}
+        hitSlop={12}
+        style={[styles.themeToggle, { top: insets.top + 52 }]}
+      >
+        <Ionicons name={isLight ? 'moon' : 'sunny'} size={20} color={colors.text} />
+      </Pressable>
+
       {sheetOpen ? <SignInSheet onClose={() => setSheetOpen(false)} /> : null}
     </SafeAreaView>
   );
@@ -98,10 +114,17 @@ function AuthButton({
   filled?: boolean;
   onPress: () => void;
 }) {
+  const colors = useColors();
+  const { theme } = useSettings();
+  const isLight = theme === 'light';
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+  // Filled CTA is always white text on the purple gradient. The social buttons
+  // are dark-ink on a light surface in light mode, white on glass in dark mode.
+  const fg = filled || !isLight ? colors.white : colors.text;
   const content = (
     <View style={styles.btnContent}>
-      <Ionicons name={icon} size={22} color={colors.white} />
-      <AppText variant="bodyStrong" color={colors.white} style={styles.btnLabel}>
+      <Ionicons name={icon} size={22} color={fg} />
+      <AppText variant="bodyStrong" color={fg} style={styles.btnLabel}>
         {label}
       </AppText>
     </View>
@@ -118,6 +141,17 @@ function AuthButton({
         >
           {content}
         </LinearGradient>
+      </Pressable>
+    );
+  }
+  // Light mode: a clean bordered surface button (glass is invisible on white).
+  if (isLight) {
+    return (
+      <Pressable
+        onPress={onPress}
+        style={({ pressed }) => [styles.btn, styles.btnLight, pressed && styles.pressed]}
+      >
+        {content}
       </Pressable>
     );
   }
@@ -140,8 +174,22 @@ function AuthButton({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: AppColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
+  themeToggle: {
+    position: 'absolute',
+    right: spacing.lg,
+    zIndex: 20,
+    elevation: 20,
+    width: 42,
+    height: 42,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
   container: { flex: 1, paddingBottom: spacing.lg },
   brand: { flex: 1, alignItems: 'center', paddingTop: spacing.sm },
   glowWrap: { position: 'absolute', top: 10, left: 0, right: 0, alignItems: 'center' },
@@ -180,6 +228,7 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   btnGlass: { borderWidth: 1, borderColor: colors.glassBorder },
+  btnLight: { backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.border },
   glassTint: { backgroundColor: colors.glassBg },
   glassHighlight: {
     position: 'absolute',

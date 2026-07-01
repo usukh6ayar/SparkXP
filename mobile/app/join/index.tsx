@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { View, Pressable, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -5,11 +6,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { JoinClass } from '../../src/components/JoinClass';
 import { AppText } from '../../src/components/Text';
 import { t } from '../../src/i18n';
-import { colors, spacing } from '../../src/theme/theme';
+import { spacing, type AppColors } from '../../src/theme/theme';
+import { useColors } from '../../src/settings/SettingsContext';
 
 /** Student opens this from Home to join a class by code or QR. */
 export default function JoinScreen() {
   const router = useRouter();
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.topbar}>
@@ -24,7 +28,7 @@ export default function JoinScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: AppColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   topbar: {
     flexDirection: 'row',

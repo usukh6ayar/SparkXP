@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,8 @@ import {
   FlatList,
   StyleSheet,
 } from 'react-native';
-import { colors, radius, spacing, fontSize } from '../theme/theme';
+import { radius, spacing, fontSize, type AppColors } from '../theme/theme';
+import { useColors } from '../settings/SettingsContext';
 
 interface Props {
   label: string;
@@ -25,6 +26,8 @@ export function SelectField({
   options,
   onSelect,
 }: Props) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [open, setOpen] = useState(false);
 
   return (
@@ -75,7 +78,7 @@ export function SelectField({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: AppColors) => StyleSheet.create({
   wrap: { marginBottom: spacing.md },
   label: {
     fontSize: fontSize.sm,

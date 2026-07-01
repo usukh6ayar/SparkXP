@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useMemo } from 'react';
 import { View, ScrollView, Pressable, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
@@ -8,17 +8,20 @@ import { getLeaderboard, type Period, type LeaderboardResult } from '../../src/a
 import { AppText } from '../../src/components/Text';
 import { Avatar } from '../../src/components/Avatar';
 import { t } from '../../src/i18n';
-import { colors, spacing, radius } from '../../src/theme/theme';
+import { spacing, radius, type AppColors } from '../../src/theme/theme';
+import { useColors } from '../../src/settings/SettingsContext';
 
 const PERIODS: { key: Period; label: string }[] = [
   { key: 'weekly', label: 'Долоо хоног' },
   { key: 'monthly', label: 'Сар' },
   { key: 'all_time', label: 'Бүх цаг' },
 ];
-const MEDAL = [colors.sparks, '#A9B4C7', '#CD7F4D'];
+const MEDAL = ['#4FC3F7', '#A9B4C7', '#CD7F4D']; // gold(sparks), silver, bronze — theme-invariant
 
 export default function TeacherLeaderboardScreen() {
   const { token } = useAuth();
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [period, setPeriod] = useState<Period>('weekly');
   const [data, setData] = useState<LeaderboardResult | null>(null);
   const [loading, setLoading] = useState(true);
@@ -115,7 +118,7 @@ export default function TeacherLeaderboardScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: AppColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   header: { paddingHorizontal: spacing.lg, paddingTop: spacing.xs, paddingBottom: spacing.sm, gap: 2 },
   tabs: {

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { View, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,7 +14,8 @@ import { TopBar } from '../src/components/TopBar';
 import { AppText } from '../src/components/Text';
 import { Avatar } from '../src/components/Avatar';
 import { Loading } from '../src/components/Loading';
-import { colors, spacing, radius } from '../src/theme/theme';
+import { spacing, radius, type AppColors } from '../src/theme/theme';
+import { useColors } from '../src/settings/SettingsContext';
 
 const PERIODS: { key: Period; label: string }[] = [
   { key: 'weekly', label: 'Долоо хоног' },
@@ -27,10 +28,12 @@ const SCOPES: { key: Scope; label: string }[] = [
   { key: 'province', label: 'Аймаг' },
   { key: 'district', label: 'Дүүрэг' },
 ];
-const MEDAL = [colors.sparks, '#A9B4C7', '#CD7F4D']; // gold, silver, bronze
+const MEDAL = ['#4FC3F7', '#A9B4C7', '#CD7F4D']; // gold(sparks), silver, bronze — theme-invariant
 
 export default function LeaderboardScreen() {
   const { token, user } = useAuth();
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [period, setPeriod] = useState<Period>('weekly');
   const [scope, setScope] = useState<Scope>('global');
   const [data, setData] = useState<LeaderboardResult | null>(null);
@@ -122,6 +125,8 @@ export default function LeaderboardScreen() {
 }
 
 function Row({ entry, isMe }: { entry: LeaderboardEntry; isMe: boolean }) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const medalColor = entry.rank <= 3 ? MEDAL[entry.rank - 1] : null;
   return (
     <View style={[styles.row, isMe && styles.rowMe]}>
@@ -145,7 +150,7 @@ function Row({ entry, isMe }: { entry: LeaderboardEntry; isMe: boolean }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: AppColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   tabs: {
     flexDirection: 'row',
@@ -159,11 +164,11 @@ const styles = StyleSheet.create({
   tabActive: { backgroundColor: colors.primary },
   chips: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg, marginVertical: spacing.md },
   chip: { paddingHorizontal: spacing.md, paddingVertical: 7, borderRadius: radius.full, backgroundColor: colors.surfaceAlt },
-  chipActive: { backgroundColor: colors.navy },
+  chipActive: { backgroundColor: colors.primary },
   list: { paddingHorizontal: spacing.lg },
   meCard: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    backgroundColor: colors.navy, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.md,
+    backgroundColor: colors.primary, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.md,
   },
   meRankWrap: {
     width: 48, height: 48, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,0.1)',

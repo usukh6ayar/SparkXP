@@ -1,9 +1,11 @@
+import { useMemo } from 'react';
 import { View, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AppText } from './Text';
 import { IconTile } from './IconTile';
 import { t } from '../i18n';
-import { colors, spacing, tints } from '../theme/theme';
+import { spacing, tints, type AppColors } from '../theme/theme';
+import { useColors } from '../settings/SettingsContext';
 import type { AssignmentType } from '../api/assignments';
 
 /** A class assignment row: lesson/quiz icon, resolved title, due date, delete. */
@@ -18,6 +20,8 @@ export function AssignmentRow({
   dueAt: string | null;
   onDelete: () => void;
 }) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const isLesson = type === 'lesson';
   const due = dueAt
     ? new Date(dueAt).toLocaleDateString('mn-MN', { month: 'short', day: 'numeric' })
@@ -47,7 +51,7 @@ export function AssignmentRow({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: AppColors) => StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.sm },
   body: { flex: 1, gap: 4 },
   meta: { flexDirection: 'row', alignItems: 'center', gap: 4 },

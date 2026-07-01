@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useMemo } from 'react';
 import {
   View,
   ScrollView,
@@ -16,7 +16,8 @@ import { t } from '../../src/i18n';
 import { AppText } from '../../src/components/Text';
 import { Button } from '../../src/components/Button';
 import { MascotCircle } from '../../src/components/MascotCircle';
-import { colors, spacing, radius, elevation } from '../../src/theme/theme';
+import { spacing, radius, elevation, type AppColors } from '../../src/theme/theme';
+import { useColors } from '../../src/settings/SettingsContext';
 
 const fox = require('../../assets/logo.png');
 
@@ -24,27 +25,29 @@ interface Slide {
   title: string;
   body: string;
   gradient?: boolean;
-  decor: () => React.ReactNode;
+  decor: (colors: AppColors) => React.ReactNode;
 }
 
 // A small floating chip/badge used to decorate the mascot circle.
 function Badge({
   style,
-  bg = colors.surface,
+  bg,
   children,
 }: {
   style: object;
   bg?: string;
   children: React.ReactNode;
 }) {
-  return <View style={[styles.badge, { backgroundColor: bg }, style]}>{children}</View>;
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+  return <View style={[styles.badge, { backgroundColor: bg ?? colors.surface }, style]}>{children}</View>;
 }
 
 const SLIDES: Slide[] = [
   {
     title: t('onb1Title'),
     body: t('onb1Body'),
-    decor: () => (
+    decor: (colors: AppColors) => (
       <>
         <Badge style={{ top: 36, right: 12 }} bg={colors.primary}>
           <AppText variant="label" color={colors.white}>
@@ -70,7 +73,7 @@ const SLIDES: Slide[] = [
     title: t('onb2Title'),
     body: t('onb2Body'),
     gradient: true,
-    decor: () => (
+    decor: (colors: AppColors) => (
       <>
         <Badge style={{ top: 24, right: 18 }} bg={colors.primaryDark}>
           <AppText variant="label" color={colors.white}>
@@ -89,7 +92,7 @@ const SLIDES: Slide[] = [
   {
     title: t('onb3Title'),
     body: t('onb3Body'),
-    decor: () => (
+    decor: (colors: AppColors) => (
       <>
         <Badge style={{ top: 28, left: 10 }} bg={colors.primary}>
           <Ionicons name="ellipsis-horizontal" size={18} color={colors.white} />
@@ -108,6 +111,8 @@ const SLIDES: Slide[] = [
 ];
 
 export default function OnboardingScreen() {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { width } = useWindowDimensions();
   const { completeOnboarding } = useAuth();
   const router = useRouter();
@@ -148,7 +153,7 @@ export default function OnboardingScreen() {
         {SLIDES.map((s) => (
           <View key={s.title} style={[styles.slide, { width }]}>
             <MascotCircle image={fox} gradient={s.gradient}>
-              {s.decor()}
+              {s.decor(colors)}
             </MascotCircle>
             <AppText variant="h1" center style={styles.title}>
               {s.title}
@@ -172,7 +177,7 @@ export default function OnboardingScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: AppColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   flex: { flex: 1 },
   skip: { alignSelf: 'flex-end', paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },

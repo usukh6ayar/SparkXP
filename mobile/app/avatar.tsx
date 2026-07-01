@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { View, Pressable, Image, StyleSheet, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -12,10 +12,13 @@ import { t } from '../src/i18n';
 import { AppText } from '../src/components/Text';
 import { Avatar } from '../src/components/Avatar';
 import { Button } from '../src/components/Button';
-import { colors, spacing, radius } from '../src/theme/theme';
+import { spacing, radius, type AppColors } from '../src/theme/theme';
+import { useColors } from '../src/settings/SettingsContext';
 
 export default function AvatarScreen() {
   const { user, token, updateUser } = useAuth();
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -110,7 +113,7 @@ export default function AvatarScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: AppColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   topbar: {
     flexDirection: 'row',

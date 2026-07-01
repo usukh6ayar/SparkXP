@@ -13,6 +13,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/auth/AuthContext';
+import { useSettings } from '../../src/settings/SettingsContext';
 import { getLessons, type Lesson } from '../../src/api/lessons';
 import { AppText } from '../../src/components/Text';
 
@@ -26,8 +27,36 @@ import { AppText } from '../../src/components/Text';
  * Scope: FRONTEND-only. Tapping a real node opens its lesson detail.
  */
 
-const bg = require('../../assets/avatars/islands/lessonBackground.png');
+const bgDark = require('../../assets/avatars/islands/lessonBackground.png'); // dark forest — dark theme
+const bgLight = require('../../assets/avatars/islands/lessonLightBackground.png'); // bright forest — light theme
 const line = require('../../assets/avatars/islands/line.png'); // golden beaded trail
+
+/** Theme-aware palette for the header UI over the (dark/light) forest backdrop. */
+function palette(isLight: boolean) {
+  return isLight
+    ? {
+        text: '#1F2937',
+        textDim: 'rgba(31,41,55,0.72)',
+        card: 'rgba(255,255,255,0.9)',
+        cardBorder: 'rgba(0,0,0,0.06)',
+        back: 'rgba(255,255,255,0.9)',
+        backIcon: '#1F2937',
+        scrim: ['rgba(255,255,255,0.8)', 'rgba(255,255,255,0.3)', 'transparent'] as const,
+        track: 'rgba(0,0,0,0.1)',
+        plus: 'rgba(0,0,0,0.08)',
+      }
+    : {
+        text: '#FFFFFF',
+        textDim: 'rgba(255,255,255,0.85)',
+        card: 'rgba(10,14,30,0.72)',
+        cardBorder: 'rgba(150,130,255,0.28)',
+        back: 'rgba(0,0,0,0.35)',
+        backIcon: '#FFFFFF',
+        scrim: ['rgba(6,10,24,0.9)', 'rgba(6,10,24,0.45)', 'transparent'] as const,
+        track: 'rgba(255,255,255,0.15)',
+        plus: 'rgba(255,255,255,0.18)',
+      };
+}
 
 // Vertical band (fractions of screen height) the trail image is stretched over.
 // The ANCHORS below were sampled from line.png's curve across this same band,
@@ -71,9 +100,14 @@ export default function LevelScreen() {
   const levelCode = (code ?? 'a1').toLowerCase();
   const meta = LEVEL[levelCode] ?? { name: 'Level', color: '#8B5CF6', emoji: '✨', tier: '', desc: '' };
   const { token, user } = useAuth();
+  const { theme } = useSettings();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
+
+  const isLight = theme === 'light';
+  const bg = isLight ? bgLight : bgDark;
+  const C = palette(isLight);
 
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [loading, setLoading] = useState(true);
@@ -102,11 +136,11 @@ export default function LevelScreen() {
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
 
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { backgroundColor: isLight ? '#DCEAF5' : '#06101C' }]}>
       <ImageBackground source={bg} style={StyleSheet.absoluteFill} resizeMode="cover" />
-      {/* Top scrim so the header reads over the bright forest top. */}
+      {/* Top scrim so the header reads over the forest top (light=white, dark=navy). */}
       <LinearGradient
-        colors={['rgba(6,10,24,0.9)', 'rgba(6,10,24,0.45)', 'transparent']}
+        colors={C.scrim}
         style={[styles.topScrim, { height: insets.top + 250 }]}
         pointerEvents="none"
       />
@@ -115,26 +149,26 @@ export default function LevelScreen() {
       <View style={[styles.header, { paddingTop: insets.top + 6 }]}>
         {/* Top row: back + streak + gems */}
         <View style={styles.topRow}>
-          <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
-            <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
+          <Pressable onPress={() => router.back()} hitSlop={12} style={[styles.backBtn, { backgroundColor: C.back }]}>
+            <Ionicons name="chevron-back" size={24} color={C.backIcon} />
           </Pressable>
           <View style={{ flex: 1 }} />
-          <View style={styles.statPill}>
+          <View style={[styles.statPill, { backgroundColor: C.card, borderColor: C.cardBorder }]}>
             <Ionicons name="flame" size={16} color="#FF7A1A" />
-            <AppText variant="bodyStrong" color="#FFFFFF">{streak}</AppText>
+            <AppText variant="bodyStrong" color={C.text}>{streak}</AppText>
           </View>
-          <View style={styles.statPill}>
+          <View style={[styles.statPill, { backgroundColor: C.card, borderColor: C.cardBorder }]}>
             <Ionicons name="diamond" size={16} color="#38BDF8" />
-            <AppText variant="bodyStrong" color="#FFFFFF">{gems}</AppText>
-            <View style={styles.plusBtn}>
-              <Ionicons name="add" size={14} color="#FFFFFF" />
+            <AppText variant="bodyStrong" color={C.text}>{gems}</AppText>
+            <View style={[styles.plusBtn, { backgroundColor: C.plus }]}>
+              <Ionicons name="add" size={14} color={C.backIcon} />
             </View>
           </View>
         </View>
 
         {/* Title + tier + description */}
         <View style={styles.titleBlock}>
-          <AppText variant="h1" color="#FFFFFF" style={styles.bigTitle}>
+          <AppText variant="h1" color={C.text} style={styles.bigTitle}>
             {meta.name} {meta.emoji}
           </AppText>
           <View style={styles.tierRow}>
@@ -144,24 +178,24 @@ export default function LevelScreen() {
             {!!meta.tier && <AppText variant="bodyStrong" color={meta.color}>{meta.tier}</AppText>}
           </View>
           {!!meta.desc && (
-            <AppText variant="caption" color="rgba(255,255,255,0.85)" style={{ marginTop: 4 }}>
+            <AppText variant="caption" color={C.textDim} style={{ marginTop: 4 }}>
               {meta.desc}
             </AppText>
           )}
         </View>
 
         {/* Progress card */}
-        <View style={styles.progressCard}>
+        <View style={[styles.progressCard, { backgroundColor: C.card, borderColor: C.cardBorder }]}>
           <View style={styles.progressTop}>
-            <AppText variant="label" color="rgba(255,255,255,0.85)">Progress</AppText>
-            <AppText variant="bodyStrong" color="#FFFFFF">{pct}%</AppText>
+            <AppText variant="label" color={C.textDim}>Progress</AppText>
+            <AppText variant="bodyStrong" color={C.text}>{pct}%</AppText>
           </View>
-          <View style={styles.track}>
+          <View style={[styles.track, { backgroundColor: C.track }]}>
             <View style={[styles.fill, { width: `${pct}%` }]} />
           </View>
           <View style={styles.starsRow}>
             <Ionicons name="star" size={16} color="#F5C518" />
-            <AppText variant="bodyStrong" color="#FFFFFF">{done}/{total}</AppText>
+            <AppText variant="bodyStrong" color={C.text}>{done}/{total}</AppText>
           </View>
         </View>
       </View>
@@ -183,7 +217,7 @@ export default function LevelScreen() {
 
       {/* Lesson nodes along the path */}
       {loading ? (
-        <ActivityIndicator size="large" color="#FFFFFF" style={StyleSheet.absoluteFill} />
+        <ActivityIndicator size="large" color={C.text} style={StyleSheet.absoluteFill} />
       ) : (
         ANCHORS.map((a, i) => {
           const lesson = lessons[i];

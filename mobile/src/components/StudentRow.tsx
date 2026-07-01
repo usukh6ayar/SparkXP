@@ -1,8 +1,10 @@
+import { useMemo } from 'react';
 import { View, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AppText } from './Text';
 import { Avatar } from './Avatar';
-import { colors, spacing, radius } from '../theme/theme';
+import { spacing, radius, type AppColors } from '../theme/theme';
+import { useColors } from '../settings/SettingsContext';
 
 /** A roster row: rank, avatar, name (+ @username), lifetime XP. Tappable when `onPress` is given. */
 export function StudentRow({
@@ -20,6 +22,8 @@ export function StudentRow({
   rank?: number;
   onPress?: () => void;
 }) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const Row = onPress ? Pressable : View;
   return (
     <Row style={styles.row} onPress={onPress}>
@@ -43,7 +47,7 @@ export function StudentRow({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: AppColors) => StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.sm },
   rank: { width: 18, textAlign: 'center' },
   body: { flex: 1, gap: 1 },

@@ -359,6 +359,7 @@ function EditProfileModal({
 }: {
   visible: boolean; onClose: () => void; initialName: string; token: string | null;
 }) {
+  const { colors: c } = useSettings();
   const [fullName, setFullName] = useState(initialName);
   const [province, setProvince] = useState('');
   const [district, setDistrict] = useState('');
@@ -384,7 +385,7 @@ function EditProfileModal({
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView style={modalStyles.safe} edges={['top', 'bottom']}>
+      <SafeAreaView style={[modalStyles.safe, { backgroundColor: c.background }]} edges={['top', 'bottom']}>
         <TopBar title="Профайл засах" showBadges={false} />
         <ScrollView contentContainerStyle={{ padding: spacing.lg }}>
           <TextField label="Бүтэн нэр" value={fullName} onChangeText={setFullName} placeholder="Нэрээ оруулна уу" />
@@ -405,7 +406,7 @@ function EditProfileModal({
 }
 
 const modalStyles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
+  safe: { flex: 1 }, // backgroundColor applied inline (reactive to theme)
 });
 
 const makeStyles = (p: PremiumPalette, isDark: boolean) => {

@@ -31,7 +31,7 @@ interface SettingsState {
 const SettingsContext = createContext<SettingsState | undefined>(undefined);
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<ThemeMode>('dark');
+  const [theme, setThemeState] = useState<ThemeMode>('light');
   const [lang, setLangState] = useState<Lang>('mn');
 
   // Restore persisted prefs on mount.
