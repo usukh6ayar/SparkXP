@@ -3,7 +3,8 @@ import { View, StyleSheet, ScrollView, Pressable, RefreshControl } from 'react-n
 import { Ionicons } from '@expo/vector-icons';
 import { AppText } from './Text';
 import { Loading } from './Loading';
-import { colors, spacing, radius, tints } from '../theme/theme';
+import { useColors } from '../settings/SettingsContext';
+import { spacing, radius, tints, type AppColors } from '../theme/theme';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 type TintName = keyof typeof tints;
@@ -55,6 +56,9 @@ export function CategoryBrowser({
   selectTitle?: string;
   emptyText?: string;
 }) {
+  const c = useColors();
+  const styles = useMemo(() => makeStyles(c), [c]);
+
   // Group items by сэдэв, preserving first-seen order.
   const categories = useMemo(() => {
     const map = new Map<string, BrowserItem[]>();
@@ -75,14 +79,14 @@ export function CategoryBrowser({
     <ScrollView
       contentContainerStyle={styles.container}
       showsVerticalScrollIndicator={false}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.primary} />}
     >
       {hero}
 
       {loading ? (
         <Loading />
       ) : items.length === 0 ? (
-        <AppText variant="body" color={colors.textMuted} center style={styles.empty}>
+        <AppText variant="body" color={c.textMuted} center style={styles.empty}>
           {emptyText}
         </AppText>
       ) : selectedCat === null ? (
@@ -102,8 +106,8 @@ export function CategoryBrowser({
                     <Ionicons name="folder-open" size={20} color={t.fg} />
                   </View>
                   <AppText variant="h3" style={{ flex: 1 }} numberOfLines={1}>{cat}</AppText>
-                  <AppText variant="caption" color={colors.textMuted}>{list.length}</AppText>
-                  <Ionicons name="chevron-forward" size={20} color={colors.borderStrong} />
+                  <AppText variant="caption" color={c.textMuted}>{list.length}</AppText>
+                  <Ionicons name="chevron-forward" size={20} color={c.borderStrong} />
                 </Pressable>
               );
             })}
@@ -127,7 +131,7 @@ export function CategoryBrowser({
                   <AppText variant="h3" numberOfLines={1}>{it.title}</AppText>
                   {it.subtitle ? <AppText variant="caption">{it.subtitle}</AppText> : null}
                 </View>
-                <Ionicons name="chevron-forward" size={20} color={colors.borderStrong} />
+                <Ionicons name="chevron-forward" size={20} color={c.borderStrong} />
               </Pressable>
             );
           })}
@@ -139,19 +143,20 @@ export function CategoryBrowser({
   );
 }
 
-const styles = StyleSheet.create({
-  container: { paddingHorizontal: spacing.lg, paddingTop: spacing.xs },
-  sectionTitle: { marginBottom: spacing.md },
-  listCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    overflow: 'hidden',
-  },
-  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md },
-  rowBorder: { borderTopWidth: 1, borderTopColor: colors.border },
-  rowIcon: { width: 44, height: 44, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
-  empty: { marginTop: spacing.xxl },
-  pressed: { opacity: 0.85 },
-});
+const makeStyles = (c: AppColors) =>
+  StyleSheet.create({
+    container: { paddingHorizontal: spacing.lg, paddingTop: spacing.xs },
+    sectionTitle: { marginBottom: spacing.md },
+    listCard: {
+      backgroundColor: c.surface,
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      borderColor: c.border,
+      overflow: 'hidden',
+    },
+    row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md },
+    rowBorder: { borderTopWidth: 1, borderTopColor: c.border },
+    rowIcon: { width: 44, height: 44, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
+    empty: { marginTop: spacing.xxl },
+    pressed: { opacity: 0.85 },
+  });

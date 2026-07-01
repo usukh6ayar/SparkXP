@@ -18,6 +18,18 @@ export interface ReadingSentence {
   endMs?: number;
 }
 
+/** A comprehension question shown after finishing the passage. */
+export interface ReadingQuestion {
+  type: 'multiple_choice' | 'fill_blank';
+  question: string;
+  /** multiple_choice only. */
+  options?: string[];
+  /** multiple_choice only: index of the correct option. */
+  correctIndex?: number;
+  /** fill_blank only: expected answer (compared case-insensitively). */
+  answer?: string;
+}
+
 export interface ReadingPassage {
   id: string;
   title: string;
@@ -28,6 +40,7 @@ export interface ReadingPassage {
   estimatedReadingTime: number; // seconds
   coverImageUrl: string | null;
   keyVocab: ReadingKeyVocab[];
+  comprehensionQuestions: ReadingQuestion[];
   sentences: ReadingSentence[];
   isPublished: boolean;
 }
