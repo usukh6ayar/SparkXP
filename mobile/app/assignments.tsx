@@ -11,6 +11,7 @@ import { TopBar } from '../src/components/TopBar';
 import { AppText } from '../src/components/Text';
 import { IconTile } from '../src/components/IconTile';
 import { Loading } from '../src/components/Loading';
+import { EmptyState } from '../src/components/EmptyState';
 import { t } from '../src/i18n';
 import { useColors } from '../src/settings/SettingsContext';
 import { spacing, radius, tints, type AppColors } from '../src/theme/theme';
@@ -81,15 +82,11 @@ export default function AssignmentsScreen() {
           }
         >
           {items.length === 0 ? (
-            <View style={styles.empty}>
-              <View style={styles.emptyIcon}>
-                <Ionicons name="clipboard-outline" size={40} color={c.primary} />
-              </View>
-              <AppText variant="h3" center style={{ marginTop: spacing.md }}>{t('noAssignmentsStudent')}</AppText>
-              <AppText variant="body" center color={c.textSecondary} style={{ marginTop: 2 }}>
-                {t('noAssignmentsStudentHint')}
-              </AppText>
-            </View>
+            <EmptyState
+              icon="clipboard-outline"
+              title={t('noAssignmentsStudent')}
+              hint={t('noAssignmentsStudentHint')}
+            />
           ) : (
             items.map((a) => <AssignmentItem key={a.id} a={a} title={titles[a.targetId]} onPress={() => open(a)} />)
           )}
@@ -140,9 +137,4 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   pressed: { opacity: 0.92, transform: [{ scale: 0.99 }] },
   body: { flex: 1, gap: 3 },
   meta: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  empty: { alignItems: 'center', paddingHorizontal: spacing.xl, marginTop: spacing.xxxl },
-  emptyIcon: {
-    width: 80, height: 80, borderRadius: radius.full, backgroundColor: c.primarySoft,
-    alignItems: 'center', justifyContent: 'center',
-  },
 });
