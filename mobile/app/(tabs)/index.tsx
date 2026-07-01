@@ -87,7 +87,7 @@ const TASKS: {
 export default function HomeScreen() {
   const { user, token } = useAuth();
   const c = useColors();
-  const { theme } = useSettings();
+  const { theme, t } = useSettings();
   const styles = useMemo(() => makeStyles(c), [c]);
 
   // Hero swaps with the appearance toggle: bright daytime sky in light mode,
@@ -239,7 +239,7 @@ export default function HomeScreen() {
             <View style={styles.header}>
               <View style={styles.headerText}>
                 {/* On the dark sky hero — always light text, both themes. */}
-                <AppText variant="h1" color={c.white}>Сайн уу, {firstName} 👋</AppText>
+                <AppText variant="h1" color={c.white}>{t("greeting")}, {firstName} 👋</AppText>
                 <AppText
                   variant="body"
                   color={c.textOnDarkMuted}
@@ -323,7 +323,7 @@ export default function HomeScreen() {
                 </View>
                 <View style={styles.continueBtn}>
                   <AppText variant="bodyStrong" color={c.primary}>
-                    Үргэлжлүүлэх →
+                    {t("continue")} →
                   </AppText>
                 </View>
               </View>
@@ -373,7 +373,7 @@ export default function HomeScreen() {
               <Ionicons name="clipboard" size={24} color={tints.green.fg} />
             </View>
             <View style={{ flex: 1 }}>
-              <AppText variant="h3">Миний даалгаврууд</AppText>
+              <AppText variant="h3">{t("myAssignments")}</AppText>
               <AppText variant="caption">Багшийн оноосон хичээл, сорил</AppText>
             </View>
             <Ionicons name="chevron-forward" size={20} color={c.borderStrong} />

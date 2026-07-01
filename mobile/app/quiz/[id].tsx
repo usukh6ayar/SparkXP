@@ -10,6 +10,7 @@ import * as quizzesApi from '../../src/api/quizzes';
 import type { Quiz, AnswerItem, QuizResult } from '../../src/api/quizzes';
 import { Button } from '../../src/components/Button';
 import { alertError } from '../../src/lib/alerts';
+import { t } from '../../src/i18n';
 import { useColors } from '../../src/settings/SettingsContext';
 import { spacing, radius, fontSize, type AppColors } from '../../src/theme/theme';
 
@@ -114,7 +115,7 @@ export default function QuizScreen() {
     return (
       <SafeAreaView style={styles.center}>
         <Text style={styles.errorText}>Сорил ачаалахад алдаа гарлаа.</Text>
-        <Button label="Буцах" onPress={() => router.back()} style={{ marginTop: spacing.lg }} />
+        <Button label={t('back')} onPress={() => router.back()} style={{ marginTop: spacing.lg }} />
       </SafeAreaView>
     );
   }
@@ -160,7 +161,7 @@ export default function QuizScreen() {
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={8}>
-          <Text style={styles.backBtn}>← Буцах</Text>
+          <Text style={styles.backBtn}>← {t('back')}</Text>
         </Pressable>
         <Text style={styles.progress}>
           {currentIndex + 1} / {quiz!.questions.length}
@@ -207,7 +208,7 @@ export default function QuizScreen() {
             style={styles.fillInput}
             value={fillText}
             onChangeText={setFillText}
-            placeholder="Хариултаа бичнэ үү..."
+            placeholder={t('yourAnswer')}
             placeholderTextColor={c.textMuted}
             autoCapitalize="none"
           />
@@ -252,7 +253,7 @@ export default function QuizScreen() {
         )}
 
         <Button
-          label={isLast ? (submitting ? 'Илгээж байна...' : 'Дүгнэх') : 'Дараагийнх →'}
+          label={isLast ? (submitting ? 'Илгээж байна...' : t('submit')) : t('next')}
           onPress={isLast ? handleSubmit : nextQuestion}
           disabled={!canAdvance() || submitting}
           style={{ marginTop: spacing.xl }}
