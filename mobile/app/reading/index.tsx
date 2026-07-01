@@ -6,6 +6,7 @@ import { useAuth } from '../../src/auth/AuthContext';
 import { getReadingList, type ReadingPassage } from '../../src/api/reading';
 import { TopBar } from '../../src/components/TopBar';
 import { CategoryBrowser, type BrowserItem } from '../../src/components/CategoryBrowser';
+import { t } from '../../src/i18n';
 import { useColors } from '../../src/settings/SettingsContext';
 
 /**
@@ -65,7 +66,7 @@ export default function ReadingListScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <TopBar
-        title={selectedCat ?? 'Унших материал'}
+        title={selectedCat ?? t('readingMaterials')}
         back
         showBadges={false}
         onBack={selectedCat ? () => setSelectedCat(null) : undefined}
@@ -78,7 +79,7 @@ export default function ReadingListScreen() {
         selectedCat={selectedCat}
         onSelectCat={setSelectedCat}
         onOpen={(id) => router.push(`/reading/${id}`)}
-        emptyText="Унших материал алга 🦊"
+        emptyText={t('noReadingMaterials')}
       />
     </SafeAreaView>
   );

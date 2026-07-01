@@ -1,8 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { View, Pressable, Image, StyleSheet, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../src/auth/AuthContext';
 import { uploadAvatar, updateProfile } from '../src/api/users';
@@ -12,13 +11,11 @@ import { t } from '../src/i18n';
 import { AppText } from '../src/components/Text';
 import { Avatar } from '../src/components/Avatar';
 import { Button } from '../src/components/Button';
-import { spacing, radius, type AppColors } from '../src/theme/theme';
-import { useColors } from '../src/settings/SettingsContext';
+import { TopBar } from '../src/components/TopBar';
+import { colors, spacing, radius } from '../src/theme/theme';
 
 export default function AvatarScreen() {
   const { user, token, updateUser } = useAuth();
-  const colors = useColors();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -63,13 +60,7 @@ export default function AvatarScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <View style={styles.topbar}>
-        <Pressable onPress={() => router.back()} hitSlop={8}>
-          <Ionicons name="chevron-back" size={26} color={colors.text} />
-        </Pressable>
-        <AppText variant="h3" style={styles.title}>{t('avatarTitle')}</AppText>
-        <View style={{ width: 26 }} />
-      </View>
+      <TopBar title={t('avatarTitle')} back showBadges={false} />
 
       <View style={styles.current}>
         <Avatar avatarUrl={user?.avatarUrl} name={user?.fullName} size={120} />
@@ -113,16 +104,8 @@ export default function AvatarScreen() {
   );
 }
 
-const makeStyles = (colors: AppColors) => StyleSheet.create({
+const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
-  topbar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-  },
-  title: { flex: 1, textAlign: 'center' },
   current: { alignItems: 'center', marginTop: spacing.lg, marginBottom: spacing.md },
   busy: { position: 'absolute', top: 48 },
   error: { marginBottom: spacing.sm },

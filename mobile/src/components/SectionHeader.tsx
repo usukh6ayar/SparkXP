@@ -1,6 +1,7 @@
 import { View, Pressable, StyleSheet } from 'react-native';
 import { AppText } from './Text';
-import { colors, spacing } from '../theme/theme';
+import { useColors } from '../settings/SettingsContext';
+import { spacing } from '../theme/theme';
 
 /**
  * Standard section header: `h2` title on the left, optional "see all" action on
@@ -18,12 +19,13 @@ export function SectionHeader({
   onAction?: () => void;
   style?: object;
 }) {
+  const c = useColors();
   return (
     <View style={[styles.row, style]}>
       <AppText variant="h2">{title}</AppText>
       {actionLabel && onAction ? (
         <Pressable onPress={onAction} hitSlop={8}>
-          <AppText variant="label" color={colors.primary}>{actionLabel}</AppText>
+          <AppText variant="label" color={c.primary}>{actionLabel}</AppText>
         </Pressable>
       ) : null}
     </View>

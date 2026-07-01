@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useMemo } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { View, ScrollView, Pressable, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -13,13 +13,11 @@ import { AppText } from '../../src/components/Text';
 import { Avatar } from '../../src/components/Avatar';
 import { ClassCard } from '../../src/components/ClassCard';
 import { SectionHeader } from '../../src/components/SectionHeader';
-import { spacing, radius, elevation, type AppColors } from '../../src/theme/theme';
-import { useColors } from '../../src/settings/SettingsContext';
+import { EmptyState } from '../../src/components/EmptyState';
+import { colors, spacing, radius, elevation } from '../../src/theme/theme';
 
 export default function TeacherClassesScreen() {
   const { token, user } = useAuth();
-  const colors = useColors();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const [classes, setClasses] = useState<ClassSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -93,15 +91,12 @@ export default function TeacherClassesScreen() {
         {loading ? (
           <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.xxl }} />
         ) : classes.length === 0 ? (
-          <View style={styles.empty}>
-            <View style={styles.emptyIcon}>
-              <Ionicons name="school-outline" size={40} color={colors.primary} />
-            </View>
-            <AppText variant="h3" center style={{ marginTop: spacing.md }}>{t('noClasses')}</AppText>
-            <AppText variant="body" center color={colors.textSecondary} style={{ marginTop: 2 }}>
-              {t('noClassesHint')}
-            </AppText>
-          </View>
+          <EmptyState
+            icon="school-outline"
+            title={t('noClasses')}
+            hint={t('noClassesHint')}
+            style={{ marginTop: spacing.xxl }}
+          />
         ) : (
           <View style={styles.list}>
             <SectionHeader title={t('teacherClasses')} />
@@ -122,7 +117,7 @@ export default function TeacherClassesScreen() {
   );
 }
 
-const makeStyles = (colors: AppColors) => StyleSheet.create({
+const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   scroll: { paddingBottom: spacing.lg },
   hero: {
@@ -143,9 +138,4 @@ const makeStyles = (colors: AppColors) => StyleSheet.create({
     backgroundColor: colors.white, borderRadius: radius.md, paddingVertical: 12,
   },
   list: { paddingHorizontal: spacing.lg, gap: spacing.md },
-  empty: { alignItems: 'center', paddingHorizontal: spacing.xl, marginTop: spacing.xxl },
-  emptyIcon: {
-    width: 80, height: 80, borderRadius: radius.full, backgroundColor: colors.primarySoft,
-    alignItems: 'center', justifyContent: 'center',
-  },
 });

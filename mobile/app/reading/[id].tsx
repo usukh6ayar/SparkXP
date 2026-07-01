@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useMemo } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { View, StyleSheet, ScrollView, Image, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -16,8 +16,8 @@ import { TappableText } from '../../src/components/DictionaryProvider';
 import { Card } from '../../src/components/Card';
 import { Loading } from '../../src/components/Loading';
 import { ReadingQuiz } from '../../src/components/ReadingQuiz';
-import { spacing, radius, levelColor, type AppColors } from '../../src/theme/theme';
-import { useColors } from '../../src/settings/SettingsContext';
+import { t } from '../../src/i18n';
+import { colors, spacing, radius, levelColor } from '../../src/theme/theme';
 
 function fmtTime(sec: number): string {
   if (!sec) return '';
@@ -31,8 +31,6 @@ function fmtTime(sec: number): string {
  * reading (Phase 3) hook in here later.
  */
 export default function ReadingDetailScreen() {
-  const colors = useColors();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { id } = useLocalSearchParams<{ id: string }>();
   const { token } = useAuth();
   const [passage, setPassage] = useState<ReadingPassage | null>(null);
@@ -70,12 +68,12 @@ export default function ReadingDetailScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <TopBar title="Унших" back showBadges={false} />
+      <TopBar title={t('reading')} back showBadges={false} />
       {loading ? (
         <Loading />
       ) : !passage ? (
         <AppText variant="body" color={colors.textMuted} center style={styles.empty}>
-          Материал олдсонгүй 🦊
+          {t('passageNotFound')}
         </AppText>
       ) : (
         <ScrollView
@@ -128,7 +126,7 @@ export default function ReadingDetailScreen() {
           {passage.keyVocab?.length > 0 && (
             <View style={styles.section}>
               <AppText variant="h3" style={styles.sectionTitle}>
-                Гол үгс
+                {t('keyVocabulary')}
               </AppText>
               <View style={styles.vocabWrap}>
                 {passage.keyVocab.map((v, i) => (
@@ -152,7 +150,7 @@ export default function ReadingDetailScreen() {
             ))}
           </Card>
           <AppText variant="caption" color={colors.textMuted} style={styles.hint}>
-            💡 Үг дээр 2 удаа дарвал монгол утга гарч ирнэ
+            {t('tapWordHint')}
           </AppText>
 
           <Pressable
@@ -170,7 +168,7 @@ export default function ReadingDetailScreen() {
               color={colors.white}
             />
             <AppText variant="bodyStrong" color={colors.white}>
-              {done ? 'Уншиж дууслаа ✓' : 'Уншиж дууслаа (+15 XP)'}
+              {done ? t('readingDone') : t('readingFinish')}
             </AppText>
           </Pressable>
 
@@ -187,8 +185,6 @@ export default function ReadingDetailScreen() {
 }
 
 function Meta({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; text: string }) {
-  const colors = useColors();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <View style={styles.metaItem}>
       <Ionicons name={icon} size={14} color={colors.textMuted} />
@@ -197,7 +193,7 @@ function Meta({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; text: stri
   );
 }
 
-const makeStyles = (colors: AppColors) => StyleSheet.create({
+const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   container: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg },
 

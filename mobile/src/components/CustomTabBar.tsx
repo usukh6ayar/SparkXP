@@ -19,14 +19,17 @@ type TabMeta =
   | { image: number; label: string; icon?: undefined; iconOutline?: undefined };
 
 /** Icon (filled + outline) + label per tab route. The `chat` route shows the
- *  fox AI-buddy image instead of a vector glyph. */
-const TAB_META: Record<string, TabMeta> = {
-  index: { icon: "home", iconOutline: "home-outline", label: "Нүүр" },
-  lessons: { icon: "book", iconOutline: "book-outline", label: "Хичээл" },
-  chat: { image: buddy, label: "AI Найз" },
-  soril: { icon: "trophy", iconOutline: "trophy-outline", label: "Сорил" },
-  profile: { icon: "person", iconOutline: "person-outline", label: "Профайл" },
-};
+ *  fox AI-buddy image instead of a vector glyph. `lessons`/`chat` labels have
+ *  no matching i18n key yet, so those stay literal. */
+function tabMeta(t: (key: import("../i18n").TranslationKey) => string): Record<string, TabMeta> {
+  return {
+    index: { icon: "home", iconOutline: "home-outline", label: t("home") },
+    lessons: { icon: "book", iconOutline: "book-outline", label: "Хичээл" },
+    chat: { image: buddy, label: "AI Найз" },
+    soril: { icon: "trophy", iconOutline: "trophy-outline", label: t("quiz") },
+    profile: { icon: "person", iconOutline: "person-outline", label: t("profile") },
+  };
+}
 
 /**
  * Liquid-Glass bottom navigation (inspired by Apple's design, not a copy):
@@ -37,8 +40,9 @@ const TAB_META: Record<string, TabMeta> = {
  */
 export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
-  const { theme, colors: c } = useSettings();
+  const { theme, colors: c, t } = useSettings();
   const isDark = theme === "dark";
+  const TAB_META = tabMeta(t);
 
   // Glass material per theme — kept white-leaning for the "liquid glass" feel.
   const glassFill = isDark ? "rgba(30,26,58,0.45)" : "rgba(255,255,255,0.42)";

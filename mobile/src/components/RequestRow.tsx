@@ -1,8 +1,8 @@
-import { View, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { AppText } from './Text';
-import { Avatar } from './Avatar';
-import { colors, spacing, radius } from '../theme/theme';
+import { PersonRow } from './PersonRow';
+import { useColors } from '../settings/SettingsContext';
+import { radius, type AppColors } from '../theme/theme';
 
 /** A pending join-request row: avatar, name (+ @username), approve / reject. */
 export function RequestRow({
@@ -20,33 +20,33 @@ export function RequestRow({
   onReject: () => void;
   busy?: boolean;
 }) {
+  const c = useColors();
+  const styles = makeStyles(c);
   return (
-    <View style={styles.row}>
-      <Avatar avatarUrl={avatarUrl} name={name} size={40} />
-      <View style={styles.body}>
-        <AppText variant="bodyStrong" numberOfLines={1}>{name}</AppText>
-        {username ? <AppText variant="caption" numberOfLines={1}>@{username}</AppText> : null}
-      </View>
-      {busy ? (
-        <ActivityIndicator color={colors.primary} />
-      ) : (
-        <>
-          <Pressable onPress={onReject} style={[styles.btn, styles.reject]} hitSlop={4}>
-            <Ionicons name="close" size={18} color={colors.danger} />
-          </Pressable>
-          <Pressable onPress={onApprove} style={[styles.btn, styles.approve]} hitSlop={4}>
-            <Ionicons name="checkmark" size={18} color={colors.white} />
-          </Pressable>
-        </>
-      )}
-    </View>
+    <PersonRow
+      name={name}
+      username={username}
+      avatarUrl={avatarUrl}
+      right={
+        busy ? (
+          <ActivityIndicator color={c.primary} />
+        ) : (
+          <>
+            <Pressable onPress={onReject} style={[styles.btn, styles.reject]} hitSlop={4}>
+              <Ionicons name="close" size={18} color={c.danger} />
+            </Pressable>
+            <Pressable onPress={onApprove} style={[styles.btn, styles.approve]} hitSlop={4}>
+              <Ionicons name="checkmark" size={18} color={c.white} />
+            </Pressable>
+          </>
+        )
+      }
+    />
   );
 }
 
-const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm },
-  body: { flex: 1, gap: 1 },
+const makeStyles = (c: AppColors) => StyleSheet.create({
   btn: { width: 36, height: 36, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center' },
-  reject: { backgroundColor: colors.dangerSoft },
-  approve: { backgroundColor: colors.success },
+  reject: { backgroundColor: c.dangerSoft },
+  approve: { backgroundColor: c.success },
 });

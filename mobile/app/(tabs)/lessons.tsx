@@ -16,6 +16,7 @@ import { useAuth } from '../../src/auth/AuthContext';
 import { useSettings } from '../../src/settings/SettingsContext';
 import { getLessons, type Lesson } from '../../src/api/lessons';
 import { AppText } from '../../src/components/Text';
+import { islandMap } from '../../src/theme/theme';
 
 /**
  * "Хичээлийн ертөнц" — the Lessons tab as an adventure map of floating islands.
@@ -63,10 +64,10 @@ const SKY = {
   card: 'rgba(18, 12, 50, 0.72)',
   cardBorder: 'rgba(150, 130, 255, 0.30)',
   textDim: 'rgba(220, 215, 255, 0.7)',
-  gold: '#F5C518',
+  gold: islandMap.gold,
 };
 
-const BADGE = { green: '#22C55E', blue: '#38BDF8', purple: '#8B5CF6' };
+const BADGE = { green: islandMap.green, blue: islandMap.blue, purple: islandMap.purple };
 
 // Light theme: the island tiles carry their own bright blue sky + clouds, so the
 // backdrop is a matching blue→pale-blue gradient (not the dark starry image).
@@ -210,7 +211,7 @@ export default function LessonsScreen() {
               </View>
 
               <View style={styles.stats}>
-                <StatPill icon="flame" tint="#FF7A1A" value={String(streak)} label="Өдөр даралал" />
+                <StatPill icon="flame" tint={islandMap.streak} value={String(streak)} label="Өдөр даралал" />
                 <StatPill icon="diamond" tint={BADGE.blue} value={fmt(gems)} label="Очирхон" />
                 <StatPill icon="flash" tint={SKY.gold} value={fmt(xp)} label="XP оноо" />
               </View>

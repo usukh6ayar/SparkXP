@@ -3,6 +3,7 @@ import { View, StyleSheet, ScrollView, Pressable, RefreshControl } from 'react-n
 import { Ionicons } from '@expo/vector-icons';
 import { AppText } from './Text';
 import { Loading } from './Loading';
+import { t } from '../i18n';
 import { useColors } from '../settings/SettingsContext';
 import { spacing, radius, tints, type AppColors } from '../theme/theme';
 
@@ -41,8 +42,8 @@ export function CategoryBrowser({
   onOpen,
   hero,
   itemIcon = 'book',
-  selectTitle = 'Сэдэв сонгох',
-  emptyText = 'Агуулга алга 🦊',
+  selectTitle = t('selectTopic'),
+  emptyText = t('noContent'),
 }: {
   items: BrowserItem[];
   loading: boolean;

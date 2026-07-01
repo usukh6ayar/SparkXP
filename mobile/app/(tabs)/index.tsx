@@ -23,6 +23,7 @@ import { getLastLesson, type LastLesson } from "../../src/lib/lastLesson";
 import { useDictionary } from "../../src/components/DictionaryProvider";
 import { AppText } from "../../src/components/Text";
 import { ProgressBar } from "../../src/components/ProgressBar";
+import { IconButton } from "../../src/components/IconButton";
 import { useColors, useSettings } from "../../src/settings/SettingsContext";
 import {
   spacing,
@@ -87,7 +88,7 @@ const TASKS: {
 export default function HomeScreen() {
   const { user, token } = useAuth();
   const c = useColors();
-  const { theme } = useSettings();
+  const { theme, t } = useSettings();
   const styles = useMemo(() => makeStyles(c), [c]);
 
   // Hero swaps with the appearance toggle: bright daytime sky in light mode,
@@ -130,14 +131,14 @@ export default function HomeScreen() {
     // here never blocks the rest of the home screen.
     try {
       const results = await Promise.all(
-        TASKS.map((t) =>
+        TASKS.map((task) =>
           // Reading content = passages (ReadingPassage), not quizzes.
-          (t.key === 'reading'
+          (task.key === 'reading'
             ? getReadingList(token).then((r) => r.items.length)
-            : getExercises(token, t.key).then((r) => r.items.length)
+            : getExercises(token, task.key).then((r) => r.items.length)
           )
-            .then((n) => [t.key, n] as const)
-            .catch(() => [t.key, 0] as const),
+            .then((n) => [task.key, n] as const)
+            .catch(() => [task.key, 0] as const),
         ),
       );
       setTaskCounts(Object.fromEntries(results));
@@ -239,7 +240,7 @@ export default function HomeScreen() {
             <View style={styles.header}>
               <View style={styles.headerText}>
                 {/* On the dark sky hero — always light text, both themes. */}
-                <AppText variant="h1" color={c.white}>Сайн уу, {firstName} 👋</AppText>
+                <AppText variant="h1" color={c.white}>{t("greeting")}, {firstName} 👋</AppText>
                 <AppText
                   variant="body"
                   color={c.textOnDarkMuted}
@@ -250,9 +251,9 @@ export default function HomeScreen() {
               </View>
               <View style={styles.headerIcons}>
                 {/* TODO: notifications screen */}
-                <IconBtn icon="notifications-outline" dot onPress={() => {}} />
+                <IconButton icon="notifications-outline" dot size={44} style={styles.headerIconBtn} onPress={() => {}} />
                 {/* Dictionary — in-place search overlay (no screen change) */}
-                <IconBtn icon="search" onPress={openSearch} />
+                <IconButton icon="search" size={44} style={styles.headerIconBtn} onPress={openSearch} />
               </View>
             </View>
 
@@ -323,7 +324,7 @@ export default function HomeScreen() {
                 </View>
                 <View style={styles.continueBtn}>
                   <AppText variant="bodyStrong" color={c.primary}>
-                    Үргэлжлүүлэх →
+                    {t("continue")} →
                   </AppText>
                 </View>
               </View>
@@ -373,7 +374,7 @@ export default function HomeScreen() {
               <Ionicons name="clipboard" size={24} color={tints.green.fg} />
             </View>
             <View style={{ flex: 1 }}>
-              <AppText variant="h3">Миний даалгаврууд</AppText>
+              <AppText variant="h3">{t("myAssignments")}</AppText>
               <AppText variant="caption">Багшийн оноосон хичээл, сорил</AppText>
             </View>
             <Ionicons name="chevron-forward" size={20} color={c.borderStrong} />
@@ -389,21 +390,21 @@ export default function HomeScreen() {
             </View>
           </View>
           <View style={styles.grid}>
-            {TASKS.map((t) => {
-              const count = taskCounts[t.key] ?? 0;
+            {TASKS.map((task) => {
+              const count = taskCounts[task.key] ?? 0;
               return (
                 <Pressable
-                  key={t.key}
+                  key={task.key}
                   style={({ pressed }) => [styles.task, pressed && styles.pressed]}
                   // Reading = passages grouped by сэдэв (own screen); the other
                   // skills are quiz-based exercise lists.
-                  onPress={() => router.push(t.key === 'reading' ? '/reading' : `/skill/${t.key}`)}
+                  onPress={() => router.push(task.key === 'reading' ? '/reading' : `/skill/${task.key}`)}
                 >
-                  <View style={[styles.taskIcon, { backgroundColor: t.tint.bg, borderColor: t.tint.fg }]}>
-                    <Ionicons name={t.icon} size={24} color={t.tint.fg} />
+                  <View style={[styles.taskIcon, { backgroundColor: task.tint.bg, borderColor: task.tint.fg }]}>
+                    <Ionicons name={task.icon} size={24} color={task.tint.fg} />
                   </View>
                   <AppText variant="label" numberOfLines={1}>
-                    {t.label}
+                    {task.label}
                   </AppText>
                   <View style={styles.taskCount}>
                     <Ionicons name="ribbon" size={12} color={c.xp} />
@@ -420,29 +421,6 @@ export default function HomeScreen() {
         </View>
       </ScrollView>
     </View>
-  );
-}
-
-function IconBtn({
-  icon,
-  onPress,
-  dot,
-}: {
-  icon: IconName;
-  onPress?: () => void;
-  /** Small red notification dot (attention cue). */
-  dot?: boolean;
-}) {
-  const c = useColors();
-  const styles = useMemo(() => makeStyles(c), [c]);
-  return (
-    <Pressable
-      style={({ pressed }) => [styles.iconBtn, pressed && styles.pressed]}
-      onPress={onPress}
-    >
-      <Ionicons name={icon} size={20} color={c.text} />
-      {dot ? <View style={styles.iconDot} /> : null}
-    </Pressable>
   );
 }
 
@@ -479,29 +457,7 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   headerText: { flex: 1, paddingTop: 2 },
   sub: { marginTop: 4 },
   headerIcons: { flexDirection: "row", gap: spacing.sm },
-  iconBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.full,
-    backgroundColor: c.surface,
-    borderWidth: 1,
-    borderColor: c.border,
-    alignItems: "center",
-    justifyContent: "center",
-    ...(elevation.sm as object),
-  },
-  // Small red notification dot on a header icon button.
-  iconDot: {
-    position: "absolute",
-    top: 9,
-    right: 10,
-    width: 9,
-    height: 9,
-    borderRadius: radius.full,
-    backgroundColor: c.danger,
-    borderWidth: 1.5,
-    borderColor: c.surface,
-  },
+  headerIconBtn: { borderWidth: 1, borderColor: c.border },
 
   // Hero overlay badges
   heroTop: {

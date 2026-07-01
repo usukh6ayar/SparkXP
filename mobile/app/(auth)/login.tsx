@@ -10,6 +10,7 @@ import { spacing, radius, type AppColors } from '../../src/theme/theme';
 import { useColors, useSettings } from '../../src/settings/SettingsContext';
 import { AppText } from '../../src/components/Text';
 import { SignInSheet } from '../../src/components/SignInSheet';
+import { AuthFooter } from '../../src/components/AuthFooter';
 
 const wordmark = require('../../assets/logoSparkXP.png');
 const hero = require('../../assets/logo.png');
@@ -74,16 +75,7 @@ export default function WelcomeScreen() {
             </AppText>
           ) : null}
 
-          <View style={styles.footer}>
-            <AppText variant="body" color={colors.textSecondary}>
-              {t('haveAccount')}{' '}
-            </AppText>
-            <Pressable onPress={() => setSheetOpen(true)} hitSlop={8}>
-              <AppText variant="bodyStrong" color={colors.primary}>
-                {t('login')}
-              </AppText>
-            </Pressable>
-          </View>
+          <AuthFooter prompt={t('haveAccount')} linkLabel={t('login')} onPress={() => setSheetOpen(true)} />
         </View>
       </View>
 
@@ -195,12 +187,12 @@ const makeStyles = (colors: AppColors) => StyleSheet.create({
   glowWrap: { position: 'absolute', top: 10, left: 0, right: 0, alignItems: 'center' },
   glow3: {
     width: 320, height: 320, borderRadius: 160,
-    backgroundColor: 'rgba(157,123,255,0.06)',
+    backgroundColor: `${colors.glow}0F`, // ~6% alpha
     alignItems: 'center', justifyContent: 'center',
   },
   glow2: {
     width: 210, height: 210, borderRadius: 105,
-    backgroundColor: 'rgba(157,123,255,0.09)',
+    backgroundColor: `${colors.glow}17`, // ~9% alpha
     alignItems: 'center', justifyContent: 'center',
   },
   glow1: {
@@ -242,11 +234,4 @@ const makeStyles = (colors: AppColors) => StyleSheet.create({
   btnLabel: { fontWeight: '700' },
   pressed: { opacity: 0.9, transform: [{ scale: 0.99 }] },
   notice: { marginTop: spacing.xs },
-
-  footer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: spacing.sm,
-  },
 });

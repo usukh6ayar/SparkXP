@@ -23,6 +23,7 @@ import { TextField } from './TextField';
 import { Checkbox } from './Checkbox';
 import { SocialRow } from './SocialRow';
 import { FormError } from './FormError';
+import { AuthFooter } from './AuthFooter';
 
 /** Frosted-glass sheet background (blurs the welcome content behind it). */
 function GlassBackground({ style }: BottomSheetBackgroundProps) {
@@ -191,16 +192,7 @@ export function SignInSheet({ onClose }: { onClose: () => void }) {
         </View>
         <SocialRow onPress={soon} />
 
-        <View style={styles.footer}>
-          <AppText variant="body" color={colors.textSecondary}>
-            {t('noAccount')}{' '}
-          </AppText>
-          <Pressable onPress={goRegister} hitSlop={8}>
-            <AppText variant="bodyStrong" color={colors.primary}>
-              {t('register')}
-            </AppText>
-          </Pressable>
-        </View>
+        <AuthFooter prompt={t('noAccount')} linkLabel={t('register')} onPress={goRegister} />
       </BottomSheetScrollView>
     </BottomSheetModal>
   );
@@ -285,10 +277,4 @@ const makeStyles = (colors: AppColors, isLight: boolean) => StyleSheet.create({
     marginVertical: spacing.lg,
   },
   line: { flex: 1, height: 1, backgroundColor: isLight ? colors.border : colors.glassBorder },
-  footer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: spacing.lg,
-  },
 });

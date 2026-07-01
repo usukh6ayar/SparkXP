@@ -18,6 +18,9 @@ import { TextField } from '../../src/components/TextField';
 import { SelectField } from '../../src/components/SelectField';
 import { Button } from '../../src/components/Button';
 import { resolveAvatar } from '../../src/lib/avatar';
+import { useLogoutConfirm, useComingSoon } from '../../src/lib/useLogoutConfirm';
+import { alertError } from '../../src/lib/alerts';
+import { ROLE_LABEL } from '../../src/constants/roles';
 import { colors, spacing, radius, tints, elevation, type PremiumPalette } from '../../src/theme/theme';
 
 type IconName = keyof typeof Ionicons.glyphMap;
@@ -32,10 +35,6 @@ const LEVEL_SIZE = 1000;
 /** Append an alpha channel to a 6-digit hex (e.g. tint fg → translucent circle). */
 const alpha = (hex: string, a: number) =>
   hex + Math.round(a * 255).toString(16).padStart(2, '0');
-
-const ROLE_LABEL: Record<string, string> = {
-  student: 'Сурагч', teacher: 'Багш', admin: 'Админ', super_admin: 'Супер админ',
-};
 
 /** Dark section header — h2 title + optional "see all" action. */
 function SectionHead({ p, st, title, actionLabel, onAction, style }: {
@@ -84,7 +83,7 @@ const ACHIEVEMENTS: { icon: IconName; label: string; tint: { bg: string; fg: str
 ];
 
 export default function ProfileScreen() {
-  const { user, token, logout } = useAuth();
+  const { user, token } = useAuth();
   const { palette: p, theme, t } = useSettings();
   const router = useRouter();
   const styles = useMemo(() => makeStyles(p, theme === 'dark'), [p, theme]);
@@ -116,12 +115,8 @@ export default function ProfileScreen() {
     }, [loadProfile, theme]),
   );
 
-  const soon = () => Alert.alert(t('comingSoon'), t('comingSoonBody'));
-  const confirmLogout = () =>
-    Alert.alert(t('logoutConfirm'), '', [
-      { text: t('cancel') },
-      { text: t('logout'), style: 'destructive', onPress: logout },
-    ]);
+  const soon = useComingSoon();
+  const confirmLogout = useLogoutConfirm();
 
   const xp = user?.xp ?? 0;
   const sparks = user?.sparks ?? 0;
@@ -315,7 +310,7 @@ export default function ProfileScreen() {
 
           {/* Premium banner — gradient feature card */}
           <Pressable onPress={soon} style={({ pressed }) => pressed && styles.pressed}>
-            <LinearGradient colors={['#7A4DFF', '#5A28F0']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.premium}>
+            <LinearGradient colors={[colors.primaryGradient[0], colors.primaryGradient[2]]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.premium}>
               <View style={styles.premGlow} pointerEvents="none" />
               <View style={{ flex: 1 }}>
                 <View style={styles.premiumTitleRow}>
@@ -367,7 +362,7 @@ function EditProfileModal({
   const isUB = province === 'Улаанбаатар';
 
   async function save() {
-    if (!fullName.trim()) { Alert.alert('Алдаа', 'Нэрээ оруулна уу.'); return; }
+    if (!fullName.trim()) { alertError('Нэрээ оруулна уу.'); return; }
     setSaving(true);
     try {
       await usersApi.updateProfile(
@@ -377,7 +372,7 @@ function EditProfileModal({
       Alert.alert('Амжилттай', 'Профайл шинэчлэгдлээ.');
       onClose();
     } catch {
-      Alert.alert('Алдаа', 'Хадгалахад алдаа гарлаа.');
+      alertError('Хадгалахад алдаа гарлаа.');
     } finally {
       setSaving(false);
     }
@@ -481,7 +476,7 @@ const makeStyles = (p: PremiumPalette, isDark: boolean) => {
   // Classes
   joinEmpty: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    backgroundColor: alpha('#6C3BFF', 0.14), borderRadius: radius.lg, padding: spacing.md,
+    backgroundColor: alpha(colors.primary, 0.14), borderRadius: radius.lg, padding: spacing.md,
     ...cardEdge,
   },
   classRow: {
@@ -490,7 +485,7 @@ const makeStyles = (p: PremiumPalette, isDark: boolean) => {
     ...cardEdge,
   },
   classIcon: {
-    width: 40, height: 40, borderRadius: radius.full, backgroundColor: alpha('#6C3BFF', 0.18),
+    width: 40, height: 40, borderRadius: radius.full, backgroundColor: alpha(colors.primary, 0.18),
     alignItems: 'center', justifyContent: 'center',
   },
 
@@ -525,7 +520,7 @@ const makeStyles = (p: PremiumPalette, isDark: boolean) => {
   premium: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
     borderRadius: radius.xl, padding: spacing.lg, marginTop: spacing.xxl, overflow: 'hidden',
-    shadowColor: '#6C3BFF', shadowOpacity: 0.4, shadowRadius: 20, shadowOffset: { width: 0, height: 10 }, elevation: 8,
+    shadowColor: colors.primary, shadowOpacity: 0.4, shadowRadius: 20, shadowOffset: { width: 0, height: 10 }, elevation: 8,
   },
   premGlow: { position: 'absolute', top: -40, right: -20, width: 160, height: 160, borderRadius: 80, backgroundColor: 'rgba(255,255,255,0.12)' },
   premiumTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },

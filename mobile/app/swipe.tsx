@@ -25,6 +25,7 @@ import { Loading } from '../src/components/Loading';
 import { ProgressBar } from '../src/components/ProgressBar';
 import { FlashCard, type MemoryStatus } from '../src/components/FlashCard';
 import { ReviewStats } from '../src/components/ReviewStats';
+import { IconButton } from '../src/components/IconButton';
 import { t } from '../src/i18n';
 import { useColors } from '../src/settings/SettingsContext';
 import { spacing, radius, elevation, type AppColors } from '../src/theme/theme';
@@ -224,9 +225,7 @@ export default function ReviewFlashcardsScreen() {
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       {/* Header */}
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.iconBtn} hitSlop={8}>
-          <Ionicons name="arrow-back" size={20} color={c.primary} />
-        </Pressable>
+        <IconButton icon="arrow-back" onPress={() => router.back()} iconColor={c.primary} />
         <View style={styles.headerCenter}>
           <AppText variant="label" color={c.textMuted}>{t('reviewWords')}</AppText>
           {total > 0 && !done ? <AppText variant="h3">{Math.min(index + 1, total)} / {total}</AppText> : null}
@@ -312,10 +311,6 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
     paddingHorizontal: spacing.lg, paddingTop: spacing.xs, paddingBottom: spacing.sm,
   },
   headerCenter: { alignItems: 'center' },
-  iconBtn: {
-    width: 40, height: 40, borderRadius: radius.full, backgroundColor: c.surface,
-    alignItems: 'center', justifyContent: 'center', ...(elevation.sm as object),
-  },
   streakPill: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     backgroundColor: c.surface, paddingHorizontal: spacing.md, paddingVertical: 8,

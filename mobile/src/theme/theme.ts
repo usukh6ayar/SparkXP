@@ -276,3 +276,30 @@ export const levelColor: Record<string, { bg: string; fg: string }> = {
   c1: tints.purple,
   c2: tints.pink,
 };
+
+/**
+ * Shared palette for the "Хичээлийн ертөнц" adventure map — (tabs)/lessons.tsx's
+ * island tiers and level/[code].tsx's node path both tint by CEFR tier using
+ * these same three colors + gold star, matched to the map artwork (not the
+ * regular tints.* palette, which is a slightly different shade for each).
+ */
+export const islandMap = {
+  green: '#22C55E',
+  blue: '#38BDF8',
+  purple: '#8B5CF6',
+  gold: '#F5C518',
+  streak: '#FF7A1A',
+};
+
+/**
+ * Per-skill hero gradients for skill/[key].tsx (listening/reading/speaking/
+ * writing). Deliberately deeper/darker than tints.* — those are for small
+ * icon chips, these need to stay readable behind white hero text — so this
+ * is a genuinely new set of tokens, not a rename of an existing one.
+ */
+export const skillGradients: Record<string, readonly [string, string]> = {
+  listening: ['#1E5AE0', '#142A6B'],
+  reading: ['#2BA86A', '#14532D'],
+  speaking: ['#D6418F', '#6B1648'],
+  writing: ['#C9821F', '#5A3410'],
+};

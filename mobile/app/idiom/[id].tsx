@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useMemo } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { View, StyleSheet, ScrollView, Image, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -13,13 +13,11 @@ import { AppText } from '../../src/components/Text';
 import { TappableText } from '../../src/components/DictionaryProvider';
 import { Card } from '../../src/components/Card';
 import { Loading } from '../../src/components/Loading';
-import { spacing, radius, type AppColors } from '../../src/theme/theme';
-import { useColors } from '../../src/settings/SettingsContext';
+import { t } from '../../src/i18n';
+import { colors, spacing, radius } from '../../src/theme/theme';
 
 /** Idiom detail: phrase, Mongolian, meaning, definition, example, audio. */
 export default function IdiomDetailScreen() {
-  const colors = useColors();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { id } = useLocalSearchParams<{ id: string }>();
   const { token } = useAuth();
   const player = useAudioPlayer();
@@ -58,12 +56,12 @@ export default function IdiomDetailScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <TopBar title="Хэлц үг" back showBadges={false} />
+      <TopBar title={t('idiomsTitle')} back showBadges={false} />
       {loading ? (
         <Loading />
       ) : !idiom ? (
         <AppText variant="body" color={colors.textMuted} center style={styles.empty}>
-          Хэлц олдсонгүй 🦊
+          {t('idiomNotFound')}
         </AppText>
       ) : (
         <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
@@ -88,19 +86,19 @@ export default function IdiomDetailScreen() {
           <AppText variant="h3" color={colors.primary} style={styles.mongolian}>{idiom.mongolian}</AppText>
 
           {idiom.meaning ? (
-            <Section label="Жинхэнэ утга">
+            <Section label={t('meaningLabel')}>
               <AppText variant="body">{idiom.meaning}</AppText>
             </Section>
           ) : null}
 
           {idiom.definition ? (
-            <Section label="Тайлбар">
+            <Section label={t('definitionLabel')}>
               <AppText variant="body">{idiom.definition}</AppText>
             </Section>
           ) : null}
 
           {idiom.exampleSentence ? (
-            <Section label="Жишээ">
+            <Section label={t('exampleLabel')}>
               <Card variant="filled" style={styles.example}>
                 <TappableText variant="body">{idiom.exampleSentence}</TappableText>
                 {idiom.exampleTranslation ? (
@@ -120,8 +118,6 @@ export default function IdiomDetailScreen() {
 }
 
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
-  const colors = useColors();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <View style={styles.section}>
       <AppText variant="overline" color={colors.textMuted} style={styles.sectionLabel}>{label}</AppText>
@@ -130,7 +126,7 @@ function Section({ label, children }: { label: string; children: React.ReactNode
   );
 }
 
-const makeStyles = (colors: AppColors) => StyleSheet.create({
+const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   container: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg },
   cover: { height: 160, borderRadius: radius.xl, overflow: 'hidden', backgroundColor: colors.surfaceAlt, marginBottom: spacing.lg },

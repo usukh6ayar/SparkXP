@@ -9,8 +9,11 @@ import { getSaved, toggleSave, type LearnWord } from '../src/api/reviews';
 import { TopBar } from '../src/components/TopBar';
 import { AppText } from '../src/components/Text';
 import { Loading } from '../src/components/Loading';
+import { IconButton } from '../src/components/IconButton';
+import { Card } from '../src/components/Card';
+import { t } from '../src/i18n';
 import { useColors } from '../src/settings/SettingsContext';
-import { spacing, radius, elevation, type AppColors } from '../src/theme/theme';
+import { spacing, radius, type AppColors } from '../src/theme/theme';
 
 /**
  * Saved words (⭐). Lists everything the user starred from the flashcard deck.
@@ -55,7 +58,7 @@ export default function SavedScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      <TopBar title="Хадгалсан үгс" back />
+      <TopBar title={t('savedWords')} back />
       <FlatList
         data={words}
         keyExtractor={(w) => w.id}
@@ -64,14 +67,14 @@ export default function SavedScreen() {
         ListEmptyComponent={
           <View style={styles.empty}>
             <AppText style={styles.emptyEmoji}>⭐</AppText>
-            <AppText variant="h3" center>Хадгалсан үг алга</AppText>
+            <AppText variant="h3" center>{t('noSavedWords')}</AppText>
             <AppText variant="body" color={c.textSecondary} center style={styles.emptyHint}>
-              Үг сурах үед картны ⭐ дээр дарж хадгална.
+              {t('noSavedWordsHint')}
             </AppText>
           </View>
         }
         renderItem={({ item }) => (
-          <View style={styles.row}>
+          <Card variant="raised" padding="md" style={styles.row}>
             <View style={styles.thumb}>
               {item.imageUrl ? (
                 <Image source={{ uri: item.imageUrl }} style={styles.thumbImg} />
@@ -83,13 +86,9 @@ export default function SavedScreen() {
               <AppText variant="h3" color={c.navy} numberOfLines={1}>{item.english}</AppText>
               <AppText variant="caption" color={c.primary} numberOfLines={1}>{item.mongolian}</AppText>
             </View>
-            <Pressable onPress={() => play(item)} hitSlop={8} style={styles.iconBtn}>
-              <Ionicons name="volume-high" size={20} color={c.primary} />
-            </Pressable>
-            <Pressable onPress={() => unsave(item)} hitSlop={8} style={styles.iconBtn}>
-              <Ionicons name="star" size={20} color={c.xp} />
-            </Pressable>
-          </View>
+            <IconButton icon="volume-high" size={38} variant="filled" iconColor={c.primary} onPress={() => play(item)} />
+            <IconButton icon="star" size={38} variant="filled" iconColor={c.xp} onPress={() => unsave(item)} />
+          </Card>
         )}
       />
     </SafeAreaView>
@@ -100,25 +99,13 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: c.background },
   list: { padding: spacing.lg, gap: spacing.sm },
   emptyWrap: { flexGrow: 1 },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    backgroundColor: c.surface,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    ...(elevation.sm as object),
-  },
+  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   thumb: {
     width: 48, height: 48, borderRadius: radius.md,
     backgroundColor: c.surfaceAlt, alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
   },
   thumbImg: { width: '100%', height: '100%' },
   info: { flex: 1 },
-  iconBtn: {
-    width: 38, height: 38, borderRadius: radius.full,
-    backgroundColor: c.surfaceAlt, alignItems: 'center', justifyContent: 'center',
-  },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
   emptyEmoji: { fontSize: 52, marginBottom: spacing.md },
   emptyHint: { marginTop: spacing.xs },

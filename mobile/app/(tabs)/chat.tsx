@@ -12,6 +12,7 @@ import { TopBar } from '../../src/components/TopBar';
 import { AppText } from '../../src/components/Text';
 import { TappableText } from '../../src/components/DictionaryProvider';
 import { useColors } from '../../src/settings/SettingsContext';
+import { t } from '../../src/i18n';
 import { spacing, radius, type AppColors } from '../../src/theme/theme';
 
 interface LocalMessage {
@@ -139,7 +140,7 @@ export default function ChatScreen() {
             style={styles.input}
             value={input}
             onChangeText={setInput}
-            placeholder="Мессеж бичнэ үү..."
+            placeholder={t('typeMessage')}
             placeholderTextColor={c.textMuted}
             multiline
             maxLength={2000}

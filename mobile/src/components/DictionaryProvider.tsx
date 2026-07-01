@@ -16,7 +16,6 @@ import {
   useCallback,
   useContext,
   useEffect,
-  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -46,8 +45,8 @@ import {
 } from '../api/dictionary';
 import { ApiError } from '../api/client';
 import { AppText } from './Text';
-import { spacing, radius, elevation, type AppColors } from '../theme/theme';
-import { useColors } from '../settings/SettingsContext';
+import { t } from '../i18n';
+import { colors, spacing, radius, elevation } from '../theme/theme';
 
 const RECENTS_KEY = 'dictionary_recents';
 const MAX_RECENTS = 12;
@@ -70,8 +69,6 @@ const DictionaryContext = createContext<DictionaryState | undefined>(undefined);
 const clamp = (v: number, min: number, max: number) => Math.min(Math.max(v, min), max);
 
 export function DictionaryProvider({ children }: { children: ReactNode }) {
-  const colors = useColors();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { token } = useAuth();
   const insets = useSafeAreaInsets();
   const player = useAudioPlayer();
@@ -240,7 +237,7 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
                 </Pressable>
               ) : null}
               <Pressable hitSlop={8} onPress={() => setSearchOpen(false)}>
-                <AppText variant="label" color={colors.primary}>Болих</AppText>
+                <AppText variant="label" color={colors.primary}>{t('cancel')}</AppText>
               </Pressable>
             </View>
 
@@ -367,7 +364,7 @@ export function TappableText({
   );
 }
 
-const makeStyles = (colors: AppColors) => StyleSheet.create({
+const styles = StyleSheet.create({
   // In-place search overlay
   searchBackdrop: {
     flex: 1,

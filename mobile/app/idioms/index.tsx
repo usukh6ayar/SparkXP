@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useMemo } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { View, StyleSheet, ScrollView, RefreshControl, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -9,14 +9,12 @@ import { TopBar } from '../../src/components/TopBar';
 import { AppText } from '../../src/components/Text';
 import { Card } from '../../src/components/Card';
 import { Loading } from '../../src/components/Loading';
-import { spacing, radius, type AppColors } from '../../src/theme/theme';
-import { useColors } from '../../src/settings/SettingsContext';
+import { t } from '../../src/i18n';
+import { colors, spacing, radius } from '../../src/theme/theme';
 
 /** Idioms list — tap a card to open the detail. */
 export default function IdiomsScreen() {
   const { token } = useAuth();
-  const colors = useColors();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const [idioms, setIdioms] = useState<Idiom[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,21 +44,21 @@ export default function IdiomsScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <TopBar title="Хэлц үг" back />
+      <TopBar title={t('idiomsTitle')} back />
       <ScrollView
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
       >
         <AppText variant="caption" style={styles.subtitle}>
-          Англи хэлц үгсийг утгатай нь сур.
+          {t('idiomsSubtitle')}
         </AppText>
 
         {loading ? (
           <Loading />
         ) : idioms.length === 0 ? (
           <AppText variant="body" color={colors.textMuted} center style={styles.empty}>
-            Хэлц байхгүй байна 🦊
+            {t('noIdioms')}
           </AppText>
         ) : (
           idioms.map((it) => (
@@ -87,7 +85,7 @@ export default function IdiomsScreen() {
   );
 }
 
-const makeStyles = (colors: AppColors) => StyleSheet.create({
+const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   container: { paddingHorizontal: spacing.lg, paddingTop: spacing.xs },
   subtitle: { marginBottom: spacing.md },
