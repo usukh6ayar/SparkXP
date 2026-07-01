@@ -1,366 +1,136 @@
-# EnglishXP — Хөгжүүлэлтийн төлөвлөгөө (Roadmap)
+# SparkXP — ROADMAP (хэн юу хийх + Launch + Update давалгаанууд)
 
-Энэ файл нь backend-ийн дараагийн ажлуудыг дарааллаар нь жагсаасан төлөвлөгөө.
-CLAUDE.md-ийн build phase-уудтай нийцнэ. Зарчим: **MVP эхэнд, дараа нь scale.**
-Over-engineering хийхгүй.
-
-> Тэмдэглэгээ: `[x]` дууссан · `[~]` хийгдэж байгаа · `[ ]` хийгээгүй
-
----
-
-## 👥 Багийн ажлын урсгал (хэн · аль branch · хэзээ merge)
-
-Бид 2 dev. Хүн бүр **өөрийн branch**-тай ажиллана:
-
-| Dev          | Branch       | Хариуцах сэдэв                                                   |
-| ------------ | ------------ | ---------------------------------------------------------------- |
-| **Усухбаяр** | `usukhbayar` | Контент (Words/Lessons) · Vocabulary/SRS (#4) · Leaderboard (#8) |
-| **Бишрэлт**  | `bishrelt`   | Quizzes · XP service (#5) · Sparks store (#9) · AI Gateway (#6)  |
-
-`main` = үргэлж тогтвортой. **`main` руу шууд push хийхгүй** — зөвхөн PR-аар.
-
-### Ажлын мөчлөг (хүн бүр дагана)
-
-1. **Эхлэхийн өмнө** main-аас шинэчилнэ:
-   ```bash
-   git checkout main && git pull origin main
-   git checkout <өөрийн-branch>
-   git merge main          # main дээрх нөгөөгийн merge хийсэн шинэ ажлыг авна
-   ```
-2. Өөрийн branch дээр ажиллаж, commit хийнэ.
-3. **Дуусаад, тест хийсний дараа** push:
-   ```bash
-   git push origin <өөрийн-branch>
-   ```
-4. GitHub дээр **Pull Request** үүсгэнэ: `<өөрийн-branch>` → `main`.
-5. **Нөгөө dev** review хийж approve хийнэ.
-6. GitHub дээр **"Merge pull request"** дарж `main` руу нэгтгэнэ.
-7. Хоёулаа `git checkout main && git pull origin main` хийж шинэчилнэ.
-
-### Чухал дүрэм
-
-- **Нэг модуль дуусах бүрт PR → merge хий.** Бүх ажлаа нэг дор хураалгүй,
-  branch-аа `main`-тай ойр байлга (хол явах тусам conflict ихэснэ).
-- Өөр өөр модуль = өөр өөр файл → conflict бараг гарахгүй.
-- `app.module.ts`-д хоёулаа module бүртгэнэ. Энд бага conflict гарвал хоёр
-  import-ийг **хоёуланг нь** үлдээгээд шийднэ.
-- `.env` хэзээ ч commit хийхгүй. Шинэ тохиргооны key нэмбэл `.env.example`-д бич.
+> Шинэчилсэн: **2026-07-01**. Дэлгэрэнгүй бүтээгдэхүүн/зардал/ирээдүйн төлөвлөгөө:
+> **`docs/FUTURE_PLAN.md`**. Багийн дүрэм: **`CLAUDE.md`**.
+>
+> **Гол огноо:** `07.09` — App Store-д анхны хувилбар · `08.15` — бүрэн дуусгах.
+> **Push:** өөрийн branch → PR → `main` (GitHub `origin`). Task бүрийн өмнө `main` pull.
 
 ---
 
-## ✅ Хийгдсэн — Суурь (Foundation) + Auth
+## 1. Хэн юу хийх (owners)
 
-- [x] NestJS + TypeScript төсөл, PostgreSQL (TypeORM) + Redis
-- [x] 14 entity бүгд (UUID PK, `created_at`/`updated_at`, jsonb)
-- [x] **Auth module** — register, login, JWT `/me`, role guard (`main`-д merged)
-- [x] Leaderboard / Sparks store-ийн **schema** (entity, enum, багана)
-- [x] `.env` тохиргоо, README, CLAUDE.md, ROADMAP
+| Dev | Хариуцах хэсэг | Branch | Гол ажил |
+| --- | --- | --- | --- |
+| **Өсөхбаяр** (lead) | `/backend` + `/admin` | `usukhbayar` | Endpoints, DB, migration, admin panel, prod deploy (Railway), `API.md` |
+| **Choi** | `/mobile` learning core | `choi` | Auth, Home, Lessons (list+detail), Reading, Review/SRS, Swipe + Saved |
+| **Boju** | `/mobile` games & social | `boju` | Quiz/Soril, AI chat, Idioms, Leaderboard, Profile/Avatar/Assignments, Teacher, Join |
 
----
-
-## 🎯 Phase 1 — MVP (Student app backend)
-
-Зорилго: оюутан бүртгүүлж нэвтрэх, үг/дүрэм/сонсгол сурах, quiz өгөх,
-XP цуглуулах, текст AI buddy-тэй ярих. Энгийн admin.
-
-### 1. Auth module `[x]`
-
-- [x] `POST /api/auth/register` — имэйл, нууц үг, нэр (bcrypt hash)
-- [x] `POST /api/auth/login` — JWT access token буцаах
-- [x] JWT strategy + `@UseGuards(JwtAuthGuard)` + `@CurrentUser()` decorator
-- [x] `GET /api/auth/me` — одоогийн хэрэглэгчийн мэдээлэл
-- [x] Role-based guard — `@Roles(UserRole.ADMIN)` + `RolesGuard`
-- **DoD:** ✅ Шинэ хэрэглэгч бүртгүүлж, нэвтэрч, токеноор хамгаалагдсан
-  endpoint руу хандаж чадна. Role-оор хамгаалалт ажиллаж байна (student→403,
-  admin→200). (E2E тестээр баталгаажсан)
-
-### 2. Users module `[x]` — 👤 Бишрэлт ✅
-
-- [x] CRUD (admin-д зориулсан) — `GET /api/users`, `DELETE /api/users/:id`
-- [x] Профайл засах (`PATCH /api/users/me`)
-- [x] XP/Sparks тэнцэл унших (`GET /api/users/me/stats`)
-
-### 3. Content modules — DB-д суурилсан `[x]`
-
-> Бүх контент DB-д. Hardcode хийхгүй. Admin нэмж чадна.
-> **Хуваарь:** Words/Lessons = 👤 Өсөхбаяр · Quizzes = 👤 Бишрэлт (өөр файл тул зэрэг хийж болно)
-
-- [x] **Words module** — CRUD, level/lesson-оор шүүх — 👤 Усухбаяр ✅
-- [x] **Lessons module** — CRUD, type/level/publish, jsonb content — 👤 Усухбаяр ✅
-- [x] **Quizzes module** — CRUD, `questions` jsonb-ийг service-д validate — 👤 Бишрэлт ✅
-- **DoD:** Admin үг/хичээл нэмж, оюутан API-аар авч чадна (admin-only бичих, E2E тест).
-
-### 4. Vocabulary / Spaced Repetition `[x]` — 👤 Усухбаяр ✅
-
-- [x] `GET /api/reviews/due` — өнөөдөр давтах ёстой үгс (WordReview)
-- [x] `POST /api/reviews/:wordId` — хариу илгээх (quality 0-5)
-- [x] SM-2 алгоритм service-д (easeFactor, interval, nextReviewAt шинэчлэх)
-- **DoD:** ✅ Оюутан үг давтахад дараагийн давталтын огноо зөв тооцогдоно
-  (1→6→16 өдөр, буруу хариунд reset). E2E тестээр баталгаажсан.
-
-### 5. Quiz submission + XP `[x]` — 👤 Бишрэлт ✅
-
-- [x] `POST /api/quizzes/:id/submit` — хариу шалгах, оноо тооцох
-- [x] **XP service** — зөв хариунаас XP олгох, `XpLog`-д бичих,
-      `User.xp` cache-г шинэчлэх
-- [x] Anti-abuse: зөвхөн жинхэнэ зөв харилцаанаас XP (CLAUDE.md)
-- **DoD:** Quiz өгөхөд XP нэмэгдэж, XpLog-д мөр үүснэ.
-
-### 6. AI Gateway module `[x]` ⚠️ ЧУХАЛ — 👤 Бишрэлт ✅
-
-> Бүх AI дуудлага ЗААВАЛ энэ нэг module-ээр дамжина. Feature-ээс шууд AI API
-> дуудахгүй (CLAUDE.md).
-
-- [x] `AiGatewayService.chat()` — текст AI buddy (Claude Haiku)
-- [x] Per-user хязгаар шалгах (Redis-ийн `ai:limits:default`-аас)
-- [x] Дуудлага бүрийг `AiUsage`-д logging (token, cost тооцох)
-- [x] Plan limit-ийг Redis-аар тохируулдаг болгох — `PATCH /api/ai/limits` (app update-гүйгээр)
-- [x] `Message` entity-д харилцааны түүх хадгалах
-- **DoD:** Оюутан AI buddy-тэй ярихад хариу авч, AiUsage-д бүртгэгдэж,
-  хязгаар хэтрэхэд блоклогдоно.
-
-### 7. Basic Admin `[x]` — 👤 Бишрэлт ✅
-
-- [x] Контент CRUD-ийг admin role-оор хамгаалах (Quizzes, Lessons, Words — admin guard)
-- [x] Seed script — `npm run seed` (admin user, words, lessons, quizzes) — `src/scripts/seed.ts`
-
-### 8. Leaderboard module `[x]` — 👤 Усухбаяр ✅
-
-> Рейтинг = **XP** (Spark-аар БИШ). XP-г устгаж reset хийхгүй — period нь зүгээр
-> `XpLog.created_at` дээрх хугацааны цонх.
-> ⚠️ Энэ нь #5 (XP service, Бишрэлт)-ийн дараа жинхэнэ дата авна — query-г seed
-> дататай урьдчилж барьж болно.
-
-- [x] Schema: `User.province/district/country`, `Organization.province/district`
-- [x] Enum: `LeaderboardPeriod` (weekly/monthly/all_time), `LeaderboardScope`
-- [x] `GET /api/leaderboard?period=weekly&scope=province` — топ N + миний байр
-- [x] Postgres query: `XpLog`-г хугацаа+scope-оор SUM, эрэмбэлэх
-- [x] Scope-ууд: global, province, district, class, organization
-- [ ] (Дараа нь) Redis ZSET-ээр хурдасгах — scale хэрэгтэй болоход
-- **DoD:** ✅ Оюутан өөрийн дүүрэг/аймаг/global-аар, долоо хоног/сар/бүх цагаар
-  рейтингээ харна. E2E тестээр баталгаажсан (XpLog seed дататай).
-  > Тэмдэглэл: жинхэнэ XP нь #5 (XP service, Бишрэлт) бэлэн болоход орж ирнэ.
-
-### 9. Sparks store — хичээл худалдах `[x]` — 👤 Бишрэлт ✅
-
-> Spark = зарцуулагддаг валют. Хичээл Spark-аар нээж болно.
-
-- [x] Schema: `Lesson.priceSparks`, `SparksLog` (ledger), `LessonUnlock`
-- [x] Enum: `SparksSource` (олох/зарах эх сурвалж)
-- [x] **Sparks service** — Spark олгох/хасах, `SparksLog`-д бичих,
-      `User.sparks` cache шинэчлэх (XP service-ийн ихэр)
-- [x] `POST /api/lessons/:id/unlock` — Spark хасч `LessonUnlock` үүсгэх
-      (нэг транзакц, balance шалгах, давхар худалдан авалтаас сэргийлэх)
-- [x] Хичээл авах эрхийг шалгах — `GET /api/lessons/:id/access`
-- [ ] **Spark-г мөнгөөр цэнэглэх** — `Payment` амжилттай → `SparksLog` (+,
-      source=`PURCHASE`). Payment module-той хамт (Phase 2).
-- **DoD:** Оюутан хангалттай Spark-тай бол хичээл нээж, дараа нь үргэлж
-  хандана. Spark дутвал блоклогдоно. Spark-г мөнгөөр худалдаж авч болно.
-
-### 10. Чанар, найдвартай байдал `[x]` — 👤 Бишрэлт ✅
-
-- [x] Global exception filter + стандарт алдааны формат (`src/common/filters/http-exception.filter.ts`)
-- [x] Request validation (DTO + class-validator) бүх endpoint дээр (`ValidationPipe` global)
-- [x] `GET /api/health` — health check (DB + Redis ping)
-- [ ] Production-д `DB_SYNCHRONIZE=false` + migration ашиглах (Phase 2-д шилжих үед)
-- [x] Гол flow-уудад e2e test (auth, XP/quiz submit, Sparks unlock, health) — `test/app.e2e-spec.ts`
+**Дүрэм:** Choi/Boju нь `/backend` шууд засахгүй → endpoint-ийг Өсөхбаяр-аас
+хүсэн авна. Shared mobile файл (`theme.ts`, `components/`, `_layout.tsx`) →
+эхлээд CLAUDE.md-д зарлаад, жижиг PR-аар оруулна.
 
 ---
 
-## 📋 Phase 2 — Teacher dashboard, Organizations, Payments `[x]` — 👤 Бишрэлт ✅
+## 2. Одоо хэрэгжсэн (baseline — 2026-06-30)
 
-- [x] **Organizations module** — school/company/law_firm (type нь нээлттэй string)
-      `POST/GET/PATCH/DELETE /api/organizations` (admin-only write)
-- [x] **Classes module** — багш класс үүсгэх, `join_code` автомат үүснэ
-      `POST/GET/PATCH/DELETE /api/classes` (teacher/admin)
-- [x] Оюутан `join_code`-оор класст элсэх — `POST /api/classes/join`
-- [x] Оюутан класс орхих — `DELETE /api/classes/:id/leave`
-- [x] **Assignments** — багш класст хичээл/quiz оноох, due date
-      `POST/GET/DELETE /api/assignments`, `GET /api/assignments/my` (оюутан)
-- [x] Багшийн dashboard API — `GET /api/classes/:id/progress`
-      (оюутан бүрийн xpWeek/xpMonth/xpTotal/sparks)
-- [x] **Payments module** — QPay stub (амьд API-г тохиргоо хийхэд орлоно)
-      `POST /api/payments` (intent үүсгэх), `POST /api/payments/:id/confirm` (Sparks цэнэглэх),
-      `GET /api/payments/my`, `GET /api/payments` (admin)
-- [ ] Org-level plan / суудлын тоо удирдах (Phase 3-т шилжүүлсэн)
-- [ ] QPay live API холбох (`.env` QPAY_* keys нэмэхэд бэлэн)
+Дэлгэрэнгүйг `docs/FUTURE_PLAN.md → §1`. Товчоор:
+- **Mobile:** Auth, Home (XP/Streak/Continue), Lessons + видео + дараах тест,
+  Дасгал, Swipe үг + SRS, Reading (tap-to-translate), Idioms, Сорил, AI text chat,
+  Leaderboard, Profile/Avatar, Багшийн хэсэг (анги/QR/батлах/даалгавар).
+- **Admin:** Хичээл/Үг/Сорил/Reading/Idiom/Дасгал контент + AI үүсгэлт (Gemini
+  текст, OpenAI зураг, ElevenLabs дуу), CSV/Bulk, Хэрэглэгч/Анги/Байгууллага,
+  Төлбөр/багц, AI статистик, Push, Leaderboard.
 
 ---
 
-## 🚀 Phase 3 — Voice AI, Premium, Sparks store
+## 3. App Store-д гаргахаас ӨМНӨ хийх ажил (07.01 → 07.09) 🚀
 
-- [ ] Voice AI: STT/TTS — AI Gateway-аар дамжуулж (одоо UI "coming soon")
-- [ ] Voice минут хязгаарыг plan-аас тохируулах
-- [ ] **Sparks store-ийг өргөтгөх** — хичээлээс гадна бусад зүйл (avatar, hint,
-      streak freeze г.м). Үндсэн механик нь Phase 1 #9-д бэлэн.
-- [ ] Sparks олгох/зарцуулах rate-ийг admin-аас тохируулах
-- [ ] Premium subscription tiers
+> Энэ бол **launch блокер** жагсаалт. 07.06 гэхэд тест хийх боломжтой болж,
+> 07.06–09 өнгөлгөө хийж, **07.09-нд App Store-д илгээнэ**.
 
----
+### Өсөхбаяр (Backend + Admin)
+- [ ] **Прод migration бүрэн гүйцэх** (`DB_SYNCHRONIZE=false` дээр гараар):
+      `reading_passages`, `translations`, `idioms` table + `synonyms`/`antonyms`
+      багана + `reading` enum утга. (`src/migrations/` шалгах.)
+- [ ] Prod дээр бүх шинэ endpoint ажиллаж буйг шалгах (Railway).
+- [ ] `.env.example` бүрэн (бүх шаардлагатай key placeholder-тэй); real key
+      commit хийгдээгүйг баталгаажуулах.
+- [ ] AI usage limit / rate-limit prod дээр асаалттай эсэхийг шалгах.
+- [ ] Admin бүх list page pagination + bulk ажиллаж буйг шалгах.
+- [ ] `API.md`-г одоогийн endpoint-уудтай тааруулж шинэчлэх.
 
-> ✅ **2026-06-30 — Reading/Idioms/Дасгал backend DONE (Usukhbayar).** Доорхын
-> ихэнх нь хийгдсэн: `ReadingPassage` (+ `category`/Сэдэв) module + F1 AI
-> guess-choices + F4 sentence audio + complete→XP (`XpSource.READING`); `Idiom`
-> module (CRUD + AI-fill + audio + image + bulk); `Translation` cache +
-> dictionary Gemini; quizzes `category`+`standalone` шүүлтүүр (Дасгал). Үлдсэн:
-> F2 reading-stats, F3 vocab-profile/difficulty, STT (Ярих). Дэлгэрэнгүй: `API.md`.
+### Choi (Mobile — learning core)
+- [ ] Auth → Home → Lesson → Quiz → Review бүх урсгалыг **гараар турших**, алдаа засах.
+- [ ] Placement / level сонголтын урсгал (A1–B1) шалгах.
+- [ ] Reading tap-to-translate + audio prod дээр ажиллаж буйг шалгах.
+- [ ] Loading / empty / error state-үүд бүх дэлгэц дээр байх.
+- [ ] Жагсаалт + зураг performance (FlatList, image cache).
 
-## 📖 Reading feature backend `[x]` — 👤 Usukhbayar (mobile: Choi/Boju)
+### Boju (Mobile — games & social)
+- [ ] Quiz/Soril, Idioms, Leaderboard, Profile, Teacher, Join урсгалыг турших, алдаа засах.
+- [ ] AI chat prod endpoint-той холбогдож буйг шалгах (limit warning харагдана).
+- [ ] Багшийн урсгал (анги үүсгэх → QR/код → сурагч батлах → даалгавар) бүрэн тест.
 
-> Mobile Phase M7-ийн дэмжлэг (`MOBILE_ROADMAP.md` + `SparkXP_reading_feature_IT_spec_MN.docx`).
-> Гол зарчим: **бүх learning action хадгалагдана** (review/recommendation/teacher
-> report-д ашиглана); audio/TTS **нэг удаа generate → storage**, real-time биш.
-
-**Контент / metadata**
-- [ ] Reading content бүрт metadata: `cefr`, `word_count`, `key_vocab[]`,
-      `estimated_reading_time`, **өгүүлбэрт хуваасан текст** + (боломжтой бол)
-      audio sentence **start/end timestamp**. (Lesson `type=reading` дээр өргөтгөх.)
-- [ ] Admin: reading content + audio + vocab + CEFR upload/publish (одоогийн Words
-      pipeline-тэй уялдуулах — image/audio Cloudinary-д хадгалах загвар хэвээр).
-
-**F1 Guess Before Translate (Choi UI)**
-- [ ] Word бүрт EN/MN meaning, POS, example, CEFR (ихэнх нь Words DB-д бэлэн).
-- [ ] **Guess choices AI-аар үүсгэх** (1 зөв + 2 логик төөрөгдүүлэх, хэт ойлгомжтой биш)
-      + **admin review** боломж.
-- [ ] Answer history endpoint: `correct/wrong/skipped/saved` хадгалах.
-
-**F2 Reading Streak / Library (Boju UI)** — progress tracking
-- [ ] User reading stats: `completed_readings_count`, `completed_chapters_count`,
-      `current_reading_streak`, `longest_reading_streak`, `books_finished_count`,
-      `average_quiz_score`, `total_saved_words_from_reading`.
-- [ ] Badge logic (First Read, 7-Day Reader, Fact Hunter...) + endpoint.
-
-**F3 Unknown Words Meter (Choi UI)**
-- [ ] **User vocabulary profile**: saved / mastered / weak / guessed-wrong words.
-- [ ] Difficulty estimate endpoint: текстийн үгсийг user profile-тэй харьцуулж
-      шинэ үгийн тоо + difficulty label буцаах (intelligent estimate, 100% биш).
-- [ ] Recommendation: хэт амар/хэт хэцүү текст санал болгохгүй (энэ profile дээр).
-
-**F4 Shadow Reading Mode (Boju UI)**
-- [ ] Sentence split + audio timing API (дээрх metadata).
-- [ ] **STT / pronunciation check** endpoint (богино sentence, cost хяналттай) —
-      AI Gateway-аар. *Phase 3 (voice) дотор багтаж болно.*
-
-**Teacher / Admin**
-- [ ] Teacher dashboard data: student бүрийн уншсан текст, quiz score, saved words,
-      weak words. (Одоогийн teacher report endpoint-уудыг өргөтгөх.)
+### Хамтын (launch bundle — 07.06–09)
+- [ ] UI/UX өнгөлгөө: Cyrillic фонт (Onest/Inter) ачаалах, spacing, шилжилт.
+- [ ] **App icon** файлууд нэмэх (одоо байхгүй).
+- [ ] App Store material: **Icon, Screenshots, Description** бэлтгэх.
+- [ ] Бодит gamification өгөгдөл (streak/level/progress placeholder-ийг солих).
+- [ ] Бүх hardcoded content DB-рүү (Core Rule) — шалгах.
+- [ ] Regression pass: гол урсгалуудыг бодит утсан дээр турших.
 
 ---
 
-## 📑 Doc-aligned backlog — Product Brief-ээс (coordinate)
+## 4. Launch-ийн ДАРАА — Update давалгаанууд 📦
 
-> Hustle Hive docx-ийн дагуу (`PRODUCT_BRIEF.md`) backend-д нэмэх ёстой зүйлс.
-> Эдгээр нь mobile (teacher + student) болон admin-д хамаатай тул **PR-ийн өмнө
-> хоёр dev тохиролцоно**. Ихэнх нь Phase 1.5 / Phase 3.
+> Бүх update `main` → Railway (backend/admin) + App Store update (mobile) руу
+> шат дараатай гарна. Хугацаа = `docs/FUTURE_PLAN.md → §3`.
 
-> ✅ **Энэ циклд хийгдсэн (2026-06, доорх "Bishrelt АНХААР"-т дэлгэрэнгүй):**
-> auth overhaul (username + email OTP + reset), класст элсэх зөвшөөрөл,
-> **Leaderboard `teacher` scope**, **`User.avatarUrl` + avatar upload**.
+### 🌊 Update 1 — Payments & Engagement (07.09 – 08.15)
+| Ажил | Owner | Тайлбар |
+| --- | --- | --- |
+| **QPay төлбөр** | Өсөхбаяр | Premium багцын бодит төлбөр (Payment entity + QPay webhook + багц config) |
+| Багц/plan limit config | Өсөхбаяр | Voice/token/dictionary/Sparks limit-ийг admin/DB-ээс (апп шинэчлэлгүй) |
+| **Badge & Achievement** | Boju | Achievement badge систем + Profile дээр харуулах |
+| **Push Notification** | Өсөхбаяр (BE) + Choi/Boju (FE) | Streak сануулга, даалгавар, шинэ контент push |
+| Streak сайжруулалт | Choi | Streak freeze/reminder, өдрийн зорилго логик |
 
-**Teacher dashboard гүнзгийрүүлэлт** (mobile M5 🟡)
-- [ ] Assignment **completion tracking** — оноосон lesson/quiz-ийг хэн дуусгасан
-      (X/N), статус. (Assignment-д completion data, эсвэл шинэ progress query.)
-- [ ] Класс доторх **per-student quiz оноо** aggregate.
-- [ ] **Weak topics** — оюутны сул скилл/категори (quiz/SRS дататай тооцох).
-- [x] `GET /api/classes/:id/progress` (xpWeek/Month/Total+sparks) — бэлэн.
+### 🌊 Update 2 — Speaking & Voice AI (2026 оны 8-р сар)
+> ⚠️ Хамгийн өндөр зардалтай хэсэг → **AI Gateway + guardrail** заавал (FUTURE_PLAN §4).
+| Ажил | Owner | Тайлбар |
+| --- | --- | --- |
+| **AI Найз Voice Chat** | Өсөхбаяр (BE) + Boju (FE) | ElevenLabs TTS, богино reply (8–15 сек), voice minute cap + 80/95% warning |
+| **Speaking Practice / STT** | Өсөхбаяр (BE) + Boju (FE) | ElevenLabs Scribe STT + VAD, дуудлага шалгах, нэг correction |
+| Төрөлжсөн AI багш | Өсөхбаяр + Boju | Мэргэжлийн buddy persona (эхний хувилбар) |
+| AI Gateway limit/logging | Өсөхбаяр | Per-user limit, cost tracking, Message history — voice гарахаас өмнө |
 
-**User профайл / plan** (mobile M6)
-- [x] `User.avatarUrl` + avatar upload (`POST /users/me/avatar`) — бэлэн.
-- [ ] `User.level` (placement түвшин) + `User.plan` талбар.
-- [ ] Plan caps-ийг admin/DB-ээс тохируулах (app update-гүй) — Free/Standard/Premium.
+### 🌊 Update 3 — Reading & Content 2.0 (2026 оны 8-р сар)
+| Ажил | Owner | Тайлбар |
+| --- | --- | --- |
+| **Reading шинэчлэлт** | Choi | Ахиц хадгалах, номын сан, шинэ үгийн статистик, аудио дагаж унших |
+| Vocabulary статистик | Choi | Сурсан үгийн тоо, mastery indicator |
+| Контент нэмэлт | Өсөхбаяр (admin) | Илүү олон хичээл/үг/reading (A1–B2) |
 
-**AI usage metering + cap enforcement** (PRODUCT_BRIEF §5)
-- [ ] `AiUsage`-д: `voice_seconds`, `stt_seconds`, `dictionary_ai_count`,
-      `dictionary_cache_hit`, `ai_input/output_tokens`, `memory_storage_mb`,
-      `memory_retrieval_count`. Real-time per-user meter.
-- [ ] Voice cap (Standard 25 / Premium 50 мин) — 80%/95% warning, cap-д voice зогсоод text үргэлжлэх.
-- [ ] STT cap (75 / 100–120 мин) + VAD.
+### 🌊 Update 4 — Teacher Panel 2.0 (deep) (08.10 → цаашид)
+> Дэлгэрэнгүй: `docs/FUTURE_PLAN.md → §6`. Language center/school-д зарах гол feature.
+| Ажил | Owner | Тайлбар |
+| --- | --- | --- |
+| Teacher Dashboard | Boju (FE) + Өсөхбаяр (BE) | Total/Active students, avg progress, speaking this week |
+| Class Detail | Boju + Өсөхбаяр | Weakest topic, performance graph, top mistakes |
+| Student Progress | Boju + Өсөхбаяр | Skill breakdown, common mistakes + AI suggestion, feedback |
+| Assign Task 2.0 | Boju + Өсөхбаяр | Task types, due date, submission tracking (`assignment_submissions`) |
 
-**AI Dictionary module** (Gemini 2.5 Flash-Lite)
-- [ ] DB/cache-first lookup; Gemini зөвхөн шинэ үг/гүн тайлбар. 4-section, `max_output_tokens≈450–500`, grounding OFF, cache.
-
-**Voice AI** (Phase 3, AI Gateway-аар)
-- [ ] TTS (ElevenLabs Flash/Turbo) + STT (Scribe) — fallback: API унавал text mode.
-
-**Gamification tracking** (mobile Home/Profile placeholder-ийг live болгох)
-- [ ] Streak, daily-XP goal, lesson completion, badge — endpoint + `User`/log талбарууд.
-
----
-
-## 🔁 Тогтмол баримтлах зарчмууд (CLAUDE.md-ээс)
-
-- Бүх контент **DB-д**, hardcode хийхгүй
-- Бүх AI дуудлага **AI Gateway**-ээр
-- Plan limit-үүд **DB/admin-аас** тохируулагддаг (app update-гүй)
-- UUID primary key, jsonb flexible контент, `created_at`/`updated_at`
-- TypeScript everywhere, жижиг функц, тодорхой нэр, junior уншиж ойлгохоор
-- Хоёр хэл: Монгол primary, Англи secondary
+### ♾️ Тогтмол — Performance & Stability
+- Cache (Redis), server optimization, error monitoring, crash logs.
+- Leaderboard-д Redis ZSET (scale хэрэгтэй болвол).
+- Speaking AI-г queue/worker-т (BullMQ) тусгаарлах.
 
 ---
 
-## 📌 Дараагийн алхам
-
-✅ **Phase 1 бүрэн дууссан.**
-✅ **Phase 2 бүрэн дууссан — `bishrelt` branch-д бэлэн.**
-
-Бишрэлт хийсэн: #2 Users · #3 Quizzes · #5 XP · #6 AI Gateway · #7 Seed · #9 Sparks · #10 Quality · Phase 2 (Orgs/Classes/Assignments/Payments)
-Усухбаяр хийсэн: #3 Words/Lessons · #4 SRS · #8 Leaderboard
-
-**Дараагийн алхам:**
-1. `bishrelt` + `usukhbayar` branch PR → `main` merge.
-2. Phase 3 (Voice AI, Premium, Sparks store өргөтгөл) эхлэх.
-3. QPay live API нэгтгэх — `.env.example`-д `QPAY_*` keys нэмнэ.
+## 5. Дараагийн давалгаа (Later — тодорхой огноогүй)
+`docs/FUTURE_PLAN.md → §3 (Later)`: AI Buddy marketplace, Duolingo-style lesson
+path, card battle / rare-epic pack, profession scenario games, secure exam mode,
+full audiobook library, live teacher platform, creator AI buddies, олон улсын өргөтгөл.
 
 ---
 
-## 🔄 Mobile redesign-аас үүдсэн shared backend өөрчлөлт (2026-06-12)
+## 6. Timeline (нэг харцаар)
 
-> Усухбаярын mobile redesign-ийн явцад `/backend`-д орсон жижиг өөрчлөлтүүд
-> (хоёр dev-д хамаатай — `git pull` хийхэд ирнэ):
-
-- **`LessonType` enum** (`common/enums`) — `reading`, `writing`, `fill` нэмсэн
-  (mobile 4 скилл: Сонсгол/Унших/Нөхөх/Бичих). `API.md` шинэчилсэн.
-- **`scripts/seed.ts`** — DataSource `synchronize: true` (дутуу хүснэгт автоматаар
-  үүснэ, ж: `plans`) + skill жишээ хичээл.
-- **`@types/multer`** dev-dependency нэмсэн (upload feature TS build засвар).
-- **Хийгдэх (mobile хэрэгцээ):** бодит **streak / level / daily-XP / lesson
-  completion** tracking endpoint (одоо mobile талд placeholder). Lesson `content`
-  jsonb-д **видео** shape (`videoUrl`, `segments`, `tip`) — admin бөглөнө.
-
----
-
-## ⚠️ Shared backend өөрчлөлт — Bishrelt АНХААР (2026-06-16)
-
-> Усухбаярын багш/auth ажлаас `/backend`-д орсон **хуваалцсан** өөрчлөлтүүд.
-> `git pull` хийгээд **`cd mobile && npm install`** (шинэ dependency). Дэлгэрэнгүй: `API.md`.
-
-**1. AUTH дахин зохион байгуулсан** (admin web-д НӨЛӨӨТЭЙ — гэхдээ эвдрэхгүй):
-- Бүртгэл одоо **`username` (заавал, давтагдашгүй)** + email шаардана.
-- **Нэвтрэлт `{ identifier, password }`** — `identifier` нь **username ЭСВЭЛ email**.
-  Хуучин `{ email, password }` body ажиллахаа болино → **admin login-ийг
-  `email`-ийн оронд `identifier` талбар руу шилжүүлэх** (утга нь email хэвээр болно).
-- Шинэ endpoint: `verify-otp`, `resend-otp`, `forgot-password`, `reset-password`.
-- Имэйл OTP-оор баталгаажна (register токен өгөхгүй → verify-otp токен өгнө).
-- `User.emailVerified` багана нэмэгдсэн. OTP нь Redis-д (10 мин TTL).
-- **`MailService` нь stub** (`src/mail/`) — dev-д код лог. Жинхэнэ SMTP/Resend-г энд залгана.
-- Public register `role`-г **зөвхөн `student`** болгож түгжсэн (teacher = admin олгоно).
-
-**2. Класст элсэх = багшийн зөвшөөрөлтэй:**
-- `POST /classes/join` → шууд элсэхгүй, **pending хүсэлт** үүсгэнэ.
-- Шинэ entity **`class_join_requests`** + endpoint: `GET /classes/:id/requests`,
-  `POST /classes/:id/requests/:studentId/approve`, `DELETE .../:studentId`.
-
-**3. Leaderboard `teacher` scope** нэмсэн — багшийн бүх ангийн сурагчид
-  (`?scope=teacher`). `LeaderboardModule` одоо `ClassEntity`-г import хийдэг.
-
-**4. `GET /organizations`** одоо **🔑 (нэвтэрсэн бүх хүнд нээлттэй)** — багш класс
-  үүсгэхдээ сургуулиа сонгоход. (POST/PATCH/DELETE хэвээр admin-only.)
-
-**5. Шинэ mobile dependency:** `expo-camera`, `react-native-svg`,
-  `react-native-qrcode-svg` (QR + scanner), `expo-image-picker` (avatar).
-  Pull хийсний дараа `npm install`.
-
-**6. Avatar:** `User.avatarUrl` багана нэмсэн. `PATCH /users/me`-д `avatarUrl`
-  (зургийн URL эсвэл `default:avN`), шинэ `POST /users/me/avatar` (зураг upload,
-  сурагчид нээлттэй). `/auth/me`/login user-д `avatarUrl` ирнэ.
-
+```
+07.01 ──────── 07.06 ──── 07.09 ──────────────── 08.10 ──── 08.15
+  │              │           │                       │          │
+  launch блокер  тест       App Store               бүрэн     production
+  ажил эхэлнэ    боломжтой  анхны хувилбар          дуусгах   тогтвортой
+                            + Update 1–4 эхэлнэ
+```

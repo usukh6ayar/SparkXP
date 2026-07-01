@@ -1,37 +1,42 @@
-# EnglishXP
+# SparkXP (EnglishXP)
 
 Gamified English learning app for Mongolian students, schools, and
 organizations (e.g. law firms). Owner: Hustle Hive LLC.
 
+- **App name:** SparkXP · **GitHub repo:** https://github.com/usukh6ayar/SparkXP
+- **Prod API:** https://sparkxp-production.up.railway.app/api (Railway)
+
 > **This file is the shared brain for every developer's Claude session.**
-> We are 4 devs, each on a separate Claude Pro account. Keep this file clear and
+> We are 3 devs, each on a separate Claude Pro account. Keep this file clear and
 > up to date — whatever is written here is what each person's Claude will follow.
-> For the task list / what to build next, see **ROADMAP.md**.
+> For the task list / who-does-what / launch plan, see **ROADMAP.md**.
+> For the full product + cost + future plan, see **docs/FUTURE_PLAN.md**.
 
 ---
 
 ## Team & Working Style
 
-- 4 developers, each using their own Claude Pro account (Usukhbayar leads).
+- 3 developers, each using their own Claude Pro account (Өсөхбаяр leads).
 - Keep code simple, readable, well-documented. MVP first, scale later.
 - Avoid over-engineering. Write code a junior dev can read.
 
 ### Work division (who owns what — avoid duplicate work!)
 
-**4 developers (2026-06-29 reorg).** Usukhbayar leads.
+**3 developers (2026-07-01).** Өсөхбаяр (Usukhbayar) leads.
 
-- **Usukhbayar** → **Admin web** (`/admin`) + team lead. Branch: `usukhbayar`.
-- **Bishrelt** → **Backend** (`/backend`) — builds & maintains endpoints for both
-  mobile and admin, updates `API.md`. Branch: `bishrelt`.
-- **Choi** → **Mobile** (`/mobile`) learning core: Auth, Home, Lessons (list+detail),
-  Review (SRS), Swipe + Saved. Branch: `choi`.
-- **Boju** → **Mobile** (`/mobile`) games & social: Quiz, Soril, AI chat,
-  Leaderboard, Profile/Avatar/Assignments, Teacher, Join. Branch: `boju`.
+- **Өсөхбаяр (Usukhbayar)** → **Backend** (`/backend`) + **Admin web** (`/admin`)
+  + team lead. Owns all endpoints (updates `API.md`), DB, migrations, admin panel.
+  Branch: `usukhbayar`.
+- **Choi (Чойжамц)** → **Mobile** (`/mobile`) — student learning core: Auth, Home,
+  Lessons (list+detail), Reading, Review (SRS), Swipe + Saved. Branch: `choi`.
+- **Boju (Батсайхан)** → **Mobile** (`/mobile`) — games & social: Quiz/Soril, AI
+  chat, Idioms, Leaderboard, Profile/Avatar/Assignments, Teacher, Join. Branch: `boju`.
 
-The **backend (`/backend`) is shared but Bishrelt-led** — mobile devs request an
-endpoint, Bishrelt builds it and updates `API.md`. Don't both build the same
-module. The mobile split (Choi vs Boju) is by screen group to avoid conflicts;
-shared `mobile/src/components` + `theme.ts` edits go in small PRs, announced here.
+The **backend (`/backend`) is Өсөхбаяр-led** — mobile devs (Choi/Boju) don't edit
+`/backend` directly; they **request the endpoint from Өсөхбаяр**, who builds it and
+updates `API.md`. The mobile split (Choi vs Boju) is by screen group to avoid
+conflicts; shared `mobile/src/components` + `theme.ts` edits go in small PRs,
+announced here first.
 
 ## Tech Stack
 
@@ -45,23 +50,16 @@ shared `mobile/src/components` + `theme.ts` edits go in small PRs, announced her
 ## Repo Structure
 
 - `/backend` — NestJS API (built — see "Current Status")
-- `/mobile` — React Native (Expo) app (started — Expo Router, see MOBILE_ROADMAP.md)
+- `/mobile` — React Native (Expo) app (Expo Router)
+- `/admin` — Next.js web admin dashboard (content + user + org management)
 - `CLAUDE.md` — this file (shared rules + project context)
-- `PRODUCT_BRIEF.md` — product vision, roles, MVP scope, **plan tiers + AI/voice
-  cost guardrails** (Hustle Hive docx нэгтгэл — read before plan/AI/limit work)
-- `ROADMAP.md` — backend task list and build phases
-- `MOBILE_ROADMAP.md` — mobile (frontend) task list + brand
-- `ROLES.md` — user types, roles (student/teacher/admin/super_admin) +
-  permissions matrix (read this to understand who can do what)
-- `API.md` — full backend endpoint reference (path, auth level, purpose)
-- `ADMIN_ROADMAP.md` — web admin dashboard plan (tech, phases, features)
-- `TEAM_WORKFLOW.md` — **how the 4-dev team works to avoid code overlap /
-  conflicts** (file ownership, shared-file protocol, backend→Bishrelt funnel,
-  git rules). Read before touching shared files (`theme.ts`, `components/`,
-  `/backend`, `API.md`).
-- `VOCABULARY_SYSTEM.md` — **bulk vocabulary pipeline** (20k+ words: bulk
-  upload → validate → media auto-match → review → publish → swipe + per-user
-  progress + analytics). Read before any vocab/word/swipe/bulk-import work.
+- `ROADMAP.md` — **who does what + App Store launch checklist + future update
+  waves (when each update ships).** Read this to know what to build next.
+- `docs/FUTURE_PLAN.md` — full product/cost/future plan nэгтгэл (from the client
+  + IT-team docx briefs). Read before plan/AI/limit/pricing/teacher-panel work.
+- `docs/*.docx` — original briefs: IT Team Brief, Strategy Recommendations,
+  34,000₮ / 56,000₮ plan cost breakdowns, SparkXP Plan, Teacher Panel UI/UX.
+- `API.md` — full backend endpoint reference (rebuild/keep updated as endpoints land).
 
 ---
 
@@ -294,13 +292,18 @@ WordReview, XpLog, AiUsage, Message, Payment, SparksLog, LessonUnlock.
   never raw `fetch` inside a screen.
 - Full plan + brand colors: see **MOBILE_ROADMAP.md**.
 
-## Git Workflow (4-dev team)
+## Git Workflow (3-dev team)
 
-> Full anti-conflict guide: **`TEAM_WORKFLOW.md`**. Core idea: **each dev only
-> edits files in their own area** (Usukhbayar=`/admin`, Bishrelt=`/backend`,
-> Choi/Boju=split `/mobile` routes); shared files (`theme.ts`, `components/`,
-> `API.md`, `_layout.tsx`) are touched only via "announce → tiny PR → merge fast".
-> Mobile devs don't edit `/backend` directly — request the endpoint from Bishrelt.
+> **Remote:** `origin` = https://github.com/usukh6ayar/SparkXP.git
+> Core idea: **each dev only edits files in their own area** (Өсөхбаяр =
+> `/backend` + `/admin`, Choi/Boju = split `/mobile` routes); shared files
+> (`theme.ts`, `components/`, `API.md`, `_layout.tsx`) are touched only via
+> "announce → tiny PR → merge fast". Mobile devs don't edit `/backend` directly —
+> request the endpoint from Өсөхбаяр.
+
+**Хаана push хийх вэ (where to push):** always to **GitHub `origin`**, on your
+**own branch**, then open a **Pull Request** → review → merge to `main`.
+**Never push directly to `main`.**
 
 - **ALWAYS pull `main` BEFORE starting any task** (so you build on the other dev's
   latest and don't duplicate/conflict). This is the #1 rule — do it every time:
@@ -308,11 +311,17 @@ WordReview, XpLog, AiUsage, Message, Payment, SparksLog, LessonUnlock.
   git checkout main && git pull origin main
   git checkout <your-branch> && git merge main   # bring in their merged work
   ```
-- `main` is always working/deployable. **Never push directly to `main`.**
-- **Each dev works on their own branch** — `usukhbayar`, `bishrelt`, `choi`,
-  `boju` (or a `feature/...` / `fix/...` branch for a specific task). Never
-  commit on someone else's branch.
+- Do your work, then push your branch and open a PR:
+  ```bash
+  git checkout <your-branch>          # usukhbayar | choi | boju
+  git add -A && git commit -m "..."
+  git push origin <your-branch>       # → open PR on GitHub → review → merge to main
+  ```
+- `main` is always working/deployable (auto-deploys to Railway). Keep it green.
+- **Each dev works on their own branch** — `usukhbayar`, `choi`, `boju` (or a
+  `feature/...` / `fix/...` branch for a specific task). Never commit on
+  someone else's branch.
 - Open a Pull Request, have another dev review, then merge to `main`.
 - Keep PRs small and frequent. Split work by module to avoid conflicts.
 - `.env` is never committed (secrets). Update `.env.example` when adding new
-  config keys so the other dev knows to set them.
+  config keys so the others know to set them.
