@@ -29,7 +29,9 @@ export const colors = {
   navySoft: '#B9A9E6',
 
   // Surfaces — deep night-sky background, raised purple cards, darker nested
-  backgroundGradient: ['#1B1147', '#2A1A5E'] as const, // night-sky (top → bottom)
+  // Typed as a 2-stop tuple (not `as const`) so the light theme can override it
+  // with different stops — see `lightOverrides.backgroundGradient`.
+  backgroundGradient: ['#1B1147', '#2A1A5E'] as readonly [string, string], // night-sky (top → bottom)
   background: '#191040', // app background (solid base / fallback)
   surface: '#2A1E5C', // cards / elevated surfaces
   surfaceAlt: '#372A7A', // secondary surface — inputs, chips, tracks

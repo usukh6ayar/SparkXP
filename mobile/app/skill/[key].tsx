@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useMemo } from 'react';
 import { View, StyleSheet, ScrollView, Pressable, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -10,7 +10,8 @@ import { TopBar } from '../../src/components/TopBar';
 import { AppText } from '../../src/components/Text';
 import { Loading } from '../../src/components/Loading';
 import { ProgressBar } from '../../src/components/ProgressBar';
-import { colors, spacing, radius, tints } from '../../src/theme/theme';
+import { useColors } from '../../src/settings/SettingsContext';
+import { spacing, radius, tints, type AppColors } from '../../src/theme/theme';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 type TintName = keyof typeof tints;
@@ -49,6 +50,8 @@ export default function SkillScreen() {
   const skillKey = key ?? 'listening';
   const skill = SKILLS[skillKey] ?? SKILLS.listening;
   const { token } = useAuth();
+  const c = useColors();
+  const styles = useMemo(() => makeStyles(c), [c]);
   const router = useRouter();
 
   const [items, setItems] = useState<Quiz[]>([]);
@@ -83,7 +86,7 @@ export default function SkillScreen() {
       <ScrollView
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.primary} />}
       >
         {/* Today's <skill> — progress hero card */}
         <LinearGradient colors={skill.grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
@@ -91,13 +94,13 @@ export default function SkillScreen() {
             <AppText variant="overline" color="rgba(255,255,255,0.85)">
               ӨНӨӨ ДӨР · {skill.en.toUpperCase()}
             </AppText>
-            <AppText variant="display" color={colors.white} style={styles.heroPercent}>
+            <AppText variant="display" color={c.white} style={styles.heroPercent}>
               {skill.percent}%
             </AppText>
             <AppText variant="caption" color="rgba(255,255,255,0.9)">Явц</AppText>
             <ProgressBar
               value={skill.percent / 100}
-              color={colors.white}
+              color={c.white}
               track="rgba(255,255,255,0.28)"
               height={8}
               style={styles.heroBar}
@@ -114,7 +117,7 @@ export default function SkillScreen() {
         {loading ? (
           <Loading />
         ) : items.length === 0 ? (
-          <AppText variant="body" color={colors.textMuted} center style={styles.empty}>
+          <AppText variant="body" color={c.textMuted} center style={styles.empty}>
             Энэ төрлийн дасгал алга 🦊
           </AppText>
         ) : (
@@ -137,7 +140,7 @@ export default function SkillScreen() {
                       {q.questions?.length ?? 0} асуулт · {q.xpReward} XP · {q.level.toUpperCase()}
                     </AppText>
                   </View>
-                  <Ionicons name="chevron-forward" size={20} color={colors.borderStrong} />
+                  <Ionicons name="chevron-forward" size={20} color={c.borderStrong} />
                 </Pressable>
               );
             })}
@@ -150,8 +153,8 @@ export default function SkillScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
+const makeStyles = (c: AppColors) => StyleSheet.create({
+  safe: { flex: 1, backgroundColor: c.background },
   container: { paddingHorizontal: spacing.lg, paddingTop: spacing.xs },
 
   // Today's <skill> hero
@@ -180,14 +183,14 @@ const styles = StyleSheet.create({
 
   // Grouped premium menu
   listCard: {
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     overflow: 'hidden',
   },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md },
-  rowBorder: { borderTopWidth: 1, borderTopColor: colors.border },
+  rowBorder: { borderTopWidth: 1, borderTopColor: c.border },
   rowIcon: { width: 44, height: 44, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
 
   empty: { marginTop: spacing.xxl },

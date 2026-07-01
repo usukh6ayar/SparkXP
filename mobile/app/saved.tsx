@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { View, StyleSheet, FlatList, Pressable, Image, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,7 +9,8 @@ import { getSaved, toggleSave, type LearnWord } from '../src/api/reviews';
 import { TopBar } from '../src/components/TopBar';
 import { AppText } from '../src/components/Text';
 import { Loading } from '../src/components/Loading';
-import { colors, spacing, radius, elevation } from '../src/theme/theme';
+import { useColors } from '../src/settings/SettingsContext';
+import { spacing, radius, elevation, type AppColors } from '../src/theme/theme';
 
 /**
  * Saved words (⭐). Lists everything the user starred from the flashcard deck.
@@ -17,6 +18,8 @@ import { colors, spacing, radius, elevation } from '../src/theme/theme';
  */
 export default function SavedScreen() {
   const { token } = useAuth();
+  const c = useColors();
+  const styles = useMemo(() => makeStyles(c), [c]);
   const [words, setWords] = useState<LearnWord[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -57,12 +60,12 @@ export default function SavedScreen() {
         data={words}
         keyExtractor={(w) => w.id}
         contentContainerStyle={words.length === 0 ? styles.emptyWrap : styles.list}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.primary} />}
         ListEmptyComponent={
           <View style={styles.empty}>
             <AppText style={styles.emptyEmoji}>⭐</AppText>
             <AppText variant="h3" center>Хадгалсан үг алга</AppText>
-            <AppText variant="body" color={colors.textSecondary} center style={styles.emptyHint}>
+            <AppText variant="body" color={c.textSecondary} center style={styles.emptyHint}>
               Үг сурах үед картны ⭐ дээр дарж хадгална.
             </AppText>
           </View>
@@ -73,18 +76,18 @@ export default function SavedScreen() {
               {item.imageUrl ? (
                 <Image source={{ uri: item.imageUrl }} style={styles.thumbImg} />
               ) : (
-                <Ionicons name="image-outline" size={20} color={colors.textMuted} />
+                <Ionicons name="image-outline" size={20} color={c.textMuted} />
               )}
             </View>
             <View style={styles.info}>
-              <AppText variant="h3" color={colors.navy} numberOfLines={1}>{item.english}</AppText>
-              <AppText variant="caption" color={colors.primary} numberOfLines={1}>{item.mongolian}</AppText>
+              <AppText variant="h3" color={c.navy} numberOfLines={1}>{item.english}</AppText>
+              <AppText variant="caption" color={c.primary} numberOfLines={1}>{item.mongolian}</AppText>
             </View>
             <Pressable onPress={() => play(item)} hitSlop={8} style={styles.iconBtn}>
-              <Ionicons name="volume-high" size={20} color={colors.primary} />
+              <Ionicons name="volume-high" size={20} color={c.primary} />
             </Pressable>
             <Pressable onPress={() => unsave(item)} hitSlop={8} style={styles.iconBtn}>
-              <Ionicons name="star" size={20} color={colors.xp} />
+              <Ionicons name="star" size={20} color={c.xp} />
             </Pressable>
           </View>
         )}
@@ -93,28 +96,28 @@ export default function SavedScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
+const makeStyles = (c: AppColors) => StyleSheet.create({
+  safe: { flex: 1, backgroundColor: c.background },
   list: { padding: spacing.lg, gap: spacing.sm },
   emptyWrap: { flexGrow: 1 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    backgroundColor: colors.surface,
+    backgroundColor: c.surface,
     borderRadius: radius.lg,
     padding: spacing.md,
     ...(elevation.sm as object),
   },
   thumb: {
     width: 48, height: 48, borderRadius: radius.md,
-    backgroundColor: colors.surfaceAlt, alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+    backgroundColor: c.surfaceAlt, alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
   },
   thumbImg: { width: '100%', height: '100%' },
   info: { flex: 1 },
   iconBtn: {
     width: 38, height: 38, borderRadius: radius.full,
-    backgroundColor: colors.surfaceAlt, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: c.surfaceAlt, alignItems: 'center', justifyContent: 'center',
   },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
   emptyEmoji: { fontSize: 52, marginBottom: spacing.md },

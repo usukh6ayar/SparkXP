@@ -9,13 +9,16 @@ import { useAuth } from '../../src/auth/AuthContext';
 import * as quizzesApi from '../../src/api/quizzes';
 import type { Quiz, AnswerItem, QuizResult } from '../../src/api/quizzes';
 import { Button } from '../../src/components/Button';
-import { colors, spacing, radius, fontSize } from '../../src/theme/theme';
+import { useColors } from '../../src/settings/SettingsContext';
+import { spacing, radius, fontSize, type AppColors } from '../../src/theme/theme';
 
 type Phase = 'loading' | 'quiz' | 'result' | 'error';
 
 export default function QuizScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { token } = useAuth();
+  const c = useColors();
+  const styles = useMemo(() => makeStyles(c), [c]);
   const router = useRouter();
 
   const [quiz, setQuiz] = useState<Quiz | null>(null);
@@ -101,7 +104,7 @@ export default function QuizScreen() {
   if (phase === 'loading') {
     return (
       <SafeAreaView style={styles.center}>
-        <ActivityIndicator size="large" color={colors.primary} />
+        <ActivityIndicator size="large" color={c.primary} />
       </SafeAreaView>
     );
   }
@@ -204,7 +207,7 @@ export default function QuizScreen() {
             value={fillText}
             onChangeText={setFillText}
             placeholder="Хариултаа бичнэ үү..."
-            placeholderTextColor={colors.textMuted}
+            placeholderTextColor={c.textMuted}
             autoCapitalize="none"
           />
         )}
@@ -258,9 +261,9 @@ export default function QuizScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.surface },
+const makeStyles = (c: AppColors) => StyleSheet.create({
+  safe: { flex: 1, backgroundColor: c.background },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: c.surface },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -269,16 +272,16 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
     paddingBottom: spacing.sm,
   },
-  backBtn: { color: colors.primary, fontWeight: '600', fontSize: fontSize.md },
-  progress: { color: colors.textMuted, fontSize: fontSize.sm },
-  progressBar: { height: 4, backgroundColor: colors.border, marginHorizontal: spacing.lg, borderRadius: 2 },
-  progressFill: { height: 4, backgroundColor: colors.primary, borderRadius: 2 },
+  backBtn: { color: c.primary, fontWeight: '600', fontSize: fontSize.md },
+  progress: { color: c.textMuted, fontSize: fontSize.sm },
+  progressBar: { height: 4, backgroundColor: c.border, marginHorizontal: spacing.lg, borderRadius: 2 },
+  progressFill: { height: 4, backgroundColor: c.primary, borderRadius: 2 },
   container: { padding: spacing.lg, paddingTop: spacing.md },
-  quizTitle: { fontSize: fontSize.sm, color: colors.textMuted, marginBottom: spacing.sm },
+  quizTitle: { fontSize: fontSize.sm, color: c.textMuted, marginBottom: spacing.sm },
   questionText: {
     fontSize: fontSize.lg,
     fontWeight: '700',
-    color: colors.navy,
+    color: c.navy,
     marginBottom: spacing.xl,
     lineHeight: 30,
   },
@@ -287,70 +290,70 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: colors.border,
+    borderColor: c.border,
     borderRadius: radius.md,
     padding: spacing.md,
     gap: spacing.md,
   },
-  optionSelected: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  optionSelected: { borderColor: c.primary, backgroundColor: c.primarySoft },
   optionLabel: {
     width: 28, height: 28,
     borderRadius: 14,
-    backgroundColor: colors.surfaceAlt,
+    backgroundColor: c.surfaceAlt,
     textAlign: 'center',
     lineHeight: 28,
     fontWeight: '700',
-    color: colors.textMuted,
+    color: c.textMuted,
     fontSize: fontSize.sm,
   },
-  optionLabelSelected: { backgroundColor: colors.primary, color: colors.white },
-  optionText: { flex: 1, fontSize: fontSize.md, color: colors.text },
-  optionTextSelected: { color: colors.navy, fontWeight: '600' },
+  optionLabelSelected: { backgroundColor: c.primary, color: c.white },
+  optionText: { flex: 1, fontSize: fontSize.md, color: c.text },
+  optionTextSelected: { color: c.navy, fontWeight: '600' },
   fillInput: {
     borderWidth: 2,
-    borderColor: colors.border,
+    borderColor: c.border,
     borderRadius: radius.md,
     padding: spacing.md,
     fontSize: fontSize.md,
-    color: colors.text,
+    color: c.text,
   },
   // word_match
   wmRow: { flexDirection: 'row', gap: spacing.md },
   wmCol: { flex: 1, gap: spacing.sm },
   wmItem: {
-    borderWidth: 2, borderColor: colors.border, borderRadius: radius.md,
+    borderWidth: 2, borderColor: c.border, borderRadius: radius.md,
     paddingVertical: spacing.md, paddingHorizontal: spacing.md, minHeight: 48, justifyContent: 'center',
   },
-  wmItemSel: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
-  wmItemDone: { borderColor: colors.success, backgroundColor: colors.successSoft },
+  wmItemSel: { borderColor: c.primary, backgroundColor: c.primarySoft },
+  wmItemDone: { borderColor: c.success, backgroundColor: c.successSoft },
   wmItemUsed: { opacity: 0.35 },
-  wmText: { fontSize: fontSize.md, color: colors.text, fontWeight: '600' },
-  wmTextUsed: { color: colors.textMuted },
-  wmMatch: { fontSize: fontSize.sm, color: colors.primary, marginTop: 2 },
-  errorText: { color: colors.danger, fontSize: fontSize.md },
+  wmText: { fontSize: fontSize.md, color: c.text, fontWeight: '600' },
+  wmTextUsed: { color: c.textMuted },
+  wmMatch: { fontSize: fontSize.sm, color: c.primary, marginTop: 2 },
+  errorText: { color: c.danger, fontSize: fontSize.md },
   // Result styles
   resultEmoji: { fontSize: 64, textAlign: 'center', marginBottom: spacing.sm },
-  resultTitle: { fontSize: fontSize.xl, fontWeight: '800', color: colors.navy, textAlign: 'center' },
-  resultScore: { fontSize: 56, fontWeight: '900', color: colors.primary, textAlign: 'center', marginTop: spacing.sm },
-  resultSub: { color: colors.textMuted, textAlign: 'center', marginBottom: spacing.lg },
+  resultTitle: { fontSize: fontSize.xl, fontWeight: '800', color: c.navy, textAlign: 'center' },
+  resultScore: { fontSize: 56, fontWeight: '900', color: c.primary, textAlign: 'center', marginTop: spacing.sm },
+  resultSub: { color: c.textMuted, textAlign: 'center', marginBottom: spacing.lg },
   xpBadge: {
     alignSelf: 'center',
-    backgroundColor: colors.primarySoft,
+    backgroundColor: c.primarySoft,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
     borderRadius: radius.full,
     marginBottom: spacing.lg,
   },
-  xpBadgeText: { color: colors.primary, fontWeight: '800', fontSize: fontSize.md },
+  xpBadgeText: { color: c.primary, fontWeight: '800', fontSize: fontSize.md },
   breakdownBox: {
-    backgroundColor: colors.surfaceAlt,
+    backgroundColor: c.surfaceAlt,
     borderRadius: radius.md,
     padding: spacing.md,
     gap: spacing.sm,
   },
   breakdownRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  breakdownNum: { width: 24, fontWeight: '700', color: colors.textMuted, fontSize: fontSize.sm },
-  correct: { fontSize: fontSize.lg, color: colors.success },
-  wrong: { fontSize: fontSize.lg, color: colors.danger },
-  breakdownPts: { color: colors.textMuted, fontSize: fontSize.sm },
+  breakdownNum: { width: 24, fontWeight: '700', color: c.textMuted, fontSize: fontSize.sm },
+  correct: { fontSize: fontSize.lg, color: c.success },
+  wrong: { fontSize: fontSize.lg, color: c.danger },
+  breakdownPts: { color: c.textMuted, fontSize: fontSize.sm },
 });
