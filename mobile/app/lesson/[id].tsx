@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { View, StyleSheet, ScrollView, Pressable, Image, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,7 +16,8 @@ import { Pill } from '../../src/components/Pill';
 import { Button } from '../../src/components/Button';
 import { Loading } from '../../src/components/Loading';
 import { getSkill } from '../../src/constants/skills';
-import { colors, spacing, radius, levelColor } from '../../src/theme/theme';
+import { useColors } from '../../src/settings/SettingsContext';
+import { spacing, radius, levelColor, type AppColors } from '../../src/theme/theme';
 
 const banner = require('../../assets/home-banner.png');
 
@@ -28,6 +29,8 @@ const CAT_LABELS: Record<string, string> = {
 export default function LessonDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { token, user } = useAuth();
+  const c = useColors();
+  const styles = useMemo(() => makeStyles(c), [c]);
   const router = useRouter();
 
   const [lesson, setLesson] = useState<Lesson | null>(null);
@@ -149,7 +152,7 @@ export default function LessonDetailScreen() {
         </View>
 
         {lesson.description ? (
-          <AppText variant="body" color={colors.textSecondary} style={styles.desc}>
+          <AppText variant="body" color={c.textSecondary} style={styles.desc}>
             {lesson.description}
           </AppText>
         ) : null}
@@ -157,15 +160,15 @@ export default function LessonDetailScreen() {
         {!hasAccess ? (
           <View style={styles.lockedBox}>
             <View style={styles.lockedIcon}>
-              <Ionicons name="lock-closed" size={28} color={colors.primary} />
+              <Ionicons name="lock-closed" size={28} color={c.primary} />
             </View>
             <AppText variant="h3" style={styles.lockedTitle}>Хичээл түгжээтэй</AppText>
-            <AppText variant="body" color={colors.textSecondary} center>
+            <AppText variant="body" color={c.textSecondary} center>
               Нээхийн тулд {lesson.priceSparks} 💎 Очирхон зарцуулна.
             </AppText>
             <View style={styles.balance}>
-              <Ionicons name="diamond" size={15} color={colors.sparks} />
-              <AppText variant="bodyStrong" color={colors.sparks}>Үлдэгдэл: {user?.sparks ?? 0}</AppText>
+              <Ionicons name="diamond" size={15} color={c.sparks} />
+              <AppText variant="bodyStrong" color={c.sparks}>Үлдэгдэл: {user?.sparks ?? 0}</AppText>
             </View>
             <Button
               label={unlocking ? 'Нээж байна...' : `Нээх · ${lesson.priceSparks} 💎`}
@@ -191,8 +194,8 @@ export default function LessonDetailScreen() {
                 <Image source={banner} style={styles.videoImg} resizeMode="cover" />
                 <View style={styles.videoScrim} />
                 <View style={styles.noVideo}>
-                  <Ionicons name="videocam-off" size={22} color={colors.white} />
-                  <AppText variant="caption" color={colors.white}>Видео одоохондоо алга</AppText>
+                  <Ionicons name="videocam-off" size={22} color={c.white} />
+                  <AppText variant="caption" color={c.white}>Видео одоохондоо алга</AppText>
                 </View>
               </View>
             )}
@@ -200,28 +203,28 @@ export default function LessonDetailScreen() {
             {/* Tests — unlocked once the lesson is marked watched */}
             <View style={styles.quizHead}>
               <AppText variant="h2">Тест даалгавар</AppText>
-              {!done ? <Ionicons name="lock-closed" size={16} color={colors.textMuted} /> : null}
+              {!done ? <Ionicons name="lock-closed" size={16} color={c.textMuted} /> : null}
             </View>
 
             {!done ? (
               <View style={styles.quizLocked}>
                 <View style={styles.lockedIcon}>
-                  <Ionicons name="play-circle" size={28} color={colors.primary} />
+                  <Ionicons name="play-circle" size={28} color={c.primary} />
                 </View>
                 <AppText variant="bodyStrong" center>Хичээлээ үзэж дуусга</AppText>
-                <AppText variant="caption" center color={colors.textSecondary} style={{ marginTop: 2 }}>
+                <AppText variant="caption" center color={c.textSecondary} style={{ marginTop: 2 }}>
                   Дуусгасны дараа тестүүд нээгдэнэ.
                 </AppText>
                 <Button label="Хичээл үзсэн ✓" icon="checkmark" onPress={markDone} style={{ marginTop: spacing.md, alignSelf: 'stretch' }} />
               </View>
             ) : quizzes.length === 0 ? (
               <View style={styles.quizEmpty}>
-                <AppText variant="body" center color={colors.textMuted}>Энэ хичээлд тест алга 🦊</AppText>
+                <AppText variant="body" center color={c.textMuted}>Энэ хичээлд тест алга 🦊</AppText>
               </View>
             ) : (
               groupByCategory(quizzes).map((group) => (
                 <View key={group.category} style={styles.catGroup}>
-                  <AppText variant="overline" color={colors.textSecondary} style={styles.catLabel}>
+                  <AppText variant="overline" color={c.textSecondary} style={styles.catLabel}>
                     {(CAT_LABELS[group.category] ?? group.category).toUpperCase()}
                   </AppText>
                   {group.quizzes.map((q) => (
@@ -231,13 +234,13 @@ export default function LessonDetailScreen() {
                       onPress={() => router.push(`/quiz/${q.id}`)}
                     >
                       <View style={styles.quizIcon}>
-                        <Ionicons name="help-circle" size={20} color={colors.primary} />
+                        <Ionicons name="help-circle" size={20} color={c.primary} />
                       </View>
                       <View style={{ flex: 1 }}>
                         <AppText variant="bodyStrong" numberOfLines={1}>{q.title}</AppText>
                         <AppText variant="caption">{q.questions?.length ?? 0} асуулт · {q.xpReward} XP</AppText>
                       </View>
-                      <Ionicons name="chevron-forward" size={18} color={colors.borderStrong} />
+                      <Ionicons name="chevron-forward" size={18} color={c.borderStrong} />
                     </Pressable>
                   ))}
                 </View>
@@ -251,8 +254,8 @@ export default function LessonDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
+const makeStyles = (c: AppColors) => StyleSheet.create({
+  safe: { flex: 1, backgroundColor: c.background },
   container: { paddingHorizontal: spacing.lg, paddingTop: spacing.xs },
   head: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   numBadge: { width: 56, height: 56, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
@@ -260,7 +263,7 @@ const styles = StyleSheet.create({
   desc: { marginTop: spacing.md },
 
   // Video
-  video: { height: 200, borderRadius: radius.xl, overflow: 'hidden', marginTop: spacing.lg, backgroundColor: colors.navy },
+  video: { height: 200, borderRadius: radius.xl, overflow: 'hidden', marginTop: spacing.lg, backgroundColor: c.navy },
   videoImg: { width: '100%', height: '100%' },
   videoScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(20,16,48,0.35)' },
   noVideo: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', gap: 6 },
@@ -268,30 +271,30 @@ const styles = StyleSheet.create({
   // Tests
   quizHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.xl, marginBottom: spacing.md },
   quizLocked: {
-    backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.lg, alignItems: 'center',
-    borderWidth: 1, borderColor: colors.border,
+    backgroundColor: c.surface, borderRadius: radius.lg, padding: spacing.lg, alignItems: 'center',
+    borderWidth: 1, borderColor: c.border,
   },
-  quizEmpty: { backgroundColor: colors.surfaceAlt, borderRadius: radius.lg, padding: spacing.lg },
+  quizEmpty: { backgroundColor: c.surfaceAlt, borderRadius: radius.lg, padding: spacing.lg },
   catGroup: { marginBottom: spacing.md },
   catLabel: { marginBottom: spacing.sm },
   quizRow: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.sm,
-    borderWidth: 1, borderColor: colors.border,
+    backgroundColor: c.surface, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.sm,
+    borderWidth: 1, borderColor: c.border,
   },
   quizRowPressed: { opacity: 0.9, transform: [{ scale: 0.99 }] },
   quizIcon: {
-    width: 40, height: 40, borderRadius: radius.full, backgroundColor: colors.primarySoft,
+    width: 40, height: 40, borderRadius: radius.full, backgroundColor: c.primarySoft,
     alignItems: 'center', justifyContent: 'center',
   },
 
   // Locked
   lockedBox: {
-    backgroundColor: colors.surface, borderRadius: radius.xl, padding: spacing.xl, alignItems: 'center',
-    marginTop: spacing.lg, borderWidth: 1, borderColor: colors.border,
+    backgroundColor: c.surface, borderRadius: radius.xl, padding: spacing.xl, alignItems: 'center',
+    marginTop: spacing.lg, borderWidth: 1, borderColor: c.border,
   },
   lockedIcon: {
-    width: 56, height: 56, borderRadius: radius.full, backgroundColor: colors.primarySoft,
+    width: 56, height: 56, borderRadius: radius.full, backgroundColor: c.primarySoft,
     alignItems: 'center', justifyContent: 'center', marginBottom: spacing.md,
   },
   lockedTitle: { marginBottom: spacing.xs },

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { View, StyleSheet, Dimensions, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -26,7 +26,8 @@ import { ProgressBar } from '../src/components/ProgressBar';
 import { FlashCard, type MemoryStatus } from '../src/components/FlashCard';
 import { ReviewStats } from '../src/components/ReviewStats';
 import { t } from '../src/i18n';
-import { colors, spacing, radius, elevation } from '../src/theme/theme';
+import { useColors } from '../src/settings/SettingsContext';
+import { spacing, radius, elevation, type AppColors } from '../src/theme/theme';
 
 const SCREEN_W = Dimensions.get('window').width;
 const SCREEN_H = Dimensions.get('window').height;
@@ -38,6 +39,8 @@ type Verdict = 'know' | 'review' | 'favorite';
 
 export default function ReviewFlashcardsScreen() {
   const { token } = useAuth();
+  const c = useColors();
+  const styles = useMemo(() => makeStyles(c), [c]);
   const router = useRouter();
 
   const [queue, setQueue] = useState<LearnWord[]>([]);
@@ -222,20 +225,20 @@ export default function ReviewFlashcardsScreen() {
       {/* Header */}
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.iconBtn} hitSlop={8}>
-          <Ionicons name="arrow-back" size={20} color={colors.primary} />
+          <Ionicons name="arrow-back" size={20} color={c.primary} />
         </Pressable>
         <View style={styles.headerCenter}>
-          <AppText variant="label" color={colors.textMuted}>{t('reviewWords')}</AppText>
+          <AppText variant="label" color={c.textMuted}>{t('reviewWords')}</AppText>
           {total > 0 && !done ? <AppText variant="h3">{Math.min(index + 1, total)} / {total}</AppText> : null}
         </View>
         <View style={styles.streakPill}>
-          <Ionicons name="flame" size={15} color={colors.streak} />
+          <Ionicons name="flame" size={15} color={c.streak} />
           <AppText variant="label">{streak}</AppText>
         </View>
       </View>
       {!done ? (
         <View style={styles.progressWrap}>
-          <ProgressBar value={total > 0 ? index / total : 0} color={colors.primary} />
+          <ProgressBar value={total > 0 ? index / total : 0} color={c.primary} />
         </View>
       ) : null}
 
@@ -243,7 +246,7 @@ export default function ReviewFlashcardsScreen() {
         <View style={styles.empty}>
           <AppText style={styles.emoji}>🎉</AppText>
           <AppText variant="h2" center>{t('noReviews')}</AppText>
-          <AppText variant="body" center color={colors.textSecondary} style={{ marginTop: 4 }}>{t('noReviewsHint')}</AppText>
+          <AppText variant="body" center color={c.textSecondary} style={{ marginTop: 4 }}>{t('noReviewsHint')}</AppText>
         </View>
       ) : done ? (
         <ReviewStats known={known} review={review} xpEarned={xpEarned} streak={streak} onContinue={() => router.back()} />
@@ -274,26 +277,26 @@ export default function ReviewFlashcardsScreen() {
                   ) : null}
 
                   {/* Colored tints */}
-                  <Animated.View pointerEvents="none" style={[styles.tint, { backgroundColor: colors.success }, knowTint]} />
-                  <Animated.View pointerEvents="none" style={[styles.tint, { backgroundColor: colors.danger }, reviewTint]} />
-                  <Animated.View pointerEvents="none" style={[styles.tint, { backgroundColor: colors.xp }, favTint]} />
+                  <Animated.View pointerEvents="none" style={[styles.tint, { backgroundColor: c.success }, knowTint]} />
+                  <Animated.View pointerEvents="none" style={[styles.tint, { backgroundColor: c.danger }, reviewTint]} />
+                  <Animated.View pointerEvents="none" style={[styles.tint, { backgroundColor: c.xp }, favTint]} />
 
                   {/* Stamps */}
-                  <Animated.View pointerEvents="none" style={[styles.stamp, styles.stampLeft, { borderColor: colors.success, transform: [{ rotate: '-16deg' }] }, knowStamp]}>
-                    <AppText style={[styles.stampText, { color: colors.success }]}>✓ {t('swipeKnow')}</AppText>
+                  <Animated.View pointerEvents="none" style={[styles.stamp, styles.stampLeft, { borderColor: c.success, transform: [{ rotate: '-16deg' }] }, knowStamp]}>
+                    <AppText style={[styles.stampText, { color: c.success }]}>✓ {t('swipeKnow')}</AppText>
                   </Animated.View>
-                  <Animated.View pointerEvents="none" style={[styles.stamp, styles.stampRight, { borderColor: colors.danger, transform: [{ rotate: '16deg' }] }, reviewStamp]}>
-                    <AppText style={[styles.stampText, { color: colors.danger }]}>✕ {t('swipeReview')}</AppText>
+                  <Animated.View pointerEvents="none" style={[styles.stamp, styles.stampRight, { borderColor: c.danger, transform: [{ rotate: '16deg' }] }, reviewStamp]}>
+                    <AppText style={[styles.stampText, { color: c.danger }]}>✕ {t('swipeReview')}</AppText>
                   </Animated.View>
-                  <Animated.View pointerEvents="none" style={[styles.stamp, styles.stampTop, { borderColor: colors.xp }, favStamp]}>
-                    <AppText style={[styles.stampText, { color: colors.xp }]}>♥ {t('swipeFav')}</AppText>
+                  <Animated.View pointerEvents="none" style={[styles.stamp, styles.stampTop, { borderColor: c.xp }, favStamp]}>
+                    <AppText style={[styles.stampText, { color: c.xp }]}>♥ {t('swipeFav')}</AppText>
                   </Animated.View>
                 </Pressable>
               </Animated.View>
             </GestureDetector>
           </View>
 
-          <AppText variant="caption" color={colors.textMuted} center style={styles.hint}>
+          <AppText variant="caption" color={c.textMuted} center style={styles.hint}>
             {t('swipeCardHint')}
           </AppText>
         </View>
@@ -302,20 +305,20 @@ export default function ReviewFlashcardsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
+const makeStyles = (c: AppColors) => StyleSheet.create({
+  safe: { flex: 1, backgroundColor: c.background },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: spacing.lg, paddingTop: spacing.xs, paddingBottom: spacing.sm,
   },
   headerCenter: { alignItems: 'center' },
   iconBtn: {
-    width: 40, height: 40, borderRadius: radius.full, backgroundColor: colors.surface,
+    width: 40, height: 40, borderRadius: radius.full, backgroundColor: c.surface,
     alignItems: 'center', justifyContent: 'center', ...(elevation.sm as object),
   },
   streakPill: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: colors.surface, paddingHorizontal: spacing.md, paddingVertical: 8,
+    backgroundColor: c.surface, paddingHorizontal: spacing.md, paddingVertical: 8,
     borderRadius: radius.full, ...(elevation.sm as object),
   },
   progressWrap: { paddingHorizontal: spacing.lg, marginBottom: spacing.sm },

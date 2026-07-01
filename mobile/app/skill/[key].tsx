@@ -1,3 +1,5 @@
+import { useCallback, useEffect, useState, useMemo } from 'react';
+import { View, StyleSheet, ScrollView, Pressable, RefreshControl } from 'react-native';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,6 +11,8 @@ import { getExercises, type Quiz } from '../../src/api/quizzes';
 import { TopBar } from '../../src/components/TopBar';
 import { AppText } from '../../src/components/Text';
 import { ProgressBar } from '../../src/components/ProgressBar';
+import { useColors } from '../../src/settings/SettingsContext';
+import { spacing, radius, tints, type AppColors } from '../../src/theme/theme';
 import { CategoryBrowser, type BrowserItem } from '../../src/components/CategoryBrowser';
 import { colors, spacing, radius } from '../../src/theme/theme';
 
@@ -36,6 +40,8 @@ export default function SkillScreen() {
   const skillKey = key ?? 'listening';
   const skill = SKILLS[skillKey] ?? SKILLS.listening;
   const { token } = useAuth();
+  const c = useColors();
+  const styles = useMemo(() => makeStyles(c), [c]);
   const router = useRouter();
 
   const [items, setItems] = useState<Quiz[]>([]);
@@ -65,6 +71,72 @@ export default function SkillScreen() {
     setRefreshing(false);
   }, [load]);
 
+  return (
+    <SafeAreaView style={styles.safe} edges={['top']}>
+      <TopBar title={skill.label} back showBadges={false} />
+      <ScrollView
+        contentContainerStyle={styles.container}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.primary} />}
+      >
+        {/* Today's <skill> — progress hero card */}
+        <LinearGradient colors={skill.grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
+          <View style={styles.heroLeft}>
+            <AppText variant="overline" color="rgba(255,255,255,0.85)">
+              ӨНӨӨ ДӨР · {skill.en.toUpperCase()}
+            </AppText>
+            <AppText variant="display" color={c.white} style={styles.heroPercent}>
+              {skill.percent}%
+            </AppText>
+            <AppText variant="caption" color="rgba(255,255,255,0.9)">Явц</AppText>
+            <ProgressBar
+              value={skill.percent / 100}
+              color={c.white}
+              track="rgba(255,255,255,0.28)"
+              height={8}
+              style={styles.heroBar}
+            />
+          </View>
+          {/* Illustration placeholder — drop a 3D PNG here for pixel-match. */}
+          <View style={styles.heroArt}>
+            <Ionicons name={skill.icon} size={64} color="rgba(255,255,255,0.95)" />
+          </View>
+        </LinearGradient>
+
+        <AppText variant="h2" style={styles.sectionTitle}>Дасгалууд</AppText>
+
+        {loading ? (
+          <Loading />
+        ) : items.length === 0 ? (
+          <AppText variant="body" color={c.textMuted} center style={styles.empty}>
+            Энэ төрлийн дасгал алга 🦊
+          </AppText>
+        ) : (
+          <View style={styles.listCard}>
+            {items.map((q, i) => {
+              const rs = ROW_STYLES[i % ROW_STYLES.length];
+              const t = tints[rs.tint];
+              return (
+                <Pressable
+                  key={q.id}
+                  style={({ pressed }) => [styles.row, i > 0 && styles.rowBorder, pressed && styles.pressed]}
+                  onPress={() => router.push(`/quiz/${q.id}`)}
+                >
+                  <View style={[styles.rowIcon, { backgroundColor: t.bg }]}>
+                    <Ionicons name={rs.icon} size={20} color={t.fg} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <AppText variant="h3" numberOfLines={1}>{q.title}</AppText>
+                    <AppText variant="caption">
+                      {q.questions?.length ?? 0} асуулт · {q.xpReward} XP · {q.level.toUpperCase()}
+                    </AppText>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color={c.borderStrong} />
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
   // Map exercises → browser rows, bucketed by сэдэв (topic).
   const rows: BrowserItem[] = useMemo(
     () =>
@@ -127,6 +199,9 @@ export default function SkillScreen() {
   );
 }
 
+const makeStyles = (c: AppColors) => StyleSheet.create({
+  safe: { flex: 1, backgroundColor: c.background },
+  container: { paddingHorizontal: spacing.lg, paddingTop: spacing.xs },
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
 
@@ -151,4 +226,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginLeft: spacing.md,
   },
+
+  sectionTitle: { marginBottom: spacing.md },
+
+  // Grouped premium menu
+  listCard: {
+    backgroundColor: c.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: c.border,
+    overflow: 'hidden',
+  },
+  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md },
+  rowBorder: { borderTopWidth: 1, borderTopColor: c.border },
+  rowIcon: { width: 44, height: 44, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
+
+  empty: { marginTop: spacing.xxl },
+  pressed: { opacity: 0.85 },
 });

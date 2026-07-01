@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -7,7 +7,8 @@ import { getDue, submitReview } from '../src/api/reviews';
 import { getWords } from '../src/api/words';
 import { ApiError } from '../src/api/client';
 import { t } from '../src/i18n';
-import { colors, spacing, radius, fontSize } from '../src/theme/theme';
+import { useColors } from '../src/settings/SettingsContext';
+import { spacing, radius, fontSize, type AppColors } from '../src/theme/theme';
 import { Loading } from '../src/components/Loading';
 import { Button } from '../src/components/Button';
 
@@ -19,16 +20,18 @@ interface Card {
   exampleSentence: string | null;
 }
 
-/** SM-2 quality per button. */
+/** SM-2 quality per button. `colorKey` resolves against the active palette. */
 const GRADES = [
-  { key: 'again', quality: 2, color: colors.danger },
-  { key: 'hard', quality: 3, color: colors.primary },
-  { key: 'good', quality: 4, color: colors.success },
-  { key: 'easy', quality: 5, color: colors.navy },
+  { key: 'again', quality: 2, colorKey: 'danger' },
+  { key: 'hard', quality: 3, colorKey: 'primary' },
+  { key: 'good', quality: 4, colorKey: 'success' },
+  { key: 'easy', quality: 5, colorKey: 'navy' },
 ] as const;
 
 export default function ReviewScreen() {
   const { token } = useAuth();
+  const c = useColors();
+  const styles = useMemo(() => makeStyles(c), [c]);
   const router = useRouter();
 
   const [cards, setCards] = useState<Card[]>([]);
@@ -107,12 +110,14 @@ export default function ReviewScreen() {
       {/* Empty / done states */}
       {cards.length === 0 ? (
         <Empty
+          styles={styles}
           title={t('noReviews')}
           hint={t('noReviewsHint')}
           onHome={() => router.back()}
         />
       ) : done ? (
         <Empty
+          styles={styles}
           title={t('reviewDone')}
           hint={t('reviewDoneHint')}
           onHome={() => router.back()}
@@ -146,7 +151,7 @@ export default function ReviewScreen() {
               {GRADES.map((g) => (
                 <Pressable
                   key={g.key}
-                  style={[styles.grade, { backgroundColor: g.color }]}
+                  style={[styles.grade, { backgroundColor: c[g.colorKey] }]}
                   onPress={() => grade(g.quality)}
                   disabled={submitting}
                 >
@@ -165,10 +170,12 @@ export default function ReviewScreen() {
 
 /** Empty / completed state with a "back home" button. */
 function Empty({
+  styles,
   title,
   hint,
   onHome,
 }: {
+  styles: ReturnType<typeof makeStyles>;
   title: string;
   hint: string;
   onHome: () => void;
@@ -182,8 +189,8 @@ function Empty({
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
+const makeStyles = (c: AppColors) => StyleSheet.create({
+  safe: { flex: 1, backgroundColor: c.background },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -191,42 +198,42 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
   },
-  back: { color: colors.primary, fontSize: fontSize.md, fontWeight: '600' },
-  progress: { color: colors.textMuted, fontSize: fontSize.md, fontWeight: '700' },
+  back: { color: c.primary, fontSize: fontSize.md, fontWeight: '600' },
+  progress: { color: c.textMuted, fontSize: fontSize.md, fontWeight: '700' },
   error: {
-    color: colors.danger,
+    color: c.danger,
     textAlign: 'center',
     paddingHorizontal: spacing.lg,
   },
   body: { flex: 1, padding: spacing.lg, justifyContent: 'center' },
   card: {
-    backgroundColor: colors.surfaceAlt,
+    backgroundColor: c.surfaceAlt,
     borderRadius: radius.lg,
     borderWidth: 2,
-    borderColor: colors.border,
+    borderColor: c.border,
     padding: spacing.xl,
     minHeight: 260,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cardWord: { fontSize: fontSize.xxl, fontWeight: '800', color: colors.navy },
+  cardWord: { fontSize: fontSize.xxl, fontWeight: '800', color: c.navy },
   divider: {
     height: 1,
-    backgroundColor: colors.border,
+    backgroundColor: c.border,
     alignSelf: 'stretch',
     marginVertical: spacing.lg,
   },
-  cardAnswer: { fontSize: fontSize.xl, fontWeight: '700', color: colors.primary },
+  cardAnswer: { fontSize: fontSize.xl, fontWeight: '700', color: c.primary },
   cardExample: {
     fontSize: fontSize.md,
-    color: colors.textMuted,
+    color: c.textMuted,
     marginTop: spacing.md,
     textAlign: 'center',
   },
-  hint: { marginTop: spacing.lg, color: colors.textMuted, fontSize: fontSize.sm },
+  hint: { marginTop: spacing.lg, color: c.textMuted, fontSize: fontSize.sm },
   flipPrompt: {
     textAlign: 'center',
-    color: colors.textMuted,
+    color: c.textMuted,
     marginTop: spacing.lg,
     fontSize: fontSize.sm,
   },
@@ -241,7 +248,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     alignItems: 'center',
   },
-  gradeText: { color: colors.white, fontWeight: '700', fontSize: fontSize.sm },
+  gradeText: { color: c.white, fontWeight: '700', fontSize: fontSize.sm },
   empty: {
     flex: 1,
     justifyContent: 'center',
@@ -251,12 +258,12 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: fontSize.xl,
     fontWeight: '800',
-    color: colors.navy,
+    color: c.navy,
     textAlign: 'center',
   },
   emptyHint: {
     fontSize: fontSize.md,
-    color: colors.textMuted,
+    color: c.textMuted,
     textAlign: 'center',
     marginTop: spacing.sm,
   },
