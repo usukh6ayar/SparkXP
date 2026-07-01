@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -12,7 +12,8 @@ import { Loading } from '../src/components/Loading';
 import { Button } from '../src/components/Button';
 import { ProgressBar } from '../src/components/ProgressBar';
 import { t } from '../src/i18n';
-import { colors, spacing, radius, elevation } from '../src/theme/theme';
+import { spacing, radius, elevation, type AppColors } from '../src/theme/theme';
+import { useColors } from '../src/settings/SettingsContext';
 
 const QUESTION_COUNT = 10;
 
@@ -22,6 +23,8 @@ const QUESTION_COUNT = 10;
  * (POST /words/quiz/submit) so the answer is never exposed to the client.
  */
 export default function VocabQuizScreen() {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { token, updateUser } = useAuth();
   const router = useRouter();
 
@@ -179,7 +182,7 @@ export default function VocabQuizScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: AppColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
   emoji: { fontSize: 56, marginBottom: spacing.md },

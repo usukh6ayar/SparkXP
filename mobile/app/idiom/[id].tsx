@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useMemo } from 'react';
 import { View, StyleSheet, ScrollView, Image, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -14,10 +14,13 @@ import { TappableText } from '../../src/components/DictionaryProvider';
 import { Card } from '../../src/components/Card';
 import { Loading } from '../../src/components/Loading';
 import { t } from '../../src/i18n';
-import { colors, spacing, radius } from '../../src/theme/theme';
+import { spacing, radius, type AppColors } from '../../src/theme/theme';
+import { useColors } from '../../src/settings/SettingsContext';
 
 /** Idiom detail: phrase, Mongolian, meaning, definition, example, audio. */
 export default function IdiomDetailScreen() {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { id } = useLocalSearchParams<{ id: string }>();
   const { token } = useAuth();
   const player = useAudioPlayer();
@@ -118,6 +121,8 @@ export default function IdiomDetailScreen() {
 }
 
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <View style={styles.section}>
       <AppText variant="overline" color={colors.textMuted} style={styles.sectionLabel}>{label}</AppText>
@@ -126,7 +131,7 @@ function Section({ label, children }: { label: string; children: React.ReactNode
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: AppColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   container: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg },
   cover: { height: 160, borderRadius: radius.xl, overflow: 'hidden', backgroundColor: colors.surfaceAlt, marginBottom: spacing.lg },
