@@ -30,6 +30,7 @@ import {
   Keyboard,
   Dimensions,
   type GestureResponderEvent,
+  type TextStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -322,10 +323,12 @@ export function TappableText({
   children,
   variant = 'body',
   color,
+  style,
 }: {
   children: string;
   variant?: React.ComponentProps<typeof AppText>['variant'];
   color?: string;
+  style?: TextStyle;
 }) {
   const { lookup } = useDictionary();
   // Double-tap detection: two taps on the SAME word within 300ms open the popover.
@@ -344,13 +347,14 @@ export function TappableText({
   };
 
   return (
-    <AppText variant={variant} color={color}>
+    <AppText variant={variant} color={color} style={style}>
       {tokens.map((tok, i) =>
         /^[A-Za-z]{2,}$/.test(tok) ? (
           <AppText
             key={i}
             variant={variant}
             color={color}
+            style={style}
             onPress={(e: GestureResponderEvent) => handlePress(i, tok, e)}
             suppressHighlighting
           >

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo } from 'react';
+import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { View, StyleSheet, Dimensions, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -21,7 +21,8 @@ import { useAuth } from '../src/auth/AuthContext';
 import { getLearnQueue, submitReview, toggleSave, type LearnWord } from '../src/api/reviews';
 import { getGamification } from '../src/api/gamification';
 import { AppText } from '../src/components/Text';
-import { Loading } from '../src/components/Loading';
+import { Skeleton } from '../src/components/Skeleton';
+import { EmptyState } from '../src/components/EmptyState';
 import { ProgressBar } from '../src/components/ProgressBar';
 import { FlashCard, type MemoryStatus } from '../src/components/FlashCard';
 import { ReviewStats } from '../src/components/ReviewStats';
@@ -47,6 +48,7 @@ export default function ReviewFlashcardsScreen() {
   const [queue, setQueue] = useState<LearnWord[]>([]);
   const [index, setIndex] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [ttsSpeaking, setTtsSpeaking] = useState(false);
   const [streak, setStreak] = useState(0);
   const [known, setKnown] = useState(0);
@@ -68,11 +70,21 @@ export default function ReviewFlashcardsScreen() {
   const stateRef = useRef({ index: 0 });
   stateRef.current = { index };
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!token) return;
-    getLearnQueue(token).then(setQueue).catch(() => {}).finally(() => setLoading(false));
+    setLoading(true);
     getGamification(token).then((g) => setStreak(g.currentStreak)).catch(() => {});
+    try {
+      setQueue(await getLearnQueue(token));
+      setError(false);
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
   }, [token]);
+
+  useEffect(() => { load(); }, [load]);
 
   const current = queue[index];
   const next = queue[index + 1];
@@ -219,7 +231,31 @@ export default function ReviewFlashcardsScreen() {
   const reviewStamp = useAnimatedStyle(() => ({ opacity: interpolate(tx.value, [-THRESH_X, -10], [1, 0], Extrapolation.CLAMP) }));
   const favStamp = useAnimatedStyle(() => ({ opacity: interpolate(ty.value, [-THRESH_Y, -10], [1, 0], Extrapolation.CLAMP) }));
 
-  if (loading) return <Loading />;
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+        <View style={styles.deck}>
+          <View style={styles.stack}>
+            <Skeleton height={CARD_H} radius={radius.xl} />
+          </View>
+          <Skeleton width="60%" height={16} style={{ marginTop: spacing.lg }} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (error) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+        <EmptyState
+          icon="alert-circle-outline"
+          title={t('error')}
+          hint={t('errorGeneric')}
+          action={{ label: t('retry'), onPress: load }}
+        />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>

@@ -8,7 +8,8 @@ import { useAuth } from '../src/auth/AuthContext';
 import { getSaved, toggleSave, type LearnWord } from '../src/api/reviews';
 import { TopBar } from '../src/components/TopBar';
 import { AppText } from '../src/components/Text';
-import { Loading } from '../src/components/Loading';
+import { SkeletonRows } from '../src/components/SkeletonRows';
+import { EmptyState } from '../src/components/EmptyState';
 import { IconButton } from '../src/components/IconButton';
 import { Card } from '../src/components/Card';
 import { t } from '../src/i18n';
@@ -26,11 +27,18 @@ export default function SavedScreen() {
   const [words, setWords] = useState<LearnWord[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(false);
   const player = useAudioPlayer();
 
   const load = useCallback(async () => {
     if (!token) return;
-    try { setWords(await getSaved(token)); } catch { /* keep current */ }
+    try {
+      setWords(await getSaved(token));
+      setError(false);
+    } catch (e) {
+      console.warn('Saved words load failed:', (e as Error)?.message ?? e);
+      setError(true);
+    }
   }, [token]);
 
   useEffect(() => { load().finally(() => setLoading(false)); }, [load]);
@@ -54,7 +62,28 @@ export default function SavedScreen() {
     if (token) toggleSave(token, w.id).catch(() => {});
   }
 
-  if (loading) return <Loading />;
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+        <TopBar title={t('savedWords')} back />
+        <SkeletonRows count={5} style={styles.skeleton} />
+      </SafeAreaView>
+    );
+  }
+
+  if (error && words.length === 0) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+        <TopBar title={t('savedWords')} back />
+        <EmptyState
+          icon="alert-circle-outline"
+          title={t('error')}
+          hint={t('errorGeneric')}
+          action={{ label: t('retry'), onPress: load }}
+        />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -98,6 +127,7 @@ export default function SavedScreen() {
 const makeStyles = (c: AppColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: c.background },
   list: { padding: spacing.lg, gap: spacing.sm },
+  skeleton: { margin: spacing.lg },
   emptyWrap: { flexGrow: 1 },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   thumb: {

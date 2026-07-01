@@ -45,6 +45,7 @@ export default function SkillScreen() {
   const [items, setItems] = useState<Quiz[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(false);
   const [selectedCat, setSelectedCat] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -52,9 +53,11 @@ export default function SkillScreen() {
     try {
       const r = await getExercises(token, skillKey);
       setItems(r.items);
+      setError(false);
     } catch (e) {
       console.warn('Exercises load failed:', (e as Error)?.message ?? e);
       setItems([]);
+      setError(true);
     }
   }, [token, skillKey]);
 
@@ -120,6 +123,8 @@ export default function SkillScreen() {
         loading={loading}
         refreshing={refreshing}
         onRefresh={onRefresh}
+        error={error}
+        onRetry={load}
         selectedCat={selectedCat}
         onSelectCat={setSelectedCat}
         onOpen={(id) => router.push(`/quiz/${id}`)}

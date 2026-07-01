@@ -5,6 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/auth/AuthContext';
+import { ApiError } from '../../src/api/client';
 import {
   getReadingPassage,
   completeReading,
@@ -14,7 +15,8 @@ import { TopBar } from '../../src/components/TopBar';
 import { AppText } from '../../src/components/Text';
 import { TappableText } from '../../src/components/DictionaryProvider';
 import { Card } from '../../src/components/Card';
-import { Loading } from '../../src/components/Loading';
+import { Skeleton } from '../../src/components/Skeleton';
+import { EmptyState } from '../../src/components/EmptyState';
 import { ReadingQuiz } from '../../src/components/ReadingQuiz';
 import { t } from '../../src/i18n';
 import { colors, spacing, radius, levelColor } from '../../src/theme/theme';
@@ -24,6 +26,10 @@ function fmtTime(sec: number): string {
   const m = Math.round(sec / 60);
   return m > 0 ? `${m} мин` : `${sec}с`;
 }
+
+// Reading-body font size steps (base `body` variant is 15/22 — see theme.ts).
+const BODY_FONT_SIZES = [13, 15, 17, 19, 21, 23];
+const DEFAULT_FONT_INDEX = BODY_FONT_SIZES.indexOf(15);
 
 /**
  * Reading passage reader. Shows the admin-authored passage (cover, metadata,
@@ -35,7 +41,10 @@ export default function ReadingDetailScreen() {
   const { token } = useAuth();
   const [passage, setPassage] = useState<ReadingPassage | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [notFound, setNotFound] = useState(false);
   const [done, setDone] = useState(false);
+  const [fontIndex, setFontIndex] = useState(DEFAULT_FONT_INDEX);
 
   const finish = useCallback(async () => {
     if (!token || !id || done) return;
@@ -52,9 +61,18 @@ export default function ReadingDetailScreen() {
     if (!token || !id) return;
     try {
       setPassage(await getReadingPassage(id, token));
+      setError(false);
+      setNotFound(false);
     } catch (e) {
       console.warn('Passage load failed:', (e as Error)?.message ?? e);
       setPassage(null);
+      if (e instanceof ApiError && e.status === 404) {
+        setNotFound(true);
+        setError(false);
+      } else {
+        setError(true);
+        setNotFound(false);
+      }
     }
   }, [token, id]);
 
@@ -65,16 +83,45 @@ export default function ReadingDetailScreen() {
 
   const lvl = passage ? levelColor[passage.cefr] ?? levelColor.a1 : levelColor.a1;
   const time = passage ? fmtTime(passage.estimatedReadingTime) : '';
+  const bodyFontSize = BODY_FONT_SIZES[fontIndex];
+  const bodyTextStyle = { fontSize: bodyFontSize, lineHeight: Math.round(bodyFontSize * 1.45) };
+  const canShrink = fontIndex > 0;
+  const canGrow = fontIndex < BODY_FONT_SIZES.length - 1;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <TopBar title={t('reading')} back showBadges={false} />
       {loading ? (
-        <Loading />
-      ) : !passage ? (
-        <AppText variant="body" color={colors.textMuted} center style={styles.empty}>
-          {t('passageNotFound')}
-        </AppText>
+        <View style={styles.container}>
+          <Skeleton height={180} radius={radius.xl} style={{ marginBottom: spacing.lg }} />
+          <Skeleton height={26} width="70%" style={{ marginBottom: spacing.sm }} />
+          <View style={styles.metaRow}>
+            <Skeleton width={60} height={20} radius={radius.full} />
+            <Skeleton width={80} height={20} radius={radius.full} />
+            <Skeleton width={70} height={20} radius={radius.full} />
+          </View>
+          <View style={{ gap: spacing.sm }}>
+            <Skeleton height={16} />
+            <Skeleton height={16} />
+            <Skeleton height={16} width="85%" />
+            <Skeleton height={16} width="60%" />
+          </View>
+        </View>
+      ) : error ? (
+        <EmptyState
+          icon="alert-circle-outline"
+          title={t('error')}
+          hint={t('errorGeneric')}
+          action={{ label: t('retry'), onPress: load }}
+          style={styles.empty}
+        />
+      ) : notFound || !passage ? (
+        <EmptyState
+          icon="alert-circle-outline"
+          title={t('error')}
+          hint={t('passageNotFound')}
+          style={styles.empty}
+        />
       ) : (
         <ScrollView
           contentContainerStyle={styles.container}
@@ -140,11 +187,49 @@ export default function ReadingDetailScreen() {
             </View>
           )}
 
+          {/* Font size control — sits right above the passage container. */}
+          <View style={styles.fontRow}>
+            <AppText variant="caption" color={colors.textMuted}>
+              {t('textSize')}
+            </AppText>
+            <View style={styles.fontControls}>
+              <Pressable
+                onPress={() => setFontIndex((i) => Math.max(0, i - 1))}
+                disabled={!canShrink}
+                hitSlop={8}
+                style={styles.fontBtn}
+              >
+                <AppText
+                  variant="label"
+                  color={canShrink ? colors.primary : colors.textMuted}
+                  style={styles.fontBtnTextSmall}
+                >
+                  A
+                </AppText>
+              </Pressable>
+              <View style={styles.fontDivider} />
+              <Pressable
+                onPress={() => setFontIndex((i) => Math.min(BODY_FONT_SIZES.length - 1, i + 1))}
+                disabled={!canGrow}
+                hitSlop={8}
+                style={styles.fontBtn}
+              >
+                <AppText
+                  variant="label"
+                  color={canGrow ? colors.primary : colors.textMuted}
+                  style={styles.fontBtnTextLarge}
+                >
+                  A
+                </AppText>
+              </Pressable>
+            </View>
+          </View>
+
           {/* Passage body — double-tap a word → meaning popover
               (Word DB → translation cache → Gemini). */}
           <Card variant="filled" style={styles.body}>
             {passage.sentences.map((s, i) => (
-              <TappableText key={i} variant="body">
+              <TappableText key={i} variant="body" style={bodyTextStyle}>
                 {s.text}
               </TappableText>
             ))}
@@ -226,6 +311,23 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: radius.full,
   },
+
+  fontRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.sm,
+  },
+  fontControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.full,
+  },
+  fontBtn: { paddingHorizontal: spacing.md, paddingVertical: spacing.xs, alignItems: 'center', justifyContent: 'center' },
+  fontDivider: { width: StyleSheet.hairlineWidth, height: 18, backgroundColor: colors.border },
+  fontBtnTextSmall: { fontSize: 13 },
+  fontBtnTextLarge: { fontSize: 19 },
 
   body: { gap: spacing.sm },
   hint: { marginTop: spacing.md, textAlign: 'center' },

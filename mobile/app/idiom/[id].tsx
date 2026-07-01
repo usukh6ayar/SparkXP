@@ -7,12 +7,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAudioPlayer } from 'expo-audio';
 import * as Speech from 'expo-speech';
 import { useAuth } from '../../src/auth/AuthContext';
+import { ApiError } from '../../src/api/client';
 import { getIdiom, type Idiom } from '../../src/api/idioms';
 import { TopBar } from '../../src/components/TopBar';
 import { AppText } from '../../src/components/Text';
 import { TappableText } from '../../src/components/DictionaryProvider';
 import { Card } from '../../src/components/Card';
-import { Loading } from '../../src/components/Loading';
+import { Skeleton } from '../../src/components/Skeleton';
+import { EmptyState } from '../../src/components/EmptyState';
 import { t } from '../../src/i18n';
 import { colors, spacing, radius } from '../../src/theme/theme';
 
@@ -23,14 +25,25 @@ export default function IdiomDetailScreen() {
   const player = useAudioPlayer();
   const [idiom, setIdiom] = useState<Idiom | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [notFound, setNotFound] = useState(false);
 
   const load = useCallback(async () => {
     if (!token || !id) return;
     try {
       setIdiom(await getIdiom(id, token));
+      setError(false);
+      setNotFound(false);
     } catch (e) {
       console.warn('Idiom load failed:', (e as Error)?.message ?? e);
       setIdiom(null);
+      if (e instanceof ApiError && e.status === 404) {
+        setNotFound(true);
+        setError(false);
+      } else {
+        setError(true);
+        setNotFound(false);
+      }
     }
   }, [token, id]);
 
@@ -58,11 +71,30 @@ export default function IdiomDetailScreen() {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <TopBar title={t('idiomsTitle')} back showBadges={false} />
       {loading ? (
-        <Loading />
-      ) : !idiom ? (
-        <AppText variant="body" color={colors.textMuted} center style={styles.empty}>
-          {t('idiomNotFound')}
-        </AppText>
+        <View style={styles.container}>
+          <Skeleton height={160} radius={radius.xl} style={{ marginBottom: spacing.lg }} />
+          <Skeleton height={26} width="65%" style={{ marginBottom: spacing.sm }} />
+          <Skeleton height={18} width="45%" style={{ marginBottom: spacing.lg }} />
+          <Skeleton height={12} width="30%" style={{ marginBottom: spacing.xs }} />
+          <Skeleton height={16} style={{ marginBottom: spacing.lg }} />
+          <Skeleton height={12} width="30%" style={{ marginBottom: spacing.xs }} />
+          <Skeleton height={16} width="90%" />
+        </View>
+      ) : error ? (
+        <EmptyState
+          icon="alert-circle-outline"
+          title={t('error')}
+          hint={t('errorGeneric')}
+          action={{ label: t('retry'), onPress: load }}
+          style={styles.empty}
+        />
+      ) : notFound || !idiom ? (
+        <EmptyState
+          icon="alert-circle-outline"
+          title={t('error')}
+          hint={t('idiomNotFound')}
+          style={styles.empty}
+        />
       ) : (
         <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
           {/* Cover */}

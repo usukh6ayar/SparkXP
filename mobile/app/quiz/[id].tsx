@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput,
-  Pressable, ActivityIndicator,
+  Pressable,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,6 +9,8 @@ import { useAuth } from '../../src/auth/AuthContext';
 import * as quizzesApi from '../../src/api/quizzes';
 import type { Quiz, AnswerItem, QuizResult } from '../../src/api/quizzes';
 import { Button } from '../../src/components/Button';
+import { Skeleton } from '../../src/components/Skeleton';
+import { EmptyState } from '../../src/components/EmptyState';
 import { alertError } from '../../src/lib/alerts';
 import { t } from '../../src/i18n';
 import { useColors } from '../../src/settings/SettingsContext';
@@ -35,11 +37,14 @@ export default function QuizScreen() {
   const [result, setResult] = useState<QuizResult | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    quizzesApi.getQuiz(id!, token!)
+  const load = useCallback(() => {
+    setPhase('loading');
+    return quizzesApi.getQuiz(id!, token!)
       .then((q) => { setQuiz(q); setPhase('quiz'); })
       .catch(() => setPhase('error'));
-  }, [id]);
+  }, [id, token]);
+
+  useEffect(() => { load(); }, [load]);
 
   const currentQ = quiz?.questions[currentIndex];
   const isLast = quiz ? currentIndex === quiz.questions.length - 1 : false;
@@ -105,8 +110,17 @@ export default function QuizScreen() {
 
   if (phase === 'loading') {
     return (
-      <SafeAreaView style={styles.center}>
-        <ActivityIndicator size="large" color={c.primary} />
+      <SafeAreaView style={styles.safe}>
+        <View style={styles.container}>
+          <Skeleton height={4} radius={2} style={{ marginBottom: spacing.xl }} />
+          <Skeleton height={22} width="90%" style={{ marginBottom: spacing.xxl }} />
+          <View style={styles.optionsContainer}>
+            <Skeleton height={56} radius={radius.md} />
+            <Skeleton height={56} radius={radius.md} />
+            <Skeleton height={56} radius={radius.md} />
+            <Skeleton height={56} radius={radius.md} />
+          </View>
+        </View>
       </SafeAreaView>
     );
   }
@@ -114,8 +128,12 @@ export default function QuizScreen() {
   if (phase === 'error') {
     return (
       <SafeAreaView style={styles.center}>
-        <Text style={styles.errorText}>Сорил ачаалахад алдаа гарлаа.</Text>
-        <Button label={t('back')} onPress={() => router.back()} style={{ marginTop: spacing.lg }} />
+        <EmptyState
+          icon="alert-circle-outline"
+          title={t('error')}
+          hint={t('quizRunnerLoadError')}
+          action={{ label: t('retry'), onPress: load }}
+        />
       </SafeAreaView>
     );
   }

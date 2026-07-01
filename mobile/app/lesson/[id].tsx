@@ -15,7 +15,8 @@ import { TopBar } from '../../src/components/TopBar';
 import { AppText } from '../../src/components/Text';
 import { Pill } from '../../src/components/Pill';
 import { Button } from '../../src/components/Button';
-import { Loading } from '../../src/components/Loading';
+import { Skeleton } from '../../src/components/Skeleton';
+import { EmptyState } from '../../src/components/EmptyState';
 import { getSkill } from '../../src/constants/skills';
 import { t } from '../../src/i18n';
 import { useColors } from '../../src/settings/SettingsContext';
@@ -46,6 +47,7 @@ export default function LessonDetailScreen() {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [done, setDone] = useState(false); // lesson watched → quizzes unlocked
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [unlocking, setUnlocking] = useState(false);
 
   const doneKey = `lesson_done:${id}`;
@@ -57,28 +59,31 @@ export default function LessonDetailScreen() {
     if (videoUrl) { try { player.replace(videoUrl); } catch { /* ignore */ } }
   }, [videoUrl, player]);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const [l, access, qz, savedDone] = await Promise.all([
-          lessonsApi.getLesson(id!, token!),
-          lessonsApi.checkAccess(id!, token!),
-          getQuizzes(token!, { lessonId: id }),
-          AsyncStorage.getItem(doneKey),
-        ]);
-        setLesson(l);
-        setHasAccess(access.hasAccess);
-        setQuizzes(qz.items);
-        setDone(savedDone === '1');
-        setLastLesson({ id: l.id, title: l.title, thumbnailUrl: l.thumbnailUrl, type: l.type, level: l.level });
-      } catch {
-        alertError(t('lessonLoadError'));
-        router.back();
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [id]);
+  const load = useCallback(async () => {
+    if (!token || !id) return;
+    setLoading(true);
+    try {
+      const [l, access, qz, savedDone] = await Promise.all([
+        lessonsApi.getLesson(id, token),
+        lessonsApi.checkAccess(id, token),
+        getQuizzes(token, { lessonId: id }),
+        AsyncStorage.getItem(doneKey),
+      ]);
+      setLesson(l);
+      setHasAccess(access.hasAccess);
+      setQuizzes(qz.items);
+      setDone(savedDone === '1');
+      setLastLesson({ id: l.id, title: l.title, thumbnailUrl: l.thumbnailUrl, type: l.type, level: l.level });
+      setError(false);
+    } catch (e) {
+      console.warn('Lesson load failed:', (e as Error)?.message ?? e);
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [id, token, doneKey]);
+
+  useEffect(() => { load(); }, [load]);
 
   useFocusEffect(
     useCallback(() => {
@@ -138,8 +143,40 @@ export default function LessonDetailScreen() {
     return [...map.entries()].map(([category, quizzes]) => ({ category, quizzes }));
   }
 
-  if (loading) return <Loading />;
-  if (!lesson) return null;
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['top']}>
+        <TopBar back />
+        <View style={styles.container}>
+          <View style={styles.head}>
+            <Skeleton width={56} height={56} radius={radius.md} />
+            <View style={{ flex: 1, gap: spacing.sm }}>
+              <Skeleton height={20} width="70%" />
+              <Skeleton height={16} width="40%" />
+            </View>
+          </View>
+          <Skeleton height={200} radius={radius.xl} style={{ marginTop: spacing.lg }} />
+          <Skeleton height={18} width="30%" style={{ marginTop: spacing.xl, marginBottom: spacing.md }} />
+          <Skeleton height={64} radius={radius.md} style={{ marginBottom: spacing.sm }} />
+          <Skeleton height={64} radius={radius.md} style={{ marginBottom: spacing.sm }} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (error || !lesson) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['top']}>
+        <TopBar back />
+        <EmptyState
+          icon="alert-circle-outline"
+          title={t('error')}
+          hint={t('lessonLoadError')}
+          action={{ label: t('retry'), onPress: load }}
+        />
+      </SafeAreaView>
+    );
+  }
 
   const lvl = levelColor[lesson.level] ?? levelColor.a1;
   const skill = getSkill(lesson.type);

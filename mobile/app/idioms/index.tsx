@@ -8,7 +8,8 @@ import { getIdiomList, type Idiom } from '../../src/api/idioms';
 import { TopBar } from '../../src/components/TopBar';
 import { AppText } from '../../src/components/Text';
 import { Card } from '../../src/components/Card';
-import { Loading } from '../../src/components/Loading';
+import { SkeletonRows } from '../../src/components/SkeletonRows';
+import { EmptyState } from '../../src/components/EmptyState';
 import { t } from '../../src/i18n';
 import { colors, spacing, radius } from '../../src/theme/theme';
 
@@ -19,15 +20,18 @@ export default function IdiomsScreen() {
   const [idioms, setIdioms] = useState<Idiom[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(false);
 
   const load = useCallback(async () => {
     if (!token) return;
     try {
       const r = await getIdiomList(token);
       setIdioms(r.items);
+      setError(false);
     } catch (e) {
       console.warn('Idioms load failed:', (e as Error)?.message ?? e);
       setIdioms([]);
+      setError(true);
     }
   }, [token]);
 
@@ -55,7 +59,15 @@ export default function IdiomsScreen() {
         </AppText>
 
         {loading ? (
-          <Loading />
+          <SkeletonRows count={6} />
+        ) : error ? (
+          <EmptyState
+            icon="alert-circle-outline"
+            title={t('error')}
+            hint={t('errorGeneric')}
+            action={{ label: t('retry'), onPress: load }}
+            style={styles.empty}
+          />
         ) : idioms.length === 0 ? (
           <AppText variant="body" color={colors.textMuted} center style={styles.empty}>
             {t('noIdioms')}
