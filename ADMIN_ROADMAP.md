@@ -484,6 +484,23 @@ admin/
 - `PATCH /words/bulk` — олон үгийн статус/ангилал/түвшин нэгт шинэчлэх
 - `AiBulkReport`, `WordStats`, `WordStat`, `WordAnalytics`, `ImportReport` interface-ууд нэмэгдсэн
 
+### 🎯 Phase A19 — Reading · Idioms · Дасгал · Pagination `[x]` (2026-06-30)
+
+Шинэ контент хуудсууд + бүх жагсаалтад pagination (Usukhbayar).
+
+| Хуудас | Боломж |
+|---|---|
+| **Унших материал** (Reading) | Passage CRUD: гарчиг, CEFR, **Сэдэв (category)**, cover зураг, текстийг өгүүлбэрт хуваах, гол үгс; **AI guess-choices** (F1, Gemini) review; **өгүүлбэрийн ElevenLabs audio** (F4, background job + progress); publish. *Одоо "Дасгал → Унших" таб дотроос удирдана.* |
+| **Хэлц үг** (Idioms) | CRUD + **AI-аар бөглөх** (Gemini) + **дуу** (ElevenLabs) + **зураг** (OpenAI, тусдаа idiom prompt); **bulk** (AI-bulk / CSV import / select-all / bulk зураг); хайлт + pagination |
+| **Дасгал** (Exercises) | Бие даасан quiz (4 ангилал: Сонсгол/Унших/Бичих/Ярих, **Ярих=coming soon**). Тест зохиох (`QuizQuestionsEditor`: MC/нөхөх/үг буудах) + **select + bulk нийтлэх/устгах** + **CSV/JSON import** (мөр=асуулт). Унших таб = ReadingPage embedded |
+| **Хичээл** (Lessons) | Видео + thumbnail + **тухайн хичээлийн 4 ангиллын тест** (lessonId-той quiz, `LessonTests`) |
+| **Pagination** | Дахин ашиглах `<Pagination>` — Words/Lessons/Quizzes/Users/Classes/Orgs/Reading/Idioms бүгдэд. Users-д server-side хайлт |
+
+**Backend:** `ReadingPassage`, `Idiom`, `Translation` entity + migration;
+`/reading/*`, `/idioms/*` модуль; `/quizzes` дээр `category`+`standalone` шүүлтүүр;
+quizzes `lessonId`+`category`-аар хичээл/дасгал ялгана; dictionary Gemini+cache.
+Дэлгэрэнгүй: `API.md`.
+
 #### Classes — assignment completion tracking
 
 | Боломж | Дэлгэрэнгүй |

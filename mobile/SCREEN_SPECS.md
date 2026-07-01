@@ -1,8 +1,8 @@
 # SparkXP — Дэлгэц бүрийн Requirement (Screen Specs)
 
 > Оюутны mobile аппын **дэлгэц тус бүрийн** дэлгэрэнгүй шаардлага. Figma mockup +
-> RN код хийхэд барих лавлах. Хослуулж унших: `DESIGN_BRIEF.md` (ерөнхий),
-> `DESIGN_SYSTEM.md` (token/компонент), `API.md` (endpoint).
+> RN код хийхэд барих лавлах. Хослуулж унших: `DESIGN.md` (брэнд/token),
+> `API.md` (endpoint).
 >
 > Тэмдэглэгээ: 🔑 = нэвтэрсэн байх шаардлагатай · бүх дата дэлгэцэд
 > **loading / empty / error** state заавал.

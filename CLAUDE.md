@@ -82,8 +82,8 @@ Next up: Content modules + Leaderboard + Sparks store (see ROADMAP.md).
 
 **Mobile UI/UX redesign — in progress (2026-06-12).** Brand moved to a new
 **purple** direction (primary `#6C3BFF`, gradient, gold XP / blue gem / orange
-streak), fox mascot + "SparkXP" name kept. Source: `mobile/DESIGN.md`,
-`DESIGN_PROMPT.md` (+ `DESIGN_BRIEF.md`, `SCREEN_SPECS.md`).
+streak), fox mascot + "SparkXP" name kept. Source: `mobile/DESIGN.md`
+(+ `mobile/SCREEN_SPECS.md`).
 Done: design tokens + shared components rebuilt; Home / Lessons (list+detail) /
 Soril / Profile / Chat / Leaderboard / Swipe redesigned to mockups; bottom tab
 center = AI buddy image. Home/Lessons skills → Сонсгол `listening` · Унших
@@ -126,6 +126,30 @@ end-to-end AI authoring:
   progress bar with %; image lightbox; audio play; **"Заавар" (Guide) tab**.
 - ⚠️ `.env.example` sanitized to placeholders (real keys were committed before).
   Prod runs `DB_SYNCHRONIZE=false` → new columns need a manual `ALTER TABLE`.
+
+**Shipped (2026-06-30 cycle).** Major content features added end-to-end
+(backend + admin + mobile), all on `main`:
+- **Reading (Унших материал)** — `ReadingPassage` entity/module; admin authoring
+  (passages, sentence split, CEFR, **Сэдэв/category**, cover, AI guess-choices,
+  per-sentence ElevenLabs audio); mobile reader with **tap-to-translate**
+  (double-tap word → Mongolian meaning + audio + save, via `/dictionary` →
+  Word DB → `translations` cache → **Gemini**); finish → +15 XP (`XpSource.READING`).
+- **Idioms (Хэлц үг)** — `Idiom` entity/module; admin CRUD + **AI-fill (Gemini)** +
+  **ElevenLabs audio** + **OpenAI image** (own `IDIOM_IMAGE_PROMPT_TEMPLATE`) +
+  bulk (AI-bulk / CSV / select); mobile list + detail.
+- **Дасгал (standalone exercises)** — reuse `Quiz` (lessonId=null, `category` =
+  skill); admin "Дасгал" page (4 cats: Сонсгол/Унших/Бичих/Ярих, **Ярих = coming
+  soon**) with select + bulk publish/delete + **CSV/JSON import**; mobile via Home
+  skill tiles → `/skill/<key>`. Backend: quizzes list gains `category` +
+  `standalone` filters.
+- **Lessons** = video (**expo-video**) + thumbnail + **per-lesson tests** (4
+  categories, lesson-linked quizzes) authored in the lesson editor.
+- **Admin: pagination** on every list page (`<Pagination>`); Words-style bulk +
+  select reused via shared `QuizQuestionsEditor`.
+- **Dictionary** switched Anthropic → **Gemini** + `translations` cache table.
+- ⚠️ Shared backend/admin (Bishrelt) + mobile (Choi/Boju) changes — coordinate.
+  New tables (`reading_passages`, `translations`, `idioms`) + enum value `reading`
+  need prod migrations (see `src/migrations/`).
 
 ### Backend folder layout
 
