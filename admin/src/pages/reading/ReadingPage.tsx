@@ -33,6 +33,13 @@ interface KeyVocab {
   correctIndex?: number;
   reviewed?: boolean;
 }
+interface ReadingQuestion {
+  type: 'multiple_choice' | 'fill_blank';
+  question: string;
+  options?: string[];
+  correctIndex?: number;
+  answer?: string;
+}
 interface Sentence {
   index: number;
   text: string;
@@ -47,6 +54,7 @@ interface Passage {
   estimatedReadingTime: number;
   coverImageUrl?: string | null;
   keyVocab: KeyVocab[];
+  comprehensionQuestions?: ReadingQuestion[];
   sentences: Sentence[];
   isPublished: boolean;
 }
@@ -61,6 +69,7 @@ interface ReadingForm {
   category: string;
   coverImageUrl: string;
   keyVocab: KeyVocab[];
+  comprehensionQuestions: ReadingQuestion[];
   rawText: string;
   sentences: SentenceForm[];
   isPublished: boolean;
@@ -71,6 +80,7 @@ const emptyForm: ReadingForm = {
   category: '',
   coverImageUrl: '',
   keyVocab: [],
+  comprehensionQuestions: [],
   rawText: '',
   sentences: [],
   isPublished: false,
@@ -111,6 +121,8 @@ export default function ReadingPage({ embedded = false }: { embedded?: boolean }
   // F1 — AI guess-choices
   const [newWord, setNewWord] = useState('');
   const [genChoices, setGenChoices] = useState(false);
+  // AI: generate key words + comprehension questions from the passage text
+  const [genAll, setGenAll] = useState(false);
 
   // F4 — sentence audio
   const [audioJob, setAudioJob] = useState<AudioJob | null>(null);
@@ -143,6 +155,7 @@ export default function ReadingPage({ embedded = false }: { embedded?: boolean }
       category: p.category ?? '',
       coverImageUrl: p.coverImageUrl ?? '',
       keyVocab: p.keyVocab ?? [],
+      comprehensionQuestions: p.comprehensionQuestions ?? [],
       rawText: '',
       sentences: (p.sentences ?? []).map((s) => ({ text: s.text, audioUrl: s.audioUrl })),
       isPublished: p.isPublished,
@@ -230,6 +243,64 @@ export default function ReadingPage({ embedded = false }: { embedded?: boolean }
     }
   }
 
+  // ── AI: key words + comprehension questions from the passage ─────────────
+  async function generateAll() {
+    // Use the already-split sentences, else the raw pasted text.
+    const text = form.sentences.map((s) => s.text).join(' ').trim() || form.rawText.trim();
+    if (!text) {
+      setError('Эхлээд текст (өгүүлбэрүүд) оруулна уу');
+      return;
+    }
+    setGenAll(true);
+    setError('');
+    try {
+      const res = await api.post<{ keyVocab: KeyVocab[]; questions: ReadingQuestion[] }>(
+        '/reading/generate',
+        { text, cefr: form.cefr },
+      );
+      setForm((f) => ({
+        ...f,
+        keyVocab: (res.keyVocab ?? []).map((k) => ({ ...k, reviewed: false })),
+        comprehensionQuestions: res.questions ?? [],
+      }));
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'AI үүсгэхэд алдаа');
+    } finally {
+      setGenAll(false);
+    }
+  }
+
+  // ── Comprehension questions editor ───────────────────────────────────────
+  function addQuestion(type: ReadingQuestion['type']) {
+    const q: ReadingQuestion =
+      type === 'multiple_choice'
+        ? { type, question: '', options: ['', '', '', ''], correctIndex: 0 }
+        : { type, question: '', answer: '' };
+    setForm((f) => ({ ...f, comprehensionQuestions: [...f.comprehensionQuestions, q] }));
+  }
+  function updateQuestion(i: number, patch: Partial<ReadingQuestion>) {
+    setForm((f) => {
+      const next = [...f.comprehensionQuestions];
+      next[i] = { ...next[i], ...patch };
+      return { ...f, comprehensionQuestions: next };
+    });
+  }
+  function removeQuestion(i: number) {
+    setForm((f) => ({
+      ...f,
+      comprehensionQuestions: f.comprehensionQuestions.filter((_, idx) => idx !== i),
+    }));
+  }
+  function updateQOption(i: number, oi: number, val: string) {
+    setForm((f) => {
+      const next = [...f.comprehensionQuestions];
+      const opts = [...(next[i].options ?? [])];
+      opts[oi] = val;
+      next[i] = { ...next[i], options: opts };
+      return { ...f, comprehensionQuestions: next };
+    });
+  }
+
   // ── Sentence audio (F4) ─────────────────────────────────────────────────
   async function reloadEditingSentences() {
     if (!editing) return;
@@ -305,6 +376,7 @@ export default function ReadingPage({ embedded = false }: { embedded?: boolean }
         category: form.category || null,
         coverImageUrl: form.coverImageUrl || undefined,
         keyVocab: form.keyVocab,
+        comprehensionQuestions: form.comprehensionQuestions,
         sentences,
         isPublished: form.isPublished,
       };
@@ -538,6 +610,75 @@ export default function ReadingPage({ embedded = false }: { embedded?: boolean }
               <div>
                 <Button variant="secondary" size="sm" onClick={() => setForm({ ...form, sentences: [...form.sentences, { text: '', audioUrl: null }] })}>
                   <Plus className="h-4 w-4" /> Өгүүлбэр нэмэх
+                </Button>
+              </div>
+            </div>
+
+            {/* ── Comprehension questions (asked after finishing) ── */}
+            <div className="rounded-lg border border-gray-200 p-4">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold text-gray-800">Асуултууд — унших дуусахад ({form.comprehensionQuestions.length})</h3>
+                <Button variant="secondary" size="sm" onClick={generateAll} disabled={genAll}>
+                  <Sparkles className="h-4 w-4" /> {genAll ? 'Үүсгэж байна...' : 'AI-аар гол үг + асуулт үүсгэх'}
+                </Button>
+              </div>
+
+              {form.comprehensionQuestions.length === 0 && (
+                <p className="mb-2 text-xs text-gray-400">Текстээс "AI-аар..." дарж үүсгэх эсвэл гараар нэмнэ үү.</p>
+              )}
+
+              <div className="space-y-3">
+                {form.comprehensionQuestions.map((q, i) => (
+                  <div key={i} className="rounded-lg bg-gray-50 p-3">
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <span className="text-xs font-medium text-gray-500">
+                        {q.type === 'multiple_choice' ? 'Олон сонголт' : 'Нөхөх'} #{i + 1}
+                      </span>
+                      <button onClick={() => removeQuestion(i)} title="Устгах"><X className="h-4 w-4 text-red-500" /></button>
+                    </div>
+                    <Input
+                      wrapperClassName="mb-2"
+                      placeholder="Асуулт"
+                      value={q.question}
+                      onChange={(e) => updateQuestion(i, { question: e.target.value })}
+                    />
+                    {q.type === 'multiple_choice' ? (
+                      <div className="space-y-2">
+                        {(q.options ?? []).map((opt, oi) => (
+                          <div key={oi} className="flex items-center gap-2">
+                            <input
+                              type="radio"
+                              name={`q-correct-${i}`}
+                              checked={q.correctIndex === oi}
+                              onChange={() => updateQuestion(i, { correctIndex: oi })}
+                              title="Зөв хариу"
+                            />
+                            <Input
+                              wrapperClassName="flex-1"
+                              placeholder={`Сонголт ${oi + 1}`}
+                              value={opt}
+                              onChange={(e) => updateQOption(i, oi, e.target.value)}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <Input
+                        placeholder="Зөв хариулт"
+                        value={q.answer ?? ''}
+                        onChange={(e) => updateQuestion(i, { answer: e.target.value })}
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-3 flex gap-2">
+                <Button variant="secondary" size="sm" onClick={() => addQuestion('multiple_choice')}>
+                  <Plus className="h-4 w-4" /> Олон сонголт
+                </Button>
+                <Button variant="secondary" size="sm" onClick={() => addQuestion('fill_blank')}>
+                  <Plus className="h-4 w-4" /> Нөхөх
                 </Button>
               </div>
             </div>

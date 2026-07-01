@@ -77,6 +77,20 @@ export class ReadingController {
     return this.readingService.generateGuessChoices(words, cefr);
   }
 
+  /**
+   * AI-generate key words (guess-choices) + comprehension questions from the
+   * passage text (admin review). Body: { text: string, cefr?: string }.
+   */
+  @Post('generate')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  generate(@Body('text') text: string, @Body('cefr') cefr?: string) {
+    if (!text || !text.trim()) {
+      throw new BadRequestException('"text" шаардлагатай');
+    }
+    return this.readingService.generateFromPassage(text, cefr);
+  }
+
   @Patch(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)

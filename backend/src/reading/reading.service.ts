@@ -11,6 +11,7 @@ import { randomUUID } from 'crypto';
 import {
   ReadingPassage,
   ReadingSentence,
+  ReadingQuestion,
 } from '../entities/reading-passage.entity';
 import { CreateReadingDto } from './dto/create-reading.dto';
 import { UpdateReadingDto } from './dto/update-reading.dto';
@@ -43,6 +44,12 @@ export interface GuessChoice {
   /** 3 Mongolian options; one equals correctMeaning at correctIndex. */
   choices: string[];
   correctIndex: number;
+}
+
+/** AI output for a whole passage: key words (to guess) + comprehension questions. */
+export interface GeneratedReadingContent {
+  keyVocab: GuessChoice[];
+  questions: ReadingQuestion[];
 }
 
 /** Live progress of a background sentence-audio job. */
@@ -235,6 +242,78 @@ export class ReadingService {
         choices: g.choices.slice(0, 3),
         correctIndex: Math.min(Math.max(g.correctIndex ?? 0, 0), 2),
       }));
+  }
+
+  /**
+   * From a passage's text, ask Gemini for BOTH:
+   *   - key words (гол үгс) with "guess the meaning" choices, and
+   *   - comprehension questions (multiple_choice / fill_blank) about the content.
+   * NOT persisted — the admin reviews/edits the result then saves it.
+   */
+  async generateFromPassage(
+    text: string,
+    cefr?: string,
+  ): Promise<GeneratedReadingContent> {
+    const passage = text.trim();
+    if (!passage) return { keyVocab: [], questions: [] };
+
+    const prompt =
+      `Доорх англи текстэд${cefr ? ` (CEFR ${cefr})` : ''} тулгуурлан унших дасгал үүсгэ.\n` +
+      'ЗӨВХӨН JSON объект буцаа (markdown fence бүү тавь):\n' +
+      '{\n' +
+      '  "keyVocab": [{ "word": "<текст доторх чухал англи үг>", ' +
+      '"correctMeaning": "<зөв монгол утга>", ' +
+      '"choices": ["<сонголт1>","<сонголт2>","<сонголт3>"], "correctIndex": <0-2> }],\n' +
+      '  "questions": [{ "type": "multiple_choice", "question": "<монгол/англи асуулт>", ' +
+      '"options": ["<A>","<B>","<C>","<D>"], "correctIndex": <0-3> }, ' +
+      '{ "type": "fill_blank", "question": "<нөхөх өгүүлбэр эсвэл асуулт>", "answer": "<зөв хариулт>" }]\n' +
+      '}\n' +
+      'Дүрэм: keyVocab дотор 5-8 чухал үг; choices яг 3 монгол сонголт (нэг нь зөв). ' +
+      'questions дотор 3-5 асуулт (текстийн агуулгаас), multiple_choice болон fill_blank ' +
+      'хосолсон; multiple_choice-д 4 сонголт, correctIndex 0-3; fill_blank-д богино нэг үг/' +
+      'хэллэгийн answer. Текст:\n' +
+      passage;
+
+    const raw = await this.callGeminiJson(prompt);
+    let parsed: unknown;
+    try {
+      const clean = raw.replace(/^```(?:json)?\s*|\s*```$/g, '').trim();
+      parsed = JSON.parse(clean);
+    } catch {
+      this.logger.error(`generate: unparseable AI output: ${raw.slice(0, 300)}`);
+      throw new InternalServerErrorException('AI хариуг уншиж чадсангүй');
+    }
+
+    const obj = (parsed ?? {}) as {
+      keyVocab?: GuessChoice[];
+      questions?: ReadingQuestion[];
+    };
+
+    const keyVocab: GuessChoice[] = (Array.isArray(obj.keyVocab) ? obj.keyVocab : [])
+      .filter((g) => g && g.word && Array.isArray(g.choices))
+      .map((g) => ({
+        word: g.word,
+        correctMeaning: g.correctMeaning,
+        choices: g.choices.slice(0, 3),
+        correctIndex: Math.min(Math.max(g.correctIndex ?? 0, 0), 2),
+      }));
+
+    const questions: ReadingQuestion[] = (Array.isArray(obj.questions) ? obj.questions : [])
+      .filter((q) => q && typeof q.question === 'string')
+      .map((q) => {
+        if (q.type === 'fill_blank') {
+          return { type: 'fill_blank' as const, question: q.question, answer: q.answer ?? '' };
+        }
+        const options = Array.isArray(q.options) ? q.options : [];
+        return {
+          type: 'multiple_choice' as const,
+          question: q.question,
+          options,
+          correctIndex: Math.min(Math.max(q.correctIndex ?? 0, 0), Math.max(options.length - 1, 0)),
+        };
+      });
+
+    return { keyVocab, questions };
   }
 
   // ── F4: Shadow Reading sentence audio (background) ──────────────────────────

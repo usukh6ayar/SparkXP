@@ -33,6 +33,22 @@ export interface ReadingKeyVocab {
 }
 
 /**
+ * A comprehension question asked AFTER the learner finishes reading. Two answer
+ * modes: `multiple_choice` (pick an option) or `fill_blank` (type the answer).
+ * AI-generated from the passage, admin-reviewed, then answered on mobile.
+ */
+export interface ReadingQuestion {
+  type: 'multiple_choice' | 'fill_blank';
+  question: string;
+  /** multiple_choice only: the options shown. */
+  options?: string[];
+  /** multiple_choice only: index into `options` of the correct answer. */
+  correctIndex?: number;
+  /** fill_blank only: the expected answer (compared case-insensitively). */
+  answer?: string;
+}
+
+/**
  * A reading passage authored from the admin panel (Reading feature, M7).
  *
  * Metadata (`cefr`, `wordCount`, `estimatedReadingTime`, `keyVocab`) lives in
@@ -76,6 +92,10 @@ export class ReadingPassage extends BaseEntity {
   /** Key vocabulary, with optional AI guess-choices (Phase 2). */
   @Column({ name: 'key_vocab', type: 'jsonb', default: [] })
   keyVocab: ReadingKeyVocab[];
+
+  /** Comprehension questions shown after finishing the passage (AI-generated). */
+  @Column({ name: 'comprehension_questions', type: 'jsonb', default: [] })
+  comprehensionQuestions: ReadingQuestion[];
 
   /** The passage split into sentences (+ per-sentence audio in Phase 3). */
   @Column({ type: 'jsonb', default: [] })

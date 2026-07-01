@@ -15,6 +15,7 @@ import { AppText } from '../../src/components/Text';
 import { TappableText } from '../../src/components/DictionaryProvider';
 import { Card } from '../../src/components/Card';
 import { Loading } from '../../src/components/Loading';
+import { ReadingQuiz } from '../../src/components/ReadingQuiz';
 import { colors, spacing, radius, levelColor } from '../../src/theme/theme';
 
 function fmtTime(sec: number): string {
@@ -169,6 +170,11 @@ export default function ReadingDetailScreen() {
               {done ? 'Уншиж дууслаа ✓' : 'Уншиж дууслаа (+15 XP)'}
             </AppText>
           </Pressable>
+
+          {/* After finishing, show comprehension questions (AI-authored). */}
+          {done && passage.comprehensionQuestions?.length > 0 && (
+            <ReadingQuiz questions={passage.comprehensionQuestions} />
+          )}
 
           <View style={{ height: 60 }} />
         </ScrollView>
