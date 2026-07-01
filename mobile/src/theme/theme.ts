@@ -60,6 +60,38 @@ export const colors = {
   white: '#FFFFFF',
 };
 
+export type AppColors = typeof colors;
+
+/**
+ * App-wide LIGHT / DARK palettes. `colors` above stays the DARK default (so
+ * un-migrated screens keep working). Screens/components that call `useColors()`
+ * (from src/settings/SettingsContext) get the ACTIVE palette and flip live.
+ *
+ * The light palette overrides only what must change for a light UI; brand,
+ * gamification and semantic colors stay identical across both themes.
+ */
+const lightOverrides: Partial<AppColors> = {
+  primarySoft: 'rgba(108,59,255,0.10)',
+  navy: '#1A1430', // primary ink (dark text on light)
+  navySoft: '#5A5470',
+  backgroundGradient: ['#F4F2FC', '#FFFFFF'] as const,
+  background: '#F4F2FC',
+  surface: '#FFFFFF',
+  surfaceAlt: '#EFEBFA',
+  cream: '#EFEBFA',
+  text: '#1A1430',
+  textSecondary: '#5A5470',
+  textMuted: '#8A83A8',
+  // textOnDark / textOnDarkMuted stay light — they sit on colored surfaces.
+  border: '#E4DFF4',
+  borderStrong: '#D5CEEC',
+};
+
+export const appThemes: Record<'dark' | 'light', AppColors> = {
+  dark: colors,
+  light: { ...colors, ...lightOverrides },
+};
+
 /** 4pt spacing scale. `lg` (16) is the default screen gutter. */
 export const spacing = {
   xs: 4,
@@ -175,6 +207,56 @@ export const tints = {
   pink: { bg: 'rgba(244,114,182,0.16)', fg: '#F472B6' },
   teal: { bg: 'rgba(45,212,191,0.16)', fg: '#2DD4BF' },
   orange: { bg: 'rgba(255,138,61,0.18)', fg: '#FF8A3D' },
+};
+
+/**
+ * "Premium surface" palette for the Profile / Settings screens, with LIGHT and
+ * DARK variants so those screens respond to the Settings appearance toggle.
+ * Read the active one with `useTheme()` from src/settings/SettingsContext.
+ * (The rest of the app still uses the static `colors` above — screens migrate
+ * to this palette over time.)
+ */
+export type PremiumPalette = {
+  bg: readonly [string, string, string];
+  bgFlat: string;
+  card: string;
+  cardBorder: string;
+  text: string;
+  textSecondary: string;
+  textMuted: string;
+  primary: string;
+  primaryLight: string;
+  track: string;
+  divider: string;
+};
+
+export const premiumThemes: Record<'dark' | 'light', PremiumPalette> = {
+  dark: {
+    bg: ['#0C0918', '#140E2A', '#0C0918'],
+    bgFlat: '#0C0918',
+    card: '#171231',
+    cardBorder: 'rgba(138,91,255,0.16)',
+    text: '#FFFFFF',
+    textSecondary: '#B9B2D6',
+    textMuted: '#8A83A8',
+    primary: '#6C3BFF',
+    primaryLight: '#8A5BFF',
+    track: '#241B45',
+    divider: 'rgba(255,255,255,0.06)',
+  },
+  light: {
+    bg: ['#F4F2FC', '#FFFFFF', '#F4F2FC'],
+    bgFlat: '#F4F2FC',
+    card: '#FFFFFF',
+    cardBorder: 'rgba(108,59,255,0.16)',
+    text: '#1A1430',
+    textSecondary: '#5A5470',
+    textMuted: '#8A83A8',
+    primary: '#6C3BFF',
+    primaryLight: '#7A4DFF',
+    track: '#ECE8FA',
+    divider: 'rgba(20,14,42,0.08)',
+  },
 };
 
 /** CEFR level tag colors (a1, a2, ...). */

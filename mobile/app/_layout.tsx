@@ -4,6 +4,7 @@ import { Stack, useRouter, useSegments } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ThemeProvider, DarkTheme } from "@react-navigation/native";
 import { AuthProvider, useAuth } from "../src/auth/AuthContext";
+import { SettingsProvider } from "../src/settings/SettingsContext";
 import { DictionaryProvider } from "../src/components/DictionaryProvider";
 import { colors } from "../src/theme/theme";
 
@@ -70,11 +71,13 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <ThemeProvider value={navTheme}>
-        <AuthProvider>
-          <DictionaryProvider>
-            <RootNavigator />
-          </DictionaryProvider>
-        </AuthProvider>
+        <SettingsProvider>
+          <AuthProvider>
+            <DictionaryProvider>
+              <RootNavigator />
+            </DictionaryProvider>
+          </AuthProvider>
+        </SettingsProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );

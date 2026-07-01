@@ -169,7 +169,7 @@ export default function LessonsScreen() {
                 </View>
                 <Pressable style={styles.shopBtn}>
                   <MaterialCommunityIcons name="crown" size={17} color={SKY.gold} />
-                  <AppText variant="label" color="#FFFFFF" style={{ marginLeft: 6 }}>Эржийн дэлгүүр</AppText>
+                  <AppText variant="label" color="#FFFFFF" style={{ marginLeft: 6 }}>SparkXP Premium</AppText>
                 </Pressable>
               </View>
 

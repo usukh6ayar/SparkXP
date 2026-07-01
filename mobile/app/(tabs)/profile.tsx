@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { View, StyleSheet, ScrollView, Pressable, Image, Modal, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { setStatusBarStyle } from 'expo-status-bar';
@@ -6,6 +6,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../../src/auth/AuthContext';
+import { useSettings } from '../../src/settings/SettingsContext';
 import * as usersApi from '../../src/api/users';
 import * as classesApi from '../../src/api/classes';
 import { getGamification, type Gamification } from '../../src/api/gamification';
@@ -17,34 +18,16 @@ import { TextField } from '../../src/components/TextField';
 import { SelectField } from '../../src/components/SelectField';
 import { Button } from '../../src/components/Button';
 import { resolveAvatar } from '../../src/lib/avatar';
-import { colors, spacing, radius, tints } from '../../src/theme/theme';
+import { colors, spacing, radius, tints, elevation, type PremiumPalette } from '../../src/theme/theme';
 
 type IconName = keyof typeof Ionicons.glyphMap;
+type Styles = ReturnType<typeof makeStyles>;
 
 const avatarImg = require('../../assets/buddy-menu.png');
 
 // Fallbacks until /gamification loads.
 const STREAK = 0;
 const LEVEL_SIZE = 1000;
-
-/**
- * Dark "premium" palette — local to this screen so the rest of the app (light)
- * and the shared components stay untouched. Matches the dark profile mockup:
- * glowing purple on a deep navy/black background.
- */
-const d = {
-  bg: ['#0C0918', '#140E2A', '#0C0918'] as const,
-  bgFlat: '#0C0918',
-  card: '#171231',
-  cardBorder: 'rgba(138,91,255,0.16)',
-  text: '#FFFFFF',
-  textSecondary: '#B9B2D6',
-  textMuted: '#8A83A8',
-  primary: '#6C3BFF',
-  primaryLight: '#8A5BFF',
-  track: '#241B45',
-  divider: 'rgba(255,255,255,0.08)',
-};
 
 /** Append an alpha channel to a 6-digit hex (e.g. tint fg → translucent circle). */
 const alpha = (hex: string, a: number) =>
@@ -54,14 +37,16 @@ const ROLE_LABEL: Record<string, string> = {
   student: 'Сурагч', teacher: 'Багш', admin: 'Админ', super_admin: 'Супер админ',
 };
 
-/** Dark section header — h2 title + optional "see all" action (SectionHeader is light-only). */
-function SectionHead({ title, actionLabel, onAction, style }: { title: string; actionLabel?: string; onAction?: () => void; style?: object }) {
+/** Dark section header — h2 title + optional "see all" action. */
+function SectionHead({ p, st, title, actionLabel, onAction, style }: {
+  p: PremiumPalette; st: Styles; title: string; actionLabel?: string; onAction?: () => void; style?: object;
+}) {
   return (
-    <View style={[styles.sectionHead, style]}>
-      <AppText variant="h2" color={d.text}>{title}</AppText>
+    <View style={[st.sectionHead, style]}>
+      <AppText variant="h2" color={p.text}>{title}</AppText>
       {actionLabel && onAction ? (
         <Pressable onPress={onAction} hitSlop={8}>
-          <AppText variant="label" color={d.primaryLight}>{actionLabel}</AppText>
+          <AppText variant="label" color={p.primaryLight}>{actionLabel}</AppText>
         </Pressable>
       ) : null}
     </View>
@@ -69,20 +54,22 @@ function SectionHead({ title, actionLabel, onAction, style }: { title: string; a
 }
 
 /** A usage / limit row with a thin progress bar (turns red when over). */
-function UsageBar({ label, used, limit, unit }: { label: string; used: number; limit: number; unit: string }) {
+function UsageBar({ p, st, label, used, limit, unit }: {
+  p: PremiumPalette; st: Styles; label: string; used: number; limit: number; unit: string;
+}) {
   const pct = limit > 0 ? Math.min(used / limit, 1) : 0;
   const over = used >= limit;
   const u = unit ? ` ${unit}` : '';
   return (
     <View style={{ gap: 4 }}>
-      <View style={styles.usageTop}>
-        <AppText variant="caption" color={d.textSecondary}>{label}</AppText>
-        <AppText variant="caption" color={over ? colors.danger : d.textSecondary}>
+      <View style={st.usageTop}>
+        <AppText variant="caption" color={p.textSecondary}>{label}</AppText>
+        <AppText variant="caption" color={over ? colors.danger : p.textSecondary}>
           {used}{u} / {limit}{u}
         </AppText>
       </View>
-      <View style={styles.usageTrack}>
-        <View style={[styles.usageFill, { width: `${Math.max(pct * 100, 3)}%`, backgroundColor: over ? colors.danger : d.primaryLight }]} />
+      <View style={st.usageTrack}>
+        <View style={[st.usageFill, { width: `${Math.max(pct * 100, 3)}%`, backgroundColor: over ? colors.danger : p.primaryLight }]} />
       </View>
     </View>
   );
@@ -98,7 +85,9 @@ const ACHIEVEMENTS: { icon: IconName; label: string; tint: { bg: string; fg: str
 
 export default function ProfileScreen() {
   const { user, token, logout } = useAuth();
+  const { palette: p, theme, t } = useSettings();
   const router = useRouter();
+  const styles = useMemo(() => makeStyles(p, theme === 'dark'), [p, theme]);
   const [editing, setEditing] = useState(false);
   const [classes, setClasses] = useState<{ id: string; name: string; teacherName: string | null }[]>([]);
   const [plan, setPlan] = useState<usersApi.PlanInfo | null>(null);
@@ -112,26 +101,26 @@ export default function ProfileScreen() {
     try {
       const mine = await classesApi.getMyClasses(token);
       const details = await Promise.all(mine.enrolled.map((c) => classesApi.getClass(c.id, token)));
-      setClasses(details.map((d) => ({ id: d.id, name: d.name, teacherName: d.teacher?.fullName ?? null })));
+      setClasses(details.map((dt) => ({ id: dt.id, name: dt.name, teacherName: dt.teacher?.fullName ?? null })));
     } catch {
       // ignore
     }
   }, [token]);
 
-  // Refetch on focus + switch the status bar to light text for this dark screen.
+  // Refetch on focus + set the status bar to suit the active theme.
   useFocusEffect(
     useCallback(() => {
       loadProfile();
-      setStatusBarStyle('light');
+      setStatusBarStyle(theme === 'dark' ? 'light' : 'dark');
       return () => setStatusBarStyle('dark');
-    }, [loadProfile]),
+    }, [loadProfile, theme]),
   );
 
-  const soon = () => Alert.alert('Тун удахгүй', 'Энэ хэсэг удахгүй нэмэгдэнэ.');
+  const soon = () => Alert.alert(t('comingSoon'), t('comingSoonBody'));
   const confirmLogout = () =>
-    Alert.alert('Гарах уу?', '', [
-      { text: 'Болих' },
-      { text: 'Гарах', style: 'destructive', onPress: logout },
+    Alert.alert(t('logoutConfirm'), '', [
+      { text: t('cancel') },
+      { text: t('logout'), style: 'destructive', onPress: logout },
     ]);
 
   const xp = user?.xp ?? 0;
@@ -149,7 +138,7 @@ export default function ProfileScreen() {
     { icon: 'flame' as IconName, value: streak, label: 'Өдөр дараалал', color: colors.streak },
     { icon: 'diamond' as IconName, value: sparks, label: 'Очирхон', color: colors.sparks },
     { icon: 'trophy' as IconName, value: quizzesDone, label: 'Сорил', color: colors.xp },
-    { icon: 'book' as IconName, value: lessonsDone, label: 'Хичээл', color: d.primaryLight },
+    { icon: 'book' as IconName, value: lessonsDone, label: 'Хичээл', color: p.primaryLight },
   ];
 
   const QUICK: { icon: IconName; label: string; tint: { bg: string; fg: string }; onPress: () => void }[] = [
@@ -160,29 +149,34 @@ export default function ProfileScreen() {
     { icon: 'gift', label: 'Шагналууд', tint: tints.purple, onPress: soon },
     { icon: 'time', label: 'Сүүлийн үзсэн', tint: tints.blue, onPress: soon },
     { icon: 'heart', label: 'Дуртай', tint: tints.pink, onPress: soon },
-    { icon: 'settings', label: 'Тохиргоо', tint: tints.teal, onPress: soon },
+    { icon: 'settings', label: t('settings'), tint: tints.teal, onPress: () => router.push('/settings') },
   ];
 
   return (
     <View style={styles.root}>
-      <LinearGradient colors={d.bg} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} style={StyleSheet.absoluteFill} />
+      <LinearGradient colors={p.bg} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} style={StyleSheet.absoluteFill} />
       <SafeAreaView style={styles.safe} edges={['top']}>
         <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
           {/* Header */}
           <View style={styles.header}>
-            <AppText variant="h1" color={d.text}>Профайл</AppText>
-            <View style={styles.diamondBadge}>
-              <Ionicons name="diamond" size={16} color={colors.sparks} />
-              <AppText variant="label" color={d.text}>{sparks}</AppText>
+            <AppText variant="h1" color={p.text}>{t('profile')}</AppText>
+            <View style={styles.headerActions}>
+              <Pressable onPress={() => router.push('/settings')} hitSlop={8} style={styles.iconBtn}>
+                <Ionicons name="settings-outline" size={20} color={p.text} />
+              </Pressable>
+              <View style={styles.diamondBadge}>
+                <Ionicons name="diamond" size={16} color={colors.sparks} />
+                <AppText variant="label" color={p.text}>{sparks}</AppText>
+              </View>
             </View>
           </View>
 
-          {/* Profile hero — dark panel + glowing avatar */}
+          {/* Profile hero — panel + glowing avatar */}
           <View style={styles.hero}>
             <View style={styles.avatarOuter}>
               <View style={styles.avatarGlow} />
               <Pressable onPress={() => router.push('/avatar')}>
-                <LinearGradient colors={[d.primaryLight, d.primary]} style={styles.avatarRing}>
+                <LinearGradient colors={[p.primaryLight, p.primary]} style={styles.avatarRing}>
                   <Image source={resolveAvatar(user?.avatarUrl) ?? avatarImg} style={styles.avatar} resizeMode="cover" />
                 </LinearGradient>
               </Pressable>
@@ -193,34 +187,34 @@ export default function ProfileScreen() {
 
             <View style={styles.heroInfo}>
               <View style={styles.nameRow}>
-                <AppText variant="h2" color={d.text} numberOfLines={1}>{user?.fullName}</AppText>
-                <Ionicons name="checkmark-circle" size={18} color={d.primaryLight} />
+                <AppText variant="h2" color={p.text} numberOfLines={1}>{user?.fullName}</AppText>
+                <Ionicons name="checkmark-circle" size={18} color={p.primaryLight} />
               </View>
-              <Pill label={ROLE_LABEL[user?.role ?? 'student'] ?? 'Сурагч'} bg={alpha(d.primary, 0.22)} fg={d.primaryLight} />
+              <Pill label={ROLE_LABEL[user?.role ?? 'student'] ?? 'Сурагч'} bg={alpha(p.primary, 0.22)} fg={p.primaryLight} />
               <View style={styles.levelRow}>
                 <Ionicons name="star" size={15} color={colors.xp} />
-                <AppText variant="bodyStrong" color={d.text}>Түвшин {level}</AppText>
+                <AppText variant="bodyStrong" color={p.text}>Түвшин {level}</AppText>
               </View>
-              {/* Premium XP progress */}
+              {/* XP progress */}
               <View style={styles.xpTrack}>
                 <LinearGradient
-                  colors={[d.primaryLight, d.primary]}
+                  colors={[p.primaryLight, p.primary]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
                   style={[styles.xpFill, { width: `${Math.max(pct, 4)}%` }]}
                 />
               </View>
-              <AppText variant="caption" color={d.textMuted} style={styles.levelXp}>{levelXp} / {levelTarget} XP</AppText>
+              <AppText variant="caption" color={p.textMuted} style={styles.levelXp}>{levelXp} / {levelTarget} XP</AppText>
             </View>
           </View>
 
-          {/* Stats — one dark card, four divided columns */}
+          {/* Stats — one card, four divided columns */}
           <View style={styles.statsCard}>
             {STATS.map((s, i) => (
               <View key={s.label} style={[styles.statCell, i > 0 && styles.statCellBorder]}>
                 <Ionicons name={s.icon} size={22} color={s.color} />
-                <AppText variant="h3" color={d.text} style={styles.statValue}>{s.value}</AppText>
-                <AppText variant="caption" color={d.textMuted} center numberOfLines={2}>{s.label}</AppText>
+                <AppText variant="h3" color={p.text} style={styles.statValue}>{s.value}</AppText>
+                <AppText variant="caption" color={p.textMuted} center numberOfLines={2}>{s.label}</AppText>
               </View>
             ))}
           </View>
@@ -230,30 +224,30 @@ export default function ProfileScreen() {
             <View style={styles.planCard}>
               <View style={styles.planTop}>
                 <View style={{ flex: 1 }}>
-                  <AppText variant="overline" color={d.textMuted}>МИНИЙ БАГЦ</AppText>
-                  <AppText variant="h3" color={d.text}>{plan.planName}</AppText>
+                  <AppText variant="overline" color={p.textMuted}>МИНИЙ БАГЦ</AppText>
+                  <AppText variant="h3" color={p.text}>{plan.planName}</AppText>
                 </View>
-                <View style={[styles.planBadge, { backgroundColor: plan.isFree ? alpha(d.primary, 0.22) : colors.xp }]}>
-                  <Ionicons name={plan.isFree ? 'leaf' : 'star'} size={12} color={plan.isFree ? d.primaryLight : colors.white} />
-                  <AppText variant="caption" color={plan.isFree ? d.primaryLight : colors.white}>
-                    {plan.isFree ? 'Үнэгүй' : 'Premium'}
+                <View style={[styles.planBadge, { backgroundColor: plan.isFree ? alpha(p.primary, 0.22) : colors.xp }]}>
+                  <Ionicons name={plan.isFree ? 'leaf' : 'star'} size={12} color={plan.isFree ? p.primaryLight : colors.white} />
+                  <AppText variant="caption" color={plan.isFree ? p.primaryLight : colors.white}>
+                    {plan.isFree ? t('free') : 'Premium'}
                   </AppText>
                 </View>
               </View>
               {plan.limits ? (
                 <View style={styles.planUsage}>
                   {plan.limits.voiceMinutes != null ? (
-                    <UsageBar label="AI яриа" used={plan.usage.voiceMinutes} limit={plan.limits.voiceMinutes} unit="мин" />
+                    <UsageBar p={p} st={styles} label="AI яриа" used={plan.usage.voiceMinutes} limit={plan.limits.voiceMinutes} unit="мин" />
                   ) : null}
                   {plan.limits.dictionaryAi != null ? (
-                    <UsageBar label="Толь бичиг" used={plan.usage.dictionaryAi} limit={plan.limits.dictionaryAi} unit="" />
+                    <UsageBar p={p} st={styles} label="Толь бичиг" used={plan.usage.dictionaryAi} limit={plan.limits.dictionaryAi} unit="" />
                   ) : null}
                   {plan.limits.memoryMb != null ? (
-                    <UsageBar label="Санах ой" used={plan.usage.memoryMb} limit={plan.limits.memoryMb} unit="MB" />
+                    <UsageBar p={p} st={styles} label="Санах ой" used={plan.usage.memoryMb} limit={plan.limits.memoryMb} unit="MB" />
                   ) : null}
                 </View>
               ) : (
-                <AppText variant="caption" color={d.textSecondary} style={{ marginTop: 6 }}>
+                <AppText variant="caption" color={p.textSecondary} style={{ marginTop: 6 }}>
                   Premium багцаар AI яриа, толь бичиг зэрэг илүү боломжийг нээгээрэй.
                 </AppText>
               )}
@@ -261,7 +255,7 @@ export default function ProfileScreen() {
           ) : null}
 
           {/* Achievements — large collectible badges */}
-          <SectionHead title="Миний амжилтууд" actionLabel="Бүгдийг харах ›" onAction={soon} style={styles.section} />
+          <SectionHead p={p} st={styles} title="Миний амжилтууд" actionLabel="Бүгдийг харах ›" onAction={soon} style={styles.section} />
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.achRow}>
             {ACHIEVEMENTS.map((a) => (
               <View key={a.label} style={styles.achItem}>
@@ -271,29 +265,30 @@ export default function ProfileScreen() {
                   </View>
                 ) : (
                   <View style={[styles.achBadge, styles.achLocked]}>
-                    <Ionicons name="lock-closed" size={28} color={d.textMuted} />
+                    <Ionicons name="lock-closed" size={28} color={p.textMuted} />
                   </View>
                 )}
-                <AppText variant="caption" color={d.textSecondary} center numberOfLines={2} style={styles.achLabel}>{a.label}</AppText>
+                <AppText variant="caption" color={p.textSecondary} center numberOfLines={2} style={styles.achLabel}>{a.label}</AppText>
               </View>
             ))}
           </ScrollView>
 
-          {/* Quick menu — premium dark cards */}
-          <SectionHead title="Түргэн цэс" style={styles.section} />
+          {/* Quick menu */}
+          <SectionHead p={p} st={styles} title="Түргэн цэс" style={styles.section} />
           <View style={styles.quickGrid}>
             {QUICK.map((q) => (
               <Pressable key={q.label} style={({ pressed }) => [styles.quickItem, pressed && styles.pressed]} onPress={q.onPress}>
                 <View style={[styles.quickIcon, { backgroundColor: alpha(q.tint.fg, 0.16) }]}>
                   <Ionicons name={q.icon} size={22} color={q.tint.fg} />
                 </View>
-                <AppText variant="caption" color={d.textSecondary} center numberOfLines={1} style={styles.quickLabel}>{q.label}</AppText>
+                <AppText variant="caption" color={p.textSecondary} center numberOfLines={1} style={styles.quickLabel}>{q.label}</AppText>
               </Pressable>
             ))}
           </View>
 
           {/* My classes — which teacher's class the student joined */}
           <SectionHead
+            p={p} st={styles}
             title="Миний ангиуд"
             actionLabel="Анги нэгдэх ›"
             onAction={() => router.push('/join')}
@@ -301,18 +296,18 @@ export default function ProfileScreen() {
           />
           {classes.length === 0 ? (
             <Pressable style={styles.joinEmpty} onPress={() => router.push('/join')}>
-              <Ionicons name="add-circle-outline" size={20} color={d.primaryLight} />
-              <AppText variant="body" color={d.textSecondary}>Анги нэгдээгүй байна — нэгдэх</AppText>
+              <Ionicons name="add-circle-outline" size={20} color={p.primaryLight} />
+              <AppText variant="body" color={p.textSecondary}>Анги нэгдээгүй байна — нэгдэх</AppText>
             </Pressable>
           ) : (
             classes.map((c) => (
               <View key={c.id} style={styles.classRow}>
                 <View style={styles.classIcon}>
-                  <Ionicons name="people" size={18} color={d.primaryLight} />
+                  <Ionicons name="people" size={18} color={p.primaryLight} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <AppText variant="bodyStrong" color={d.text} numberOfLines={1}>{c.name}</AppText>
-                  {c.teacherName ? <AppText variant="caption" color={d.textMuted}>Багш: {c.teacherName}</AppText> : null}
+                  <AppText variant="bodyStrong" color={p.text} numberOfLines={1}>{c.name}</AppText>
+                  {c.teacherName ? <AppText variant="caption" color={p.textMuted}>Багш: {c.teacherName}</AppText> : null}
                 </View>
               </View>
             ))
@@ -341,7 +336,7 @@ export default function ProfileScreen() {
           {/* Logout */}
           <Pressable style={styles.logout} onPress={confirmLogout} hitSlop={8}>
             <Ionicons name="log-out-outline" size={18} color={colors.danger} />
-            <AppText variant="bodyStrong" color={colors.danger}>Гарах</AppText>
+            <AppText variant="bodyStrong" color={colors.danger}>{t('logout')}</AppText>
           </Pressable>
 
           <View style={{ height: 120 }} />
@@ -389,7 +384,7 @@ function EditProfileModal({
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView style={styles.modalSafe} edges={['top', 'bottom']}>
+      <SafeAreaView style={modalStyles.safe} edges={['top', 'bottom']}>
         <TopBar title="Профайл засах" showBadges={false} />
         <ScrollView contentContainerStyle={{ padding: spacing.lg }}>
           <TextField label="Бүтэн нэр" value={fullName} onChangeText={setFullName} placeholder="Нэрээ оруулна уу" />
@@ -409,26 +404,40 @@ function EditProfileModal({
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: d.bgFlat },
+const modalStyles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: colors.background },
+});
+
+const makeStyles = (p: PremiumPalette, isDark: boolean) => {
+  // Dark cards need a border (shadows are invisible on the dark bg); light cards
+  // drop the border and lift with a soft shadow so they look crisp, not framey.
+  const cardEdge = isDark
+    ? { borderWidth: 1, borderColor: p.cardBorder }
+    : (elevation.sm as object);
+  return StyleSheet.create({
+  root: { flex: 1, backgroundColor: p.bgFlat },
   safe: { flex: 1 },
-  modalSafe: { flex: 1, backgroundColor: colors.background },
   container: { paddingHorizontal: spacing.lg, paddingTop: spacing.xs },
 
   sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md },
 
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  iconBtn: {
+    width: 40, height: 40, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: p.card, ...cardEdge,
+  },
   diamondBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: d.card, paddingHorizontal: spacing.md, paddingVertical: 8, borderRadius: radius.full,
-    borderWidth: 1, borderColor: d.cardBorder,
+    backgroundColor: p.card, paddingHorizontal: spacing.md, paddingVertical: 8, borderRadius: radius.full,
+    ...cardEdge,
   },
 
   // Hero
   hero: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.lg,
     borderRadius: radius.xl, padding: spacing.lg, marginTop: spacing.lg,
-    backgroundColor: d.card, borderWidth: 1, borderColor: d.cardBorder,
+    backgroundColor: p.card, ...cardEdge,
   },
   avatarOuter: { width: 100, height: 100, alignItems: 'center', justifyContent: 'center' },
   avatarGlow: {
@@ -438,16 +447,16 @@ const styles = StyleSheet.create({
   avatarRing: {
     width: 100, height: 100, borderRadius: 50, alignItems: 'center', justifyContent: 'center', padding: 4,
   },
-  avatar: { width: 92, height: 92, borderRadius: 46, backgroundColor: d.track },
+  avatar: { width: 92, height: 92, borderRadius: 46, backgroundColor: p.track },
   editBtn: {
     position: 'absolute', right: -2, bottom: -2, width: 30, height: 30, borderRadius: 15,
-    backgroundColor: d.primary, alignItems: 'center', justifyContent: 'center',
-    borderWidth: 3, borderColor: d.card,
+    backgroundColor: p.primary, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 3, borderColor: p.card,
   },
   heroInfo: { flex: 1, gap: spacing.xs },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   levelRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
-  xpTrack: { height: 12, borderRadius: 6, backgroundColor: d.track, overflow: 'hidden', marginTop: 4 },
+  xpTrack: { height: 12, borderRadius: 6, backgroundColor: p.track, overflow: 'hidden', marginTop: 4 },
   xpFill: { height: 12, borderRadius: 6 },
   levelXp: { alignSelf: 'flex-end', marginTop: 3 },
 
@@ -455,8 +464,8 @@ const styles = StyleSheet.create({
 
   // Plan
   planCard: {
-    backgroundColor: d.card, borderRadius: radius.lg, padding: spacing.lg,
-    marginTop: spacing.lg, borderWidth: 1, borderColor: d.cardBorder,
+    backgroundColor: p.card, borderRadius: radius.lg, padding: spacing.lg,
+    marginTop: spacing.lg, ...cardEdge,
   },
   planTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   planBadge: {
@@ -465,19 +474,19 @@ const styles = StyleSheet.create({
   },
   planUsage: { marginTop: spacing.md, gap: spacing.sm },
   usageTop: { flexDirection: 'row', justifyContent: 'space-between' },
-  usageTrack: { height: 6, borderRadius: 3, backgroundColor: d.track, overflow: 'hidden' },
+  usageTrack: { height: 6, borderRadius: 3, backgroundColor: p.track, overflow: 'hidden' },
   usageFill: { height: 6, borderRadius: 3 },
 
   // Classes
   joinEmpty: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
     backgroundColor: alpha('#6C3BFF', 0.14), borderRadius: radius.lg, padding: spacing.md,
-    borderWidth: 1, borderColor: d.cardBorder,
+    ...cardEdge,
   },
   classRow: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    backgroundColor: d.card, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.sm,
-    borderWidth: 1, borderColor: d.cardBorder,
+    backgroundColor: p.card, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.sm,
+    ...cardEdge,
   },
   classIcon: {
     width: 40, height: 40, borderRadius: radius.full, backgroundColor: alpha('#6C3BFF', 0.18),
@@ -486,27 +495,27 @@ const styles = StyleSheet.create({
 
   // Stats
   statsCard: {
-    flexDirection: 'row', backgroundColor: d.card,
+    flexDirection: 'row', backgroundColor: p.card,
     borderRadius: radius.xl, paddingVertical: spacing.lg, marginTop: spacing.lg,
-    borderWidth: 1, borderColor: d.cardBorder,
+    ...cardEdge,
   },
   statCell: { flex: 1, alignItems: 'center', gap: 5, paddingHorizontal: 4 },
-  statCellBorder: { borderLeftWidth: 1, borderLeftColor: d.divider },
+  statCellBorder: { borderLeftWidth: 1, borderLeftColor: p.divider },
   statValue: { marginTop: 2 },
 
   // Achievements
   achRow: { gap: spacing.md, paddingRight: spacing.lg, paddingVertical: spacing.xs },
   achItem: { alignItems: 'center', width: 84 },
   achBadge: { width: 74, height: 74, borderRadius: radius.lg, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
-  achLocked: { backgroundColor: d.track, borderColor: d.divider },
+  achLocked: { backgroundColor: p.track, borderColor: p.divider },
   achLabel: { marginTop: spacing.sm },
 
   // Quick menu
   quickGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: spacing.md },
   quickItem: {
-    width: '23%', aspectRatio: 0.86, backgroundColor: d.card, borderRadius: radius.lg,
+    width: '23%', aspectRatio: 0.86, backgroundColor: p.card, borderRadius: radius.lg,
     alignItems: 'center', justifyContent: 'center', gap: spacing.sm, paddingHorizontal: 2,
-    borderWidth: 1, borderColor: d.cardBorder,
+    ...cardEdge,
   },
   quickIcon: { width: 44, height: 44, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center' },
   quickLabel: { marginTop: 2 },
@@ -527,4 +536,5 @@ const styles = StyleSheet.create({
   logout: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: spacing.xxl },
 
   pressed: { opacity: 0.92, transform: [{ scale: 0.99 }] },
-});
+  });
+};

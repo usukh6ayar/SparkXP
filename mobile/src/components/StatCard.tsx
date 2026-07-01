@@ -2,7 +2,8 @@ import { View, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AppText } from './Text';
 import { IconTile } from './IconTile';
-import { colors, spacing, radius } from '../theme/theme';
+import { spacing, radius } from '../theme/theme';
+import { useColors } from '../settings/SettingsContext';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -24,11 +25,12 @@ export function StatCard({
   color: string;
   bg: string;
 }) {
+  const c = useColors();
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}>
       <IconTile icon={icon} bg={bg} fg={color} size={38} iconSize={20} />
       <View style={styles.text}>
-        <AppText variant="h2" color={colors.text} numberOfLines={1}>{value}</AppText>
+        <AppText variant="h2" numberOfLines={1}>{value}</AppText>
         <AppText variant="caption">{label}</AppText>
       </View>
     </View>
@@ -41,9 +43,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
     borderRadius: radius.lg,
     padding: spacing.md,
   },

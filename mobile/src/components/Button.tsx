@@ -8,6 +8,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { AppText } from './Text';
 import { colors, radius, spacing } from '../theme/theme';
+import { useColors } from '../settings/SettingsContext';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -39,6 +40,7 @@ export function Button({
   fullWidth = true,
   style,
 }: Props) {
+  const c = useColors();
   const isPrimary = variant === 'primary';
   const isSecondary = variant === 'secondary';
   const blocked = disabled || loading;
@@ -52,7 +54,7 @@ export function Button({
         styles.base,
         size === 'lg' ? styles.lg : styles.md,
         isPrimary && styles.primary,
-        isSecondary && styles.secondary,
+        isSecondary && [styles.secondary, { backgroundColor: c.surface }],
         variant === 'ghost' && styles.ghost,
         fullWidth && styles.fullWidth,
         blocked && styles.disabled,

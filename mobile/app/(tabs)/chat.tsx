@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import {
   View, StyleSheet, FlatList, TextInput, ScrollView, Image,
   Pressable, KeyboardAvoidingView, Platform, ActivityIndicator, Alert,
@@ -11,7 +11,8 @@ import * as aiApi from '../../src/api/ai';
 import { TopBar } from '../../src/components/TopBar';
 import { AppText } from '../../src/components/Text';
 import { TappableText } from '../../src/components/DictionaryProvider';
-import { colors, spacing, radius } from '../../src/theme/theme';
+import { useColors } from '../../src/settings/SettingsContext';
+import { spacing, radius, type AppColors } from '../../src/theme/theme';
 
 interface LocalMessage {
   id: string;
@@ -34,6 +35,8 @@ const BUDDIES: Buddy[] = [
 
 export default function ChatScreen() {
   const { token } = useAuth();
+  const c = useColors();
+  const styles = useMemo(() => makeStyles(c), [c]);
   const [messages, setMessages] = useState<LocalMessage[]>([]);
   const [conversationId, setConversationId] = useState<string | undefined>();
   const [input, setInput] = useState('');
@@ -98,8 +101,8 @@ export default function ChatScreen() {
               <AppText style={styles.buddyEmoji}>{b.emoji}</AppText>
             )}
             <View style={styles.buddyNameRow}>
-              <View style={[styles.dot, { backgroundColor: b.active ? colors.success : colors.borderStrong }]} />
-              <AppText variant="caption" color={colors.text} style={styles.buddyName}>{b.name}</AppText>
+              <View style={[styles.dot, { backgroundColor: b.active ? c.success : c.borderStrong }]} />
+              <AppText variant="caption" color={c.text} style={styles.buddyName}>{b.name}</AppText>
             </View>
           </Pressable>
         ))}
@@ -118,7 +121,7 @@ export default function ChatScreen() {
 
       {loading && (
         <View style={styles.typingRow}>
-          <ActivityIndicator size="small" color={colors.primary} />
+          <ActivityIndicator size="small" color={c.primary} />
           <AppText variant="caption">Спарк бичиж байна...</AppText>
         </View>
       )}
@@ -130,14 +133,14 @@ export default function ChatScreen() {
             style={styles.voiceBtn}
             onPress={() => Alert.alert('Тун удахгүй', 'Дуу хоолойгоор ярих боломж удахгүй нэмэгдэнэ. 🎤')}
           >
-            <Ionicons name="mic-outline" size={20} color={colors.textSecondary} />
+            <Ionicons name="mic-outline" size={20} color={c.textSecondary} />
           </Pressable>
           <TextInput
             style={styles.input}
             value={input}
             onChangeText={setInput}
             placeholder="Мессеж бичнэ үү..."
-            placeholderTextColor={colors.textMuted}
+            placeholderTextColor={c.textMuted}
             multiline
             maxLength={2000}
             onSubmitEditing={send}
@@ -148,7 +151,7 @@ export default function ChatScreen() {
             onPress={send}
             disabled={!input.trim() || loading}
           >
-            <Ionicons name="arrow-up" size={20} color={colors.white} />
+            <Ionicons name="arrow-up" size={20} color={c.white} />
           </Pressable>
         </View>
       </KeyboardAvoidingView>
@@ -157,6 +160,8 @@ export default function ChatScreen() {
 }
 
 function MessageBubble({ message }: { message: LocalMessage }) {
+  const c = useColors();
+  const styles = useMemo(() => makeStyles(c), [c]);
   const isUser = message.role === 'user';
   return (
     <View style={[styles.bubbleRow, isUser && styles.bubbleRowUser]}>
@@ -165,11 +170,11 @@ function MessageBubble({ message }: { message: LocalMessage }) {
         {/* Spark's replies are English-rich — tap any word for a Mongolian
             explanation. User's own messages stay plain. */}
         {isUser ? (
-          <AppText variant="body" color={colors.white}>
+          <AppText variant="body" color={c.white}>
             {message.content}
           </AppText>
         ) : (
-          <TappableText variant="body" color={colors.text}>
+          <TappableText variant="body" color={c.text}>
             {message.content}
           </TappableText>
         )}
@@ -179,18 +184,20 @@ function MessageBubble({ message }: { message: LocalMessage }) {
 }
 
 function EmptyState() {
+  const c = useColors();
+  const styles = useMemo(() => makeStyles(c), [c]);
   return (
     <View style={styles.emptyState}>
       <Image source={sparkImg} style={styles.emptyImg} resizeMode="contain" />
       <AppText variant="h2" center style={styles.emptyTitle}>Сайн уу! Би Спарк 👋</AppText>
-      <AppText variant="body" color={colors.textSecondary} center>
+      <AppText variant="body" color={c.textSecondary} center>
         Англи хэлний асуулт, дасгал, тайлбар — бүгдийг асуугаарай.
       </AppText>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: AppColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   buddyScroll: { flexGrow: 0, marginTop: spacing.xs, marginBottom: spacing.sm },
   buddyRow: { gap: spacing.sm, paddingHorizontal: spacing.lg },

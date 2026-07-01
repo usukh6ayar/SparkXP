@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../auth/AuthContext';
 import { AppText } from './Text';
 import { colors, spacing, radius } from '../theme/theme';
+import { useColors } from '../settings/SettingsContext';
 
 /**
  * Shared screen header: optional back button + title on the left, streak and
@@ -23,13 +24,14 @@ export function TopBar({
 }) {
   const router = useRouter();
   const { user } = useAuth();
+  const c = useColors();
 
   return (
     <View style={styles.row}>
       <View style={styles.left}>
         {back ? (
-          <Pressable style={styles.backBtn} onPress={() => router.back()} hitSlop={8}>
-            <Ionicons name="chevron-back" size={22} color={colors.text} />
+          <Pressable style={[styles.backBtn, { backgroundColor: c.surfaceAlt }]} onPress={() => router.back()} hitSlop={8}>
+            <Ionicons name="chevron-back" size={22} color={c.text} />
           </Pressable>
         ) : null}
         {title ? <AppText variant="h1" numberOfLines={1}>{title}</AppText> : null}
@@ -37,13 +39,13 @@ export function TopBar({
 
       {showBadges ? (
         <View style={styles.badges}>
-          <View style={styles.badge}>
+          <View style={[styles.badge, { backgroundColor: c.surfaceAlt }]}>
             <Ionicons name="flame" size={15} color={colors.streak} />
-            <AppText variant="label" color={colors.text}>{streak}</AppText>
+            <AppText variant="label" color={c.text}>{streak}</AppText>
           </View>
-          <View style={styles.badge}>
+          <View style={[styles.badge, { backgroundColor: c.surfaceAlt }]}>
             <Ionicons name="sparkles" size={14} color={colors.sparks} />
-            <AppText variant="label" color={colors.text}>{user?.sparks ?? 0}</AppText>
+            <AppText variant="label" color={c.text}>{user?.sparks ?? 0}</AppText>
           </View>
         </View>
       ) : null}
@@ -65,7 +67,6 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: radius.md,
-    backgroundColor: colors.surfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -74,7 +75,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: colors.surfaceAlt,
     paddingHorizontal: spacing.md,
     paddingVertical: 7,
     borderRadius: radius.full,
