@@ -359,7 +359,13 @@ export default function ReadingPage({ embedded = false }: { embedded?: boolean }
       setError('Гарчиг оруулна уу');
       return;
     }
-    const sentences = form.sentences
+    // Auto-split: if the user typed text but didn't click "Өгүүлбэрт хуваах",
+    // split rawText here so saving still works.
+    let sentenceForms = form.sentences;
+    if (sentenceForms.filter((s) => s.text.trim()).length === 0 && form.rawText.trim()) {
+      sentenceForms = splitSentences(form.rawText).map((text) => ({ text, audioUrl: null }));
+    }
+    const sentences = sentenceForms
       .map((s) => ({ text: s.text.trim(), audioUrl: s.audioUrl }))
       .filter((s) => s.text)
       .map((s, index) => ({ index, ...s }));
