@@ -320,6 +320,15 @@ const mn = {
   progressLabel: 'Явц',
   noSkillExercises: 'Энэ төрлийн дасгал алга 🦊',
 
+  // Idioms
+  idiomsTitle: 'Хэлц үг',
+  idiomsSubtitle: 'Англи хэлц үгсийг утгатай нь сур.',
+  noIdioms: 'Хэлц байхгүй байна 🦊',
+  idiomNotFound: 'Хэлц олдсонгүй 🦊',
+  meaningLabel: 'Жинхэнэ утга',
+  definitionLabel: 'Тайлбар',
+  exampleLabel: 'Жишээ',
+
   // Common
   back: 'Буцах',
   continue: 'Үргэлжлүүлэх',
@@ -621,6 +630,14 @@ const en: Record<TranslationKey, string> = {
   todayLabel: 'TODAY',
   progressLabel: 'Progress',
   noSkillExercises: 'No exercises of this type yet 🦊',
+
+  idiomsTitle: 'Idioms',
+  idiomsSubtitle: 'Learn English idioms with their meanings.',
+  noIdioms: 'No idioms yet 🦊',
+  idiomNotFound: 'Idiom not found 🦊',
+  meaningLabel: 'Meaning',
+  definitionLabel: 'Explanation',
+  exampleLabel: 'Example',
 
   back: 'Back',
   continue: 'Continue',

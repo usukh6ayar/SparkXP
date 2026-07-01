@@ -9,6 +9,7 @@ import { TopBar } from '../../src/components/TopBar';
 import { AppText } from '../../src/components/Text';
 import { Card } from '../../src/components/Card';
 import { Loading } from '../../src/components/Loading';
+import { t } from '../../src/i18n';
 import { colors, spacing, radius } from '../../src/theme/theme';
 
 /** Idioms list — tap a card to open the detail. */
@@ -43,21 +44,21 @@ export default function IdiomsScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <TopBar title="Хэлц үг" back />
+      <TopBar title={t('idiomsTitle')} back />
       <ScrollView
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
       >
         <AppText variant="caption" style={styles.subtitle}>
-          Англи хэлц үгсийг утгатай нь сур.
+          {t('idiomsSubtitle')}
         </AppText>
 
         {loading ? (
           <Loading />
         ) : idioms.length === 0 ? (
           <AppText variant="body" color={colors.textMuted} center style={styles.empty}>
-            Хэлц байхгүй байна 🦊
+            {t('noIdioms')}
           </AppText>
         ) : (
           idioms.map((it) => (
