@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { View, StyleSheet, ScrollView, Pressable, Switch, Image, Alert } from 'react-native';
+import { View, StyleSheet, ScrollView, Pressable, Switch, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { setStatusBarStyle } from 'expo-status-bar';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -10,6 +10,8 @@ import { useAuth } from '../src/auth/AuthContext';
 import { useSettings } from '../src/settings/SettingsContext';
 import { AppText } from '../src/components/Text';
 import { resolveAvatar } from '../src/lib/avatar';
+import { useLogoutConfirm, useComingSoon } from '../src/lib/useLogoutConfirm';
+import { ROLE_LABEL } from '../src/constants/roles';
 import { colors, spacing, radius, tints, type PremiumPalette } from '../src/theme/theme';
 import type { Lang } from '../src/i18n';
 
@@ -18,10 +20,6 @@ type Tint = { bg: string; fg: string };
 
 const avatarImg = require('../assets/buddy-menu.png');
 const APP_VERSION = '1.0.0';
-
-const ROLE_LABEL: Record<string, string> = {
-  student: 'Сурагч', teacher: 'Багш', admin: 'Админ', super_admin: 'Супер админ',
-};
 
 // Locally-persisted switch prefs (UI-only — nothing else reacts to them yet).
 const KEYS = { notifications: 'settings.notifications', sound: 'settings.sound', haptics: 'settings.haptics' };
@@ -90,7 +88,7 @@ function SegToggle<T extends string>({
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const { theme, lang, palette: p, setTheme, setLang, t } = useSettings();
 
   const [notifications, setNotifications] = useState(true);
@@ -112,12 +110,8 @@ export default function SettingsScreen() {
     set(v); AsyncStorage.setItem(key, v ? '1' : '0');
   };
 
-  const soon = () => Alert.alert(t('comingSoon'), t('comingSoonBody'));
-  const confirmLogout = () =>
-    Alert.alert(t('logoutConfirm'), '', [
-      { text: t('cancel') },
-      { text: t('logout'), style: 'destructive', onPress: logout },
-    ]);
+  const soon = useComingSoon();
+  const confirmLogout = useLogoutConfirm();
 
   const Switcher = ({ value, onValueChange }: { value: boolean; onValueChange: (v: boolean) => void }) => (
     <Switch value={value} onValueChange={onValueChange}

@@ -18,6 +18,8 @@ import { TextField } from '../../src/components/TextField';
 import { SelectField } from '../../src/components/SelectField';
 import { Button } from '../../src/components/Button';
 import { resolveAvatar } from '../../src/lib/avatar';
+import { useLogoutConfirm, useComingSoon } from '../../src/lib/useLogoutConfirm';
+import { ROLE_LABEL } from '../../src/constants/roles';
 import { colors, spacing, radius, tints, elevation, type PremiumPalette } from '../../src/theme/theme';
 
 type IconName = keyof typeof Ionicons.glyphMap;
@@ -32,10 +34,6 @@ const LEVEL_SIZE = 1000;
 /** Append an alpha channel to a 6-digit hex (e.g. tint fg → translucent circle). */
 const alpha = (hex: string, a: number) =>
   hex + Math.round(a * 255).toString(16).padStart(2, '0');
-
-const ROLE_LABEL: Record<string, string> = {
-  student: 'Сурагч', teacher: 'Багш', admin: 'Админ', super_admin: 'Супер админ',
-};
 
 /** Dark section header — h2 title + optional "see all" action. */
 function SectionHead({ p, st, title, actionLabel, onAction, style }: {
@@ -84,7 +82,7 @@ const ACHIEVEMENTS: { icon: IconName; label: string; tint: { bg: string; fg: str
 ];
 
 export default function ProfileScreen() {
-  const { user, token, logout } = useAuth();
+  const { user, token } = useAuth();
   const { palette: p, theme, t } = useSettings();
   const router = useRouter();
   const styles = useMemo(() => makeStyles(p, theme === 'dark'), [p, theme]);
@@ -116,12 +114,8 @@ export default function ProfileScreen() {
     }, [loadProfile, theme]),
   );
 
-  const soon = () => Alert.alert(t('comingSoon'), t('comingSoonBody'));
-  const confirmLogout = () =>
-    Alert.alert(t('logoutConfirm'), '', [
-      { text: t('cancel') },
-      { text: t('logout'), style: 'destructive', onPress: logout },
-    ]);
+  const soon = useComingSoon();
+  const confirmLogout = useLogoutConfirm();
 
   const xp = user?.xp ?? 0;
   const sparks = user?.sparks ?? 0;
