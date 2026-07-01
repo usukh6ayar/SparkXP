@@ -3,7 +3,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { AppText } from './Text';
 import { IconTile } from './IconTile';
 import { t } from '../i18n';
-import { colors, spacing, tints } from '../theme/theme';
+import { useColors } from '../settings/SettingsContext';
+import { spacing, tints, type AppColors } from '../theme/theme';
 import type { AssignmentType } from '../api/assignments';
 
 /** A class assignment row: lesson/quiz icon, resolved title, type + due date, delete or navigate. */
@@ -22,6 +23,8 @@ export function AssignmentRow({
   onPress?: () => void;
   overdue?: boolean;
 }) {
+  const c = useColors();
+  const styles = makeStyles(c);
   const isLesson = type === 'lesson';
   const tint = isLesson ? tints.blue : tints.green;
   const due = dueAt
@@ -43,25 +46,25 @@ export function AssignmentRow({
         </AppText>
         <View style={styles.meta}>
           <AppText variant="caption" color={tint.fg}>{isLesson ? t('assignLesson') : t('assignQuiz')}</AppText>
-          <AppText variant="caption" color={colors.textMuted}>·</AppText>
-          <Ionicons name="calendar-outline" size={12} color={overdue ? colors.danger : colors.textMuted} />
-          <AppText variant="caption" color={overdue ? colors.danger : undefined}>
+          <AppText variant="caption" color={c.textMuted}>·</AppText>
+          <Ionicons name="calendar-outline" size={12} color={overdue ? c.danger : c.textMuted} />
+          <AppText variant="caption" color={overdue ? c.danger : undefined}>
             {overdue ? t('overdue') : due}
           </AppText>
         </View>
       </View>
       {onDelete ? (
         <Pressable onPress={onDelete} hitSlop={8}>
-          <Ionicons name="trash-outline" size={20} color={colors.danger} />
+          <Ionicons name="trash-outline" size={20} color={c.danger} />
         </Pressable>
       ) : onPress ? (
-        <Ionicons name="chevron-forward" size={18} color={colors.borderStrong} />
+        <Ionicons name="chevron-forward" size={18} color={c.borderStrong} />
       ) : null}
     </Row>
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (c: AppColors) => StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.sm },
   body: { flex: 1, gap: 4 },
   meta: { flexDirection: 'row', alignItems: 'center', gap: 4 },

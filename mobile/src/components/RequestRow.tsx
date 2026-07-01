@@ -1,7 +1,8 @@
 import { ActivityIndicator, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { PersonRow } from './PersonRow';
-import { colors, radius } from '../theme/theme';
+import { useColors } from '../settings/SettingsContext';
+import { radius, type AppColors } from '../theme/theme';
 
 /** A pending join-request row: avatar, name (+ @username), approve / reject. */
 export function RequestRow({
@@ -19,6 +20,8 @@ export function RequestRow({
   onReject: () => void;
   busy?: boolean;
 }) {
+  const c = useColors();
+  const styles = makeStyles(c);
   return (
     <PersonRow
       name={name}
@@ -26,14 +29,14 @@ export function RequestRow({
       avatarUrl={avatarUrl}
       right={
         busy ? (
-          <ActivityIndicator color={colors.primary} />
+          <ActivityIndicator color={c.primary} />
         ) : (
           <>
             <Pressable onPress={onReject} style={[styles.btn, styles.reject]} hitSlop={4}>
-              <Ionicons name="close" size={18} color={colors.danger} />
+              <Ionicons name="close" size={18} color={c.danger} />
             </Pressable>
             <Pressable onPress={onApprove} style={[styles.btn, styles.approve]} hitSlop={4}>
-              <Ionicons name="checkmark" size={18} color={colors.white} />
+              <Ionicons name="checkmark" size={18} color={c.white} />
             </Pressable>
           </>
         )
@@ -42,8 +45,8 @@ export function RequestRow({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (c: AppColors) => StyleSheet.create({
   btn: { width: 36, height: 36, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center' },
-  reject: { backgroundColor: colors.dangerSoft },
-  approve: { backgroundColor: colors.success },
+  reject: { backgroundColor: c.dangerSoft },
+  approve: { backgroundColor: c.success },
 });

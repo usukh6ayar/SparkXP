@@ -2,7 +2,8 @@ import { View, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AppText } from './Text';
 import { PersonRow } from './PersonRow';
-import { colors, spacing, radius } from '../theme/theme';
+import { useColors } from '../settings/SettingsContext';
+import { spacing, radius, type AppColors } from '../theme/theme';
 
 /** A roster row: rank, avatar, name (+ @username), lifetime XP. Tappable when `onPress` is given. */
 export function StudentRow({
@@ -20,6 +21,8 @@ export function StudentRow({
   rank?: number;
   onPress?: () => void;
 }) {
+  const c = useColors();
+  const styles = makeStyles(c);
   return (
     <PersonRow
       name={name}
@@ -29,29 +32,29 @@ export function StudentRow({
       style={styles.row}
       leading={
         rank != null ? (
-          <AppText variant="label" color={colors.textMuted} style={styles.rank}>
+          <AppText variant="label" color={c.textMuted} style={styles.rank}>
             {rank}
           </AppText>
         ) : undefined
       }
       right={
         <View style={styles.xp}>
-          <Ionicons name="flash" size={13} color={colors.xp} />
-          <AppText variant="label" color={colors.textSecondary}>{xp}</AppText>
+          <Ionicons name="flash" size={13} color={c.xp} />
+          <AppText variant="label" color={c.textSecondary}>{xp}</AppText>
         </View>
       }
     />
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (c: AppColors) => StyleSheet.create({
   row: { gap: spacing.md },
   rank: { width: 18, textAlign: 'center' },
   xp: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: colors.surfaceAlt,
+    backgroundColor: c.surfaceAlt,
     paddingHorizontal: spacing.sm,
     paddingVertical: 4,
     borderRadius: radius.full,
