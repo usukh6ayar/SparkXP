@@ -9,6 +9,7 @@ import { t } from '../../src/i18n';
 import { colors, spacing, radius } from '../../src/theme/theme';
 import { AppText } from '../../src/components/Text';
 import { SignInSheet } from '../../src/components/SignInSheet';
+import { AuthFooter } from '../../src/components/AuthFooter';
 
 const wordmark = require('../../assets/logoSparkXP.png');
 const hero = require('../../assets/logo.png');
@@ -68,16 +69,7 @@ export default function WelcomeScreen() {
             </AppText>
           ) : null}
 
-          <View style={styles.footer}>
-            <AppText variant="body" color={colors.textSecondary}>
-              {t('haveAccount')}{' '}
-            </AppText>
-            <Pressable onPress={() => setSheetOpen(true)} hitSlop={8}>
-              <AppText variant="bodyStrong" color={colors.primary}>
-                {t('login')}
-              </AppText>
-            </Pressable>
-          </View>
+          <AuthFooter prompt={t('haveAccount')} linkLabel={t('login')} onPress={() => setSheetOpen(true)} />
         </View>
       </View>
 
@@ -193,11 +185,4 @@ const styles = StyleSheet.create({
   btnLabel: { fontWeight: '700' },
   pressed: { opacity: 0.9, transform: [{ scale: 0.99 }] },
   notice: { marginTop: spacing.xs },
-
-  footer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: spacing.sm,
-  },
 });
