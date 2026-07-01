@@ -130,14 +130,14 @@ export default function HomeScreen() {
     // here never blocks the rest of the home screen.
     try {
       const results = await Promise.all(
-        TASKS.map((t) =>
+        TASKS.map((task) =>
           // Reading content = passages (ReadingPassage), not quizzes.
-          (t.key === 'reading'
+          (task.key === 'reading'
             ? getReadingList(token).then((r) => r.items.length)
-            : getExercises(token, t.key).then((r) => r.items.length)
+            : getExercises(token, task.key).then((r) => r.items.length)
           )
-            .then((n) => [t.key, n] as const)
-            .catch(() => [t.key, 0] as const),
+            .then((n) => [task.key, n] as const)
+            .catch(() => [task.key, 0] as const),
         ),
       );
       setTaskCounts(Object.fromEntries(results));
@@ -389,21 +389,21 @@ export default function HomeScreen() {
             </View>
           </View>
           <View style={styles.grid}>
-            {TASKS.map((t) => {
-              const count = taskCounts[t.key] ?? 0;
+            {TASKS.map((task) => {
+              const count = taskCounts[task.key] ?? 0;
               return (
                 <Pressable
-                  key={t.key}
+                  key={task.key}
                   style={({ pressed }) => [styles.task, pressed && styles.pressed]}
                   // Reading = passages grouped by сэдэв (own screen); the other
                   // skills are quiz-based exercise lists.
-                  onPress={() => router.push(t.key === 'reading' ? '/reading' : `/skill/${t.key}`)}
+                  onPress={() => router.push(task.key === 'reading' ? '/reading' : `/skill/${task.key}`)}
                 >
-                  <View style={[styles.taskIcon, { backgroundColor: t.tint.bg, borderColor: t.tint.fg }]}>
-                    <Ionicons name={t.icon} size={24} color={t.tint.fg} />
+                  <View style={[styles.taskIcon, { backgroundColor: task.tint.bg, borderColor: task.tint.fg }]}>
+                    <Ionicons name={task.icon} size={24} color={task.tint.fg} />
                   </View>
                   <AppText variant="label" numberOfLines={1}>
-                    {t.label}
+                    {task.label}
                   </AppText>
                   <View style={styles.taskCount}>
                     <Ionicons name="ribbon" size={12} color={c.xp} />
