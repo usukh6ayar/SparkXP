@@ -1,7 +1,7 @@
-import { View, Pressable, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AppText } from './Text';
-import { Avatar } from './Avatar';
+import { PersonRow } from './PersonRow';
 import { colors, spacing, radius } from '../theme/theme';
 
 /** A roster row: rank, avatar, name (+ @username), lifetime XP. Tappable when `onPress` is given. */
@@ -20,33 +20,33 @@ export function StudentRow({
   rank?: number;
   onPress?: () => void;
 }) {
-  const Row = onPress ? Pressable : View;
   return (
-    <Row style={styles.row} onPress={onPress}>
-      {rank != null ? (
-        <AppText variant="label" color={colors.textMuted} style={styles.rank}>
-          {rank}
-        </AppText>
-      ) : null}
-      <Avatar avatarUrl={avatarUrl} name={name} size={40} />
-      <View style={styles.body}>
-        <AppText variant="bodyStrong" numberOfLines={1}>{name}</AppText>
-        {username ? (
-          <AppText variant="caption" numberOfLines={1}>@{username}</AppText>
-        ) : null}
-      </View>
-      <View style={styles.xp}>
-        <Ionicons name="flash" size={13} color={colors.xp} />
-        <AppText variant="label" color={colors.textSecondary}>{xp}</AppText>
-      </View>
-    </Row>
+    <PersonRow
+      name={name}
+      username={username}
+      avatarUrl={avatarUrl}
+      onPress={onPress}
+      style={styles.row}
+      leading={
+        rank != null ? (
+          <AppText variant="label" color={colors.textMuted} style={styles.rank}>
+            {rank}
+          </AppText>
+        ) : undefined
+      }
+      right={
+        <View style={styles.xp}>
+          <Ionicons name="flash" size={13} color={colors.xp} />
+          <AppText variant="label" color={colors.textSecondary}>{xp}</AppText>
+        </View>
+      }
+    />
   );
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.sm },
+  row: { gap: spacing.md },
   rank: { width: 18, textAlign: 'center' },
-  body: { flex: 1, gap: 1 },
   xp: {
     flexDirection: 'row',
     alignItems: 'center',
