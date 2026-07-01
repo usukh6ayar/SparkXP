@@ -10,7 +10,7 @@ import { Input } from '../../components/Input';
 import { Select } from '../../components/Select';
 import { FormActions } from '../../components/FormActions';
 import { RowActions } from '../../components/RowActions';
-import { levelFormOptions as LEVEL_OPTIONS } from '../../lib/options';
+import { levelFormOptions as LEVEL_OPTIONS, exerciseCategoryOptions } from '../../lib/options';
 import {
   QuizQuestionsEditor,
   type Question,
@@ -37,6 +37,7 @@ interface Exercise {
   title: string;
   level: string;
   category: string | null;
+  topic: string | null;
   quizType: string | null;
   xpReward: number;
   isPublished: boolean;
@@ -46,13 +47,14 @@ interface Exercise {
 interface Form {
   title: string;
   level: string;
+  topic: string;
   questionType: QuestionType;
   questions: Question[];
   xpReward: number;
   isPublished: boolean;
 }
 const emptyForm: Form = {
-  title: '', level: 'a1', questionType: 'multiple_choice', questions: [], xpReward: 50, isPublished: false,
+  title: '', level: 'a1', topic: '', questionType: 'multiple_choice', questions: [], xpReward: 50, isPublished: false,
 };
 
 export default function ExercisesPage() {
@@ -70,6 +72,7 @@ export default function ExercisesPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [impTitle, setImpTitle] = useState('');
   const [impLevel, setImpLevel] = useState('a1');
+  const [impTopic, setImpTopic] = useState('');
   const [impType, setImpType] = useState<QuestionType>('multiple_choice');
   const [impText, setImpText] = useState('');
   const [importing, setImporting] = useState(false);
@@ -91,7 +94,7 @@ export default function ExercisesPage() {
   function openEdit(ex: Exercise) {
     const qt = (ex.quizType as QuestionType) || (ex.questions[0]?.type ?? 'multiple_choice');
     setForm({
-      title: ex.title, level: ex.level, questionType: qt,
+      title: ex.title, level: ex.level, topic: ex.topic ?? '', questionType: qt,
       questions: ex.questions ?? [], xpReward: ex.xpReward, isPublished: ex.isPublished,
     });
     setEditing(ex); setError(''); setModal('edit');
@@ -111,6 +114,7 @@ export default function ExercisesPage() {
         title: form.title.trim(),
         level: form.level,
         category: cat, // standalone exercise → category = skill, no lessonId
+        topic: form.topic, // сэдэв within the skill ('' = no topic)
         quizType: form.questionType,
         questions: form.questions,
         xpReward: form.xpReward,
@@ -195,7 +199,7 @@ export default function ExercisesPage() {
     setImporting(true); setImpError('');
     try {
       await api.post('/quizzes', {
-        title: impTitle.trim(), level: impLevel, category: cat,
+        title: impTitle.trim(), level: impLevel, category: cat, topic: impTopic,
         quizType: impType, questions, xpReward: 50, isPublished: false,
       });
       setImportOpen(false); setImpTitle(''); setImpText('');
@@ -214,6 +218,11 @@ export default function ExercisesPage() {
       className: 'w-8',
     },
     { key: 'title', header: 'Гарчиг', render: (e: Exercise) => <span className="font-medium">{e.title}</span> },
+    {
+      key: 'topic', header: 'Сэдэв',
+      render: (e: Exercise) =>
+        e.topic ? <Badge color="yellow">{e.topic}</Badge> : <span className="text-gray-300">—</span>,
+    },
     { key: 'level', header: 'Түвшин', render: (e: Exercise) => <Badge color="gray">{e.level.toUpperCase()}</Badge> },
     { key: 'qs', header: 'Асуулт', render: (e: Exercise) => <span className="text-gray-600">{e.questions?.length ?? 0}</span> },
     { key: 'xp', header: 'XP', render: (e: Exercise) => <span className="text-primary font-medium">⚡ {e.xpReward}</span> },
@@ -292,6 +301,7 @@ export default function ExercisesPage() {
         <Modal title={modal === 'create' ? 'Дасгал нэмэх' : 'Дасгал засах'} onClose={() => setModal(null)} size="2xl">
           <div className="space-y-4">
             <Input label="Гарчиг" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+            <Select label="Сэдэв (category)" options={exerciseCategoryOptions(cat)} value={form.topic} onChange={(e) => setForm({ ...form, topic: e.target.value })} />
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <Select label="Түвшин" options={LEVEL_OPTIONS} value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value })} />
               <Select label="Асуултын төрөл" options={QTYPE_OPTIONS} value={form.questionType} onChange={(e) => changeType(e.target.value as QuestionType)} />
@@ -322,8 +332,9 @@ export default function ExercisesPage() {
       {importOpen && (
         <Modal title={`Дасгал импорт (${CATS.find((c) => c.key === cat)?.label})`} onClose={() => setImportOpen(false)} size="2xl">
           <div className="space-y-4">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Input label="Гарчиг" value={impTitle} onChange={(e) => setImpTitle(e.target.value)} />
+              <Select label="Сэдэв (category)" options={exerciseCategoryOptions(cat)} value={impTopic} onChange={(e) => setImpTopic(e.target.value)} />
               <Select label="Түвшин" options={LEVEL_OPTIONS} value={impLevel} onChange={(e) => setImpLevel(e.target.value)} />
               <Select
                 label="Асуултын төрөл"

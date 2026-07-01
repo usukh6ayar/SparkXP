@@ -104,10 +104,16 @@ export class CreateQuizDto {
   @IsString()
   quizType?: string;
 
-  /** Topic category for grouping a lesson's quizzes (e.g. "Дүрэм", "Үг"). */
+  /** Topic category for grouping a lesson's quizzes (e.g. "Дүрэм", "Үг").
+   *  For a standalone exercise this is the skill (listening/reading/...). */
   @IsOptional()
   @IsString()
   category?: string;
+
+  /** Sub-category (сэдэв) within a skill, e.g. "Өдөр тутмын яриа". Free text. */
+  @IsOptional()
+  @IsString()
+  topic?: string;
 
   @IsArray()
   @ValidateNested({ each: true })

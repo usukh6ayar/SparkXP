@@ -21,6 +21,11 @@ export class QueryQuizzesDto {
   @IsString()
   category?: string;
 
+  /** Filter by sub-category (сэдэв) within a skill. */
+  @IsOptional()
+  @IsString()
+  topic?: string;
+
   /** When true, return only standalone quizzes (Дасгал) — those with no lesson. */
   @IsOptional()
   @Transform(({ value }) => value === 'true' || value === true)
