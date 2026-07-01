@@ -14,11 +14,14 @@ import { useColors } from '../settings/SettingsContext';
 export function TopBar({
   title,
   back = false,
+  onBack,
   streak = 0,
   showBadges = true,
 }: {
   title?: string;
   back?: boolean;
+  /** Custom back handler (e.g. step back one level in-screen). Defaults to router.back(). */
+  onBack?: () => void;
   streak?: number;
   showBadges?: boolean;
 }) {
@@ -30,7 +33,7 @@ export function TopBar({
     <View style={styles.row}>
       <View style={styles.left}>
         {back ? (
-          <Pressable style={[styles.backBtn, { backgroundColor: c.surfaceAlt }]} onPress={() => router.back()} hitSlop={8}>
+          <Pressable style={[styles.backBtn, { backgroundColor: c.surfaceAlt }]} onPress={() => (onBack ? onBack() : router.back())} hitSlop={8}>
             <Ionicons name="chevron-back" size={22} color={c.text} />
           </Pressable>
         ) : null}

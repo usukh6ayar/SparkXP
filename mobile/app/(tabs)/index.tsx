@@ -18,6 +18,7 @@ import { getGamification, type Gamification } from "../../src/api/gamification";
 import { getDue } from "../../src/api/reviews";
 import { getLessons } from "../../src/api/lessons";
 import { getExercises } from "../../src/api/quizzes";
+import { getReadingList } from "../../src/api/reading";
 import { getLastLesson, type LastLesson } from "../../src/lib/lastLesson";
 import { useDictionary } from "../../src/components/DictionaryProvider";
 import { AppText } from "../../src/components/Text";
@@ -130,8 +131,12 @@ export default function HomeScreen() {
     try {
       const results = await Promise.all(
         TASKS.map((t) =>
-          getExercises(token, t.key)
-            .then((r) => [t.key, r.items.length] as const)
+          // Reading content = passages (ReadingPassage), not quizzes.
+          (t.key === 'reading'
+            ? getReadingList(token).then((r) => r.items.length)
+            : getExercises(token, t.key).then((r) => r.items.length)
+          )
+            .then((n) => [t.key, n] as const)
             .catch(() => [t.key, 0] as const),
         ),
       );
@@ -390,7 +395,9 @@ export default function HomeScreen() {
                 <Pressable
                   key={t.key}
                   style={({ pressed }) => [styles.task, pressed && styles.pressed]}
-                  onPress={() => router.push(`/skill/${t.key}`)}
+                  // Reading = passages grouped by сэдэв (own screen); the other
+                  // skills are quiz-based exercise lists.
+                  onPress={() => router.push(t.key === 'reading' ? '/reading' : `/skill/${t.key}`)}
                 >
                   <View style={[styles.taskIcon, { backgroundColor: t.tint.bg, borderColor: t.tint.fg }]}>
                     <Ionicons name={t.icon} size={24} color={t.tint.fg} />
