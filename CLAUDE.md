@@ -12,6 +12,11 @@ organizations (e.g. law firms). Owner: Hustle Hive LLC.
 > For the task list / who-does-what / launch plan, see **ROADMAP.md**.
 > For the full product + cost + future plan, see **docs/FUTURE_PLAN.md**.
 
+> ⚠️ **MANDATORY — read `CODING_RULES.md` BEFORE writing or editing any code.**
+> It is the enforced coding standard (less code · DRY · component/service-based ·
+> junior-readable). Every code change must comply. `API.md` = backend endpoint
+> reference + frontend usage map (read before touching endpoints).
+
 ---
 
 ## Team & Working Style
@@ -53,13 +58,16 @@ announced here first.
 - `/mobile` — React Native (Expo) app (Expo Router)
 - `/admin` — Next.js web admin dashboard (content + user + org management)
 - `CLAUDE.md` — this file (shared rules + project context)
+- `CODING_RULES.md` — **enforced coding standard (read before any code).** Less
+  code · DRY · component/service-based · junior-readable; + a refactor prompt.
 - `ROADMAP.md` — **who does what + App Store launch checklist + future update
   waves (when each update ships).** Read this to know what to build next.
 - `docs/FUTURE_PLAN.md` — full product/cost/future plan nэгтгэл (from the client
   + IT-team docx briefs). Read before plan/AI/limit/pricing/teacher-panel work.
 - `docs/*.docx` — original briefs: IT Team Brief, Strategy Recommendations,
   34,000₮ / 56,000₮ plan cost breakdowns, SparkXP Plan, Teacher Panel UI/UX.
-- `API.md` — full backend endpoint reference (rebuild/keep updated as endpoints land).
+- `API.md` — full backend endpoint reference (path · auth/role · purpose · params)
+  **+ mobile/admin frontend usage mapping**. Keep updated as endpoints land.
 
 ---
 
@@ -98,10 +106,10 @@ Student join-class (code/QR scanner) shipped. ⚠️ **Shared-backend changes th
 affect Bishrelt's admin (auth/classes/leaderboard/orgs) + new mobile deps are
 listed in `ROADMAP.md` → "Shared backend өөрчлөлт — Bishrelt АНХААР (2026-06-16)".**
 **Next (mobile):** product-brief alignment (Phase M6 — level/English-name/
-avatar/"Continue Learning"/student assignments). See `MOBILE_ROADMAP.md` + `PRODUCT_BRIEF.md`.
+avatar/"Continue Learning"/student assignments). See `docs/FUTURE_PLAN.md` + `ROADMAP.md`.
 **Pending:** app icon files missing; fonts (Onest/Inter) not loaded; Lucide
 migration; real gamification data (streak/level/progress are placeholders); real
-video player. Full list: `MOBILE_ROADMAP.md`.
+video player. Full list: `docs/FUTURE_PLAN.md` (§3 launch checklist).
 
 **Vocabulary AI pipeline — shipped (2026-06-25).** Admin Words page now does
 end-to-end AI authoring:
@@ -272,6 +280,8 @@ WordReview, XpLog, AiUsage, Message, Payment, SparksLog, LessonUnlock.
 
 ## Code Conventions
 
+> Full enforced standard: **`CODING_RULES.md`** (read it before coding).
+
 - TypeScript everywhere. Clear names, small functions.
 - Comment non-obvious logic.
 - Validate all incoming data with DTOs + class-validator.
@@ -290,7 +300,7 @@ WordReview, XpLog, AiUsage, Message, Payment, SparksLog, LessonUnlock.
   in screens). User-facing text comes from `mobile/src/i18n` (Mongolian first).
 - API calls go through `mobile/src/api/` (the `client.ts` fetch wrapper),
   never raw `fetch` inside a screen.
-- Full plan + brand colors: see **MOBILE_ROADMAP.md**.
+- Full plan + brand colors: see **`mobile/DESIGN.md`** + **`mobile/SCREEN_SPECS.md`**.
 
 ## Git Workflow (3-dev team)
 
