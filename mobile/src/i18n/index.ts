@@ -315,6 +315,11 @@ const mn = {
   whatDoesItMean: 'Энэ үгийн утга?',
   scoring: 'Дүн бодож байна…',
 
+  // Skill exercise screen
+  todayLabel: 'ӨНӨӨ ДӨР',
+  progressLabel: 'Явц',
+  noSkillExercises: 'Энэ төрлийн дасгал алга 🦊',
+
   // Common
   back: 'Буцах',
   continue: 'Үргэлжлүүлэх',
@@ -612,6 +617,10 @@ const en: Record<TranslationKey, string> = {
   backToQuizzes: 'Back to quizzes',
   whatDoesItMean: 'What does this word mean?',
   scoring: 'Scoring…',
+
+  todayLabel: 'TODAY',
+  progressLabel: 'Progress',
+  noSkillExercises: 'No exercises of this type yet 🦊',
 
   back: 'Back',
   continue: 'Continue',
