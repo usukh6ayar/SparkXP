@@ -306,6 +306,15 @@ const mn = {
   teacherLeaderboardTitle: 'Сурагчдын чансаа',
   teacherLeaderboardSubtitle: 'Таны бүх ангийн сурагчид (XP-ээр)',
 
+  // Vocab quiz
+  scoreTitle: 'Дүн',
+  quizLoadError: 'Сорил ачаалж чадсангүй. Дараа дахин оролдоно уу.',
+  correctSuffix: 'зөв',
+  playAgain: 'Дахин тоглох',
+  backToQuizzes: 'Сорил руу буцах',
+  whatDoesItMean: 'Энэ үгийн утга?',
+  scoring: 'Дүн бодож байна…',
+
   // Common
   back: 'Буцах',
   continue: 'Үргэлжлүүлэх',
@@ -595,6 +604,14 @@ const en: Record<TranslationKey, string> = {
   noLeaderboardData: 'No data for this period 🦊',
   teacherLeaderboardTitle: 'Student rankings',
   teacherLeaderboardSubtitle: 'All students across your classes (by XP)',
+
+  scoreTitle: 'Score',
+  quizLoadError: 'Could not load the quiz. Please try again later.',
+  correctSuffix: 'correct',
+  playAgain: 'Play again',
+  backToQuizzes: 'Back to quizzes',
+  whatDoesItMean: 'What does this word mean?',
+  scoring: 'Scoring…',
 
   back: 'Back',
   continue: 'Continue',
