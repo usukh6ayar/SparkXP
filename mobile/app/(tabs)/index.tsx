@@ -22,7 +22,7 @@ import { getLastLesson, type LastLesson } from "../../src/lib/lastLesson";
 import { useDictionary } from "../../src/components/DictionaryProvider";
 import { AppText } from "../../src/components/Text";
 import { ProgressBar } from "../../src/components/ProgressBar";
-import { useColors } from "../../src/settings/SettingsContext";
+import { useColors, useSettings } from "../../src/settings/SettingsContext";
 import {
   spacing,
   radius,
@@ -38,6 +38,8 @@ type IconName = keyof typeof Ionicons.glyphMap;
 // means the fox is ALWAYS standing on the grass on every device — no per-screen
 // alignment math to drift. Both layers scale to the screen width ("flexible").
 const skyImg = require("../../assets/background.png");
+// Light-mode sky — bright daytime clouds instead of the purple night sky.
+const skyImgLight = require("../../assets/light-mode-index.png");
 const sceneImg = require("../../assets/fox-island.png");
 
 const SCENE_RATIO = 1081 / 963; // h / w of fox-island.png
@@ -84,7 +86,16 @@ const TASKS: {
 export default function HomeScreen() {
   const { user, token } = useAuth();
   const c = useColors();
+  const { theme } = useSettings();
   const styles = useMemo(() => makeStyles(c), [c]);
+
+  // Hero swaps with the appearance toggle: bright daytime sky in light mode,
+  // purple night sky in dark. The bottom scrim dissolves the sky into the
+  // active page background (`c.background`) so there is no seam either way.
+  const lightMode = theme === "light";
+  const skySource = lightMode ? skyImgLight : skyImg;
+  // RGB of the page background, used to build the fade-to-page gradient stops.
+  const pageRgb = lightMode ? "244,242,252" : "25,16,64";
   const router = useRouter();
   const { openSearch } = useDictionary();
   const firstName =
@@ -191,19 +202,19 @@ export default function HomeScreen() {
         {/* Top: fox scene as a full-bleed background — greeting + streak/gem/XP
             overlaid, fading into the page background (no boxed hero card). */}
         <View style={styles.top}>
-          {/* Fallback purple sky while the image loads */}
+          {/* Fallback sky while the image loads — matches the active theme */}
           <LinearGradient
-            colors={["#1B1147", "#2A1A5E"]}
+            colors={c.backgroundGradient}
             start={{ x: 0.5, y: 0 }}
             end={{ x: 0.5, y: 1 }}
             style={StyleSheet.absoluteFill}
           />
-          {/* Layer 1 — purple night sky (glow + stars) */}
-          <Image source={skyImg} style={StyleSheet.absoluteFill} resizeMode="cover" />
-          {/* Bottom scrim — dissolves the sky into the page (#191040) at the
+          {/* Layer 1 — sky image (purple night sky / bright daytime clouds) */}
+          <Image source={skySource} style={StyleSheet.absoluteFill} resizeMode="cover" />
+          {/* Bottom scrim — dissolves the sky into the page background at the
               band's edges (sides of the cards, below the island). */}
           <LinearGradient
-            colors={["rgba(25,16,64,0)", "rgba(25,16,64,0)", "rgba(25,16,64,1)"]}
+            colors={[`rgba(${pageRgb},0)`, `rgba(${pageRgb},0)`, `rgba(${pageRgb},1)`]}
             locations={[0, 0.72, 1]}
             style={StyleSheet.absoluteFill}
             pointerEvents="none"
