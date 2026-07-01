@@ -295,6 +295,17 @@ const mn = {
   progressPath: 'Амжилтын зам',
   progressPathHint: 'Сорил тоглож, level ахицгаая!',
 
+  // Leaderboard
+  leaderboardTitle: 'Тэргүүлэгчид',
+  scopeClass: 'Анги',
+  scopeGlobal: 'Глобал',
+  scopeProvince: 'Аймаг',
+  scopeDistrict: 'Дүүрэг',
+  myStanding: 'Таны байр',
+  noLeaderboardData: 'Энэ хугацаанд дата алга 🦊',
+  teacherLeaderboardTitle: 'Сурагчдын чансаа',
+  teacherLeaderboardSubtitle: 'Таны бүх ангийн сурагчид (XP-ээр)',
+
   // Common
   back: 'Буцах',
   continue: 'Үргэлжлүүлэх',
@@ -574,6 +585,16 @@ const en: Record<TranslationKey, string> = {
   gameGrammarDesc: 'Test your grammar knowledge.',
   progressPath: 'Path to success',
   progressPathHint: 'Play quizzes and level up!',
+
+  leaderboardTitle: 'Leaderboard',
+  scopeClass: 'Class',
+  scopeGlobal: 'Global',
+  scopeProvince: 'Province',
+  scopeDistrict: 'District',
+  myStanding: 'Your standing',
+  noLeaderboardData: 'No data for this period 🦊',
+  teacherLeaderboardTitle: 'Student rankings',
+  teacherLeaderboardSubtitle: 'All students across your classes (by XP)',
 
   back: 'Back',
   continue: 'Continue',

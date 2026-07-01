@@ -9,6 +9,7 @@ import { AppText } from '../../src/components/Text';
 import { PeriodTabs } from '../../src/components/PeriodTabs';
 import { LeaderboardRow } from '../../src/components/LeaderboardRow';
 import { PERIODS } from '../../src/constants/leaderboard';
+import { t } from '../../src/i18n';
 import { colors, spacing } from '../../src/theme/theme';
 
 export default function TeacherLeaderboardScreen() {
@@ -45,8 +46,8 @@ export default function TeacherLeaderboardScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
-        <AppText variant="h1">Сурагчдын чансаа</AppText>
-        <AppText variant="caption">Таны бүх ангийн сурагчид (XP-ээр)</AppText>
+        <AppText variant="h1">{t('teacherLeaderboardTitle')}</AppText>
+        <AppText variant="caption">{t('teacherLeaderboardSubtitle')}</AppText>
       </View>
 
       <PeriodTabs value={period} options={PERIODS} onChange={setPeriod} style={styles.tabs} />
@@ -57,7 +58,7 @@ export default function TeacherLeaderboardScreen() {
         <View style={styles.empty}>
           <Ionicons name="trophy-outline" size={56} color={colors.textMuted} />
           <AppText variant="body" center color={colors.textSecondary} style={{ marginTop: spacing.md }}>
-            Энэ хугацаанд дата алга 🦊
+            {t('noLeaderboardData')}
           </AppText>
         </View>
       ) : (

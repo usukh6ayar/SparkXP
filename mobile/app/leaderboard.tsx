@@ -10,14 +10,17 @@ import { PeriodTabs } from '../src/components/PeriodTabs';
 import { LeaderboardRow } from '../src/components/LeaderboardRow';
 import { Loading } from '../src/components/Loading';
 import { PERIODS } from '../src/constants/leaderboard';
+import { t } from '../src/i18n';
 import { colors, spacing, radius } from '../src/theme/theme';
 
-const SCOPES: { key: Scope; label: string }[] = [
-  { key: 'teacher', label: 'Анги' },
-  { key: 'global', label: 'Глобал' },
-  { key: 'province', label: 'Аймаг' },
-  { key: 'district', label: 'Дүүрэг' },
-];
+function scopes(): { key: Scope; label: string }[] {
+  return [
+    { key: 'teacher', label: t('scopeClass') },
+    { key: 'global', label: t('scopeGlobal') },
+    { key: 'province', label: t('scopeProvince') },
+    { key: 'district', label: t('scopeDistrict') },
+  ];
+}
 
 export default function LeaderboardScreen() {
   const { token, user } = useAuth();
@@ -39,10 +42,11 @@ export default function LeaderboardScreen() {
   }, [token, period, scope]);
 
   useEffect(() => { load(); }, [load]);
+  const SCOPES = scopes();
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <TopBar title="Тэргүүлэгчид" back />
+      <TopBar title={t('leaderboardTitle')} back />
 
       {/* Period segmented control */}
       <PeriodTabs value={period} options={PERIODS} onChange={setPeriod} style={styles.tabs} />
@@ -73,7 +77,7 @@ export default function LeaderboardScreen() {
               <AppText variant="h3" color={colors.sparks}>{data?.me?.rank ? `#${data.me.rank}` : '—'}</AppText>
             </View>
             <View style={{ flex: 1 }}>
-              <AppText variant="caption" color={colors.textOnDarkMuted}>Таны байр</AppText>
+              <AppText variant="caption" color={colors.textOnDarkMuted}>{t('myStanding')}</AppText>
               <AppText variant="h3" color={colors.white} numberOfLines={1}>{user?.fullName}</AppText>
             </View>
             <View style={styles.meXp}>
@@ -84,7 +88,7 @@ export default function LeaderboardScreen() {
 
           {!data || data.entries.length === 0 ? (
             <AppText variant="body" color={colors.textMuted} center style={styles.empty}>
-              Энэ хугацаанд дата алга 🦊
+              {t('noLeaderboardData')}
             </AppText>
           ) : (
             data.entries.map((e) => (
