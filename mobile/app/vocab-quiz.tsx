@@ -5,7 +5,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../src/auth/AuthContext';
 import { getMe } from '../src/api/auth';
-import { getQuiz, submitQuiz, type QuizQuestion, type QuizResult } from '../src/api/quiz';
+import { getQuiz, submitQuiz, type QuizQuestion, type QuizResult } from '../src/api/wordQuiz';
 import { TopBar } from '../src/components/TopBar';
 import { AppText } from '../src/components/Text';
 import { Loading } from '../src/components/Loading';
