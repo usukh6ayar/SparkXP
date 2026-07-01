@@ -13,6 +13,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../../src/auth/AuthContext';
+import { useSettings } from '../../src/settings/SettingsContext';
 import { getLessons, type Lesson } from '../../src/api/lessons';
 import { AppText } from '../../src/components/Text';
 
@@ -31,12 +32,15 @@ import { AppText } from '../../src/components/Text';
  * tracks lesson completion + daily streak (see TODOs).
  */
 
-const skyImg = require('../../assets/avatars/islands/background.png'); // pure starry sky (scene + header backdrop)
+const skyImg = require('../../assets/avatars/islands/background.png'); // starry sky backdrop — dark theme
+const lightBgImg = require('../../assets/avatars/islands/lightBackground.png'); // bright sky backdrop — light theme
 const lineImg = require('../../assets/avatars/islands/line.png'); // golden winding trail overlay
-const SCENE_RATIO = 2.6; // scene height = width * RATIO (room for 6 stacked islands)
-const ISLAND_ASPECT = 1.18; // island art height / width (avg of the 6 cut-outs)
+const SCENE_RATIO = 2.7; // scene height = width * RATIO (room for 6 stacked islands)
+const ISLAND_ASPECT = 1.0; // island art height / width (the day tiles are ~square)
 
-// Feathered island cut-outs (transparent, float on the sky).
+// Island artwork per theme. Dark = the original night cut-outs on the starry
+// sky. Light (`*_light`) = brighter day islands on their own blue-sky/clouds,
+// soft-feathered so their edges melt into the light-theme gradient backdrop.
 const ISLAND_IMG: Record<string, ReturnType<typeof require>> = {
   A1: require('../../assets/avatars/islands/a1.png'),
   A2: require('../../assets/avatars/islands/a2.png'),
@@ -44,6 +48,14 @@ const ISLAND_IMG: Record<string, ReturnType<typeof require>> = {
   B2: require('../../assets/avatars/islands/b2.png'),
   C1: require('../../assets/avatars/islands/c1.png'),
   C2: require('../../assets/avatars/islands/c2.png'),
+};
+const ISLAND_IMG_LIGHT: Record<string, ReturnType<typeof require>> = {
+  A1: require('../../assets/avatars/islands/a1_light.png'),
+  A2: require('../../assets/avatars/islands/a2_light.png'),
+  B1: require('../../assets/avatars/islands/b1_light.png'),
+  B2: require('../../assets/avatars/islands/b2_light.png'),
+  C1: require('../../assets/avatars/islands/c1_light.png'),
+  C2: require('../../assets/avatars/islands/c2_light.png'),
 };
 
 const SKY = {
@@ -55,6 +67,14 @@ const SKY = {
 };
 
 const BADGE = { green: '#22C55E', blue: '#38BDF8', purple: '#8B5CF6' };
+
+// Light theme: the island tiles carry their own bright blue sky + clouds, so the
+// backdrop is a matching blue→pale-blue gradient (not the dark starry image).
+const LIGHT_SKY = {
+  grad: ['#96CDF8', '#BFE0FB', '#E0ECFA'] as const, // top blue → bottom pale
+  title: '#17324F', // dark text readable on the pale-blue sky
+  titleDim: 'rgba(23,50,79,0.72)',
+};
 
 interface LevelNode {
   code: string; // CEFR — also matches the lesson.level used for navigation
@@ -70,12 +90,12 @@ interface LevelNode {
 
 // Serpentine top→bottom path. The label card is auto-placed under each island.
 const LEVELS: LevelNode[] = [
-  { code: 'A1', name: 'Forest',    color: BADGE.green,  unlockAt: null, done: 15, total: 30, isl: { left: 0.00, top: 0.010, w: 0.52 } },
-  { code: 'A2', name: 'Village',   color: BADGE.green,  unlockAt: null, done: 20, total: 30, isl: { left: 0.46, top: 0.150, w: 0.52 } },
-  { code: 'B1', name: 'Castle',    color: BADGE.blue,   unlockAt: null, done: 10, total: 30, isl: { left: 0.00, top: 0.310, w: 0.55 } },
-  { code: 'B2', name: 'Mountain',  color: BADGE.blue,   unlockAt: 30,   done: 0,  total: 30, isl: { left: 0.45, top: 0.460, w: 0.52 } },
-  { code: 'C1', name: 'Space',     color: BADGE.purple, unlockAt: 45,   done: 0,  total: 30, isl: { left: 0.00, top: 0.605, w: 0.52 } },
-  { code: 'C2', name: 'Sky Realm', color: BADGE.purple, unlockAt: 60,   done: 0,  total: 30, isl: { left: 0.42, top: 0.745, w: 0.56 } },
+  { code: 'A1', name: 'Forest',    color: BADGE.green,  unlockAt: null, done: 15, total: 30, isl: { left: 0.00, top: 0.010, w: 0.50 } },
+  { code: 'A2', name: 'Village',   color: BADGE.green,  unlockAt: null, done: 20, total: 30, isl: { left: 0.48, top: 0.140, w: 0.50 } },
+  { code: 'B1', name: 'Castle',    color: BADGE.blue,   unlockAt: null, done: 10, total: 30, isl: { left: 0.00, top: 0.300, w: 0.52 } },
+  { code: 'B2', name: 'Mountain',  color: BADGE.blue,   unlockAt: 30,   done: 0,  total: 30, isl: { left: 0.47, top: 0.455, w: 0.50 } },
+  { code: 'C1', name: 'Space',     color: BADGE.purple, unlockAt: 45,   done: 0,  total: 30, isl: { left: 0.00, top: 0.600, w: 0.50 } },
+  { code: 'C2', name: 'Sky Realm', color: BADGE.purple, unlockAt: 60,   done: 0,  total: 30, isl: { left: 0.44, top: 0.740, w: 0.52 } },
 ];
 
 /** Add thousands separators (Hermes' toLocaleString is unreliable). */
@@ -85,9 +105,16 @@ function fmt(n: number): string {
 
 export default function LessonsScreen() {
   const { token, user } = useAuth();
+  const { theme } = useSettings();
   const router = useRouter();
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+
+  // Light theme uses the bright sky backdrop (lightBackground.png) + the
+  // transparent day islands; dark theme uses the starry sky + night cut-outs.
+  const isLight = theme === 'light';
+  const bgImg = isLight ? lightBgImg : skyImg;
+  const islandImg = isLight ? ISLAND_IMG_LIGHT : ISLAND_IMG;
 
   const [byLevel, setByLevel] = useState<Record<string, Lesson[]>>({});
   const [refreshing, setRefreshing] = useState(false);
@@ -136,9 +163,12 @@ export default function LessonsScreen() {
   const CARD_W = Math.min(sceneW * 0.44, 200);
 
   return (
-    <View style={styles.root}>
-      {/* Dark backdrop (no bright purple — the starry sky image fills the top). */}
-      <LinearGradient colors={['#150F38', '#0E0A2A', '#0E0A2A']} style={StyleSheet.absoluteFill} />
+    <View style={[styles.root, isLight && { backgroundColor: '#C7E4FB' }]}>
+      {/* Fallback color behind the backdrop image (only shows on overscroll). */}
+      <LinearGradient
+        colors={isLight ? LIGHT_SKY.grad : ['#150F38', '#0E0A2A', '#0E0A2A']}
+        style={StyleSheet.absoluteFill}
+      />
       <View style={styles.safe}>
         <ScrollView
           contentContainerStyle={styles.scroll}
@@ -151,19 +181,25 @@ export default function LessonsScreen() {
               the scene (no flat block). The sky image is offset to a star field
               below the galaxy, which stays unique to the scene below. */}
           <View style={styles.top}>
-            <Image source={skyImg} style={[styles.headerSky, { width: sceneW, height: sceneH, top: -sceneH * 0.12 }]} resizeMode="cover" />
+            {/* Backdrop sky behind the header (dark=starry, light=bright sky).
+                A theme-tuned gradient overlay keeps the header text readable. */}
+            <Image source={bgImg} style={[styles.headerSky, { width: sceneW, height: sceneH, top: -sceneH * 0.12 }]} resizeMode="cover" />
             <LinearGradient
-              colors={['rgba(14,10,42,0.55)', 'rgba(14,10,42,0.35)', 'rgba(14,10,42,0.6)']}
+              colors={
+                isLight
+                  ? ['rgba(255,255,255,0.35)', 'rgba(255,255,255,0.12)', 'rgba(199,228,251,0.0)']
+                  : ['rgba(14,10,42,0.55)', 'rgba(14,10,42,0.35)', 'rgba(14,10,42,0.6)']
+              }
               style={StyleSheet.absoluteFill}
             />
             <View style={[styles.topInner, { paddingTop: insets.top + 6 }]}>
               <View style={styles.header}>
                 <View style={{ flex: 1 }}>
                   <View style={styles.titleRow}>
-                    <AppText variant="h1" color="#FFFFFF">Хичээлийн ертөнц</AppText>
-                    <Ionicons name="sparkles" size={18} color={SKY.gold} style={{ marginLeft: 6 }} />
+                    <AppText variant="h1" color={isLight ? LIGHT_SKY.title : '#FFFFFF'}>Хичээлийн ертөнц</AppText>
+                    <Ionicons name="sparkles" size={18} color={isLight ? '#E0A700' : SKY.gold} style={{ marginLeft: 6 }} />
                   </View>
-                  <AppText variant="caption" color={SKY.textDim} style={{ marginTop: 2 }}>
+                  <AppText variant="caption" color={isLight ? LIGHT_SKY.titleDim : SKY.textDim} style={{ marginTop: 2 }}>
                     Адал явдлаар дамжуулж англи хэлээ эзэмш!
                   </AppText>
                 </View>
@@ -183,7 +219,7 @@ export default function LessonsScreen() {
 
           {/* Map scene: starry-sky backdrop + 6 floating islands + labels */}
           <View style={[styles.scene, { width: sceneW, height: sceneH }]}>
-            <Image source={skyImg} style={StyleSheet.absoluteFill} resizeMode="cover" />
+            <Image source={bgImg} style={StyleSheet.absoluteFill} resizeMode="cover" />
 
             {/* Golden winding trail (line.png) threading the islands, behind them.
                 Span (top / height) is tuned to reach from the first to the last
@@ -205,7 +241,7 @@ export default function LessonsScreen() {
 
               // Label card centered under the island, clamped to the scene.
               const cardLeft = Math.max(4, Math.min(islLeft + islW / 2 - CARD_W / 2, sceneW - CARD_W - 4));
-              const cardTop = islTop + islH * 0.80;
+              const cardTop = islTop + islH * 0.96;
 
               return (
                 <Fragment key={node.code}>
@@ -215,7 +251,7 @@ export default function LessonsScreen() {
                     style={{ position: 'absolute', left: islLeft, top: islTop, width: islW, height: islH }}
                   >
                     <Image
-                      source={ISLAND_IMG[node.code]}
+                      source={islandImg[node.code]}
                       style={[styles.island, locked && styles.islandLocked]}
                       resizeMode="contain"
                     />
