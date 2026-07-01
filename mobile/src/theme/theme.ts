@@ -45,6 +45,12 @@ export const colors = {
   border: '#3D2F73',
   borderStrong: '#4A3A85',
 
+  // Glassmorphism — translucent "frosted" panels/buttons on the dark theme
+  // (simulated without a blur layer: soft white fill + light rim + highlight).
+  glassBg: 'rgba(255,255,255,0.06)',
+  glassBgStrong: 'rgba(255,255,255,0.10)',
+  glassBorder: 'rgba(255,255,255,0.18)',
+
   // Semantic
   success: '#34D399',
   successSoft: 'rgba(52,211,153,0.16)',
