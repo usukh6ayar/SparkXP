@@ -176,7 +176,29 @@ Controller-level: JWT.
 | PATCH `/ai/buddies/:slug` | admin, super_admin | Buddy засах | path `slug` |
 | DELETE `/ai/buddies/:slug` | admin, super_admin | Buddy устгах | path `slug` |
 | GET `/ai/buddy-stats` | admin-баг | Buddy тус бүрийн хэрэглээ (мессеж/token/зардал) | — |
+| GET `/ai/limits` | admin, super_admin | Runtime AI limit-ийг унших (Settings хуудас) | — |
 | PATCH `/ai/limits` | admin, super_admin | Багцын limit-ийг runtime-д өөрчлөх | `UpdateLimitsDto` |
+
+### 10a. AI Buddy (Voice) — `/api/ai/buddy`
+Controller-level: JWT. Realtime speaking companion (STT→LLM→TTS→avatar). Бүх
+дуут яриа AI Gateway-ээр дамжина; сарын voice/STT limit-ийг `plans`-аас enforce
+хийнэ; TTS-г `buddy_voice_cache`-аар кэшлэнэ.
+
+| Method + Path | Auth | Зорилго | Params / Body |
+| --- | --- | --- | --- |
+| POST `/ai/buddy/sessions` | JWT | Session эхлүүлэх | `{ buddySlug, mode?, topic? }` → `{ sessionId, buddy, usage }` |
+| POST `/ai/buddy/sessions/:id/turn/audio` | JWT | Дуут turn (multipart `file`, ≤2MB) | full pipeline → turn response |
+| POST `/ai/buddy/sessions/:id/turn/text` | JWT | Бичсэн turn (STT алгасна) | `{ text }` → turn response |
+| GET `/ai/buddy/sessions/:id/messages` | JWT | Яриа түүх | path `id` |
+| GET `/ai/buddy/usage` | JWT | Энэ сарын voice/STT хэрэглээ | — |
+| GET `/ai/buddy/memory` | JWT | Buddy-гийн санах ой | — |
+| DELETE `/ai/buddy/memory` | JWT | Санах ой цэвэрлэх | — |
+
+Turn response: `{ session_id, message_id, user_transcript, reply_text,
+correction, follow_up_question, audio_url, avatar_instruction{emotion,gesture,
+duration_ms}, usage{voice_seconds_used_this_month, voice_seconds_limit_this_month,
+warn_level} }`. Voice limit хэтэрвэл `403 { code: 'VOICE_LIMIT' }` (mobile текст
+рүү шилжинэ).
 
 ## 11. Dictionary — `/api/dictionary`
 Controller-level: JWT. (Reading-ийн tap-to-translate ашигладаг.)
@@ -296,7 +318,7 @@ Controller-level: admin, super_admin.
 | `dictionary.ts` | `lookupWord`→GET `/dictionary/:word` · `getWordAudio`→GET `/dictionary/:word/audio` · `saveWord`→POST `/dictionary/:word/save` |
 | `idioms.ts` | `getIdiomList`→GET `/idioms?limit=100` · `getIdiom`→GET `/idioms/:id` |
 | `leaderboard.ts` | `getLeaderboard`→GET `/leaderboard?period=&scope=` |
-| `ai.ts` | `sendMessage`→POST `/ai/chat` · `getHistory`→GET `/ai/conversations/:id` |
+| `ai.ts` | `sendMessage`→POST `/ai/chat` · `getHistory`→GET `/ai/conversations/:id` · (AI Buddy voice) `getBuddies`→GET `/ai/buddies` · `startSession`→POST `/ai/buddy/sessions` · `sendBuddyTextTurn`→POST `/ai/buddy/sessions/:id/turn/text` · `sendBuddyAudioTurn`→POST `/ai/buddy/sessions/:id/turn/audio` · `getBuddyUsage`→GET `/ai/buddy/usage` · memory GET/DELETE `/ai/buddy/memory` (Boju хийнэ) |
 | `classes.ts` | `getMyClasses`→GET `/classes` · `createClass`→POST `/classes` · `getClass`→GET `/classes/:id` · `getClassStudents`→GET `/classes/:id/students` · `requestJoinClass`→POST `/classes/join` · `getJoinRequests`→GET `/classes/:id/requests` · `approveRequest`→POST `/classes/:id/requests/:studentId/approve` · `rejectRequest`→DELETE `/classes/:id/requests/:studentId` |
 | `assignments.ts` | `createAssignment`→POST `/assignments` · `getClassAssignments`→GET `/assignments?classId=` · `getMyAssignments`→GET `/assignments/mine` · `deleteAssignment`→DELETE `/assignments/:id` |
 | `organizations.ts` | `getOrganizations`→GET `/organizations?limit=100` |

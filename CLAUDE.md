@@ -133,6 +133,23 @@ end-to-end AI authoring:
 - ⚠️ `.env.example` sanitized to placeholders (real keys were committed before).
   Prod runs `DB_SYNCHRONIZE=false` → new columns need a manual `ALTER TABLE`.
 
+**AI Buddy voice pipeline — backend in progress (2026-07-02, branch
+`feature/ai-buddy-backend`).** Realtime speaking companion built by *extending*
+`ai-gateway` (not a new module), per `docs/AI_BUDDY_PLAN.md` (the step-by-step
+runbook derived from `SparkXP_AI_Buddy_Technical_Pipeline_MN.docx`). Turn
+pipeline: pre-check → ElevenLabs Scribe STT → context (persona + CEFR + memory)
+→ Claude LLM returning a validated JSON contract → safety gate → ElevenLabs TTS
+with `buddy_voice_cache` → per-stage `ai_usages` logging → filtered long-term
+memory → once-per-session `AI_BUDDY` XP. Endpoints under `/ai/buddy/*`
+(+ added `GET /ai/limits`). Provider adapters (`ai-gateway/providers/`) make
+STT/LLM/TTS config-driven (`STT_PROVIDER`/`LLM_PROVIDER`/`TTS_PROVIDER`); reply
+length / CEFR default / STT confidence / daily-turn cap are runtime-tunable via
+the Redis `ai:limits:default` blob. Monthly `plans.voiceMinutesLimit` /
+`sttMinutesLimit` now enforced. ⚠️ New tables (`buddy_sessions`,
+`buddy_memories`, `buddy_voice_cache`, `safety_events`) + `messages`/`ai_buddies`
+columns need prod migration `CreateAiBuddyVoice1782400000000`. **Pending:** admin
+UI (Part 2), mobile voice UI (Part 3 — Boju), 3D Meshy avatar (Part 4).
+
 **Shipped (2026-06-30 cycle).** Major content features added end-to-end
 (backend + admin + mobile), all on `main`:
 - **Reading (Унших материал)** — `ReadingPassage` entity/module; admin authoring

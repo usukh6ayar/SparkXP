@@ -43,6 +43,12 @@
 - [ ] **Прод migration бүрэн гүйцэх** (`DB_SYNCHRONIZE=false` дээр гараар):
       `reading_passages`, `translations`, `idioms` table + `synonyms`/`antonyms`
       багана + `reading` enum утга. (`src/migrations/` шалгах.)
+- [ ] **AI Buddy voice (branch `feature/ai-buddy-backend`)** — прод migration
+      `CreateAiBuddyVoice1782400000000` (шинэ `buddy_sessions`/`buddy_memories`/
+      `buddy_voice_cache`/`safety_events` table + `messages`/`ai_buddies` багана).
+      Шинэ env: `STT_PROVIDER`/`LLM_PROVIDER`/`TTS_PROVIDER`/`AI_BUDDY_LOG_RAW_AUDIO`/
+      `AI_BUDDY_AUDIO_RETENTION_DAYS`. Дэлгэрэнгүй: `docs/AI_BUDDY_PLAN.md`.
+      Дараагийн: admin UI (Part 2), mobile+3D avatar (Part 3/4 — Boju).
 - [ ] Prod дээр бүх шинэ endpoint ажиллаж буйг шалгах (Railway).
 - [ ] `.env.example` бүрэн (бүх шаардлагатай key placeholder-тэй); real key
       commit хийгдээгүйг баталгаажуулах.
