@@ -1,21 +1,25 @@
-import { useCallback, useEffect, useState } from 'react';
-import { useEffect, useState, useMemo } from 'react';
-import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../src/auth/AuthContext';
-import { getMe } from '../src/api/auth';
-import { getQuiz, submitQuiz, type QuizQuestion, type QuizResult } from '../src/api/wordQuiz';
-import { TopBar } from '../src/components/TopBar';
-import { AppText } from '../src/components/Text';
-import { Skeleton } from '../src/components/Skeleton';
-import { EmptyState } from '../src/components/EmptyState';
-import { Button } from '../src/components/Button';
-import { ProgressBar } from '../src/components/ProgressBar';
-import { t } from '../src/i18n';
-import { spacing, radius, elevation, type AppColors } from '../src/theme/theme';
-import { useColors } from '../src/settings/SettingsContext';
+import { useCallback, useEffect, useState, useMemo } from "react";
+import { View, StyleSheet, Pressable, ScrollView } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { useAuth } from "../src/auth/AuthContext";
+import { getMe } from "../src/api/auth";
+import {
+  getQuiz,
+  submitQuiz,
+  type QuizQuestion,
+  type QuizResult,
+} from "../src/api/wordQuiz";
+import { TopBar } from "../src/components/TopBar";
+import { AppText } from "../src/components/Text";
+import { Skeleton } from "../src/components/Skeleton";
+import { EmptyState } from "../src/components/EmptyState";
+import { Button } from "../src/components/Button";
+import { ProgressBar } from "../src/components/ProgressBar";
+import { t } from "../src/i18n";
+import { spacing, radius, elevation, type AppColors } from "../src/theme/theme";
+import { useColors } from "../src/settings/SettingsContext";
 
 const QUESTION_COUNT = 10;
 
@@ -49,17 +53,24 @@ export default function VocabQuizScreen() {
       .finally(() => setLoading(false));
   }, [token]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   async function finish(allChoices: Record<string, string>) {
     if (!token) return;
     setSubmitting(true);
-    const answers = Object.entries(allChoices).map(([wordId, choice]) => ({ wordId, choice }));
+    const answers = Object.entries(allChoices).map(([wordId, choice]) => ({
+      wordId,
+      choice,
+    }));
     try {
       const res = await submitQuiz(token, answers);
       setResult(res);
       // Pull the updated XP/Sparks into the cached user (header counters).
-      getMe(token).then(updateUser).catch(() => {});
+      getMe(token)
+        .then(updateUser)
+        .catch(() => {});
     } catch {
       setError(true);
     } finally {
@@ -86,11 +97,15 @@ export default function VocabQuizScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-        <TopBar title={t('gameVocabQuizTitle')} back />
+      <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
+        <TopBar title={t("gameVocabQuizTitle")} back />
         <View style={styles.body}>
           <View style={styles.prompt}>
-            <Skeleton width={120} height={14} style={{ marginBottom: spacing.md }} />
+            <Skeleton
+              width={120}
+              height={14}
+              style={{ marginBottom: spacing.md }}
+            />
             <Skeleton width={200} height={36} />
           </View>
           <View style={styles.options}>
@@ -106,13 +121,13 @@ export default function VocabQuizScreen() {
 
   if (error || questions.length === 0) {
     return (
-      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-        <TopBar title={t('gameVocabQuizTitle')} back />
+      <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
+        <TopBar title={t("gameVocabQuizTitle")} back />
         <EmptyState
           icon="alert-circle-outline"
-          title={t('error')}
-          hint={t('quizLoadError')}
-          action={{ label: t('retry'), onPress: load }}
+          title={t("error")}
+          hint={t("quizLoadError")}
+          action={{ label: t("retry"), onPress: load }}
         />
       </SafeAreaView>
     );
@@ -122,34 +137,50 @@ export default function VocabQuizScreen() {
   if (result) {
     const perfect = result.correct === result.total;
     return (
-      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-        <TopBar title={t('scoreTitle')} back />
+      <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
+        <TopBar title={t("scoreTitle")} back />
         <View style={styles.center}>
-          <AppText style={styles.emoji}>{perfect ? '🏆' : '🎉'}</AppText>
+          <AppText style={styles.emoji}>{perfect ? "🏆" : "🎉"}</AppText>
           <AppText variant="h1" center>
-            {result.correct} / {result.total} {t('correctSuffix')}
+            {result.correct} / {result.total} {t("correctSuffix")}
           </AppText>
           <View style={styles.rewards}>
-            <View style={[styles.rewardPill, { backgroundColor: colors.cream }]}>
+            <View
+              style={[styles.rewardPill, { backgroundColor: colors.cream }]}
+            >
               <Ionicons name="flash" size={16} color={colors.xp} />
-              <AppText variant="label" color={colors.xp}>+{result.xpAwarded} XP</AppText>
+              <AppText variant="label" color={colors.xp}>
+                +{result.xpAwarded} XP
+              </AppText>
             </View>
-            <View style={[styles.rewardPill, { backgroundColor: colors.primarySoft }]}>
+            <View
+              style={[
+                styles.rewardPill,
+                { backgroundColor: colors.primarySoft },
+              ]}
+            >
               <Ionicons name="diamond" size={16} color={colors.primary} />
-              <AppText variant="label" color={colors.primary}>+{result.sparksAwarded}</AppText>
+              <AppText variant="label" color={colors.primary}>
+                +{result.sparksAwarded}
+              </AppText>
             </View>
           </View>
           <Button
-            label={t('playAgain')}
+            label={t("playAgain")}
             icon="refresh"
             onPress={() => {
-              setResult(null); setIndex(0); setChoices({}); setPicked(null);
+              setResult(null);
+              setIndex(0);
+              setChoices({});
+              setPicked(null);
               load();
             }}
-            style={{ marginTop: spacing.xl, alignSelf: 'stretch' }}
+            style={{ marginTop: spacing.xl, alignSelf: "stretch" }}
           />
           <Pressable onPress={() => router.back()} style={styles.backLink}>
-            <AppText variant="label" color={colors.textSecondary}>{t('backToQuizzes')}</AppText>
+            <AppText variant="label" color={colors.textSecondary}>
+              {t("backToQuizzes")}
+            </AppText>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -159,22 +190,32 @@ export default function VocabQuizScreen() {
   // ── Question screen ──────────────────────────────────────────────────────
   const q = questions[index];
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      <TopBar title={t('gameVocabQuizTitle')} back />
+    <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
+      <TopBar title={t("gameVocabQuizTitle")} back />
 
       <View style={styles.progressWrap}>
-        <ProgressBar value={(index + (picked ? 1 : 0)) / questions.length} color={colors.primary} />
+        <ProgressBar
+          value={(index + (picked ? 1 : 0)) / questions.length}
+          color={colors.primary}
+        />
         <AppText variant="caption" style={styles.progressText}>
           {index + 1} / {questions.length}
         </AppText>
       </View>
 
-      <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.body}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.prompt}>
-          <AppText variant="caption" color={colors.textMuted}>{t('whatDoesItMean')}</AppText>
+          <AppText variant="caption" color={colors.textMuted}>
+            {t("whatDoesItMean")}
+          </AppText>
           <AppText style={styles.word}>{q.english}</AppText>
           {q.phonetic ? (
-            <AppText variant="body" color={colors.textMuted}>{q.phonetic}</AppText>
+            <AppText variant="body" color={colors.textMuted}>
+              {q.phonetic}
+            </AppText>
           ) : null}
         </View>
 
@@ -188,7 +229,12 @@ export default function VocabQuizScreen() {
                 disabled={!!picked}
                 style={[styles.option, selected && styles.optionSelected]}
               >
-                <AppText variant="h3" color={selected ? colors.primary : colors.text}>{opt}</AppText>
+                <AppText
+                  variant="h3"
+                  color={selected ? colors.primary : colors.text}
+                >
+                  {opt}
+                </AppText>
               </Pressable>
             );
           })}
@@ -197,39 +243,61 @@ export default function VocabQuizScreen() {
 
       {submitting ? (
         <View style={styles.submitting}>
-          <AppText variant="label" color={colors.textSecondary}>{t('scoring')}</AppText>
+          <AppText variant="label" color={colors.textSecondary}>
+            {t("scoring")}
+          </AppText>
         </View>
       ) : null}
     </SafeAreaView>
   );
 }
 
-const makeStyles = (colors: AppColors) => StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
-  emoji: { fontSize: 56, marginBottom: spacing.md },
-  progressWrap: { paddingHorizontal: spacing.lg, marginTop: spacing.xs },
-  progressText: { textAlign: 'right', marginTop: spacing.xs },
-  body: { padding: spacing.lg, flexGrow: 1, justifyContent: 'center' },
-  prompt: { alignItems: 'center', marginBottom: spacing.xxl },
-  word: { fontSize: 36, lineHeight: 42, fontWeight: '800', color: colors.navy, marginTop: spacing.xs, textAlign: 'center' },
-  options: { gap: spacing.md },
-  option: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    paddingVertical: spacing.lg,
-    paddingHorizontal: spacing.xl,
-    alignItems: 'center',
-    ...(elevation.sm as object),
-  },
-  optionSelected: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
-  rewards: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.lg },
-  rewardPill: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.full,
-  },
-  backLink: { marginTop: spacing.lg, padding: spacing.sm },
-  submitting: { padding: spacing.lg, alignItems: 'center' },
-});
+const makeStyles = (colors: AppColors) =>
+  StyleSheet.create({
+    safe: { flex: 1, backgroundColor: colors.background },
+    center: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      padding: spacing.xl,
+    },
+    emoji: { fontSize: 56, marginBottom: spacing.md },
+    progressWrap: { paddingHorizontal: spacing.lg, marginTop: spacing.xs },
+    progressText: { textAlign: "right", marginTop: spacing.xs },
+    body: { padding: spacing.lg, flexGrow: 1, justifyContent: "center" },
+    prompt: { alignItems: "center", marginBottom: spacing.xxl },
+    word: {
+      fontSize: 36,
+      lineHeight: 42,
+      fontWeight: "800",
+      color: colors.navy,
+      marginTop: spacing.xs,
+      textAlign: "center",
+    },
+    options: { gap: spacing.md },
+    option: {
+      backgroundColor: colors.surface,
+      borderRadius: radius.lg,
+      borderWidth: 1.5,
+      borderColor: colors.border,
+      paddingVertical: spacing.lg,
+      paddingHorizontal: spacing.xl,
+      alignItems: "center",
+      ...(elevation.sm as object),
+    },
+    optionSelected: {
+      borderColor: colors.primary,
+      backgroundColor: colors.primarySoft,
+    },
+    rewards: { flexDirection: "row", gap: spacing.md, marginTop: spacing.lg },
+    rewardPill: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      borderRadius: radius.full,
+    },
+    backLink: { marginTop: spacing.lg, padding: spacing.sm },
+    submitting: { padding: spacing.lg, alignItems: "center" },
+  });
