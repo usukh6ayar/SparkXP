@@ -21,6 +21,10 @@ import { AssignmentCompletion } from './assignment-completion.entity';
 import { ReadingPassage } from './reading-passage.entity';
 import { Translation } from './translation.entity';
 import { Idiom } from './idiom.entity';
+import { BuddySession } from './buddy-session.entity';
+import { BuddyMemory } from './buddy-memory.entity';
+import { BuddyVoiceCache } from './buddy-voice-cache.entity';
+import { SafetyEvent } from './safety-event.entity';
 
 export {
   Organization,
@@ -45,6 +49,10 @@ export {
   ReadingPassage,
   Translation,
   Idiom,
+  BuddySession,
+  BuddyMemory,
+  BuddyVoiceCache,
+  SafetyEvent,
 };
 
 /** Single list to feed TypeORM's `entities` option. */
@@ -71,4 +79,8 @@ export const entities = [
   ReadingPassage,
   Translation,
   Idiom,
+  BuddySession,
+  BuddyMemory,
+  BuddyVoiceCache,
+  SafetyEvent,
 ];

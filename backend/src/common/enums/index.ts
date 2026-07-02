@@ -130,6 +130,55 @@ export enum MessageRole {
   SYSTEM = "system",
 }
 
+/** How an AI Buddy session is being conducted. */
+export enum BuddySessionMode {
+  VOICE = "voice",
+  TEXT = "text",
+}
+
+/**
+ * Category of a long-term AI Buddy memory. Drives how the memory is used when
+ * building conversation context (e.g. mistake patterns influence corrections,
+ * interests seed follow-up questions).
+ */
+export enum BuddyMemoryType {
+  INTEREST = "interest",
+  GOAL = "goal",
+  MISTAKE_PATTERN = "mistake_pattern",
+  PREFERENCE = "preference",
+  LEVEL = "level",
+}
+
+/**
+ * Emotion tags the AI Buddy LLM may return, mapped by the mobile avatar to an
+ * animation clip. Kept as a plain string list (NOT a DB enum) so admins can add
+ * new tags + animation mappings without a migration. Unknown tags fall back to
+ * `calm` on the client.
+ */
+export const BUDDY_EMOTIONS = [
+  "happy",
+  "curious",
+  "thinking",
+  "surprised",
+  "calm",
+  "encouraging",
+  "confused",
+] as const;
+
+/**
+ * Gesture tags the AI Buddy LLM may return, mapped to an avatar animation clip.
+ * Like BUDDY_EMOTIONS this is an open-ended string list; unknown tags fall back
+ * to `idle` on the client.
+ */
+export const BUDDY_GESTURES = [
+  "small_nod",
+  "wave",
+  "thumbs_up",
+  "think_pose",
+  "idle",
+  "smile",
+] as const;
+
 /** Lifecycle of a payment record. */
 export enum PaymentStatus {
   PENDING = "pending",
