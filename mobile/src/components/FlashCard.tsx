@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { View, Image, Pressable, StyleSheet } from 'react-native';
+import { View, Pressable, StyleSheet } from 'react-native';
+import { AppImage } from './AppImage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, {
@@ -86,7 +87,7 @@ function FrontFace({
       {/* Image */}
       <View style={styles.imageWrap}>
         {word.imageUrl ? (
-          <Image source={{ uri: word.imageUrl }} style={styles.image} resizeMode="cover" />
+          <AppImage source={{ uri: word.imageUrl }} width={600} style={styles.image} contentFit="cover" />
         ) : (
           <View style={[styles.image, styles.imagePlaceholder]}>
             <AppText style={styles.placeholderText}>{word.english.charAt(0).toUpperCase()}</AppText>

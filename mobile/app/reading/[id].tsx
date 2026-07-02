@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, useMemo } from 'react';
-import { View, StyleSheet, ScrollView, Image, Pressable } from 'react-native';
+import { View, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { AppImage } from '../../src/components/AppImage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -133,10 +134,11 @@ export default function ReadingDetailScreen() {
           {/* Cover */}
           <View style={styles.cover}>
             {passage.coverImageUrl ? (
-              <Image
+              <AppImage
                 source={{ uri: passage.coverImageUrl }}
+                width={800}
                 style={StyleSheet.absoluteFill}
-                resizeMode="cover"
+                contentFit="cover"
               />
             ) : (
               <LinearGradient

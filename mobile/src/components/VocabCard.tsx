@@ -1,6 +1,7 @@
-import { View, StyleSheet, Image, Pressable } from 'react-native';
+import { View, StyleSheet, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AppText } from './Text';
+import { AppImage } from './AppImage';
 import type { LearnWord } from '../api/reviews';
 import { colors, spacing, radius, elevation } from '../theme/theme';
 
@@ -44,7 +45,7 @@ export function VocabCard({ word, onPlayAudio, saved, onToggleSave }: Props) {
       {/* ── Hero image + overlays ─────────────────────────────────────── */}
       <View style={styles.hero}>
         {word.imageUrl ? (
-          <Image source={{ uri: word.imageUrl }} style={styles.heroImg} resizeMode="cover" />
+          <AppImage source={{ uri: word.imageUrl }} width={600} style={styles.heroImg} contentFit="cover" />
         ) : (
           <View style={[styles.heroImg, styles.heroPlaceholder]}>
             <AppText style={styles.placeholderText}>{word.english}</AppText>

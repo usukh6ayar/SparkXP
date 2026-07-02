@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, useMemo } from 'react';
-import { View, StyleSheet, ScrollView, Image, Pressable } from 'react-native';
+import { View, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { AppImage } from '../../src/components/AppImage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -103,7 +104,7 @@ export default function IdiomDetailScreen() {
           {/* Cover */}
           <View style={styles.cover}>
             {idiom.imageUrl ? (
-              <Image source={{ uri: idiom.imageUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+              <AppImage source={{ uri: idiom.imageUrl }} width={800} style={StyleSheet.absoluteFill} contentFit="cover" />
             ) : (
               <LinearGradient colors={colors.primaryGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill}>
                 <Ionicons name="chatbubbles" size={70} color="rgba(255,255,255,0.25)" style={styles.coverIcon} />

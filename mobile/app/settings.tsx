@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
-import { View, StyleSheet, ScrollView, Pressable, Switch, Image } from 'react-native';
+import { View, StyleSheet, ScrollView, Pressable, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { AppImage } from '../src/components/AppImage';
 import { setStatusBarStyle } from 'expo-status-bar';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -141,7 +142,7 @@ export default function SettingsScreen() {
           {/* Account mini-card */}
           <Pressable onPress={() => router.push('/avatar')}
             style={({ pressed }) => [styles.account, { backgroundColor: p.card, borderColor: p.cardBorder }, pressed && styles.pressed]}>
-            <Image source={resolveAvatar(user?.avatarUrl) ?? avatarImg} style={[styles.accountAvatar, { backgroundColor: p.track }]} resizeMode="cover" />
+            <AppImage source={resolveAvatar(user?.avatarUrl) ?? avatarImg} width={120} style={[styles.accountAvatar, { backgroundColor: p.track }]} contentFit="cover" />
             <View style={{ flex: 1 }}>
               <AppText variant="bodyStrong" color={p.text} numberOfLines={1}>{user?.fullName ?? '—'}</AppText>
               <AppText variant="caption" color={p.textMuted}>
