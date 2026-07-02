@@ -3,6 +3,7 @@ import { AppText } from './Text';
 import type { TranslationKey } from '../i18n';
 import { useT } from '../settings/SettingsContext';
 import { colors, spacing, radius } from '../theme/theme';
+import { useColors } from '../settings/SettingsContext';
 
 /** Segmented control used for the leaderboard period switch (weekly/monthly/all-time). */
 export function PeriodTabs<T extends string>({
@@ -17,8 +18,9 @@ export function PeriodTabs<T extends string>({
   style?: ViewStyle;
 }) {
   const t = useT();
+  const c = useColors();
   return (
-    <View style={[styles.tabs, style]}>
+    <View style={[styles.tabs, { backgroundColor: c.surfaceAlt }, style]}>
       {options.map((o) => {
         const active = value === o.key;
         return (
@@ -27,7 +29,7 @@ export function PeriodTabs<T extends string>({
             style={[styles.tab, active && styles.tabActive]}
             onPress={() => onChange(o.key)}
           >
-            <AppText variant="label" color={active ? colors.white : colors.textSecondary}>{t(o.labelKey)}</AppText>
+            <AppText variant="label" color={active ? colors.white : c.textSecondary}>{t(o.labelKey)}</AppText>
           </Pressable>
         );
       })}
@@ -38,7 +40,6 @@ export function PeriodTabs<T extends string>({
 const styles = StyleSheet.create({
   tabs: {
     flexDirection: 'row',
-    backgroundColor: colors.surfaceAlt,
     borderRadius: radius.full,
     padding: 4,
   },

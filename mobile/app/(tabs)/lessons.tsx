@@ -11,7 +11,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/auth/AuthContext';
 import { useSettings } from '../../src/settings/SettingsContext';
 import { tf } from '../../src/i18n';
@@ -196,19 +196,13 @@ export default function LessonsScreen() {
             />
             <View style={[styles.topInner, { paddingTop: insets.top + 6 }]}>
               <View style={styles.header}>
-                <View style={{ flex: 1 }}>
-                  <View style={styles.titleRow}>
-                    <AppText variant="h1" color={isLight ? LIGHT_SKY.title : '#FFFFFF'}>{t('lessonsWorldTitle')}</AppText>
-                    <Ionicons name="sparkles" size={18} color={isLight ? '#E0A700' : SKY.gold} style={{ marginLeft: 6 }} />
-                  </View>
-                  <AppText variant="caption" color={isLight ? LIGHT_SKY.titleDim : SKY.textDim} style={{ marginTop: 2 }}>
-                    {t('lessonsWorldSubtitle')}
-                  </AppText>
+                <View style={styles.titleRow}>
+                  <AppText variant="h1" color={isLight ? LIGHT_SKY.title : '#FFFFFF'}>{t('lessonsWorldTitle')}</AppText>
+                  <Ionicons name="sparkles" size={22} color={isLight ? '#E0A700' : SKY.gold} style={{ marginLeft: 8 }} />
                 </View>
-                <Pressable style={styles.shopBtn}>
-                  <MaterialCommunityIcons name="crown" size={17} color={SKY.gold} />
-                  <AppText variant="label" color="#FFFFFF" style={{ marginLeft: 6 }}>SparkXP Premium</AppText>
-                </Pressable>
+                <AppText variant="body" color={isLight ? LIGHT_SKY.titleDim : SKY.textDim} style={styles.subtitle}>
+                  {t('lessonsWorldSubtitle')}
+                </AppText>
               </View>
 
               <View style={styles.stats}>
@@ -351,18 +345,9 @@ const styles = StyleSheet.create({
   headerSky: { position: 'absolute', left: 0 },
   topInner: { paddingHorizontal: 16, paddingBottom: 10 },
 
-  header: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 16 },
+  header: { marginBottom: 18 },
   titleRow: { flexDirection: 'row', alignItems: 'center' },
-  shopBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: SKY.card,
-    borderWidth: 1,
-    borderColor: SKY.cardBorder,
-  },
+  subtitle: { marginTop: 4, maxWidth: '92%' },
 
   stats: { flexDirection: 'row', gap: 8 },
   pill: {

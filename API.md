@@ -63,8 +63,9 @@ Controller-level: бүгд JWT. Заримд нэмэлт роль.
 | GET `/words/:id` | **Public** | Нэг үг | path `id` |
 | GET `/words/stats` | admin-баг | Контентын эрүүл мэндийн тоо | — |
 | GET `/words/analytics` | admin-баг | Сурлагын аналитик (мартсан/хадгалсан/мэдэх/хэцүү) | — |
-| GET `/words/quiz` | JWT | Нийтэлсэн үгсээс MCQ vocab quiz үүсгэх | `{ count }` |
-| POST `/words/quiz/submit` | JWT | Quiz шалгаж, XP + Sparks олгох | `{ answers }` |
+| GET `/words/quiz` | JWT | Нийтэлсэн үгсээс MCQ vocab quiz үүсгэх (question бүр `imageUrl` + `audioUrl`-тэй; Listen тоглоом аудиогүй үед TTS-ээр дуудна) | `{ count }` |
+| GET `/words/match` | JWT | "Холбож ял" тоглоомд үг↔утга хос буцаах (grading нь `quiz/submit`-ээр) | `{ count }` |
+| POST `/words/quiz/submit` | JWT | Quiz шалгаж, XP + Sparks олгох (Match тоглоом ч үүгээр) | `{ answers }` |
 | POST `/words` | admin-баг | Үг үүсгэх | `CreateWordDto` |
 | POST `/words/bulk` | admin-баг | JSON массиваас олноор → `{inserted, skipped}` | `CreateWordDto[]` |
 | POST `/words/ai-fill` | admin-баг | Нэг үгийн бүх талбарыг AI-аар бөглөх | `{ english }` |

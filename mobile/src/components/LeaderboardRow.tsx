@@ -5,6 +5,7 @@ import { PersonRow } from './PersonRow';
 import { MEDAL } from '../constants/leaderboard';
 import { useT } from '../settings/SettingsContext';
 import { colors, spacing, radius } from '../theme/theme';
+import { useColors } from '../settings/SettingsContext';
 
 /** One leaderboard entry: rank badge (medal for top 3), avatar, name, XP. */
 export function LeaderboardRow({
@@ -23,6 +24,7 @@ export function LeaderboardRow({
   isSelf?: boolean;
 }) {
   const t = useT();
+  const c = useColors();
   const medalColor = rank <= 3 ? MEDAL[rank - 1] : null;
   return (
     <PersonRow
@@ -30,10 +32,14 @@ export function LeaderboardRow({
       username={username}
       avatarUrl={avatarUrl}
       avatarSize={36}
-      style={isSelf ? StyleSheet.flatten([styles.row, styles.rowMe]) : styles.row}
+      style={StyleSheet.flatten([
+        styles.row,
+        { backgroundColor: c.surface, borderColor: c.border },
+        isSelf && { borderColor: colors.primary, backgroundColor: c.primarySoft },
+      ])}
       leading={
-        <View style={[styles.rankBadge, medalColor ? { backgroundColor: medalColor } : styles.rankPlain]}>
-          <AppText variant="label" color={medalColor ? colors.white : colors.textSecondary}>{rank}</AppText>
+        <View style={[styles.rankBadge, { backgroundColor: medalColor ?? c.surfaceAlt }]}>
+          <AppText variant="label" color={medalColor ? colors.white : c.textSecondary}>{rank}</AppText>
         </View>
       }
       right={
@@ -49,12 +55,10 @@ export function LeaderboardRow({
 const styles = StyleSheet.create({
   row: {
     gap: spacing.md,
-    backgroundColor: colors.surface, borderRadius: radius.md,
+    borderRadius: radius.md,
     paddingHorizontal: spacing.md, marginBottom: spacing.sm,
-    borderWidth: 1, borderColor: colors.border,
+    borderWidth: 1,
   },
-  rowMe: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
   rankBadge: { width: 28, height: 28, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center' },
-  rankPlain: { backgroundColor: colors.surfaceAlt },
   xp: { flexDirection: 'row', alignItems: 'center', gap: 4 },
 });

@@ -302,4 +302,6 @@ export const skillGradients: Record<string, readonly [string, string]> = {
   reading: ['#2BA86A', '#14532D'],
   speaking: ['#D6418F', '#6B1648'],
   writing: ['#C9821F', '#5A3410'],
+  grammar: ['#6C3BFF', '#2E1470'],
+  fill: ['#E0517A', '#6B1636'],
 };

@@ -59,7 +59,7 @@ function games(t: (key: import("../../src/i18n").TranslationKey) => string): Gam
       title: t("gameVocabQuizTitle"),
       desc: t("gameVocabQuizDesc"),
       tint: tints.purple,
-      route: "/vocab-quiz",
+      route: "/game/classic",
     },
     {
       icon: "headset",
@@ -67,6 +67,7 @@ function games(t: (key: import("../../src/i18n").TranslationKey) => string): Gam
       title: t("gameListenTitle"),
       desc: t("gameListenDesc"),
       tint: tints.blue,
+      route: "/game/listen",
     },
     {
       icon: "flash",
@@ -74,6 +75,7 @@ function games(t: (key: import("../../src/i18n").TranslationKey) => string): Gam
       title: t("gameSpeedTitle"),
       desc: t("gameSpeedDesc"),
       tint: tints.amber,
+      route: "/game/speed",
     },
     {
       icon: "link",
@@ -81,6 +83,7 @@ function games(t: (key: import("../../src/i18n").TranslationKey) => string): Gam
       title: t("gameMatchTitle"),
       desc: t("gameMatchDesc"),
       tint: tints.teal,
+      route: "/game/match",
     },
     {
       icon: "extension-puzzle",
@@ -88,6 +91,7 @@ function games(t: (key: import("../../src/i18n").TranslationKey) => string): Gam
       title: t("gameFillTitle"),
       desc: t("gameFillDesc"),
       tint: tints.pink,
+      route: "/skill/fill",
     },
     {
       icon: "book",
@@ -95,6 +99,7 @@ function games(t: (key: import("../../src/i18n").TranslationKey) => string): Gam
       title: t("gameGrammarTitle"),
       desc: t("gameGrammarDesc"),
       tint: tints.green,
+      route: "/skill/grammar",
     },
   ];
 }
