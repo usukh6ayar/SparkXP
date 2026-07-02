@@ -51,7 +51,7 @@ export default function IdiomsScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <TopBar title={t('idiomsTitle')} back />
+      <TopBar title={t('idiomsTitle')} back showBadges={false} />
       <ScrollView
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}

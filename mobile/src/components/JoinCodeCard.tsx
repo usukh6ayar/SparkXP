@@ -2,7 +2,7 @@ import { View, Pressable, Share, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import QRCode from 'react-native-qrcode-svg';
 import { AppText } from './Text';
-import { t } from '../i18n';
+import { t, tf } from '../i18n';
 import { buildJoinLink } from '../lib/joinLink';
 import { colors, spacing, radius, elevation } from '../theme/theme';
 
@@ -14,7 +14,7 @@ import { colors, spacing, radius, elevation } from '../theme/theme';
 export function JoinCodeCard({ code, className }: { code: string; className?: string }) {
   async function onShare() {
     await Share.share({
-      message: `${className ? className + ' — ' : ''}SparkXP анги нэгдэх код: ${code}\n${buildJoinLink(code)}`,
+      message: `${className ? className + ' — ' : ''}${tf('joinShareBody', { code })}\n${buildJoinLink(code)}`,
     });
   }
 

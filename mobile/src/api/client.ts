@@ -8,6 +8,7 @@
  *   show it.
  */
 import Constants from 'expo-constants';
+import { t } from '../i18n';
 
 // In dev, use the same host Expo is served from (your PC's LAN IP) so a real
 // device can reach the backend without hardcoding an IP in .env.
@@ -59,7 +60,7 @@ export async function apiRequest<T>(
     // Backend error shape: { message: string | string[], code? }
     const err = data as { message?: string | string[]; code?: string } | null;
     const raw = err?.message;
-    const message = Array.isArray(raw) ? raw.join(', ') : raw ?? 'Алдаа гарлаа';
+    const message = Array.isArray(raw) ? raw.join(', ') : raw ?? t('errorFallback');
     throw new ApiError(res.status, message, err?.code);
   }
 
@@ -89,7 +90,7 @@ export async function apiUpload<T>(
   if (!res.ok) {
     const err = data as { message?: string | string[]; code?: string } | null;
     const raw = err?.message;
-    const message = Array.isArray(raw) ? raw.join(', ') : raw ?? 'Алдаа гарлаа';
+    const message = Array.isArray(raw) ? raw.join(', ') : raw ?? t('errorFallback');
     throw new ApiError(res.status, message, err?.code);
   }
   return data as T;

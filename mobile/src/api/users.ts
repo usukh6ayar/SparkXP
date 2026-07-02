@@ -12,6 +12,10 @@ export interface UpdateProfilePayload {
   district?: string;
   /** Image URL or a `default:avN` key. */
   avatarUrl?: string;
+  /** Placement / CEFR level (a1..c1). */
+  level?: string;
+  /** English name the student goes by. */
+  englishName?: string;
 }
 
 export function getStats(token: string): Promise<UserStats> {

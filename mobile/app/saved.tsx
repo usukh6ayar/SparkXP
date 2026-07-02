@@ -65,7 +65,7 @@ export default function SavedScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-        <TopBar title={t('savedWords')} back />
+        <TopBar title={t('savedWords')} back showBadges={false} />
         <SkeletonRows count={5} style={styles.skeleton} />
       </SafeAreaView>
     );
@@ -74,7 +74,7 @@ export default function SavedScreen() {
   if (error && words.length === 0) {
     return (
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-        <TopBar title={t('savedWords')} back />
+        <TopBar title={t('savedWords')} back showBadges={false} />
         <EmptyState
           icon="alert-circle-outline"
           title={t('error')}
@@ -87,7 +87,7 @@ export default function SavedScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      <TopBar title={t('savedWords')} back />
+      <TopBar title={t('savedWords')} back showBadges={false} />
       <FlatList
         data={words}
         keyExtractor={(w) => w.id}

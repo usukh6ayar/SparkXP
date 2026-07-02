@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
 import { fontSize, spacing, type AppColors } from '../theme/theme';
-import { useColors } from '../settings/SettingsContext';
+import { useColors, useT } from '../settings/SettingsContext';
 
 // The running-fox brand mark. Lives in assets/ so it ships with the app bundle.
 const logoMark = require('../../assets/logo.png');
@@ -22,6 +22,7 @@ export function Logo({
   align?: 'center' | 'left';
 }) {
   const colors = useColors();
+  const t = useT();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const big = size === 'lg';
   const mark = big ? 132 : 84;
@@ -39,7 +40,7 @@ export function Logo({
         Spark<Text style={{ color: colors.primary }}>XP</Text>
       </Text>
       {big && !wordmarkOnly ? (
-        <Text style={styles.tagline}>Суралц • Дадлага • Амжилт</Text>
+        <Text style={styles.tagline}>{t('logoTagline')}</Text>
       ) : null}
     </View>
   );

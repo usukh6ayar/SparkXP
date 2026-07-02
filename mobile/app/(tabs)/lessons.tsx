@@ -14,6 +14,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../../src/auth/AuthContext';
 import { useSettings } from '../../src/settings/SettingsContext';
+import { tf } from '../../src/i18n';
 import { getLessons, type Lesson } from '../../src/api/lessons';
 import { AppText } from '../../src/components/Text';
 import { islandMap } from '../../src/theme/theme';
@@ -106,7 +107,7 @@ function fmt(n: number): string {
 
 export default function LessonsScreen() {
   const { token, user } = useAuth();
-  const { theme } = useSettings();
+  const { theme, t } = useSettings();
   const router = useRouter();
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -197,11 +198,11 @@ export default function LessonsScreen() {
               <View style={styles.header}>
                 <View style={{ flex: 1 }}>
                   <View style={styles.titleRow}>
-                    <AppText variant="h1" color={isLight ? LIGHT_SKY.title : '#FFFFFF'}>Хичээлийн ертөнц</AppText>
+                    <AppText variant="h1" color={isLight ? LIGHT_SKY.title : '#FFFFFF'}>{t('lessonsWorldTitle')}</AppText>
                     <Ionicons name="sparkles" size={18} color={isLight ? '#E0A700' : SKY.gold} style={{ marginLeft: 6 }} />
                   </View>
                   <AppText variant="caption" color={isLight ? LIGHT_SKY.titleDim : SKY.textDim} style={{ marginTop: 2 }}>
-                    Адал явдлаар дамжуулж англи хэлээ эзэмш!
+                    {t('lessonsWorldSubtitle')}
                   </AppText>
                 </View>
                 <Pressable style={styles.shopBtn}>
@@ -211,9 +212,9 @@ export default function LessonsScreen() {
               </View>
 
               <View style={styles.stats}>
-                <StatPill icon="flame" tint={islandMap.streak} value={String(streak)} label="Өдөр даралал" />
-                <StatPill icon="diamond" tint={BADGE.blue} value={fmt(gems)} label="Очирхон" />
-                <StatPill icon="flash" tint={SKY.gold} value={fmt(xp)} label="XP оноо" />
+                <StatPill icon="flame" tint={islandMap.streak} value={String(streak)} label={t('statStreak')} />
+                <StatPill icon="diamond" tint={BADGE.blue} value={fmt(gems)} label={t('sparks')} />
+                <StatPill icon="flash" tint={SKY.gold} value={fmt(xp)} label={t('xpPoints')} />
               </View>
             </View>
           </View>
@@ -324,7 +325,7 @@ function Label({ node, locked }: { node: LevelNode; locked: boolean }) {
         <View style={styles.lockRow}>
           <Ionicons name="lock-closed" size={18} color={SKY.textDim} />
           <AppText variant="caption" color={SKY.textDim} center style={{ marginTop: 4 }}>
-            Түвшин {node.unlockAt}-д{'\n'}нээгдэнэ
+            {tf('unlockAtLevel', { n: node.unlockAt ?? 0 })}
           </AppText>
         </View>
       ) : (

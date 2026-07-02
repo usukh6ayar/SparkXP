@@ -19,13 +19,12 @@ type TabMeta =
   | { image: number; label: string; icon?: undefined; iconOutline?: undefined };
 
 /** Icon (filled + outline) + label per tab route. The `chat` route shows the
- *  fox AI-buddy image instead of a vector glyph. `lessons`/`chat` labels have
- *  no matching i18n key yet, so those stay literal. */
+ *  fox AI-buddy image instead of a vector glyph. */
 function tabMeta(t: (key: import("../i18n").TranslationKey) => string): Record<string, TabMeta> {
   return {
     index: { icon: "home", iconOutline: "home-outline", label: t("home") },
-    lessons: { icon: "book", iconOutline: "book-outline", label: "Хичээл" },
-    chat: { image: buddy, label: "AI Найз" },
+    lessons: { icon: "book", iconOutline: "book-outline", label: t("tabLessons") },
+    chat: { image: buddy, label: t("aiBuddyShort") },
     soril: { icon: "trophy", iconOutline: "trophy-outline", label: t("quiz") },
     profile: { icon: "person", iconOutline: "person-outline", label: t("profile") },
   };

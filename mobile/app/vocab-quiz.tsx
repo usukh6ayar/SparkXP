@@ -98,7 +98,7 @@ export default function VocabQuizScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
-        <TopBar title={t("gameVocabQuizTitle")} back />
+        <TopBar title={t("gameVocabQuizTitle")} back showBadges={false} />
         <View style={styles.body}>
           <View style={styles.prompt}>
             <Skeleton
@@ -122,7 +122,7 @@ export default function VocabQuizScreen() {
   if (error || questions.length === 0) {
     return (
       <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
-        <TopBar title={t("gameVocabQuizTitle")} back />
+        <TopBar title={t("gameVocabQuizTitle")} back showBadges={false} />
         <EmptyState
           icon="alert-circle-outline"
           title={t("error")}
@@ -138,7 +138,7 @@ export default function VocabQuizScreen() {
     const perfect = result.correct === result.total;
     return (
       <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
-        <TopBar title={t("scoreTitle")} back />
+        <TopBar title={t("scoreTitle")} back showBadges={false} />
         <View style={styles.center}>
           <AppText style={styles.emoji}>{perfect ? "🏆" : "🎉"}</AppText>
           <AppText variant="h1" center>
@@ -191,7 +191,7 @@ export default function VocabQuizScreen() {
   const q = questions[index];
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
-      <TopBar title={t("gameVocabQuizTitle")} back />
+      <TopBar title={t("gameVocabQuizTitle")} back showBadges={false} />
 
       <View style={styles.progressWrap}>
         <ProgressBar

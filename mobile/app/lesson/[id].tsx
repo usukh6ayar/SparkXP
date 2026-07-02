@@ -18,7 +18,7 @@ import { Button } from '../../src/components/Button';
 import { Skeleton } from '../../src/components/Skeleton';
 import { EmptyState } from '../../src/components/EmptyState';
 import { getSkill } from '../../src/constants/skills';
-import { t } from '../../src/i18n';
+import { t, tf } from '../../src/i18n';
 import { useColors } from '../../src/settings/SettingsContext';
 import { spacing, radius, levelColor, type AppColors } from '../../src/theme/theme';
 
@@ -196,7 +196,7 @@ export default function LessonDetailScreen() {
             <AppText variant="h2">{lesson.title}</AppText>
             <View style={styles.metaRow}>
               <Pill label={lesson.level.toUpperCase()} bg={lvl.bg} fg={lvl.fg} />
-              <Pill label={skill.label} icon={skill.icon} bg={skill.tint.bg} fg={skill.tint.fg} />
+              <Pill label={t(skill.labelKey)} icon={skill.icon} bg={skill.tint.bg} fg={skill.tint.fg} />
             </View>
           </View>
         </View>
@@ -288,7 +288,7 @@ export default function LessonDetailScreen() {
                       </View>
                       <View style={{ flex: 1 }}>
                         <AppText variant="bodyStrong" numberOfLines={1}>{q.title}</AppText>
-                        <AppText variant="caption">{q.questions?.length ?? 0} асуулт · {q.xpReward} XP</AppText>
+                        <AppText variant="caption">{tf('questionCount', { n: q.questions?.length ?? 0 })} · {q.xpReward} XP</AppText>
                       </View>
                       <Ionicons name="chevron-forward" size={18} color={c.borderStrong} />
                     </Pressable>

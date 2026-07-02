@@ -3,6 +3,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { AppText } from './Text';
 import { PersonRow } from './PersonRow';
 import { MEDAL } from '../constants/leaderboard';
+import { useT } from '../settings/SettingsContext';
 import { colors, spacing, radius } from '../theme/theme';
 
 /** One leaderboard entry: rank badge (medal for top 3), avatar, name, XP. */
@@ -21,10 +22,11 @@ export function LeaderboardRow({
   xp: number;
   isSelf?: boolean;
 }) {
+  const t = useT();
   const medalColor = rank <= 3 ? MEDAL[rank - 1] : null;
   return (
     <PersonRow
-      name={isSelf ? `${name} (Та)` : name}
+      name={isSelf ? `${name} ${t('youSuffix')}` : name}
       username={username}
       avatarUrl={avatarUrl}
       avatarSize={36}

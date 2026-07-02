@@ -1,10 +1,11 @@
 import type { Period } from '../api/leaderboard';
+import type { TranslationKey } from '../i18n';
 import { colors } from '../theme/theme';
 
-export const PERIODS: { key: Period; label: string }[] = [
-  { key: 'weekly', label: 'Долоо хоног' },
-  { key: 'monthly', label: 'Сар' },
-  { key: 'all_time', label: 'Бүх цаг' },
+export const PERIODS: { key: Period; labelKey: TranslationKey }[] = [
+  { key: 'weekly', labelKey: 'periodWeekly' },
+  { key: 'monthly', labelKey: 'periodMonthly' },
+  { key: 'all_time', labelKey: 'periodAllTime' },
 ];
 
 /** gold, silver, bronze — index 0 = rank 1. */
