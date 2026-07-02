@@ -20,7 +20,7 @@ import type { Lang } from '../src/i18n';
 type IconName = keyof typeof Ionicons.glyphMap;
 type Tint = { bg: string; fg: string };
 
-const avatarImg = require('../assets/buddy-menu.png');
+const avatarImg = require('../assets/buddy-menu.webp');
 const APP_VERSION = '1.0.0';
 
 // Locally-persisted switch prefs (UI-only — nothing else reacts to them yet).

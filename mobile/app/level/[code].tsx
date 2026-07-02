@@ -28,9 +28,9 @@ import { colors, islandMap } from '../../src/theme/theme';
  * Scope: FRONTEND-only. Tapping a real node opens its lesson detail.
  */
 
-const bgDark = require('../../assets/avatars/islands/lessonBackground.png'); // dark forest — dark theme
-const bgLight = require('../../assets/avatars/islands/lessonLightBackground.png'); // bright forest — light theme
-const line = require('../../assets/avatars/islands/line.png'); // golden beaded trail
+const bgDark = require('../../assets/avatars/islands/lessonBackground.webp'); // dark forest — dark theme
+const bgLight = require('../../assets/avatars/islands/lessonLightBackground.webp'); // bright forest — light theme
+const line = require('../../assets/avatars/islands/line.webp'); // golden beaded trail
 
 /** Theme-aware palette for the header UI over the (dark/light) forest backdrop. */
 function palette(isLight: boolean) {

@@ -27,7 +27,7 @@ import {
 } from "../../src/theme/theme";
 
 type IconName = keyof typeof Ionicons.glyphMap;
-const banner = require("../../assets/soril-banner.png");
+const banner = require("../../assets/soril-banner.webp");
 
 // 3D glossy icon-ууд (assets/soril/README.md-г үз). PNG-ууд бэлэн болсон үед
 // доорх require мөрийг нээж, тухайн game-ийн `img`-д онооно. img байвал IconTile

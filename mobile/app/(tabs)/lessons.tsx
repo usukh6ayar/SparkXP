@@ -34,9 +34,9 @@ import { islandMap } from '../../src/theme/theme';
  * tracks lesson completion + daily streak (see TODOs).
  */
 
-const skyImg = require('../../assets/avatars/islands/background.png'); // starry sky backdrop — dark theme
-const lightBgImg = require('../../assets/avatars/islands/lightBackground.png'); // bright sky backdrop — light theme
-const lineImg = require('../../assets/avatars/islands/line.png'); // golden winding trail overlay
+const skyImg = require('../../assets/avatars/islands/background.webp'); // starry sky backdrop — dark theme
+const lightBgImg = require('../../assets/avatars/islands/lightBackground.webp'); // bright sky backdrop — light theme
+const lineImg = require('../../assets/avatars/islands/line.webp'); // golden winding trail overlay
 const SCENE_RATIO = 2.7; // scene height = width * RATIO (room for 6 stacked islands)
 const ISLAND_ASPECT = 1.0; // island art height / width (the day tiles are ~square)
 
@@ -44,20 +44,20 @@ const ISLAND_ASPECT = 1.0; // island art height / width (the day tiles are ~squa
 // sky. Light (`*_light`) = brighter day islands on their own blue-sky/clouds,
 // soft-feathered so their edges melt into the light-theme gradient backdrop.
 const ISLAND_IMG: Record<string, ReturnType<typeof require>> = {
-  A1: require('../../assets/avatars/islands/a1.png'),
-  A2: require('../../assets/avatars/islands/a2.png'),
-  B1: require('../../assets/avatars/islands/b1.png'),
-  B2: require('../../assets/avatars/islands/b2.png'),
-  C1: require('../../assets/avatars/islands/c1.png'),
-  C2: require('../../assets/avatars/islands/c2.png'),
+  A1: require('../../assets/avatars/islands/a1.webp'),
+  A2: require('../../assets/avatars/islands/a2.webp'),
+  B1: require('../../assets/avatars/islands/b1.webp'),
+  B2: require('../../assets/avatars/islands/b2.webp'),
+  C1: require('../../assets/avatars/islands/c1.webp'),
+  C2: require('../../assets/avatars/islands/c2.webp'),
 };
 const ISLAND_IMG_LIGHT: Record<string, ReturnType<typeof require>> = {
-  A1: require('../../assets/avatars/islands/a1_light.png'),
-  A2: require('../../assets/avatars/islands/a2_light.png'),
-  B1: require('../../assets/avatars/islands/b1_light.png'),
-  B2: require('../../assets/avatars/islands/b2_light.png'),
-  C1: require('../../assets/avatars/islands/c1_light.png'),
-  C2: require('../../assets/avatars/islands/c2_light.png'),
+  A1: require('../../assets/avatars/islands/a1_light.webp'),
+  A2: require('../../assets/avatars/islands/a2_light.webp'),
+  B1: require('../../assets/avatars/islands/b1_light.webp'),
+  B2: require('../../assets/avatars/islands/b2_light.webp'),
+  C1: require('../../assets/avatars/islands/c1_light.webp'),
+  C2: require('../../assets/avatars/islands/c2_light.webp'),
 };
 
 const SKY = {

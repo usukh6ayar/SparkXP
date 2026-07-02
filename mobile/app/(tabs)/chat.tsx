@@ -30,7 +30,7 @@ interface LocalMessage {
   audioUrl?: string | null;
 }
 
-const sparkImg = require('../../assets/buddy-menu.png');
+const sparkImg = require('../../assets/buddy-menu.webp');
 
 export default function ChatScreen() {
   const { token } = useAuth();

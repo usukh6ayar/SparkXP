@@ -25,7 +25,7 @@ import { colors, spacing, radius, tints, elevation, type PremiumPalette } from '
 type IconName = keyof typeof Ionicons.glyphMap;
 type Styles = ReturnType<typeof makeStyles>;
 
-const avatarImg = require('../../assets/buddy-menu.png');
+const avatarImg = require('../../assets/buddy-menu.webp');
 
 // Fallbacks until /gamification loads.
 const STREAK = 0;

@@ -12,8 +12,8 @@ import { AppText } from '../../src/components/Text';
 import { SignInSheet } from '../../src/components/SignInSheet';
 import { AuthFooter } from '../../src/components/AuthFooter';
 
-const wordmark = require('../../assets/logoSparkXP.png');
-const hero = require('../../assets/logo.png');
+const wordmark = require('../../assets/logoSparkXP.webp');
+const hero = require('../../assets/logo.webp');
 
 type IconName = keyof typeof Ionicons.glyphMap;
 

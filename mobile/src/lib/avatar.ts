@@ -10,12 +10,12 @@ import type { ImageSourcePropType } from 'react-native';
  * art prompts) — drop real PNGs over them to swap, no code change.
  */
 export const DEFAULT_AVATARS: { key: string; src: ImageSourcePropType }[] = [
-  { key: 'default:av1', src: require('../../assets/avatars/av1.png') },
-  { key: 'default:av2', src: require('../../assets/avatars/av2.png') },
-  { key: 'default:av3', src: require('../../assets/avatars/av3.png') },
-  { key: 'default:av4', src: require('../../assets/avatars/av4.png') },
-  { key: 'default:av5', src: require('../../assets/avatars/av5.png') },
-  { key: 'default:av6', src: require('../../assets/avatars/av6.png') },
+  { key: 'default:av1', src: require('../../assets/avatars/av1.webp') },
+  { key: 'default:av2', src: require('../../assets/avatars/av2.webp') },
+  { key: 'default:av3', src: require('../../assets/avatars/av3.webp') },
+  { key: 'default:av4', src: require('../../assets/avatars/av4.webp') },
+  { key: 'default:av5', src: require('../../assets/avatars/av5.webp') },
+  { key: 'default:av6', src: require('../../assets/avatars/av6.webp') },
 ];
 
 /** Image source for an avatarUrl, or null if there's nothing to show. */

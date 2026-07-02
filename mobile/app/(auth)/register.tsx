@@ -19,8 +19,8 @@ import { Button } from '../../src/components/Button';
 import { FormError } from '../../src/components/FormError';
 import { AuthFooter } from '../../src/components/AuthFooter';
 
-const mapFox = require('../../assets/onboarding/map-fox.png');
-const successFox = require('../../assets/onboarding/success-fox.png');
+const mapFox = require('../../assets/onboarding/map-fox.webp');
+const successFox = require('../../assets/onboarding/success-fox.webp');
 
 // A few confetti dots scattered behind the success mascot (decorative,
 // brand/semantic colors — identical in both themes).
