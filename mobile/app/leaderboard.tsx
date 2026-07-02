@@ -127,12 +127,12 @@ const styles = StyleSheet.create({
   tabs: { marginHorizontal: spacing.lg, marginTop: spacing.sm },
   chips: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg, marginVertical: spacing.md },
   chip: { paddingHorizontal: spacing.md, paddingVertical: 7, borderRadius: radius.full, backgroundColor: colors.surfaceAlt },
-  chipActive: { backgroundColor: colors.navy },
+  chipActive: { backgroundColor: colors.primary },
   list: { paddingHorizontal: spacing.lg },
   skeleton: { marginHorizontal: spacing.lg },
   meCard: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    backgroundColor: colors.navy, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.md,
+    backgroundColor: colors.primary, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.md,
   },
   meRankWrap: {
     width: 48, height: 48, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,0.1)',

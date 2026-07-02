@@ -1,27 +1,13 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { View, ActivityIndicator, StyleSheet } from "react-native";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
-import { ThemeProvider, DarkTheme } from "@react-navigation/native";
+import { ThemeProvider, DarkTheme, DefaultTheme } from "@react-navigation/native";
 import { AuthProvider, useAuth } from "../src/auth/AuthContext";
-import { SettingsProvider } from "../src/settings/SettingsContext";
+import { SettingsProvider, useColors, useSettings } from "../src/settings/SettingsContext";
 import { DictionaryProvider } from "../src/components/DictionaryProvider";
-import { colors } from "../src/theme/theme";
-
-// Dark navigation theme so every navigator container (stack + tabs) uses our
-// night-sky background instead of React Navigation's default WHITE. Without
-// this, the white container shows through the transparent floating tab bar as a
-// white strip under the bar.
-const navTheme = {
-  ...DarkTheme,
-  colors: {
-    ...DarkTheme.colors,
-    background: colors.background,
-    card: colors.background,
-  },
-};
 
 /**
  * Auth gate: redirects based on whether the user is logged in.
@@ -34,6 +20,7 @@ const PREVIEW_AUTH = false;
 
 function RootNavigator() {
   const { token, user, loading, onboarded } = useAuth();
+  const colors = useColors();
   const segments = useSegments();
   const router = useRouter();
 
@@ -60,7 +47,7 @@ function RootNavigator() {
 
   if (loading) {
     return (
-      <View style={styles.center}>
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
@@ -69,21 +56,42 @@ function RootNavigator() {
   return <Stack screenOptions={{ headerShown: false }} />;
 }
 
+/**
+ * Provides React Navigation's container theme from the ACTIVE app theme so the
+ * navigator background (behind screens / the floating tab bar) matches
+ * light/dark instead of a fixed night-sky. Must live inside SettingsProvider.
+ */
+function ThemedNav() {
+  const { theme } = useSettings();
+  const colors = useColors();
+  const navTheme = useMemo(() => {
+    const base = theme === "light" ? DefaultTheme : DarkTheme;
+    return {
+      ...base,
+      colors: { ...base.colors, background: colors.background, card: colors.background },
+    };
+  }, [theme, colors]);
+
+  return (
+    <ThemeProvider value={navTheme}>
+      <RootNavigator />
+    </ThemeProvider>
+  );
+}
+
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={styles.flex}>
       <SafeAreaProvider>
-        <ThemeProvider value={navTheme}>
-          <SettingsProvider>
-            <AuthProvider>
-              <DictionaryProvider>
-                <BottomSheetModalProvider>
-                  <RootNavigator />
-                </BottomSheetModalProvider>
-              </DictionaryProvider>
-            </AuthProvider>
-          </SettingsProvider>
-        </ThemeProvider>
+        <SettingsProvider>
+          <AuthProvider>
+            <DictionaryProvider>
+              <BottomSheetModalProvider>
+                <ThemedNav />
+              </BottomSheetModalProvider>
+            </DictionaryProvider>
+          </AuthProvider>
+        </SettingsProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
@@ -95,6 +103,5 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: colors.surface,
   },
 });

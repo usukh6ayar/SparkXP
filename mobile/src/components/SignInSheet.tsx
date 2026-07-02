@@ -16,7 +16,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../auth/AuthContext';
 import { ApiError } from '../api/client';
 import { t } from '../i18n';
-import { colors, spacing, radius } from '../theme/theme';
+import { spacing, radius, type AppColors } from '../theme/theme';
+import { useColors, useSettings } from '../settings/SettingsContext';
 import { AppText } from './Text';
 import { TextField } from './TextField';
 import { Checkbox } from './Checkbox';
@@ -26,11 +27,15 @@ import { AuthFooter } from './AuthFooter';
 
 /** Frosted-glass sheet background (blurs the welcome content behind it). */
 function GlassBackground({ style }: BottomSheetBackgroundProps) {
+  const colors = useColors();
+  const { theme } = useSettings();
+  const isLight = theme === 'light';
+  const styles = useMemo(() => makeStyles(colors, isLight), [colors, isLight]);
   return (
     <View style={[style, styles.sheetBg]}>
       <BlurView
         intensity={50}
-        tint="dark"
+        tint={isLight ? 'light' : 'dark'}
         experimentalBlurMethod="dimezisBlurView"
         style={StyleSheet.absoluteFill}
       />
@@ -46,6 +51,9 @@ function GlassBackground({ style }: BottomSheetBackgroundProps) {
  * sheet position). Opened in place from the welcome screen — no screen jump.
  */
 export function SignInSheet({ onClose }: { onClose: () => void }) {
+  const colors = useColors();
+  const { theme } = useSettings();
+  const styles = useMemo(() => makeStyles(colors, theme === 'light'), [colors, theme]);
   const { login } = useAuth();
   const router = useRouter();
   const ref = useRef<BottomSheetModal>(null);
@@ -196,6 +204,10 @@ function GlassBackdrop({
   style,
   onPress,
 }: BottomSheetBackdropProps & { onPress: () => void }) {
+  const colors = useColors();
+  const { theme } = useSettings();
+  const isLight = theme === 'light';
+  const styles = useMemo(() => makeStyles(colors, isLight), [colors, isLight]);
   const animatedStyle = useAnimatedStyle(() => ({
     opacity: interpolate(animatedIndex.value, [-1, 0], [0, 1], Extrapolation.CLAMP),
   }));
@@ -204,7 +216,7 @@ function GlassBackdrop({
       <Pressable style={StyleSheet.absoluteFill} onPress={onPress}>
         <BlurView
           intensity={26}
-          tint="dark"
+          tint={isLight ? 'light' : 'dark'}
           experimentalBlurMethod="dimezisBlurView"
           style={StyleSheet.absoluteFill}
         />
@@ -214,25 +226,26 @@ function GlassBackdrop({
   );
 }
 
-const styles = StyleSheet.create({
-  dim: { backgroundColor: 'rgba(10,6,26,0.35)' },
+const makeStyles = (colors: AppColors, isLight: boolean) => StyleSheet.create({
+  dim: { backgroundColor: isLight ? 'rgba(0,0,0,0.12)' : 'rgba(10,6,26,0.35)' },
   sheetBg: {
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,
     borderWidth: 1,
-    borderColor: colors.glassBorder,
+    borderColor: isLight ? colors.border : colors.glassBorder,
+    backgroundColor: isLight ? colors.surface : 'transparent',
     overflow: 'hidden',
   },
-  sheetTint: { backgroundColor: colors.glassBgStrong },
+  sheetTint: { backgroundColor: isLight ? 'transparent' : colors.glassBgStrong },
   sheetHighlight: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     height: 1,
-    backgroundColor: 'rgba(255,255,255,0.28)',
+    backgroundColor: isLight ? 'transparent' : 'rgba(255,255,255,0.28)',
   },
-  handleIndicator: { backgroundColor: 'rgba(255,255,255,0.4)', width: 48 },
+  handleIndicator: { backgroundColor: isLight ? colors.borderStrong : 'rgba(255,255,255,0.4)', width: 48 },
 
   content: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xxl },
   title: { marginBottom: spacing.lg },
@@ -263,5 +276,5 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     marginVertical: spacing.lg,
   },
-  line: { flex: 1, height: 1, backgroundColor: colors.glassBorder },
+  line: { flex: 1, height: 1, backgroundColor: isLight ? colors.border : colors.glassBorder },
 });

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useMemo } from 'react';
 import {
   View,
   ScrollView,
@@ -19,7 +19,8 @@ import { AppText } from '../../../src/components/Text';
 import { TextField } from '../../../src/components/TextField';
 import { SelectField } from '../../../src/components/SelectField';
 import { Button } from '../../../src/components/Button';
-import { colors, spacing } from '../../../src/theme/theme';
+import { spacing, type AppColors } from '../../../src/theme/theme';
+import { useColors } from '../../../src/settings/SettingsContext';
 
 /**
  * Create-class screen. A standalone route (not a modal) so the school dropdown
@@ -28,6 +29,8 @@ import { colors, spacing } from '../../../src/theme/theme';
  */
 export default function NewClassScreen() {
   const { token } = useAuth();
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const [name, setName] = useState('');
   const [orgs, setOrgs] = useState<Organization[]>([]);
@@ -113,7 +116,7 @@ export default function NewClassScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: AppColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   topbar: {
     flexDirection: 'row',

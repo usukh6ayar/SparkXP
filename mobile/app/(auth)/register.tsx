@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { View, Image, Pressable, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,7 +7,8 @@ import { ApiError } from '../../src/api/client';
 import * as authApi from '../../src/api/auth';
 import type { AuthResult } from '../../src/api/auth';
 import { t } from '../../src/i18n';
-import { spacing, colors, radius } from '../../src/theme/theme';
+import { spacing, radius, type AppColors } from '../../src/theme/theme';
+import { useColors } from '../../src/settings/SettingsContext';
 import { MN_PROVINCES, UB_DISTRICTS } from '../../src/constants/locations';
 import { Screen } from '../../src/components/Screen';
 import { AppText } from '../../src/components/Text';
@@ -20,14 +21,15 @@ import { AuthFooter } from '../../src/components/AuthFooter';
 const mapFox = require('../../assets/onboarding/map-fox.png');
 const successFox = require('../../assets/onboarding/success-fox.png');
 
-// A few confetti dots scattered behind the success mascot (decorative).
+// A few confetti dots scattered behind the success mascot (decorative,
+// brand/semantic colors — identical in both themes).
 const CONFETTI = [
-  { top: 0, left: 30, color: colors.primary },
-  { top: 20, right: 24, color: colors.xp },
-  { top: 70, left: 8, color: colors.sparks },
-  { top: 60, right: 6, color: colors.success },
-  { top: 110, left: 40, color: colors.streak },
-  { top: 120, right: 36, color: colors.primaryDark },
+  { top: 0, left: 30, color: '#6C3BFF' }, // primary
+  { top: 20, right: 24, color: '#FFC93C' }, // xp
+  { top: 70, left: 8, color: '#4FC3F7' }, // sparks
+  { top: 60, right: 6, color: '#34D399' }, // success
+  { top: 110, left: 40, color: '#FF8A3D' }, // streak
+  { top: 120, right: 36, color: '#5A28F0' }, // primaryDark
 ];
 
 // Placement levels (CEFR) with a short Mongolian hint.
@@ -54,6 +56,8 @@ const rules = {
 
 /** One password-requirement row that turns green once satisfied. */
 function Rule({ ok, label }: { ok: boolean; label: string }) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <View style={styles.ruleRow}>
       <Ionicons
@@ -69,6 +73,8 @@ function Rule({ ok, label }: { ok: boolean; label: string }) {
 }
 
 export default function RegisterScreen() {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { applySession } = useAuth();
   const router = useRouter();
 
@@ -400,7 +406,7 @@ export default function RegisterScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: AppColors) => StyleSheet.create({
   back: { alignSelf: 'flex-start', padding: spacing.xs, marginBottom: spacing.sm },
   title: { marginTop: spacing.sm },
   subtitle: { marginTop: spacing.xs, marginBottom: spacing.xl },

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useMemo } from 'react';
 import { View, StyleSheet, ScrollView, Image, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -19,7 +19,8 @@ import { Skeleton } from '../../src/components/Skeleton';
 import { EmptyState } from '../../src/components/EmptyState';
 import { ReadingQuiz } from '../../src/components/ReadingQuiz';
 import { t } from '../../src/i18n';
-import { colors, spacing, radius, levelColor } from '../../src/theme/theme';
+import { spacing, radius, levelColor, type AppColors } from '../../src/theme/theme';
+import { useColors } from '../../src/settings/SettingsContext';
 
 function fmtTime(sec: number): string {
   if (!sec) return '';
@@ -37,6 +38,8 @@ const DEFAULT_FONT_INDEX = BODY_FONT_SIZES.indexOf(15);
  * reading (Phase 3) hook in here later.
  */
 export default function ReadingDetailScreen() {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { id } = useLocalSearchParams<{ id: string }>();
   const { token } = useAuth();
   const [passage, setPassage] = useState<ReadingPassage | null>(null);
@@ -270,6 +273,8 @@ export default function ReadingDetailScreen() {
 }
 
 function Meta({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; text: string }) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <View style={styles.metaItem}>
       <Ionicons name={icon} size={14} color={colors.textMuted} />
@@ -278,7 +283,7 @@ function Meta({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; text: stri
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: AppColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   container: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg },
 

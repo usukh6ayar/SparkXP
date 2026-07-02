@@ -16,6 +16,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -47,7 +48,8 @@ import {
 import { ApiError } from '../api/client';
 import { AppText } from './Text';
 import { t } from '../i18n';
-import { colors, spacing, radius, elevation } from '../theme/theme';
+import { spacing, radius, elevation, type AppColors } from '../theme/theme';
+import { useColors } from '../settings/SettingsContext';
 
 const RECENTS_KEY = 'dictionary_recents';
 const MAX_RECENTS = 12;
@@ -70,6 +72,8 @@ const DictionaryContext = createContext<DictionaryState | undefined>(undefined);
 const clamp = (v: number, min: number, max: number) => Math.min(Math.max(v, min), max);
 
 export function DictionaryProvider({ children }: { children: ReactNode }) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { token } = useAuth();
   const insets = useSafeAreaInsets();
   const player = useAudioPlayer();
@@ -368,7 +372,7 @@ export function TappableText({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: AppColors) => StyleSheet.create({
   // In-place search overlay
   searchBackdrop: {
     flex: 1,

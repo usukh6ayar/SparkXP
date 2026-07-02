@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useMemo } from 'react';
 import { View, ScrollView, Pressable, StyleSheet, ActivityIndicator, Alert, RefreshControl, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
@@ -19,10 +19,13 @@ import { RequestRow } from '../../../src/components/RequestRow';
 import { AssignmentRow } from '../../../src/components/AssignmentRow';
 import { Button } from '../../../src/components/Button';
 import { Card } from '../../../src/components/Card';
-import { colors, spacing, radius } from '../../../src/theme/theme';
+import { spacing, radius, type AppColors } from '../../../src/theme/theme';
+import { useColors } from '../../../src/settings/SettingsContext';
 
 /** Section title with an optional count badge. */
 function SectionTitle({ title, count, tint }: { title: string; count?: number; tint?: string }) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <View style={styles.sectionHead}>
       <AppText variant="h2">{title}</AppText>
@@ -38,6 +41,8 @@ function SectionTitle({ title, count, tint }: { title: string; count?: number; t
 export default function ClassDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { token } = useAuth();
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const [detail, setDetail] = useState<ClassDetail | null>(null);
   const [requests, setRequests] = useState<ClassStudent[]>([]);
@@ -284,7 +289,7 @@ export default function ClassDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: AppColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   center: { alignItems: 'center', justifyContent: 'center' },
   topbar: {
