@@ -1,5 +1,6 @@
-import { View, Image, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { AppText } from './Text';
+import { AppImage } from './AppImage';
 import { resolveAvatar } from '../lib/avatar';
 import { colors, radius } from '../theme/theme';
 
@@ -21,7 +22,7 @@ export function Avatar({
   const circle = { width: size, height: size, borderRadius: size / 2 };
 
   if (src) {
-    return <Image source={src} style={[circle, styles.img]} resizeMode="cover" />;
+    return <AppImage source={src} width={size * 2} style={[circle, styles.img]} contentFit="cover" />;
   }
   const initial = (name ?? '').trim().charAt(0).toUpperCase() || '?';
   return (

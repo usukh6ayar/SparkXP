@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
-import { View, StyleSheet, ScrollView, Pressable, Switch, Image } from 'react-native';
+import { View, StyleSheet, ScrollView, Pressable, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { AppImage } from '../src/components/AppImage';
 import { setStatusBarStyle } from 'expo-status-bar';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,7 +20,7 @@ import type { Lang } from '../src/i18n';
 type IconName = keyof typeof Ionicons.glyphMap;
 type Tint = { bg: string; fg: string };
 
-const avatarImg = require('../assets/buddy-menu.png');
+const avatarImg = require('../assets/buddy-menu.webp');
 const APP_VERSION = '1.0.0';
 
 // Locally-persisted switch prefs (UI-only — nothing else reacts to them yet).
@@ -141,7 +142,7 @@ export default function SettingsScreen() {
           {/* Account mini-card */}
           <Pressable onPress={() => router.push('/avatar')}
             style={({ pressed }) => [styles.account, { backgroundColor: p.card, borderColor: p.cardBorder }, pressed && styles.pressed]}>
-            <Image source={resolveAvatar(user?.avatarUrl) ?? avatarImg} style={[styles.accountAvatar, { backgroundColor: p.track }]} resizeMode="cover" />
+            <AppImage source={resolveAvatar(user?.avatarUrl) ?? avatarImg} width={120} style={[styles.accountAvatar, { backgroundColor: p.track }]} contentFit="cover" />
             <View style={{ flex: 1 }}>
               <AppText variant="bodyStrong" color={p.text} numberOfLines={1}>{user?.fullName ?? '—'}</AppText>
               <AppText variant="caption" color={p.textMuted}>

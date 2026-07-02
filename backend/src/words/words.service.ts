@@ -110,6 +110,8 @@ export interface QuizQuestion {
   english: string;
   phonetic: string | null;
   imageUrl: string | null;
+  /** Word pronunciation — powers the "Сонсож барь" (listen) game mode. */
+  audioUrl: string | null;
   /** 4 Mongolian options, shuffled — one is correct. Graded server-side. */
   options: string[];
 }
@@ -1176,9 +1178,30 @@ export class WordsService {
         english: word.english,
         phonetic: word.phonetic,
         imageUrl: word.imageUrl,
+        audioUrl: word.audioUrl,
         options: shuffle([word.mongolian, ...distractors]),
       };
     });
+  }
+
+  /**
+   * Word↔meaning pairs for the "Холбож ял" (match) game. Unlike the MCQ quiz,
+   * the correct meaning IS returned (all pairs are on screen — that's the game);
+   * grading still happens server-side via gradeQuiz (choice === mongolian).
+   */
+  async generateMatch(count = 5): Promise<{ wordId: string; english: string; mongolian: string }[]> {
+    const pool = await this.words
+      .createQueryBuilder('w')
+      .where('w.status = :status', { status: WordStatus.PUBLISHED })
+      .andWhere("w.mongolian <> ''")
+      .orderBy('RANDOM()')
+      .limit(count)
+      .getMany();
+
+    if (pool.length < 2) {
+      throw new BadRequestException('Тоглоом үүсгэхэд хангалттай нийтлэгдсэн үг алга байна');
+    }
+    return pool.map((w) => ({ wordId: w.id, english: w.english, mongolian: w.mongolian }));
   }
 
   /**

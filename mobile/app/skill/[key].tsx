@@ -31,6 +31,8 @@ const SKILLS: Record<
   reading: { catKey: 'catReading', icon: 'book', grad: skillGradients.reading, percent: 75 },
   speaking: { catKey: 'catSpeaking', icon: 'mic', grad: skillGradients.speaking, percent: 68 },
   writing: { catKey: 'catWriting', icon: 'create', grad: skillGradients.writing, percent: 52 },
+  grammar: { catKey: 'catGrammar', icon: 'book', grad: skillGradients.grammar, percent: 50 },
+  fill: { catKey: 'catFill', icon: 'extension-puzzle', grad: skillGradients.fill, percent: 50 },
 };
 
 export default function SkillScreen() {

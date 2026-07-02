@@ -22,7 +22,7 @@ import { t, tf } from '../../src/i18n';
 import { useColors } from '../../src/settings/SettingsContext';
 import { spacing, radius, levelColor, type AppColors } from '../../src/theme/theme';
 
-const banner = require('../../assets/home-banner.png');
+const banner = require('../../assets/home-banner.webp');
 
 /** Nice labels for the 4 lesson-test categories. */
 function catLabels(): Record<string, string> {

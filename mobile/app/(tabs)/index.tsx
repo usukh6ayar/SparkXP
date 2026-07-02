@@ -41,10 +41,10 @@ type IconName = keyof typeof Ionicons.glyphMap;
 // pre-composited onto the island as ONE image. Baking the fox + island together
 // means the fox is ALWAYS standing on the grass on every device — no per-screen
 // alignment math to drift. Both layers scale to the screen width ("flexible").
-const skyImg = require("../../assets/background.png");
+const skyImg = require("../../assets/background.webp");
 // Light-mode sky — bright daytime clouds instead of the purple night sky.
-const skyImgLight = require("../../assets/light-mode-index.png");
-const sceneImg = require("../../assets/fox-island.png");
+const skyImgLight = require("../../assets/light-mode-index.webp");
+const sceneImg = require("../../assets/fox-island.webp");
 
 const SCENE_RATIO = 1081 / 963; // h / w of fox-island.png
 const GRASS = 0.6; // grass surface ≈ 60% down the composite (where feet rest)

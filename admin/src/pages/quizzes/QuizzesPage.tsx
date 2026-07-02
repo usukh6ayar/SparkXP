@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, GripVertical, X, Eye, EyeOff } from 'lucide-react';
+import { Plus, GripVertical, X, Eye, EyeOff, Upload, Trash2 } from 'lucide-react';
 import { api } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
 import { Button } from '../../components/Button';
@@ -302,23 +302,51 @@ const emptyForm = (qt = 'word_guess'): QuizForm => ({
   title: '', level: 'a1', xpReward: 10, quizType: qt, questions: [blankFor(qt)],
 });
 
+/** questionType (mc/fill/match) that a game type maps to. */
+function questionTypeOf(quizType: string): string {
+  return QUIZ_TYPES.find((q) => q.value === quizType)?.questionType ?? 'multiple_choice';
+}
+
 export default function QuizzesPage() {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
+  const [typeFilter, setTypeFilter] = useState<string>('all'); // pill tab
   const [modal, setModal] = useState<null | 'create' | 'edit'>(null);
   const [editing, setEditing] = useState<Quiz | null>(null);
   const [form, setForm] = useState<QuizForm>(emptyForm());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
+  // Selection (bulk publish/delete)
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  // CSV / JSON import
+  const [importOpen, setImportOpen] = useState(false);
+  const [impTitle, setImpTitle] = useState('');
+  const [impLevel, setImpLevel] = useState('a1');
+  const [impQuizType, setImpQuizType] = useState('word_guess');
+  const [impText, setImpText] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [impError, setImpError] = useState('');
+
+  // Load all quizzes once; filter by type + paginate on the client (works
+  // regardless of whether the backend supports a quizType query param).
   const load = useCallback(async () => {
-    const data = await api.get<{ items: Quiz[]; total: number }>(`/quizzes?page=${page}&limit=${LIMIT}`);
+    const data = await api.get<{ items: Quiz[] }>(`/quizzes?limit=200`);
     setQuizzes(data.items ?? []);
-    setTotal(data.total ?? 0);
-  }, [page]);
+    setSelected(new Set());
+  }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  function selectTab(v: string) { setTypeFilter(v); setPage(1); }
+
+  // Client-side type filter + pagination over the loaded set.
+  const filtered = typeFilter === 'all'
+    ? quizzes
+    : quizzes.filter((q) => (q.quizType ?? 'multiple_choice') === typeFilter);
+  const total = filtered.length;
+  const paged = filtered.slice((page - 1) * LIMIT, page * LIMIT);
 
   function openCreate(qt = 'multiple_choice') {
     setForm(emptyForm(qt));
@@ -398,7 +426,87 @@ export default function QuizzesPage() {
     load();
   }
 
+  // ── Selection + bulk actions ──
+  function toggleRow(id: string) {
+    setSelected((s) => {
+      const n = new Set(s);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
+  }
+  function toggleAll() {
+    const allSel = paged.length > 0 && paged.every((q) => selected.has(q.id));
+    setSelected(allSel ? new Set() : new Set(paged.map((q) => q.id)));
+  }
+  async function bulkPublish(isPublished: boolean) {
+    await Promise.all([...selected].map((id) => api.patch(`/quizzes/${id}`, { isPublished })));
+    load();
+  }
+  async function bulkDelete() {
+    if (!confirm(`${selected.size} quiz устгах уу?`)) return;
+    await Promise.all([...selected].map((id) => api.delete(`/quizzes/${id}`)));
+    load();
+  }
+
+  // ── CSV / JSON import (rows = questions → one new quiz) ──
+  /** Parse pasted CSV (pipe-delimited) or a JSON array into a questions[]. */
+  function parseQuestions(text: string, qType: string): Question[] {
+    const trimmed = text.trim();
+    if (trimmed.startsWith('[')) {
+      const arr = JSON.parse(trimmed);
+      if (!Array.isArray(arr)) throw new Error('JSON массив байх ёстой');
+      return arr as Question[];
+    }
+    if (qType === 'word_match') throw new Error('Холбох төрөлд зөвхөн JSON массив дэмжинэ');
+    return trimmed
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const p = line.split('|').map((s) => s.trim());
+        if (qType === 'fill_blank') {
+          return { type: 'fill_blank', question: p[0], answer: p[1] ?? '', points: Number(p[2] || 10) } as Question;
+        }
+        // multiple_choice: question | opt1 | opt2 | ... | correctNo | points
+        const points = Number(p[p.length - 1] || 10);
+        const correctNo = Number(p[p.length - 2] || 1);
+        const options = p.slice(1, p.length - 2);
+        return { type: 'multiple_choice', question: p[0], options, correct: Math.max(0, correctNo - 1), points } as Question;
+      });
+  }
+
+  async function runImport() {
+    if (!impTitle.trim()) { setImpError('Гарчиг оруулна уу'); return; }
+    const qType = questionTypeOf(impQuizType);
+    let questions: Question[];
+    try {
+      questions = parseQuestions(impText, qType);
+    } catch (e) {
+      setImpError(e instanceof Error ? e.message : 'Задлахад алдаа гарлаа');
+      return;
+    }
+    if (questions.length === 0) { setImpError('Асуулт олдсонгүй'); return; }
+    setImporting(true); setImpError('');
+    try {
+      await api.post('/quizzes', {
+        title: impTitle.trim(), level: impLevel, quizType: impQuizType,
+        questions, xpReward: 10, isPublished: false,
+      });
+      setImportOpen(false); setImpTitle(''); setImpText('');
+      load();
+    } catch (e: unknown) {
+      setImpError(e instanceof Error ? e.message : 'Импорт амжилтгүй');
+    } finally { setImporting(false); }
+  }
+
+  const allChecked = paged.length > 0 && paged.every((q) => selected.has(q.id));
   const columns = [
+    {
+      key: 'sel',
+      header: <input type="checkbox" checked={allChecked} onChange={toggleAll} />,
+      render: (q: Quiz) => <input type="checkbox" checked={selected.has(q.id)} onChange={() => toggleRow(q.id)} />,
+      className: 'w-8',
+    },
     {
       key: 'title', header: 'Гарчиг',
       render: (q: Quiz) => <span className="font-medium">{q.title}</span>,
@@ -444,13 +552,45 @@ export default function QuizzesPage() {
     <>
       <PageHeader
         title="Quizzes"
-        description={`Нийт: ${quizzes.length}`}
+        description={`Нийт: ${total}`}
         action={
-          <Button onClick={() => openCreate()}><Plus className="h-4 w-4" /> Quiz нэмэх</Button>
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={() => { setImpError(''); setImportOpen(true); }}><Upload className="h-4 w-4" /> Импорт</Button>
+            <Button onClick={() => openCreate()}><Plus className="h-4 w-4" /> Quiz нэмэх</Button>
+          </div>
         }
       />
 
-      <Table columns={columns} rows={quizzes} keyFn={(q) => q.id} empty="Quiz байхгүй" />
+      {/* Type tabs (pill filter) */}
+      <div className="mb-4 flex flex-wrap gap-2">
+        <button
+          onClick={() => selectTab('all')}
+          className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${typeFilter === 'all' ? 'bg-primary text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+        >
+          Бүгд
+        </button>
+        {QUIZ_TYPES.map((qt) => (
+          <button
+            key={qt.value}
+            onClick={() => selectTab(qt.value)}
+            className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${typeFilter === qt.value ? 'bg-primary text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+          >
+            {qt.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Bulk action bar */}
+      {selected.size > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <span className="text-sm text-gray-500">{selected.size} сонгосон:</span>
+          <Button variant="secondary" size="sm" onClick={() => bulkPublish(true)}>Нийтлэх</Button>
+          <Button variant="secondary" size="sm" onClick={() => bulkPublish(false)}>Ноорог болгох</Button>
+          <Button variant="danger" size="sm" onClick={bulkDelete}><Trash2 className="h-4 w-4" /> Устгах</Button>
+        </div>
+      )}
+
+      <Table columns={columns} rows={paged} keyFn={(q) => q.id} empty="Quiz байхгүй" />
       <Pagination page={page} total={total} limit={LIMIT} onPage={setPage} />
 
       {modal && (
@@ -561,6 +701,55 @@ export default function QuizzesPage() {
 
             <FormActions onCancel={() => setModal(null)} onSave={save} saving={saving}
               className="flex justify-end gap-2 pt-2 border-t border-gray-100" />
+          </div>
+        </Modal>
+      )}
+
+      {/* CSV / JSON import — rows = questions → one new quiz */}
+      {importOpen && (
+        <Modal title="Quiz импорт" onClose={() => setImportOpen(false)} size="2xl">
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div className="sm:col-span-1">
+                <Input label="Гарчиг" value={impTitle} onChange={(e) => setImpTitle(e.target.value)} />
+              </div>
+              <Select
+                label="Тоглоомын төрөл"
+                options={QUIZ_TYPES.map((q) => ({ value: q.value, label: q.label }))}
+                value={impQuizType}
+                onChange={(e) => setImpQuizType(e.target.value)}
+              />
+              <Select label="Түвшин" options={LEVEL_OPTIONS} value={impLevel} onChange={(e) => setImpLevel(e.target.value)} />
+            </div>
+            <div className="rounded-lg bg-gray-50 p-3 text-xs text-gray-500">
+              <p className="font-medium text-gray-700">Формат (мөр бүр = 1 асуулт, `|`-аар тусгаарла):</p>
+              {questionTypeOf(impQuizType) === 'fill_blank' ? (
+                <>
+                  <p className="mt-1 font-mono">She ___ to school. | goes | 10</p>
+                  <p className="mt-1">асуулт | зөв хариулт | оноо</p>
+                </>
+              ) : questionTypeOf(impQuizType) === 'word_match' ? (
+                <p className="mt-1">Холбох төрөлд зөвхөн JSON массив ([{'{'}"type":"word_match","pairs":[…],"points":10{'}'}]) буулгана.</p>
+              ) : (
+                <>
+                  <p className="mt-1 font-mono">Нийслэл? | Улаанбаатар | Дархан | Эрдэнэт | 1 | 10</p>
+                  <p className="mt-1">асуулт | сонголт1 | сонголт2 | … | зөв№(1-ээс) | оноо</p>
+                </>
+              )}
+              <p className="mt-1">Эсвэл JSON массив ([{'{'}…{'}'}) буулгаж болно.</p>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium text-gray-700">Өгөгдөл</label>
+              <textarea
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                rows={8}
+                value={impText}
+                onChange={(e) => setImpText(e.target.value)}
+                placeholder="Энд CSV (|-аар) эсвэл JSON буулгана..."
+              />
+            </div>
+            {impError && <p className="text-sm text-red-500">{impError}</p>}
+            <FormActions onCancel={() => setImportOpen(false)} onSave={runImport} saving={importing} saveLabel="Импорт" />
           </div>
         </Modal>
       )}

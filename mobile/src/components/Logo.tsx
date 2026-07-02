@@ -4,7 +4,7 @@ import { fontSize, spacing, type AppColors } from '../theme/theme';
 import { useColors, useT } from '../settings/SettingsContext';
 
 // The running-fox brand mark. Lives in assets/ so it ships with the app bundle.
-const logoMark = require('../../assets/logo.png');
+const logoMark = require('../../assets/logo.webp');
 
 /**
  * SparkXP logo: the running-fox brand mark above the "SparkXP" wordmark.

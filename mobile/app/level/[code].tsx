@@ -28,9 +28,9 @@ import { colors, islandMap } from '../../src/theme/theme';
  * Scope: FRONTEND-only. Tapping a real node opens its lesson detail.
  */
 
-const bgDark = require('../../assets/avatars/islands/lessonBackground.png'); // dark forest — dark theme
-const bgLight = require('../../assets/avatars/islands/lessonLightBackground.png'); // bright forest — light theme
-const line = require('../../assets/avatars/islands/line.png'); // golden beaded trail
+const bgDark = require('../../assets/avatars/islands/lessonBackground.webp'); // dark forest — dark theme
+const bgLight = require('../../assets/avatars/islands/lessonLightBackground.webp'); // bright forest — light theme
+const line = require('../../assets/avatars/islands/line.webp'); // golden beaded trail
 
 /** Theme-aware palette for the header UI over the (dark/light) forest backdrop. */
 function palette(isLight: boolean) {
@@ -116,6 +116,8 @@ export default function LevelScreen() {
 
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [loading, setLoading] = useState(true);
+  // Measured header height → the trail/nodes start right below it (no overlap).
+  const [headerH, setHeaderH] = useState(0);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -140,6 +142,14 @@ export default function LevelScreen() {
   const total = 40;
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
 
+  // Trail band: from just below the measured header to near the screen bottom.
+  // Nodes map onto it by the SAME normalized position they had on line.png's
+  // curve, so they stay exactly on the (vertically re-stretched) golden trail.
+  const pathTop = (headerH || insets.top + 300) + 12;
+  const pathBottom = height - Math.max(insets.bottom, 12) - 12;
+  const bandH = Math.max(pathBottom - pathTop, 1);
+  const tOf = (y: number) => (y - LINE_TOP) / (LINE_BOT - LINE_TOP); // 0..1 within band
+
   return (
     <View style={[styles.root, { backgroundColor: isLight ? '#DCEAF5' : '#06101C' }]}>
       <ImageBackground source={bg} style={StyleSheet.absoluteFill} resizeMode="cover" />
@@ -151,7 +161,10 @@ export default function LevelScreen() {
       />
 
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 6 }]}>
+      <View
+        style={[styles.header, { paddingTop: insets.top + 6 }]}
+        onLayout={(e) => setHeaderH(e.nativeEvent.layout.height)}
+      >
         {/* Top row: back + streak + gems */}
         <View style={styles.topRow}>
           <Pressable onPress={() => router.back()} hitSlop={12} style={[styles.backBtn, { backgroundColor: C.back }]}>
@@ -196,7 +209,7 @@ export default function LevelScreen() {
             <AppText variant="bodyStrong" color={C.text}>{pct}%</AppText>
           </View>
           <View style={[styles.track, { backgroundColor: C.track }]}>
-            <View style={[styles.fill, { width: `${pct}%` }]} />
+            <View style={[styles.fill, { width: `${pct}%`, backgroundColor: meta.color }]} />
           </View>
           <View style={styles.starsRow}>
             <Ionicons name="star" size={16} color={islandMap.gold} />
@@ -214,8 +227,8 @@ export default function LevelScreen() {
             position: 'absolute',
             left: 0,
             width,
-            top: LINE_TOP * height,
-            height: (LINE_BOT - LINE_TOP) * height,
+            top: pathTop,
+            height: bandH,
           }}
         />
       )}
@@ -228,7 +241,7 @@ export default function LevelScreen() {
           const lesson = lessons[i];
           const locked = !lesson;
           const left = a.x * width - NODE / 2;
-          const top = a.y * height - NODE / 2;
+          const top = pathTop + tOf(a.y) * bandH - NODE / 2;
           return (
             <Pressable
               key={i}
@@ -285,13 +298,19 @@ const styles = StyleSheet.create({
   tierRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
   progressCard: {
     alignSelf: 'flex-start',
-    width: 210,
+    width: 220,
     marginTop: 14,
     padding: 14,
     borderRadius: 18,
     backgroundColor: 'rgba(10,14,30,0.72)',
     borderWidth: 1,
     borderColor: 'rgba(150,130,255,0.28)',
+    // soft lift so the frosted card reads cleanly over the bright forest
+    shadowColor: '#000',
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
   },
   progressTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   track: {

@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
-import { View, StyleSheet, ScrollView, Pressable, Image, Share } from 'react-native';
+import { View, StyleSheet, ScrollView, Pressable, Share } from 'react-native';
+import { AppImage } from '../../src/components/AppImage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { setStatusBarStyle } from 'expo-status-bar';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -24,7 +25,7 @@ import { colors, spacing, radius, tints, elevation, type PremiumPalette } from '
 type IconName = keyof typeof Ionicons.glyphMap;
 type Styles = ReturnType<typeof makeStyles>;
 
-const avatarImg = require('../../assets/buddy-menu.png');
+const avatarImg = require('../../assets/buddy-menu.webp');
 
 // Fallbacks until /gamification loads.
 const STREAK = 0;
@@ -190,7 +191,7 @@ export default function ProfileScreen() {
               <View style={styles.avatarGlow} />
               <Pressable onPress={pickPhoto} disabled={avatarBusy}>
                 <LinearGradient colors={[p.primaryLight, p.primary]} style={styles.avatarRing}>
-                  <Image source={resolveAvatar(user?.avatarUrl) ?? avatarImg} style={styles.avatar} resizeMode="cover" />
+                  <AppImage source={resolveAvatar(user?.avatarUrl) ?? avatarImg} width={200} style={styles.avatar} contentFit="cover" />
                 </LinearGradient>
               </Pressable>
               <Pressable style={styles.editBtn} onPress={pickPhoto} disabled={avatarBusy} hitSlop={6}>

@@ -19,7 +19,7 @@ import { MascotCircle } from '../../src/components/MascotCircle';
 import { spacing, radius, elevation, type AppColors } from '../../src/theme/theme';
 import { useColors } from '../../src/settings/SettingsContext';
 
-const fox = require('../../assets/logo.png');
+const fox = require('../../assets/logo.webp');
 
 interface Slide {
   title: string;

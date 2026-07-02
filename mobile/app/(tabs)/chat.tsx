@@ -1,9 +1,10 @@
 import { useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import {
-  View, StyleSheet, FlatList, TextInput, ScrollView, Image,
+  View, StyleSheet, FlatList, TextInput, ScrollView,
   Pressable, KeyboardAvoidingView, Platform, ActivityIndicator, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { AppImage } from '../../src/components/AppImage';
 import { Ionicons } from '@expo/vector-icons';
 import {
   useAudioPlayer, useAudioRecorder, RecordingPresets,
@@ -29,7 +30,7 @@ interface LocalMessage {
   audioUrl?: string | null;
 }
 
-const sparkImg = require('../../assets/buddy-menu.png');
+const sparkImg = require('../../assets/buddy-menu.webp');
 
 export default function ChatScreen() {
   const { token } = useAuth();
@@ -206,9 +207,9 @@ export default function ChatScreen() {
               onPress={() => selectBuddy(b)}
             >
               {b.avatarThumbUrl ? (
-                <Image source={{ uri: b.avatarThumbUrl }} style={styles.buddyImg} resizeMode="contain" />
+                <AppImage source={{ uri: b.avatarThumbUrl }} width={46} style={styles.buddyImg} contentFit="contain" />
               ) : b.slug === 'spark' ? (
-                <Image source={sparkImg} style={styles.buddyImg} resizeMode="contain" />
+                <AppImage source={sparkImg} style={styles.buddyImg} contentFit="contain" />
               ) : (
                 <AppText style={styles.buddyEmoji}>{b.emoji}</AppText>
               )}
@@ -303,7 +304,7 @@ function MessageBubble({
 
   return (
     <View style={[styles.bubbleRow, isUser && styles.bubbleRowUser]}>
-      {!isUser && <Image source={thumb} style={styles.avatarImg} resizeMode="contain" />}
+      {!isUser && <AppImage source={thumb} width={28} style={styles.avatarImg} contentFit="contain" />}
       <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAi]}>
         {isUser ? (
           <AppText variant="body" color={c.white}>{message.content}</AppText>
@@ -346,7 +347,7 @@ function EmptyState({ buddy }: { buddy: Buddy | null }) {
   const thumb = buddy?.avatarThumbUrl ? { uri: buddy.avatarThumbUrl } : sparkImg;
   return (
     <View style={styles.emptyState}>
-      <Image source={thumb} style={styles.emptyImg} resizeMode="contain" />
+      <AppImage source={thumb} width={110} style={styles.emptyImg} contentFit="contain" />
       <AppText variant="h2" center style={styles.emptyTitle}>
         {tf('chatGreeting', { name: buddy?.name ?? t('defaultBuddyName') })}
       </AppText>

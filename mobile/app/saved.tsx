@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { View, StyleSheet, FlatList, Pressable, Image, RefreshControl } from 'react-native';
+import { View, StyleSheet, FlatList, Pressable, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { AppImage } from '../src/components/AppImage';
 import { Ionicons } from '@expo/vector-icons';
 import { useAudioPlayer } from 'expo-audio';
 import * as Speech from 'expo-speech';
@@ -106,7 +107,7 @@ export default function SavedScreen() {
           <Card variant="raised" padding="md" style={styles.row}>
             <View style={styles.thumb}>
               {item.imageUrl ? (
-                <Image source={{ uri: item.imageUrl }} style={styles.thumbImg} />
+                <AppImage source={{ uri: item.imageUrl }} width={120} style={styles.thumbImg} />
               ) : (
                 <Ionicons name="image-outline" size={20} color={c.textMuted} />
               )}

@@ -6,6 +6,8 @@ export interface QuizQuestion {
   english: string;
   phonetic: string | null;
   imageUrl: string | null;
+  /** Pronunciation audio — used by the "Сонсож барь" (listen) game mode. */
+  audioUrl: string | null;
   /** 4 shuffled Mongolian options — one is correct. */
   options: string[];
 }
@@ -21,6 +23,18 @@ export interface QuizResult {
 /** GET /api/words/quiz?count= — generate a vocabulary quiz. */
 export function getQuiz(token: string, count = 10): Promise<QuizQuestion[]> {
   return apiRequest<QuizQuestion[]>(`/words/quiz?count=${count}`, { token });
+}
+
+/** One word↔meaning pair for the "Холбож ял" (match) game. */
+export interface MatchPair {
+  wordId: string;
+  english: string;
+  mongolian: string;
+}
+
+/** GET /api/words/match?count= — word↔meaning pairs for the match game. */
+export function getMatchPairs(token: string, count = 5): Promise<MatchPair[]> {
+  return apiRequest<MatchPair[]>(`/words/match?count=${count}`, { token });
 }
 
 /** POST /api/words/quiz/submit — grade answers, award XP + Sparks. */

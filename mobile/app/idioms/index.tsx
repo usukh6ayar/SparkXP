@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, useMemo } from 'react';
-import { View, StyleSheet, ScrollView, RefreshControl, Image } from 'react-native';
+import { View, StyleSheet, ScrollView, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { AppImage } from '../../src/components/AppImage';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/auth/AuthContext';
@@ -79,7 +80,7 @@ export default function IdiomsScreen() {
           idioms.map((it) => (
             <Card key={it.id} variant="raised" onPress={() => router.push(`/idiom/${it.id}`)} padding="md" style={styles.row}>
               {it.imageUrl ? (
-                <Image source={{ uri: it.imageUrl }} style={styles.thumb} />
+                <AppImage source={{ uri: it.imageUrl }} width={140} style={styles.thumb} />
               ) : (
                 <View style={[styles.thumb, styles.thumbFallback]}>
                   <Ionicons name="chatbubbles" size={22} color={colors.primary} />

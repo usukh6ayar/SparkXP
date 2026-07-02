@@ -11,7 +11,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/auth/AuthContext';
 import { useSettings } from '../../src/settings/SettingsContext';
 import { tf } from '../../src/i18n';
@@ -34,9 +34,9 @@ import { islandMap } from '../../src/theme/theme';
  * tracks lesson completion + daily streak (see TODOs).
  */
 
-const skyImg = require('../../assets/avatars/islands/background.png'); // starry sky backdrop — dark theme
-const lightBgImg = require('../../assets/avatars/islands/lightBackground.png'); // bright sky backdrop — light theme
-const lineImg = require('../../assets/avatars/islands/line.png'); // golden winding trail overlay
+const skyImg = require('../../assets/avatars/islands/background.webp'); // starry sky backdrop — dark theme
+const lightBgImg = require('../../assets/avatars/islands/lightBackground.webp'); // bright sky backdrop — light theme
+const lineImg = require('../../assets/avatars/islands/line.webp'); // golden winding trail overlay
 const SCENE_RATIO = 2.7; // scene height = width * RATIO (room for 6 stacked islands)
 const ISLAND_ASPECT = 1.0; // island art height / width (the day tiles are ~square)
 
@@ -44,20 +44,20 @@ const ISLAND_ASPECT = 1.0; // island art height / width (the day tiles are ~squa
 // sky. Light (`*_light`) = brighter day islands on their own blue-sky/clouds,
 // soft-feathered so their edges melt into the light-theme gradient backdrop.
 const ISLAND_IMG: Record<string, ReturnType<typeof require>> = {
-  A1: require('../../assets/avatars/islands/a1.png'),
-  A2: require('../../assets/avatars/islands/a2.png'),
-  B1: require('../../assets/avatars/islands/b1.png'),
-  B2: require('../../assets/avatars/islands/b2.png'),
-  C1: require('../../assets/avatars/islands/c1.png'),
-  C2: require('../../assets/avatars/islands/c2.png'),
+  A1: require('../../assets/avatars/islands/a1.webp'),
+  A2: require('../../assets/avatars/islands/a2.webp'),
+  B1: require('../../assets/avatars/islands/b1.webp'),
+  B2: require('../../assets/avatars/islands/b2.webp'),
+  C1: require('../../assets/avatars/islands/c1.webp'),
+  C2: require('../../assets/avatars/islands/c2.webp'),
 };
 const ISLAND_IMG_LIGHT: Record<string, ReturnType<typeof require>> = {
-  A1: require('../../assets/avatars/islands/a1_light.png'),
-  A2: require('../../assets/avatars/islands/a2_light.png'),
-  B1: require('../../assets/avatars/islands/b1_light.png'),
-  B2: require('../../assets/avatars/islands/b2_light.png'),
-  C1: require('../../assets/avatars/islands/c1_light.png'),
-  C2: require('../../assets/avatars/islands/c2_light.png'),
+  A1: require('../../assets/avatars/islands/a1_light.webp'),
+  A2: require('../../assets/avatars/islands/a2_light.webp'),
+  B1: require('../../assets/avatars/islands/b1_light.webp'),
+  B2: require('../../assets/avatars/islands/b2_light.webp'),
+  C1: require('../../assets/avatars/islands/c1_light.webp'),
+  C2: require('../../assets/avatars/islands/c2_light.webp'),
 };
 
 const SKY = {
@@ -196,19 +196,13 @@ export default function LessonsScreen() {
             />
             <View style={[styles.topInner, { paddingTop: insets.top + 6 }]}>
               <View style={styles.header}>
-                <View style={{ flex: 1 }}>
-                  <View style={styles.titleRow}>
-                    <AppText variant="h1" color={isLight ? LIGHT_SKY.title : '#FFFFFF'}>{t('lessonsWorldTitle')}</AppText>
-                    <Ionicons name="sparkles" size={18} color={isLight ? '#E0A700' : SKY.gold} style={{ marginLeft: 6 }} />
-                  </View>
-                  <AppText variant="caption" color={isLight ? LIGHT_SKY.titleDim : SKY.textDim} style={{ marginTop: 2 }}>
-                    {t('lessonsWorldSubtitle')}
-                  </AppText>
+                <View style={styles.titleRow}>
+                  <AppText variant="h1" color={isLight ? LIGHT_SKY.title : '#FFFFFF'}>{t('lessonsWorldTitle')}</AppText>
+                  <Ionicons name="sparkles" size={22} color={isLight ? '#E0A700' : SKY.gold} style={{ marginLeft: 8 }} />
                 </View>
-                <Pressable style={styles.shopBtn}>
-                  <MaterialCommunityIcons name="crown" size={17} color={SKY.gold} />
-                  <AppText variant="label" color="#FFFFFF" style={{ marginLeft: 6 }}>SparkXP Premium</AppText>
-                </Pressable>
+                <AppText variant="body" color={isLight ? LIGHT_SKY.titleDim : SKY.textDim} style={styles.subtitle}>
+                  {t('lessonsWorldSubtitle')}
+                </AppText>
               </View>
 
               <View style={styles.stats}>
@@ -351,18 +345,9 @@ const styles = StyleSheet.create({
   headerSky: { position: 'absolute', left: 0 },
   topInner: { paddingHorizontal: 16, paddingBottom: 10 },
 
-  header: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 16 },
+  header: { marginBottom: 18 },
   titleRow: { flexDirection: 'row', alignItems: 'center' },
-  shopBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: SKY.card,
-    borderWidth: 1,
-    borderColor: SKY.cardBorder,
-  },
+  subtitle: { marginTop: 4, maxWidth: '92%' },
 
   stats: { flexDirection: 'row', gap: 8 },
   pill: {

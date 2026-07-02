@@ -13,6 +13,7 @@ import { EmptyState } from '../src/components/EmptyState';
 import { PERIODS } from '../src/constants/leaderboard';
 import { t } from '../src/i18n';
 import { colors, spacing, radius } from '../src/theme/theme';
+import { useColors } from '../src/settings/SettingsContext';
 
 function scopes(): { key: Scope; label: string }[] {
   return [
@@ -25,6 +26,7 @@ function scopes(): { key: Scope; label: string }[] {
 
 export default function LeaderboardScreen() {
   const { token, user } = useAuth();
+  const c = useColors();
   const [period, setPeriod] = useState<Period>('weekly');
   const [scope, setScope] = useState<Scope>('global');
   const [data, setData] = useState<LeaderboardResult | null>(null);
@@ -49,7 +51,7 @@ export default function LeaderboardScreen() {
   const SCOPES = scopes();
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: c.background }]} edges={['top']}>
       <TopBar title={t('leaderboardTitle')} back showBadges={false} />
 
       {/* Period segmented control */}
@@ -62,10 +64,10 @@ export default function LeaderboardScreen() {
           return (
             <Pressable
               key={s.key}
-              style={[styles.chip, active && styles.chipActive]}
+              style={[styles.chip, { backgroundColor: active ? colors.primary : c.surfaceAlt }]}
               onPress={() => setScope(s.key)}
             >
-              <AppText variant="label" color={active ? colors.white : colors.textSecondary}>{s.label}</AppText>
+              <AppText variant="label" color={active ? colors.white : c.textSecondary}>{s.label}</AppText>
             </Pressable>
           );
         })}
@@ -99,7 +101,7 @@ export default function LeaderboardScreen() {
               style={styles.empty}
             />
           ) : !data || data.entries.length === 0 ? (
-            <AppText variant="body" color={colors.textMuted} center style={styles.empty}>
+            <AppText variant="body" color={c.textMuted} center style={styles.empty}>
               {t('noLeaderboardData')}
             </AppText>
           ) : (
@@ -123,11 +125,10 @@ export default function LeaderboardScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
+  safe: { flex: 1 },
   tabs: { marginHorizontal: spacing.lg, marginTop: spacing.sm },
   chips: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg, marginVertical: spacing.md },
-  chip: { paddingHorizontal: spacing.md, paddingVertical: 7, borderRadius: radius.full, backgroundColor: colors.surfaceAlt },
-  chipActive: { backgroundColor: colors.primary },
+  chip: { paddingHorizontal: spacing.md, paddingVertical: 7, borderRadius: radius.full },
   list: { paddingHorizontal: spacing.lg },
   skeleton: { marginHorizontal: spacing.lg },
   meCard: {

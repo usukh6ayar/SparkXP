@@ -7,7 +7,7 @@ import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { colors, spacing } from "../theme/theme";
 import { useSettings } from "../settings/SettingsContext";
 
-const buddy = require("../../assets/buddy-menu.png");
+const buddy = require("../../assets/buddy-menu.webp");
 
 const GLASS_RADIUS = 32; // 28–34px rounded corners
 const PURPLE = colors.primary; // #6C3BFF SparkXP accent
