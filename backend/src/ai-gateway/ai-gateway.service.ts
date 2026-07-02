@@ -26,6 +26,7 @@ import { CreateBuddyDto, UpdateBuddyDto } from './dto/create-buddy.dto';
 import { REDIS_CLIENT } from '../redis/redis.module';
 import type Redis from 'ioredis';
 import { ImageStorageService } from './image-storage.service';
+import { TTS_ADAPTER, type TtsAdapter } from './providers/tts.adapter';
 
 /** Default plan limits — overridable via Redis key `ai:limits:default`. */
 const DEFAULT_LIMITS = {
@@ -133,9 +134,7 @@ const DEFAULT_IMAGE_PROMPT = [
   'Output one square image in a polished, consistent, modern 3D educational app illustration style.',
 ].join('\n');
 
-/** ElevenLabs TTS defaults (override via env). "Rachel" is an ElevenLabs preset voice. */
-const DEFAULT_TTS_VOICE_ID = '21m00Tcm4TlvDq8ikWAM';
-const DEFAULT_TTS_MODEL = 'eleven_multilingual_v2';
+/** Flat per-clip TTS cost estimate for vocab/reading audio (micro-USD). */
 const AUDIO_COST_MICRO_USD = 3_000;
 
 export interface ChatResponse {
@@ -190,6 +189,7 @@ export class AiGatewayService implements OnModuleInit {
     private readonly usersRepo: Repository<User>,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly imageStorage: ImageStorageService,
+    @Inject(TTS_ADAPTER) private readonly tts: TtsAdapter,
   ) {}
 
   onModuleInit() {
@@ -468,36 +468,10 @@ export class AiGatewayService implements OnModuleInit {
   async generateVocabularyAudio(
     input: VocabularyAudioRequest,
   ): Promise<VocabularyAudioResponse> {
-    const apiKey = this.config.get<string>('ELEVENLABS_API_KEY');
-    if (!apiKey) {
-      throw new InternalServerErrorException('ELEVENLABS_API_KEY тохируулаагүй байна');
-    }
-
-    const voiceId = this.config.get<string>('ELEVENLABS_VOICE_ID', DEFAULT_TTS_VOICE_ID);
-    const model = this.config.get<string>('ELEVENLABS_MODEL', DEFAULT_TTS_MODEL);
     const dev = this.config.get('NODE_ENV') !== 'production';
-    if (dev) this.logger.log(`[AI] ElevenLabs TTS for "${input.english}" (voice=${voiceId}, model=${model})`);
+    if (dev) this.logger.log(`[AI] ElevenLabs TTS for "${input.english}"`);
 
-    const response = await fetch(
-      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
-      {
-        method: 'POST',
-        headers: {
-          'xi-api-key': apiKey,
-          'Content-Type': 'application/json',
-          Accept: 'audio/mpeg',
-        },
-        body: JSON.stringify({ text: input.english, model_id: model }),
-      },
-    );
-
-    if (!response.ok) {
-      const body = await response.text().catch(() => '');
-      this.logger.error(`ElevenLabs TTS failed (${response.status}): ${body}`);
-      throw new InternalServerErrorException('Аудио үүсгэхэд алдаа гарлаа');
-    }
-
-    const buffer = Buffer.from(await response.arrayBuffer());
+    const { audio: buffer, model, voiceId } = await this.tts.synthesize(input.english);
     if (dev) this.logger.log(`[AI] ElevenLabs TTS ok: ${buffer.length} bytes`);
     const audioUrl = await this.imageStorage.storeMedia({
       buffer,
@@ -543,32 +517,7 @@ export class AiGatewayService implements OnModuleInit {
     filenameBase: string;
     folder?: string;
   }): Promise<{ audioUrl: string; model: string }> {
-    const apiKey = this.config.get<string>('ELEVENLABS_API_KEY');
-    if (!apiKey) {
-      throw new InternalServerErrorException('ELEVENLABS_API_KEY тохируулаагүй байна');
-    }
-    const voiceId = this.config.get<string>('ELEVENLABS_VOICE_ID', DEFAULT_TTS_VOICE_ID);
-    const model = this.config.get<string>('ELEVENLABS_MODEL', DEFAULT_TTS_MODEL);
-
-    const response = await fetch(
-      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
-      {
-        method: 'POST',
-        headers: {
-          'xi-api-key': apiKey,
-          'Content-Type': 'application/json',
-          Accept: 'audio/mpeg',
-        },
-        body: JSON.stringify({ text: input.text, model_id: model }),
-      },
-    );
-    if (!response.ok) {
-      const body = await response.text().catch(() => '');
-      this.logger.error(`ElevenLabs TTS failed (${response.status}): ${body}`);
-      throw new InternalServerErrorException('Аудио үүсгэхэд алдаа гарлаа');
-    }
-
-    const buffer = Buffer.from(await response.arrayBuffer());
+    const { audio: buffer, model, voiceId } = await this.tts.synthesize(input.text);
     const audioUrl = await this.imageStorage.storeMedia({
       buffer,
       // Stable filename → stable Cloudinary public_id → overwrite on regen.

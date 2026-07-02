@@ -8,10 +8,11 @@ import { Plan } from '../entities/plan.entity';
 import { AiGatewayService } from './ai-gateway.service';
 import { AiGatewayController } from './ai-gateway.controller';
 import { ImageStorageService } from './image-storage.service';
+import { aiProviders } from './providers/providers.config';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Message, AiUsage, AiBuddy, User, Plan])],
-  providers: [AiGatewayService, ImageStorageService],
+  providers: [AiGatewayService, ImageStorageService, ...aiProviders],
   controllers: [AiGatewayController],
   exports: [AiGatewayService, ImageStorageService],
 })
