@@ -1,6 +1,7 @@
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Link, type Href } from 'expo-router';
 import { colors, spacing, fontSize } from '../theme/theme';
+import { useColors } from '../settings/SettingsContext';
 
 /**
  * "Prompt + link" row at the bottom of the auth screens (login ↔ register).
@@ -18,9 +19,10 @@ export function AuthFooter({
   href?: Href;
   onPress?: () => void;
 }) {
+  const c = useColors();
   return (
     <View style={styles.footer}>
-      <Text style={styles.text}>{prompt} </Text>
+      <Text style={[styles.text, { color: c.textMuted }]}>{prompt} </Text>
       {href ? (
         <Link href={href} style={styles.link}>
           {linkLabel}
@@ -40,6 +42,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: spacing.lg,
   },
-  text: { color: colors.textMuted, fontSize: fontSize.md },
+  text: { fontSize: fontSize.md },
   link: { color: colors.primary, fontWeight: '700', fontSize: fontSize.md },
 });

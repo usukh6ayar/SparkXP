@@ -293,6 +293,7 @@ const mn = {
   gameFillDesc: 'Хоосон зайг зөв нөх.',
   gameGrammarTitle: 'Grammar Boss',
   gameGrammarDesc: 'Грамматик мэдлэгээ шалга.',
+  matchHint: 'Үг бүрийг зөв утгатай нь холбоно уу',
   progressPath: 'Амжилтын зам',
   progressPathHint: 'Сорил тоглож, level ахицгаая!',
 
@@ -647,6 +648,7 @@ const en: Record<TranslationKey, string> = {
   gameFillDesc: 'Fill in the blank correctly.',
   gameGrammarTitle: 'Grammar Boss',
   gameGrammarDesc: 'Test your grammar knowledge.',
+  matchHint: 'Match each word to its correct meaning',
   progressPath: 'Path to success',
   progressPathHint: 'Play quizzes and level up!',
 

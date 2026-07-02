@@ -4,6 +4,7 @@ export interface QuizQuestion {
   type: 'multiple_choice' | 'fill_blank' | 'word_match';
   question?: string;
   options?: string[];   // multiple_choice only
+  imageUrl?: string | null; // picture-guess multiple_choice
   pairs?: { left: string; right: string }[]; // word_match only
   points: number;
   // correct & answer are NOT returned to the client (server-side only)

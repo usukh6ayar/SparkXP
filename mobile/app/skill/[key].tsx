@@ -31,6 +31,8 @@ const SKILLS: Record<
   reading: { label: 'Унших', en: 'Reading', icon: 'book', grad: skillGradients.reading, percent: 75 },
   speaking: { label: 'Ярих', en: 'Speaking', icon: 'mic', grad: skillGradients.speaking, percent: 68 },
   writing: { label: 'Бичих', en: 'Writing', icon: 'create', grad: skillGradients.writing, percent: 52 },
+  grammar: { label: 'Grammar', en: 'Grammar', icon: 'book', grad: skillGradients.grammar, percent: 50 },
+  fill: { label: 'Нөхөх', en: 'Fill', icon: 'extension-puzzle', grad: skillGradients.fill, percent: 50 },
 };
 
 export default function SkillScreen() {

@@ -315,6 +315,16 @@ export class WordsController {
     return this.wordsService.generateQuiz(query.count);
   }
 
+  /**
+   * Word↔meaning pairs for the "Холбож ял" (match) game. Reuses quiz/submit for
+   * grading. Declared before `:id` so "match" isn't parsed as a UUID.
+   */
+  @Get('match')
+  @UseGuards(JwtAuthGuard)
+  getMatch(@Query() query: QuizQueryDto) {
+    return this.wordsService.generateMatch(query.count);
+  }
+
   /** Submit quiz answers → graded server-side, awards XP + Sparks for correct. */
   @Post('quiz/submit')
   @UseGuards(JwtAuthGuard)

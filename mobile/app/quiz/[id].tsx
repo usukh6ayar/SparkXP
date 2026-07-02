@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput,
-  Pressable,
+  Pressable, Image,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -202,6 +202,10 @@ export default function QuizScreen() {
           {currentQ!.question ?? (currentQ!.type === 'word_match' ? 'Зөв хосыг нь холбоно уу' : '')}
         </Text>
 
+        {currentQ!.type === 'multiple_choice' && currentQ!.imageUrl ? (
+          <Image source={{ uri: currentQ!.imageUrl }} style={styles.questionImage} resizeMode="cover" />
+        ) : null}
+
         {currentQ!.type === 'multiple_choice' && (
           <View style={styles.optionsContainer}>
             {currentQ!.options!.map((opt, i) => (
@@ -304,6 +308,13 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
     color: c.navy,
     marginBottom: spacing.xl,
     lineHeight: 30,
+  },
+  questionImage: {
+    width: '100%',
+    height: 200,
+    borderRadius: radius.md,
+    backgroundColor: c.surfaceAlt,
+    marginBottom: spacing.lg,
   },
   optionsContainer: { gap: spacing.sm },
   option: {
