@@ -10,7 +10,7 @@ import { TopBar } from '../../src/components/TopBar';
 import { AppText } from '../../src/components/Text';
 import { ProgressBar } from '../../src/components/ProgressBar';
 import { CategoryBrowser, type BrowserItem } from '../../src/components/CategoryBrowser';
-import { t } from '../../src/i18n';
+import { t, tf, type TranslationKey } from '../../src/i18n';
 import { useColors } from '../../src/settings/SettingsContext';
 import { spacing, radius, skillGradients, type AppColors } from '../../src/theme/theme';
 
@@ -25,12 +25,12 @@ type IconName = keyof typeof Ionicons.glyphMap;
  */
 const SKILLS: Record<
   string,
-  { label: string; en: string; icon: IconName; grad: readonly [string, string]; percent: number }
+  { catKey: TranslationKey; icon: IconName; grad: readonly [string, string]; percent: number }
 > = {
-  listening: { label: 'Сонсох', en: 'Listening', icon: 'headset', grad: skillGradients.listening, percent: 60 },
-  reading: { label: 'Унших', en: 'Reading', icon: 'book', grad: skillGradients.reading, percent: 75 },
-  speaking: { label: 'Ярих', en: 'Speaking', icon: 'mic', grad: skillGradients.speaking, percent: 68 },
-  writing: { label: 'Бичих', en: 'Writing', icon: 'create', grad: skillGradients.writing, percent: 52 },
+  listening: { catKey: 'catListening', icon: 'headset', grad: skillGradients.listening, percent: 60 },
+  reading: { catKey: 'catReading', icon: 'book', grad: skillGradients.reading, percent: 75 },
+  speaking: { catKey: 'catSpeaking', icon: 'mic', grad: skillGradients.speaking, percent: 68 },
+  writing: { catKey: 'catWriting', icon: 'create', grad: skillGradients.writing, percent: 52 },
 };
 
 export default function SkillScreen() {
@@ -78,7 +78,7 @@ export default function SkillScreen() {
       items.map((q) => ({
         id: q.id,
         title: q.title,
-        subtitle: `${q.questions?.length ?? 0} асуулт · ${q.xpReward} XP · ${q.level.toUpperCase()}`,
+        subtitle: `${tf('questionCount', { n: q.questions?.length ?? 0 })} · ${q.xpReward} XP · ${q.level.toUpperCase()}`,
         category: q.topic,
       })),
     [items],
@@ -88,7 +88,7 @@ export default function SkillScreen() {
     <LinearGradient colors={skill.grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
       <View style={styles.heroLeft}>
         <AppText variant="overline" color="rgba(255,255,255,0.85)">
-          {t('todayLabel')} · {skill.en.toUpperCase()}
+          {t('todayLabel')} · {t(skill.catKey).toUpperCase()}
         </AppText>
         <AppText variant="display" color={c.white} style={styles.heroPercent}>
           {skill.percent}%
@@ -112,7 +112,7 @@ export default function SkillScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <TopBar
-        title={selectedCat ?? skill.label}
+        title={selectedCat ?? t(skill.catKey)}
         back
         showBadges={false}
         // Inside a сэдэв, Back returns to the сэдэв list, not off-screen.

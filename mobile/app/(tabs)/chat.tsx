@@ -16,8 +16,8 @@ import { ApiError } from '../../src/api/client';
 import { TopBar } from '../../src/components/TopBar';
 import { AppText } from '../../src/components/Text';
 import { TappableText } from '../../src/components/DictionaryProvider';
-import { useColors } from '../../src/settings/SettingsContext';
-import { t } from '../../src/i18n';
+import { useColors, useSettings } from '../../src/settings/SettingsContext';
+import { t, tf } from '../../src/i18n';
 import { spacing, radius, type AppColors } from '../../src/theme/theme';
 
 interface LocalMessage {
@@ -34,6 +34,9 @@ const sparkImg = require('../../assets/buddy-menu.png');
 export default function ChatScreen() {
   const { token } = useAuth();
   const c = useColors();
+  // Reactive translator: subscribing here re-renders this (always-mounted) tab
+  // when the language changes. Module-level helpers below use the same i18n.
+  const { t } = useSettings();
   const styles = useMemo(() => makeStyles(c), [c]);
 
   const [buddies, setBuddies] = useState<Buddy[]>([]);
@@ -85,7 +88,7 @@ export default function ChatScreen() {
       setSessionId(s.sessionId);
       setUsage(s.usage);
     } catch {
-      Alert.alert('Алдаа', 'Session эхлүүлж чадсангүй. Дахин оролдоно уу.');
+      Alert.alert(t('error'), t('chatSessionError'));
     }
   }, [token]);
 
@@ -110,12 +113,12 @@ export default function ChatScreen() {
   function handleTurnError(err: unknown) {
     if (err instanceof ApiError && err.code === 'VOICE_LIMIT') {
       setVoiceLimited(true);
-      Alert.alert('Дуут яриа дууслаа', 'Энэ сарын дуут ярианы хязгаар дууслаа. Бичгээр үргэлжлүүлж болно.');
+      Alert.alert(t('voiceEndedTitle'), t('voiceLimitReached'));
       return;
     }
     setMessages((prev) => [
       ...prev,
-      { id: `${Date.now()}e`, role: 'assistant', content: 'Уучлаарай, алдаа гарлаа. Дахин оролдоорой.' },
+      { id: `${Date.now()}e`, role: 'assistant', content: t('chatReplyError') },
     ]);
   }
 
@@ -152,7 +155,7 @@ export default function ChatScreen() {
     try {
       const { granted } = await requestRecordingPermissionsAsync();
       if (!granted) {
-        Alert.alert('Зөвшөөрөл', 'Микрофон ашиглах зөвшөөрөл шаардлагатай.');
+        Alert.alert(t('permissionTitle'), t('micPermission'));
         return;
       }
       await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
@@ -160,7 +163,7 @@ export default function ChatScreen() {
       recorder.record();
       setRecording(true);
     } catch {
-      Alert.alert('Алдаа', 'Бичлэг эхлүүлж чадсангүй.');
+      Alert.alert(t('error'), t('recordStartError'));
     }
   }
 
@@ -185,7 +188,7 @@ export default function ChatScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <TopBar title="AI Найз" streak={5} />
+      <TopBar title={t('aiBuddyShort')} streak={5} />
 
       {/* Buddy selector */}
       <ScrollView
@@ -242,14 +245,14 @@ export default function ChatScreen() {
       {loading && (
         <View style={styles.typingRow}>
           <ActivityIndicator size="small" color={c.primary} />
-          <AppText variant="caption">{selected?.name ?? 'AI'} бичиж байна...</AppText>
+          <AppText variant="caption">{selected?.name ?? 'AI'} {t('typing')}</AppText>
         </View>
       )}
 
       {voiceLimited && (
         <View style={styles.limitBanner}>
           <AppText variant="caption" color={c.danger} center>
-            Дуут яриа энэ сард дууслаа — бичгээр үргэлжлүүлээрэй.
+            {t('voiceMonthEnded')}
           </AppText>
         </View>
       )}
@@ -269,7 +272,7 @@ export default function ChatScreen() {
             style={styles.input}
             value={input}
             onChangeText={setInput}
-            placeholder={recording ? 'Сонсож байна…' : t('typeMessage')}
+            placeholder={recording ? t('listeningPlaceholder') : t('typeMessage')}
             placeholderTextColor={c.textMuted}
             multiline
             maxLength={1000}
@@ -345,10 +348,10 @@ function EmptyState({ buddy }: { buddy: Buddy | null }) {
     <View style={styles.emptyState}>
       <Image source={thumb} style={styles.emptyImg} resizeMode="contain" />
       <AppText variant="h2" center style={styles.emptyTitle}>
-        Сайн уу! Би {buddy?.name ?? 'Спарк'} 👋
+        {tf('chatGreeting', { name: buddy?.name ?? t('defaultBuddyName') })}
       </AppText>
       <AppText variant="body" color={c.textSecondary} center>
-        Ярьж эсвэл бичиж дадлага хийгээрэй — би засаад тусалъя.
+        {t('chatGreetingBody')}
       </AppText>
     </View>
   );
@@ -357,9 +360,9 @@ function EmptyState({ buddy }: { buddy: Buddy | null }) {
 /** "3.5 / 25 мин" style label from voice usage seconds. */
 function formatUsage(u: BuddyUsageBlock): string {
   const used = (u.voice_seconds_used_this_month / 60).toFixed(1);
-  if (u.voice_seconds_limit_this_month == null) return `${used} мин`;
+  if (u.voice_seconds_limit_this_month == null) return `${used} ${t('unitMin')}`;
   const limit = Math.round(u.voice_seconds_limit_this_month / 60);
-  return `${used} / ${limit} мин`;
+  return `${used} / ${limit} ${t('unitMin')}`;
 }
 
 const makeStyles = (colors: AppColors) => StyleSheet.create({

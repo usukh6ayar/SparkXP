@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
-import { View, StyleSheet, ScrollView, Pressable, Image, Modal, Alert } from 'react-native';
+import { View, StyleSheet, ScrollView, Pressable, Image, Share } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { setStatusBarStyle } from 'expo-status-bar';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -10,17 +10,15 @@ import { useSettings } from '../../src/settings/SettingsContext';
 import * as usersApi from '../../src/api/users';
 import * as classesApi from '../../src/api/classes';
 import { getGamification, type Gamification } from '../../src/api/gamification';
-import { MN_PROVINCES as PROVINCES, UB_DISTRICTS } from '../../src/constants/locations';
-import { TopBar } from '../../src/components/TopBar';
 import { AppText } from '../../src/components/Text';
 import { Pill } from '../../src/components/Pill';
-import { TextField } from '../../src/components/TextField';
-import { SelectField } from '../../src/components/SelectField';
 import { Button } from '../../src/components/Button';
+import { EditProfileModal } from '../../src/components/EditProfileModal';
 import { resolveAvatar } from '../../src/lib/avatar';
+import { useAvatarPicker } from '../../src/lib/useAvatarPicker';
 import { useLogoutConfirm, useComingSoon } from '../../src/lib/useLogoutConfirm';
-import { alertError } from '../../src/lib/alerts';
-import { ROLE_LABEL } from '../../src/constants/roles';
+import { tf, type TranslationKey } from '../../src/i18n';
+import { ROLE_TKEY } from '../../src/constants/roles';
 import { colors, spacing, radius, tints, elevation, type PremiumPalette } from '../../src/theme/theme';
 
 type IconName = keyof typeof Ionicons.glyphMap;
@@ -74,12 +72,16 @@ function UsageBar({ p, st, label, used, limit, unit }: {
   );
 }
 
-const ACHIEVEMENTS: { icon: IconName; label: string; tint: { bg: string; fg: string }; earned: boolean }[] = [
-  { icon: 'book', label: 'Анхны хичээл', tint: tints.purple, earned: true },
-  { icon: 'trophy', label: 'Шилдэг сурагч', tint: tints.amber, earned: true },
-  { icon: 'flash', label: '10 дараалал', tint: tints.blue, earned: true },
-  { icon: 'calendar', label: '7 хоног дараалал', tint: tints.green, earned: true },
-  { icon: 'diamond', label: '100 очирхон', tint: tints.purple, earned: false },
+/** Progress the achievement predicates read from (all from real backend data). */
+type AchStats = { lessonsDone: number; quizzesDone: number; longestStreak: number; level: number; sparks: number };
+
+// Static badge config; `earned` is computed against the user's real stats below.
+const ACHIEVEMENT_DEFS: { icon: IconName; labelKey: TranslationKey; tint: { bg: string; fg: string }; earned: (s: AchStats) => boolean }[] = [
+  { icon: 'book', labelKey: 'achFirstLesson', tint: tints.purple, earned: (s) => s.lessonsDone >= 1 },
+  { icon: 'trophy', labelKey: 'achFirstQuiz', tint: tints.amber, earned: (s) => s.quizzesDone >= 1 },
+  { icon: 'calendar', labelKey: 'ach7DayStreak', tint: tints.green, earned: (s) => s.longestStreak >= 7 },
+  { icon: 'flash', labelKey: 'achLevel5', tint: tints.blue, earned: (s) => s.level >= 5 },
+  { icon: 'diamond', labelKey: 'ach100Sparks', tint: tints.purple, earned: (s) => s.sparks >= 100 },
 ];
 
 export default function ProfileScreen() {
@@ -117,6 +119,14 @@ export default function ProfileScreen() {
 
   const soon = useComingSoon();
   const confirmLogout = useLogoutConfirm();
+  const { pickPhoto, busy: avatarBusy } = useAvatarPicker();
+
+  // CEFR level (B1/B2…) chosen at registration; fall back to the graded level.
+  const cefr = (user?.level ?? gam?.cefrLevel ?? '').toUpperCase();
+
+  // Share a short "come learn with me" blurb via the OS share sheet.
+  const shareProfile = () =>
+    Share.share({ message: tf('shareProfileBody', { name: user?.fullName ?? 'SparkXP' }) });
 
   const xp = user?.xp ?? 0;
   const sparks = user?.sparks ?? 0;
@@ -126,25 +136,32 @@ export default function ProfileScreen() {
   const levelXp = gam?.levelXp ?? xp % LEVEL_SIZE;
   const levelTarget = gam?.levelTarget ?? LEVEL_SIZE;
   const streak = gam?.currentStreak ?? STREAK;
+  const longestStreak = gam?.longestStreak ?? 0;
   const lessonsDone = gam?.lessonsDone ?? 0;
   const quizzesDone = gam?.quizzesDone ?? 0;
 
+  // Achievement badges lit up from the user's real progress (see ACHIEVEMENT_DEFS).
+  const achievements = ACHIEVEMENT_DEFS.map((a) => ({
+    ...a,
+    earned: a.earned({ lessonsDone, quizzesDone, longestStreak, level, sparks }),
+  }));
+
   const STATS = [
-    { icon: 'flame' as IconName, value: streak, label: 'Өдөр дараалал', color: colors.streak },
-    { icon: 'diamond' as IconName, value: sparks, label: 'Очирхон', color: colors.sparks },
-    { icon: 'trophy' as IconName, value: quizzesDone, label: 'Сорил', color: colors.xp },
-    { icon: 'book' as IconName, value: lessonsDone, label: 'Хичээл', color: p.primaryLight },
+    { icon: 'flame' as IconName, value: streak, label: t('statStreak'), color: colors.streak },
+    { icon: 'diamond' as IconName, value: sparks, label: t('sparks'), color: colors.sparks },
+    { icon: 'trophy' as IconName, value: quizzesDone, label: t('statQuizzes'), color: colors.xp },
+    { icon: 'book' as IconName, value: lessonsDone, label: t('statLessons'), color: p.primaryLight },
   ];
 
+  // Quick menu. "My info" lives in the hero Edit-profile button (Instagram-style),
+  // and settings lives in the header — so neither is repeated here.
   const QUICK: { icon: IconName; label: string; tint: { bg: string; fg: string }; onPress: () => void }[] = [
-    { icon: 'person', label: 'Миний мэдээлэл', tint: tints.blue, onPress: () => setEditing(true) },
-    { icon: 'stats-chart', label: 'Миний ахиц', tint: tints.pink, onPress: () => router.push('/leaderboard') },
-    { icon: 'bookmark', label: 'Хадгалсан', tint: tints.green, onPress: () => router.push('/saved') },
-    { icon: 'notifications', label: 'Мэдэгдэл', tint: tints.orange, onPress: soon },
-    { icon: 'gift', label: 'Шагналууд', tint: tints.purple, onPress: soon },
-    { icon: 'time', label: 'Сүүлийн үзсэн', tint: tints.blue, onPress: soon },
-    { icon: 'heart', label: 'Дуртай', tint: tints.pink, onPress: soon },
-    { icon: 'settings', label: t('settings'), tint: tints.teal, onPress: () => router.push('/settings') },
+    { icon: 'stats-chart', label: t('myProgress'), tint: tints.pink, onPress: () => router.push('/leaderboard') },
+    { icon: 'bookmark', label: t('saved'), tint: tints.green, onPress: () => router.push('/saved') },
+    { icon: 'notifications', label: t('notifications'), tint: tints.orange, onPress: soon },
+    { icon: 'gift', label: t('rewards'), tint: tints.purple, onPress: soon },
+    { icon: 'time', label: t('recentlyViewed'), tint: tints.blue, onPress: soon },
+    { icon: 'heart', label: t('favorites'), tint: tints.pink, onPress: soon },
   ];
 
   return (
@@ -166,29 +183,35 @@ export default function ProfileScreen() {
             </View>
           </View>
 
-          {/* Profile hero — panel + glowing avatar */}
+          {/* Profile hero — panel + glowing avatar. Tapping the avatar / camera
+              changes the photo directly (no separate default-avatars screen). */}
           <View style={styles.hero}>
             <View style={styles.avatarOuter}>
               <View style={styles.avatarGlow} />
-              <Pressable onPress={() => router.push('/avatar')}>
+              <Pressable onPress={pickPhoto} disabled={avatarBusy}>
                 <LinearGradient colors={[p.primaryLight, p.primary]} style={styles.avatarRing}>
                   <Image source={resolveAvatar(user?.avatarUrl) ?? avatarImg} style={styles.avatar} resizeMode="cover" />
                 </LinearGradient>
               </Pressable>
-              <Pressable style={styles.editBtn} onPress={() => router.push('/avatar')} hitSlop={6}>
+              <Pressable style={styles.editBtn} onPress={pickPhoto} disabled={avatarBusy} hitSlop={6}>
                 <Ionicons name="camera" size={13} color={colors.white} />
               </Pressable>
             </View>
 
             <View style={styles.heroInfo}>
               <View style={styles.nameRow}>
-                <AppText variant="h2" color={p.text} numberOfLines={1}>{user?.fullName}</AppText>
+                <AppText variant="h2" color={p.text} numberOfLines={1} style={styles.name}>{user?.fullName}</AppText>
                 <Ionicons name="checkmark-circle" size={18} color={p.primaryLight} />
+                {cefr ? (
+                  <View style={styles.cefrBadge}>
+                    <AppText variant="label" color={p.primaryLight}>{cefr}</AppText>
+                  </View>
+                ) : null}
               </View>
-              <Pill label={ROLE_LABEL[user?.role ?? 'student'] ?? 'Сурагч'} bg={alpha(p.primary, 0.22)} fg={p.primaryLight} />
+              <Pill label={t(ROLE_TKEY[user?.role ?? 'student'] ?? 'roleStudent')} bg={alpha(p.primary, 0.22)} fg={p.primaryLight} />
               <View style={styles.levelRow}>
                 <Ionicons name="star" size={15} color={colors.xp} />
-                <AppText variant="bodyStrong" color={p.text}>Түвшин {level}</AppText>
+                <AppText variant="bodyStrong" color={p.text}>{t('levelLabel')} {level}</AppText>
               </View>
               {/* XP progress */}
               <View style={styles.xpTrack}>
@@ -201,6 +224,12 @@ export default function ProfileScreen() {
               </View>
               <AppText variant="caption" color={p.textMuted} style={styles.levelXp}>{levelXp} / {levelTarget} XP</AppText>
             </View>
+          </View>
+
+          {/* Edit / Share profile — Instagram-style action row */}
+          <View style={styles.profileActions}>
+            <Button label={t('editProfile')} variant="secondary" size="md" fullWidth={false} onPress={() => setEditing(true)} style={styles.actionBtn} />
+            <Button label={t('shareProfile')} variant="secondary" size="md" fullWidth={false} onPress={shareProfile} style={styles.actionBtn} />
           </View>
 
           {/* Stats — one card, four divided columns */}
@@ -219,7 +248,7 @@ export default function ProfileScreen() {
             <View style={styles.planCard}>
               <View style={styles.planTop}>
                 <View style={{ flex: 1 }}>
-                  <AppText variant="overline" color={p.textMuted}>МИНИЙ БАГЦ</AppText>
+                  <AppText variant="overline" color={p.textMuted}>{t('myPlan').toUpperCase()}</AppText>
                   <AppText variant="h3" color={p.text}>{plan.planName}</AppText>
                 </View>
                 <View style={[styles.planBadge, { backgroundColor: plan.isFree ? alpha(p.primary, 0.22) : colors.xp }]}>
@@ -232,28 +261,28 @@ export default function ProfileScreen() {
               {plan.limits ? (
                 <View style={styles.planUsage}>
                   {plan.limits.voiceMinutes != null ? (
-                    <UsageBar p={p} st={styles} label="AI яриа" used={plan.usage.voiceMinutes} limit={plan.limits.voiceMinutes} unit="мин" />
+                    <UsageBar p={p} st={styles} label={t('usageAiVoice')} used={plan.usage.voiceMinutes} limit={plan.limits.voiceMinutes} unit={t('unitMin')} />
                   ) : null}
                   {plan.limits.dictionaryAi != null ? (
-                    <UsageBar p={p} st={styles} label="Толь бичиг" used={plan.usage.dictionaryAi} limit={plan.limits.dictionaryAi} unit="" />
+                    <UsageBar p={p} st={styles} label={t('usageDictionary')} used={plan.usage.dictionaryAi} limit={plan.limits.dictionaryAi} unit="" />
                   ) : null}
                   {plan.limits.memoryMb != null ? (
-                    <UsageBar p={p} st={styles} label="Санах ой" used={plan.usage.memoryMb} limit={plan.limits.memoryMb} unit="MB" />
+                    <UsageBar p={p} st={styles} label={t('usageMemory')} used={plan.usage.memoryMb} limit={plan.limits.memoryMb} unit="MB" />
                   ) : null}
                 </View>
               ) : (
                 <AppText variant="caption" color={p.textSecondary} style={{ marginTop: 6 }}>
-                  Premium багцаар AI яриа, толь бичиг зэрэг илүү боломжийг нээгээрэй.
+                  {t('premiumHint')}
                 </AppText>
               )}
             </View>
           ) : null}
 
           {/* Achievements — large collectible badges */}
-          <SectionHead p={p} st={styles} title="Миний амжилтууд" actionLabel="Бүгдийг харах ›" onAction={soon} style={styles.section} />
+          <SectionHead p={p} st={styles} title={t('myAchievements')} actionLabel={`${t('seeAll')} ›`} onAction={soon} style={styles.section} />
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.achRow}>
-            {ACHIEVEMENTS.map((a) => (
-              <View key={a.label} style={styles.achItem}>
+            {achievements.map((a) => (
+              <View key={a.labelKey} style={styles.achItem}>
                 {a.earned ? (
                   <View style={[styles.achBadge, { backgroundColor: alpha(a.tint.fg, 0.14), borderColor: alpha(a.tint.fg, 0.4) }]}>
                     <Ionicons name={a.icon} size={32} color={a.tint.fg} />
@@ -263,20 +292,24 @@ export default function ProfileScreen() {
                     <Ionicons name="lock-closed" size={28} color={p.textMuted} />
                   </View>
                 )}
-                <AppText variant="caption" color={p.textSecondary} center numberOfLines={2} style={styles.achLabel}>{a.label}</AppText>
+                <AppText variant="caption" color={p.textSecondary} center numberOfLines={2} style={styles.achLabel}>{t(a.labelKey)}</AppText>
               </View>
             ))}
           </ScrollView>
 
-          {/* Quick menu */}
-          <SectionHead p={p} st={styles} title="Түргэн цэс" style={styles.section} />
+          {/* Quick menu — 2-column grid of tappable cards */}
+          <SectionHead p={p} st={styles} title={t('quickMenu')} style={styles.section} />
           <View style={styles.quickGrid}>
             {QUICK.map((q) => (
-              <Pressable key={q.label} style={({ pressed }) => [styles.quickItem, pressed && styles.pressed]} onPress={q.onPress}>
+              <Pressable
+                key={q.label}
+                style={({ pressed }) => [styles.quickCell, pressed && styles.pressed]}
+                onPress={q.onPress}
+              >
                 <View style={[styles.quickIcon, { backgroundColor: alpha(q.tint.fg, 0.16) }]}>
-                  <Ionicons name={q.icon} size={22} color={q.tint.fg} />
+                  <Ionicons name={q.icon} size={20} color={q.tint.fg} />
                 </View>
-                <AppText variant="caption" color={p.textSecondary} center numberOfLines={1} style={styles.quickLabel}>{q.label}</AppText>
+                <AppText variant="bodyStrong" color={p.text} numberOfLines={1} style={{ flex: 1 }}>{q.label}</AppText>
               </Pressable>
             ))}
           </View>
@@ -284,15 +317,15 @@ export default function ProfileScreen() {
           {/* My classes — which teacher's class the student joined */}
           <SectionHead
             p={p} st={styles}
-            title="Миний ангиуд"
-            actionLabel="Анги нэгдэх ›"
+            title={t('myClasses')}
+            actionLabel={`${t('joinClass')} ›`}
             onAction={() => router.push('/join')}
             style={styles.section}
           />
           {classes.length === 0 ? (
             <Pressable style={styles.joinEmpty} onPress={() => router.push('/join')}>
               <Ionicons name="add-circle-outline" size={20} color={p.primaryLight} />
-              <AppText variant="body" color={p.textSecondary}>Анги нэгдээгүй байна — нэгдэх</AppText>
+              <AppText variant="body" color={p.textSecondary}>{t('noClass')}</AppText>
             </Pressable>
           ) : (
             classes.map((c) => (
@@ -302,7 +335,7 @@ export default function ProfileScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <AppText variant="bodyStrong" color={p.text} numberOfLines={1}>{c.name}</AppText>
-                  {c.teacherName ? <AppText variant="caption" color={p.textMuted}>Багш: {c.teacherName}</AppText> : null}
+                  {c.teacherName ? <AppText variant="caption" color={p.textMuted}>{t('teacher')}: {c.teacherName}</AppText> : null}
                 </View>
               </View>
             ))
@@ -318,10 +351,10 @@ export default function ProfileScreen() {
                   <AppText variant="h3" color={colors.white}>SparkXP Premium</AppText>
                 </View>
                 <AppText variant="caption" color="rgba(255,255,255,0.85)" style={styles.premiumSub}>
-                  Давуу эрх, илүү их боломжууд
+                  {t('premiumSubtitle')}
                 </AppText>
                 <View style={styles.premiumBtn}>
-                  <AppText variant="bodyStrong" color={colors.primary}>Дэлгэрэнгүй →</AppText>
+                  <AppText variant="bodyStrong" color={colors.primary}>{t('learnMore')} →</AppText>
                 </View>
               </View>
               <AppText style={styles.treasure}>💎</AppText>
@@ -338,71 +371,10 @@ export default function ProfileScreen() {
         </ScrollView>
       </SafeAreaView>
 
-      <EditProfileModal
-        visible={editing}
-        onClose={() => setEditing(false)}
-        initialName={user?.fullName ?? ''}
-        token={token}
-      />
+      <EditProfileModal visible={editing} onClose={() => setEditing(false)} />
     </View>
   );
 }
-
-/** Edit-profile modal — keeps the existing PATCH /api/users/me logic. */
-function EditProfileModal({
-  visible, onClose, initialName, token,
-}: {
-  visible: boolean; onClose: () => void; initialName: string; token: string | null;
-}) {
-  const { colors: c } = useSettings();
-  const [fullName, setFullName] = useState(initialName);
-  const [province, setProvince] = useState('');
-  const [district, setDistrict] = useState('');
-  const [saving, setSaving] = useState(false);
-  const isUB = province === 'Улаанбаатар';
-
-  async function save() {
-    if (!fullName.trim()) { alertError('Нэрээ оруулна уу.'); return; }
-    setSaving(true);
-    try {
-      await usersApi.updateProfile(
-        { fullName: fullName.trim(), province: province || undefined, district: isUB ? district || undefined : undefined },
-        token!,
-      );
-      Alert.alert('Амжилттай', 'Профайл шинэчлэгдлээ.');
-      onClose();
-    } catch {
-      alertError('Хадгалахад алдаа гарлаа.');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView style={[modalStyles.safe, { backgroundColor: c.background }]} edges={['top', 'bottom']}>
-        <TopBar title="Профайл засах" showBadges={false} />
-        <ScrollView contentContainerStyle={{ padding: spacing.lg }}>
-          <TextField label="Бүтэн нэр" value={fullName} onChangeText={setFullName} placeholder="Нэрээ оруулна уу" />
-          <SelectField
-            label="Аймаг / Хот" value={province} options={PROVINCES}
-            placeholder="Сонгох (заавал биш)"
-            onSelect={(v) => { setProvince(v); setDistrict(''); }}
-          />
-          {isUB && (
-            <SelectField label="Дүүрэг" value={district} options={UB_DISTRICTS} placeholder="Дүүрэг сонгох" onSelect={setDistrict} />
-          )}
-          <Button label={saving ? 'Хадгалж байна...' : 'Хадгалах'} onPress={save} disabled={saving} style={{ marginTop: spacing.lg }} />
-          <Button label="Болих" variant="secondary" onPress={onClose} style={{ marginTop: spacing.md }} />
-        </ScrollView>
-      </SafeAreaView>
-    </Modal>
-  );
-}
-
-const modalStyles = StyleSheet.create({
-  safe: { flex: 1 }, // backgroundColor applied inline (reactive to theme)
-});
 
 const makeStyles = (p: PremiumPalette, isDark: boolean) => {
   // Dark cards need a border (shadows are invisible on the dark bg); light cards
@@ -451,10 +423,19 @@ const makeStyles = (p: PremiumPalette, isDark: boolean) => {
   },
   heroInfo: { flex: 1, gap: spacing.xs },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  name: { flexShrink: 1 },
+  cefrBadge: {
+    paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radius.full,
+    backgroundColor: alpha(p.primary, 0.22),
+  },
   levelRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
   xpTrack: { height: 12, borderRadius: 6, backgroundColor: p.track, overflow: 'hidden', marginTop: 4 },
   xpFill: { height: 12, borderRadius: 6 },
   levelXp: { alignSelf: 'flex-end', marginTop: 3 },
+
+  // Edit / Share action row
+  profileActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
+  actionBtn: { flex: 1 },
 
   section: { marginTop: spacing.xxl },
 
@@ -506,15 +487,13 @@ const makeStyles = (p: PremiumPalette, isDark: boolean) => {
   achLocked: { backgroundColor: p.track, borderColor: p.divider },
   achLabel: { marginTop: spacing.sm },
 
-  // Quick menu
-  quickGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: spacing.md },
-  quickItem: {
-    width: '23%', aspectRatio: 0.86, backgroundColor: p.card, borderRadius: radius.lg,
-    alignItems: 'center', justifyContent: 'center', gap: spacing.sm, paddingHorizontal: 2,
-    ...cardEdge,
+  // Quick menu — 2-column grid of compact cards
+  quickGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  quickCell: {
+    width: '48%', flexGrow: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    backgroundColor: p.card, borderRadius: radius.lg, padding: spacing.md, ...cardEdge,
   },
-  quickIcon: { width: 44, height: 44, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center' },
-  quickLabel: { marginTop: 2 },
+  quickIcon: { width: 38, height: 38, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
 
   // Premium
   premium: {

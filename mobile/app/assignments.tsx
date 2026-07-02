@@ -72,7 +72,7 @@ export default function AssignmentsScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <TopBar title={t('myAssignments')} back />
+      <TopBar title={t('myAssignments')} back showBadges={false} />
       {loading ? (
         <SkeletonRows count={4} style={styles.skeleton} />
       ) : (

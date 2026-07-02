@@ -117,7 +117,7 @@ export default function SorilScreen() {
   const pathDone = gam ? Math.min(PATH.length, Math.round(gam.progress * PATH.length)) : 0;
   const router = useRouter();
   const open = () =>
-    Alert.alert("Тун удахгүй", "Энэ тоглоом удахгүй нэмэгдэнэ. 🦊");
+    Alert.alert(t("comingSoon"), t("gameComingSoon"));
   const openGame = (g: Game) => (g.route ? router.push(g.route as never) : open());
   const GAMES = games(t);
 

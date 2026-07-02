@@ -1,65 +1,22 @@
-import { useState, useMemo } from 'react';
-import { View, Pressable, Image, StyleSheet, ActivityIndicator } from 'react-native';
+import { useMemo } from 'react';
+import { View, StyleSheet, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../src/auth/AuthContext';
-import { uploadAvatar, updateProfile } from '../src/api/users';
-import { ApiError } from '../src/api/client';
-import { DEFAULT_AVATARS } from '../src/lib/avatar';
+import { useAvatarPicker } from '../src/lib/useAvatarPicker';
 import { t } from '../src/i18n';
 import { AppText } from '../src/components/Text';
 import { Avatar } from '../src/components/Avatar';
 import { Button } from '../src/components/Button';
 import { TopBar } from '../src/components/TopBar';
-import { spacing, radius, type AppColors } from '../src/theme/theme';
+import { spacing, type AppColors } from '../src/theme/theme';
 import { useColors } from '../src/settings/SettingsContext';
 
+/** Change your profile photo. Just the photo picker — no default-avatar grid. */
 export default function AvatarScreen() {
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { user, token, updateUser } = useAuth();
-  const router = useRouter();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function pickFromPhotos() {
-    setError(null);
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) return setError(t('photoPermission'));
-
-    const res = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.7,
-    });
-    if (res.canceled || !token) return;
-
-    setBusy(true);
-    try {
-      const updated = await uploadAvatar(res.assets[0].uri, token);
-      await updateUser(updated);
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : t('errorGeneric'));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function pickDefault(key: string) {
-    if (!token) return;
-    setError(null);
-    setBusy(true);
-    try {
-      const updated = await updateProfile({ avatarUrl: key }, token);
-      await updateUser(updated);
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : t('errorGeneric'));
-    } finally {
-      setBusy(false);
-    }
-  }
+  const { user } = useAuth();
+  const { pickPhoto, busy, error } = useAvatarPicker();
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -80,28 +37,9 @@ export default function AvatarScreen() {
         <Button
           label={t('chooseFromPhotos')}
           icon="image-outline"
-          onPress={pickFromPhotos}
+          onPress={pickPhoto}
           disabled={busy}
         />
-      </View>
-
-      <AppText variant="label" color={colors.textSecondary} style={styles.section}>
-        {t('defaultAvatars')}
-      </AppText>
-      <View style={styles.grid}>
-        {DEFAULT_AVATARS.map((a) => {
-          const active = user?.avatarUrl === a.key;
-          return (
-            <Pressable
-              key={a.key}
-              onPress={() => pickDefault(a.key)}
-              disabled={busy}
-              style={[styles.cell, active && styles.cellActive]}
-            >
-              <Image source={a.src} style={styles.cellImg} resizeMode="cover" />
-            </Pressable>
-          );
-        })}
       </View>
     </SafeAreaView>
   );
@@ -113,21 +51,4 @@ const makeStyles = (colors: AppColors) => StyleSheet.create({
   busy: { position: 'absolute', top: 48 },
   error: { marginBottom: spacing.sm },
   actions: { paddingHorizontal: spacing.lg },
-  section: { paddingHorizontal: spacing.lg, marginTop: spacing.xl, marginBottom: spacing.sm },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.md,
-    paddingHorizontal: spacing.lg,
-  },
-  cell: {
-    width: 80,
-    height: 80,
-    borderRadius: radius.full,
-    borderWidth: 3,
-    borderColor: 'transparent',
-    overflow: 'hidden',
-  },
-  cellActive: { borderColor: colors.primary },
-  cellImg: { width: '100%', height: '100%', backgroundColor: colors.primarySoft },
 });

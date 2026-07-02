@@ -110,7 +110,7 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
       try {
         setResult(await lookupWord(token, clean));
       } catch (err) {
-        setError(err instanceof ApiError ? err.message : 'Олдсонгүй.');
+        setError(err instanceof ApiError ? err.message : t('notFoundShort'));
       } finally {
         setLoading(false);
       }
@@ -228,7 +228,7 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
                 style={styles.searchInput}
                 value={query}
                 onChangeText={setQuery}
-                placeholder="Англи үг хайх..."
+                placeholder={t('searchEnglishWord')}
                 placeholderTextColor={colors.textMuted}
                 autoCapitalize="none"
                 autoCorrect={false}

@@ -25,7 +25,7 @@ import { useColors } from '../../src/settings/SettingsContext';
 function fmtTime(sec: number): string {
   if (!sec) return '';
   const m = Math.round(sec / 60);
-  return m > 0 ? `${m} мин` : `${sec}с`;
+  return m > 0 ? `${m} ${t('unitMin')}` : `${sec}${t('unitSec')}`;
 }
 
 // Reading-body font size steps (base `body` variant is 15/22 — see theme.ts).
@@ -167,9 +167,9 @@ export default function ReadingDetailScreen() {
               </AppText>
             </View>
             {passage.category ? <Meta icon="pricetag-outline" text={passage.category} /> : null}
-            <Meta icon="document-text-outline" text={`${passage.wordCount} үг`} />
+            <Meta icon="document-text-outline" text={`${passage.wordCount} ${t('unitWords')}`} />
             {time ? <Meta icon="time-outline" text={time} /> : null}
-            <Meta icon="list-outline" text={`${passage.sentences.length} өгүүлбэр`} />
+            <Meta icon="list-outline" text={`${passage.sentences.length} ${t('unitSentences')}`} />
           </View>
 
           {/* Key vocabulary */}

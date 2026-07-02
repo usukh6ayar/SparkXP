@@ -77,13 +77,13 @@ export default function TeacherClassesScreen() {
           <View style={styles.heroTop}>
             <Avatar avatarUrl={user?.avatarUrl} name={user?.fullName} size={48} />
             <View style={{ flex: 1 }}>
-              <AppText variant="overline" color={colors.textOnDarkMuted}>БАГШИЙН САМБАР</AppText>
+              <AppText variant="overline" color={colors.textOnDarkMuted}>{t('teacherBoard')}</AppText>
               <AppText variant="h2" color={colors.white} numberOfLines={1}>{user?.fullName ?? ''}</AppText>
             </View>
           </View>
           <View style={styles.heroStats}>
             <Ionicons name="people" size={15} color={colors.white} />
-            <AppText variant="label" color={colors.white}>{classes.length} анги</AppText>
+            <AppText variant="label" color={colors.white}>{classes.length} {t('unitClasses')}</AppText>
           </View>
           <Pressable style={styles.heroBtn} onPress={() => router.push('/(teacher)/class/new')}>
             <Ionicons name="add" size={18} color={colors.primary} />

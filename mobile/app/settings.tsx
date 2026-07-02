@@ -9,9 +9,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../src/auth/AuthContext';
 import { useSettings } from '../src/settings/SettingsContext';
 import { AppText } from '../src/components/Text';
+import { EditProfileModal } from '../src/components/EditProfileModal';
 import { resolveAvatar } from '../src/lib/avatar';
 import { useLogoutConfirm, useComingSoon } from '../src/lib/useLogoutConfirm';
-import { ROLE_LABEL } from '../src/constants/roles';
+import { ROLE_TKEY } from '../src/constants/roles';
 import { colors, spacing, radius, tints, type PremiumPalette } from '../src/theme/theme';
 import type { Lang } from '../src/i18n';
 
@@ -94,6 +95,7 @@ export default function SettingsScreen() {
   const [notifications, setNotifications] = useState(true);
   const [sound, setSound] = useState(true);
   const [haptics, setHaptics] = useState(true);
+  const [editing, setEditing] = useState(false);
 
   // Restore switch prefs + keep the status bar readable for the active theme.
   useFocusEffect(
@@ -143,7 +145,7 @@ export default function SettingsScreen() {
             <View style={{ flex: 1 }}>
               <AppText variant="bodyStrong" color={p.text} numberOfLines={1}>{user?.fullName ?? '—'}</AppText>
               <AppText variant="caption" color={p.textMuted}>
-                {ROLE_LABEL[user?.role ?? 'student'] ?? 'Сурагч'}{user?.email ? ` · ${user.email}` : ''}
+                {t(ROLE_TKEY[user?.role ?? 'student'] ?? 'roleStudent')}{user?.email ? ` · ${user.email}` : ''}
               </AppText>
             </View>
             <Ionicons name="chevron-forward" size={18} color={p.textMuted} />
@@ -191,7 +193,7 @@ export default function SettingsScreen() {
           {/* Account */}
           <SectionLabel>{t('account').toUpperCase()}</SectionLabel>
           <Card p={p}>
-            <Row p={p} icon="person" tint={tints.blue} label={t('editProfile')} onPress={() => router.back()} />
+            <Row p={p} icon="person" tint={tints.blue} label={t('editProfile')} onPress={() => setEditing(true)} />
             <Row p={p} icon="lock-closed" tint={tints.purple} label={t('changePassword')} onPress={soon} />
             <Row p={p} icon="shield-checkmark" tint={tints.green} label={t('privacy')} onPress={soon} />
           </Card>
@@ -226,6 +228,8 @@ export default function SettingsScreen() {
           </View>
         </ScrollView>
       </SafeAreaView>
+
+      <EditProfileModal visible={editing} onClose={() => setEditing(false)} />
     </View>
   );
 }

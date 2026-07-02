@@ -19,12 +19,14 @@ import { getDue } from "../../src/api/reviews";
 import { getLessons } from "../../src/api/lessons";
 import { getExercises } from "../../src/api/quizzes";
 import { getReadingList } from "../../src/api/reading";
+import { getMyClasses } from "../../src/api/classes";
 import { getLastLesson, type LastLesson } from "../../src/lib/lastLesson";
 import { useDictionary } from "../../src/components/DictionaryProvider";
 import { AppText } from "../../src/components/Text";
 import { ProgressBar } from "../../src/components/ProgressBar";
 import { IconButton } from "../../src/components/IconButton";
 import { useColors, useSettings } from "../../src/settings/SettingsContext";
+import { tf, type TranslationKey } from "../../src/i18n";
 import {
   spacing,
   radius,
@@ -75,14 +77,14 @@ const HERO_PILL = "rgba(18,10,40,0.45)";
 // (listening/reading/writing/speaking). The per-tile count is fetched live.
 const TASKS: {
   key: string;
-  label: string;
+  labelKey: TranslationKey;
   icon: IconName;
   tint: { bg: string; fg: string };
 }[] = [
-  { key: "reading", label: "Унших", icon: "book", tint: tints.green },
-  { key: "listening", label: "Сонсох", icon: "headset", tint: tints.blue },
-  { key: "speaking", label: "Ярих", icon: "mic", tint: tints.pink },
-  { key: "writing", label: "Бичих", icon: "create", tint: tints.orange },
+  { key: "reading", labelKey: "catReading", icon: "book", tint: tints.green },
+  { key: "listening", labelKey: "catListening", icon: "headset", tint: tints.blue },
+  { key: "speaking", labelKey: "catSpeaking", icon: "mic", tint: tints.pink },
+  { key: "writing", labelKey: "catWriting", icon: "create", tint: tints.orange },
 ];
 
 export default function HomeScreen() {
@@ -108,6 +110,9 @@ export default function HomeScreen() {
   const [due, setDue] = useState(0);
   const [cont, setCont] = useState<{ lesson: LastLesson; resume: boolean } | null>(null);
   const [gam, setGam] = useState<Gamification | null>(null);
+  // Whether the student has joined a class — assignments come from a teacher's
+  // class, so the "My assignments" card only shows for enrolled students.
+  const [enrolled, setEnrolled] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   // How many published exercises each skill category has (keyed by TASKS.key).
   const [taskCounts, setTaskCounts] = useState<Record<string, number>>({});
@@ -115,15 +120,17 @@ export default function HomeScreen() {
   const load = useCallback(async () => {
     if (!token) return;
     try {
-      const [stats, dueList, gamification] = await Promise.all([
+      const [stats, dueList, gamification, myClasses] = await Promise.all([
         getStats(token),
         getDue(token),
         getGamification(token).catch(() => null),
+        getMyClasses(token).catch(() => null),
       ]);
       setXp(stats.xp);
       setSparks(stats.sparks);
       setDue(dueList.length);
       if (gamification) setGam(gamification);
+      setEnrolled((myClasses?.enrolled?.length ?? 0) > 0);
     } catch {
       // keep last values
     }
@@ -246,7 +253,7 @@ export default function HomeScreen() {
                   color={c.textOnDarkMuted}
                   style={styles.sub}
                 >
-                  Өнөөдөр шинэ зүйл сурч, өөрийгөө ахиулцгаая! ✨
+                  {t("homeSubtitle")}
                 </AppText>
               </View>
               <View style={styles.headerIcons}>
@@ -264,10 +271,10 @@ export default function HomeScreen() {
                 <AppText variant="h2" color={c.white}>{streak}</AppText>
                 <View>
                   <AppText variant="caption" color={c.textOnDark}>
-                    Өдөр дараалал
+                    {t("statStreak")}
                   </AppText>
                   <AppText variant="caption" color={c.textOnDarkMuted}>
-                    Keep going!
+                    {t("keepGoing")}
                   </AppText>
                 </View>
               </View>
@@ -275,7 +282,7 @@ export default function HomeScreen() {
                 <View style={styles.heroPill}>
                   <Ionicons name="diamond" size={25} color={c.sparks} />
                   <AppText variant="label" color={c.white}>
-                    {sparks} Очирхон
+                    {sparks} {t("sparks")}
                   </AppText>
                 </View>
                 <View style={styles.heroPill}>
@@ -305,7 +312,7 @@ export default function HomeScreen() {
               />
               <View style={styles.continueBody}>
                 <AppText variant="overline" color={c.textOnDarkMuted}>
-                  {cont.resume ? "ҮРГЭЛЖЛҮҮЛЖ СУРАХ" : "СУРАЛЦАЖ ЭХЛЭХ"}
+                  {(cont.resume ? t("resumeLearning") : t("startLearning")).toUpperCase()}
                 </AppText>
                 <AppText variant="h2" color={c.white} numberOfLines={1}>
                   {cont.lesson.title}
@@ -340,11 +347,9 @@ export default function HomeScreen() {
               <Ionicons name="alarm" size={26} color={tints.purple.fg} />
             </View>
             <View style={styles.reviewBody}>
-              <AppText variant="h3">Давтах үгс</AppText>
+              <AppText variant="h3">{t("reviewWords")}</AppText>
               <AppText variant="caption" style={styles.reviewSub}>
-                {due > 0
-                  ? `${due} үг давтах хугацаатай байна`
-                  : "Өнөөдөр давтах үг алга"}
+                {due > 0 ? tf("wordsDueCount", { n: due }) : t("noWordsDue")}
               </AppText>
               <Pressable
                 style={({ pressed }) => [
@@ -354,7 +359,7 @@ export default function HomeScreen() {
                 onPress={() => router.push("/swipe")}
               >
                 <AppText variant="bodyStrong" color={c.white}>
-                  Давтах эхлэх
+                  {t("startReview")}
                 </AppText>
               </Pressable>
             </View>
@@ -365,27 +370,30 @@ export default function HomeScreen() {
             />
           </View>
 
-          {/* My assignments */}
-          <Pressable
-            style={({ pressed }) => [styles.joinCard, pressed && styles.pressed]}
-            onPress={() => router.push("/assignments")}
-          >
-            <View style={[styles.joinIcon, { backgroundColor: tints.green.bg, borderColor: tints.green.fg }]}>
-              <Ionicons name="clipboard" size={24} color={tints.green.fg} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <AppText variant="h3">{t("myAssignments")}</AppText>
-              <AppText variant="caption">Багшийн оноосон хичээл, сорил</AppText>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={c.borderStrong} />
-          </Pressable>
+          {/* My assignments — only for students enrolled in a class (that's
+              where assignments come from). */}
+          {enrolled ? (
+            <Pressable
+              style={({ pressed }) => [styles.joinCard, pressed && styles.pressed]}
+              onPress={() => router.push("/assignments")}
+            >
+              <View style={[styles.joinIcon, { backgroundColor: tints.green.bg, borderColor: tints.green.fg }]}>
+                <Ionicons name="clipboard" size={24} color={tints.green.fg} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <AppText variant="h3">{t("myAssignments")}</AppText>
+                <AppText variant="caption">{t("assignmentsSubtitle")}</AppText>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={c.borderStrong} />
+            </Pressable>
+          ) : null}
 
           {/* Today's tasks — each tile opens its skill screen of exercises */}
           <View style={styles.sectionRow}>
-            <AppText variant="h2">Өнөөдрийн даалгавар</AppText>
+            <AppText variant="h2">{t("todaysTasks")}</AppText>
             <View style={styles.countPill}>
               <AppText variant="label" color={c.textSecondary}>
-                {totalExercises} дасгал
+                {tf("exerciseCount", { n: totalExercises })}
               </AppText>
             </View>
           </View>
@@ -404,12 +412,12 @@ export default function HomeScreen() {
                     <Ionicons name={task.icon} size={24} color={task.tint.fg} />
                   </View>
                   <AppText variant="label" numberOfLines={1}>
-                    {task.label}
+                    {t(task.labelKey)}
                   </AppText>
                   <View style={styles.taskCount}>
                     <Ionicons name="ribbon" size={12} color={c.xp} />
                     <AppText variant="caption">
-                      {count} дасгал
+                      {tf("exerciseCount", { n: count })}
                     </AppText>
                   </View>
                 </Pressable>

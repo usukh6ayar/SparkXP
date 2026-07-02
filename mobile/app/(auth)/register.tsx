@@ -10,6 +10,7 @@ import { t } from '../../src/i18n';
 import { spacing, radius, type AppColors } from '../../src/theme/theme';
 import { useColors } from '../../src/settings/SettingsContext';
 import { MN_PROVINCES, UB_DISTRICTS } from '../../src/constants/locations';
+import { CEFR_LEVELS } from '../../src/constants/levels';
 import { Screen } from '../../src/components/Screen';
 import { AppText } from '../../src/components/Text';
 import { TextField } from '../../src/components/TextField';
@@ -32,14 +33,8 @@ const CONFETTI = [
   { top: 120, right: 36, color: '#5A28F0' }, // primaryDark
 ];
 
-// Placement levels (CEFR) with a short Mongolian hint.
-const LEVELS: { value: string; label: string; desc: string }[] = [
-  { value: 'a1', label: 'A1 — Анхан', desc: 'Шинээр эхэлж байна' },
-  { value: 'a2', label: 'A2 — Бага', desc: 'Энгийн өгүүлбэр ойлгоно' },
-  { value: 'b1', label: 'B1 — Дунд', desc: 'Өдөр тутмын яриа' },
-  { value: 'b2', label: 'B2 — Ахисан', desc: 'Чөлөөтэй харилцана' },
-  { value: 'c1', label: 'C1 — Гүнзгий', desc: 'Бараг төгс' },
-];
+// Placement levels (CEFR) — shared with the edit-profile form.
+const LEVELS = CEFR_LEVELS;
 
 // Suggested English names (student can reshuffle / keep blank).
 const ENGLISH_NAMES = [
@@ -329,8 +324,8 @@ export default function RegisterScreen() {
                 onPress={() => setLevel(lv.value)}
               >
                 <View style={{ flex: 1 }}>
-                  <AppText variant="bodyStrong" color={active ? colors.primary : colors.text}>{lv.label}</AppText>
-                  <AppText variant="caption">{lv.desc}</AppText>
+                  <AppText variant="bodyStrong" color={active ? colors.primary : colors.text}>{lv.code} — {t(lv.labelKey)}</AppText>
+                  <AppText variant="caption">{t(lv.descKey)}</AppText>
                 </View>
                 <Ionicons
                   name={active ? 'radio-button-on' : 'radio-button-off'}

@@ -376,6 +376,151 @@ const mn = {
   quizRunnerLoadError: 'Сорил ачаалахад алдаа гарлаа.',
   required: 'Заавал бөглөнө үү',
   comingSoon: 'Тун удахгүй',
+
+  // Profile
+  levelLabel: 'Түвшин',
+  statStreak: 'Өдөр дараалал',
+  statQuizzes: 'Сорил',
+  statLessons: 'Хичээл',
+  myPlan: 'Миний багц',
+  premiumHint: 'Premium багцаар AI яриа, толь бичиг зэрэг илүү боломжийг нээгээрэй.',
+  usageAiVoice: 'AI яриа',
+  usageDictionary: 'Толь бичиг',
+  usageMemory: 'Санах ой',
+  unitMin: 'мин',
+  myAchievements: 'Миний амжилтууд',
+  seeAll: 'Бүгдийг харах',
+  achFirstLesson: 'Анхны хичээл',
+  achFirstQuiz: 'Анхны сорил',
+  ach7DayStreak: '7 хоног дараалал',
+  achLevel5: 'Түвшин 5',
+  ach100Sparks: '100 очирхон',
+  quickMenu: 'Түргэн цэс',
+  myInfo: 'Миний мэдээлэл',
+  myProgress: 'Миний ахиц',
+  saved: 'Хадгалсан',
+  rewards: 'Шагналууд',
+  recentlyViewed: 'Сүүлийн үзсэн',
+  favorites: 'Дуртай',
+  myClasses: 'Миний ангиуд',
+  noClass: 'Анги нэгдээгүй байна — нэгдэх',
+  premiumSubtitle: 'Давуу эрх, илүү их боломжууд',
+  learnMore: 'Дэлгэрэнгүй',
+  enterName: 'Нэрээ оруулна уу',
+  selectOptional: 'Сонгох (заавал биш)',
+  success: 'Амжилттай',
+  profileUpdated: 'Профайл шинэчлэгдлээ.',
+  saveError: 'Хадгалахад алдаа гарлаа.',
+  roleStudent: 'Сурагч',
+  roleAdmin: 'Админ',
+  roleSuperAdmin: 'Супер админ',
+
+  // Home
+  homeSubtitle: 'Өнөөдөр шинэ зүйл сурч, өөрийгөө ахиулцгаая! ✨',
+  keepGoing: 'Урагшлаарай!',
+  resumeLearning: 'Үргэлжлүүлж сурах',
+  wordsDueCount: '{n} үг давтах хугацаатай байна',
+  noWordsDue: 'Өнөөдөр давтах үг алга',
+  startReview: 'Давтах эхлэх',
+  assignmentsSubtitle: 'Багшийн оноосон хичээл, сорил',
+  todaysTasks: 'Өнөөдрийн даалгавар',
+  exerciseCount: '{n} дасгал',
+  questionCount: '{n} асуулт',
+
+  // Lessons world
+  lessonsWorldTitle: 'Хичээлийн ертөнц',
+  lessonsWorldSubtitle: 'Адал явдлаар дамжуулж англи хэлээ эзэмш!',
+  xpPoints: 'XP оноо',
+  unlockAtLevel: 'Түвшин {n}-д\nнээгдэнэ',
+
+  // Soril / games
+  gameComingSoon: 'Энэ тоглоом удахгүй нэмэгдэнэ. 🦊',
+
+  // Chat (AI buddy)
+  aiBuddyShort: 'AI Найз',
+  chatSessionError: 'Session эхлүүлж чадсангүй. Дахин оролдоно уу.',
+  voiceEndedTitle: 'Дуут яриа дууслаа',
+  voiceLimitReached: 'Энэ сарын дуут ярианы хязгаар дууслаа. Бичгээр үргэлжлүүлж болно.',
+  chatReplyError: 'Уучлаарай, алдаа гарлаа. Дахин оролдоорой.',
+  permissionTitle: 'Зөвшөөрөл',
+  micPermission: 'Микрофон ашиглах зөвшөөрөл шаардлагатай.',
+  recordStartError: 'Бичлэг эхлүүлж чадсангүй.',
+  typing: 'бичиж байна...',
+  voiceMonthEnded: 'Дуут яриа энэ сард дууслаа — бичгээр үргэлжлүүлээрэй.',
+  listeningPlaceholder: 'Сонсож байна…',
+  chatGreeting: 'Сайн уу! Би {name} 👋',
+  chatGreetingBody: 'Ярьж эсвэл бичиж дадлага хийгээрэй — би засаад тусалъя.',
+  defaultBuddyName: 'Спарк',
+
+  // Quiz runner
+  submitAnswerError: 'Хариулт илгээхэд алдаа гарлаа.',
+  quizPassed: 'Тэнцлээ!',
+  quizTryAgain: 'Дахин оролдоорой',
+  pointsUnit: 'оноо',
+  finish: 'Дуусгах',
+  matchPairsPrompt: 'Зөв хосыг нь холбоно уу',
+  submitting: 'Илгээж байна...',
+  scoreLine: '{score} / {total} оноо',
+
+  // Tab bar
+  tabLessons: 'Хичээл',
+
+  // Category browser
+  otherTopic: 'Бусад',
+
+  // Dictionary
+  notFoundShort: 'Олдсонгүй.',
+  searchEnglishWord: 'Англи үг хайх...',
+
+  // CEFR levels (register)
+  cefrA1: 'Анхан',
+  cefrA1Desc: 'Шинээр эхэлж байна',
+  cefrA2: 'Бага',
+  cefrA2Desc: 'Энгийн өгүүлбэр ойлгоно',
+  cefrB1: 'Дунд',
+  cefrB1Desc: 'Өдөр тутмын яриа',
+  cefrB2: 'Ахисан',
+  cefrB2Desc: 'Чөлөөтэй харилцана',
+  cefrC1: 'Гүнзгий',
+  cefrC1Desc: 'Бараг төгс',
+
+  // Logo
+  logoTagline: 'Суралц • Дадлага • Амжилт',
+
+  // Leaderboard periods
+  periodWeekly: 'Долоо хоног',
+  periodMonthly: 'Сар',
+  periodAllTime: 'Бүх цаг',
+  youSuffix: '(Та)',
+
+  // Skill labels (Lessons list + detail)
+  skillGrammar: 'Дүрэм',
+  skillVocabulary: 'Үгсийн сан',
+  skillDefault: 'Хичээл',
+
+  // Units
+  unitSec: 'с',
+  unitWords: 'үг',
+  unitSentences: 'өгүүлбэр',
+  unitClasses: 'анги',
+
+  // Teacher
+  teacherBoard: 'БАГШИЙН САМБАР',
+  rankingsTab: 'Чансаа',
+  due1Day: '1 хоног',
+  due3Days: '3 хоног',
+  due7Days: '7 хоног',
+
+  // Join class
+  joinShareBody: 'SparkXP анги нэгдэх код: {code}',
+
+  // Profile actions
+  shareProfile: 'Профайл хуваалцах',
+  shareProfileBody: '{name} SparkXP дээр англи хэл сурч байна! 🦊',
+  englishLevel: 'Англи хэлний түвшин',
+
+  // Network / generic
+  errorFallback: 'Алдаа гарлаа',
 };
 
 export type TranslationKey = keyof typeof mn;
@@ -723,6 +868,151 @@ const en: Record<TranslationKey, string> = {
   quizRunnerLoadError: 'Could not load the quiz. Please try again.',
   required: 'Required',
   comingSoon: 'Coming soon',
+
+  // Profile
+  levelLabel: 'Level',
+  statStreak: 'Day streak',
+  statQuizzes: 'Quizzes',
+  statLessons: 'Lessons',
+  myPlan: 'My plan',
+  premiumHint: 'Unlock AI voice, dictionary and more with Premium.',
+  usageAiVoice: 'AI voice',
+  usageDictionary: 'Dictionary',
+  usageMemory: 'Memory',
+  unitMin: 'min',
+  myAchievements: 'My achievements',
+  seeAll: 'See all',
+  achFirstLesson: 'First lesson',
+  achFirstQuiz: 'First quiz',
+  ach7DayStreak: '7-day streak',
+  achLevel5: 'Level 5',
+  ach100Sparks: '100 sparks',
+  quickMenu: 'Quick menu',
+  myInfo: 'My info',
+  myProgress: 'My progress',
+  saved: 'Saved',
+  rewards: 'Rewards',
+  recentlyViewed: 'Recently viewed',
+  favorites: 'Favorites',
+  myClasses: 'My classes',
+  noClass: "You haven't joined a class — join",
+  premiumSubtitle: 'Perks and more features',
+  learnMore: 'Learn more',
+  enterName: 'Enter your name',
+  selectOptional: 'Select (optional)',
+  success: 'Success',
+  profileUpdated: 'Profile updated.',
+  saveError: 'Failed to save.',
+  roleStudent: 'Student',
+  roleAdmin: 'Admin',
+  roleSuperAdmin: 'Super admin',
+
+  // Home
+  homeSubtitle: 'Learn something new today and level up! ✨',
+  keepGoing: 'Keep going!',
+  resumeLearning: 'Resume learning',
+  wordsDueCount: '{n} words due for review',
+  noWordsDue: 'No words to review today',
+  startReview: 'Start review',
+  assignmentsSubtitle: 'Lessons and quizzes from your teacher',
+  todaysTasks: "Today's tasks",
+  exerciseCount: '{n} exercises',
+  questionCount: '{n} questions',
+
+  // Lessons world
+  lessonsWorldTitle: 'Lesson world',
+  lessonsWorldSubtitle: 'Master English through adventure!',
+  xpPoints: 'XP',
+  unlockAtLevel: 'Unlocks at\nlevel {n}',
+
+  // Soril / games
+  gameComingSoon: 'This game is coming soon. 🦊',
+
+  // Chat (AI buddy)
+  aiBuddyShort: 'AI Buddy',
+  chatSessionError: "Couldn't start a session. Please try again.",
+  voiceEndedTitle: 'Voice chat ended',
+  voiceLimitReached: "You've reached this month's voice limit. You can keep going in text.",
+  chatReplyError: 'Sorry, something went wrong. Please try again.',
+  permissionTitle: 'Permission',
+  micPermission: 'Microphone permission is required.',
+  recordStartError: "Couldn't start recording.",
+  typing: 'is typing...',
+  voiceMonthEnded: "Voice chat is used up this month — keep going in text.",
+  listeningPlaceholder: 'Listening…',
+  chatGreeting: "Hi! I'm {name} 👋",
+  chatGreetingBody: 'Practice by speaking or typing — I\'ll help and correct you.',
+  defaultBuddyName: 'Spark',
+
+  // Quiz runner
+  submitAnswerError: 'Failed to submit your answer.',
+  quizPassed: 'You passed!',
+  quizTryAgain: 'Try again',
+  pointsUnit: 'pts',
+  finish: 'Finish',
+  matchPairsPrompt: 'Match the correct pairs',
+  submitting: 'Submitting...',
+  scoreLine: '{score} / {total} pts',
+
+  // Tab bar
+  tabLessons: 'Lessons',
+
+  // Category browser
+  otherTopic: 'Other',
+
+  // Dictionary
+  notFoundShort: 'Not found.',
+  searchEnglishWord: 'Search English word...',
+
+  // CEFR levels (register)
+  cefrA1: 'Beginner',
+  cefrA1Desc: 'Just getting started',
+  cefrA2: 'Elementary',
+  cefrA2Desc: 'Understands simple sentences',
+  cefrB1: 'Intermediate',
+  cefrB1Desc: 'Everyday conversation',
+  cefrB2: 'Upper-intermediate',
+  cefrB2Desc: 'Communicates fluently',
+  cefrC1: 'Advanced',
+  cefrC1Desc: 'Almost fluent',
+
+  // Logo
+  logoTagline: 'Learn • Practice • Achieve',
+
+  // Leaderboard periods
+  periodWeekly: 'Weekly',
+  periodMonthly: 'Monthly',
+  periodAllTime: 'All time',
+  youSuffix: '(You)',
+
+  // Skill labels (Lessons list + detail)
+  skillGrammar: 'Grammar',
+  skillVocabulary: 'Vocabulary',
+  skillDefault: 'Lesson',
+
+  // Units
+  unitSec: 's',
+  unitWords: 'words',
+  unitSentences: 'sentences',
+  unitClasses: 'classes',
+
+  // Teacher
+  teacherBoard: 'TEACHER BOARD',
+  rankingsTab: 'Rankings',
+  due1Day: '1 day',
+  due3Days: '3 days',
+  due7Days: '7 days',
+
+  // Join class
+  joinShareBody: 'SparkXP class join code: {code}',
+
+  // Profile actions
+  shareProfile: 'Share profile',
+  shareProfileBody: '{name} is learning English on SparkXP! 🦊',
+  englishLevel: 'English level',
+
+  // Network / generic
+  errorFallback: 'Something went wrong',
 };
 
 const dictionaries = { mn, en };
@@ -740,4 +1030,12 @@ export function getLanguage(): Lang {
 
 export function t(key: TranslationKey): string {
   return dictionaries[lang][key] ?? key;
+}
+
+/**
+ * Formatted translation: replaces `{name}` placeholders in the translated
+ * string with values from `vars`, e.g. tf('exerciseCount', { n: 5 }).
+ */
+export function tf(key: TranslationKey, vars: Record<string, string | number>): string {
+  return t(key).replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? `{${k}}`));
 }

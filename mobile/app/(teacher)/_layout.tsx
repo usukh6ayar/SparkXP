@@ -31,7 +31,7 @@ export default function TeacherLayout() {
       <Tabs.Screen
         name="leaderboard"
         options={{
-          title: 'Чансаа',
+          title: t('rankingsTab'),
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="trophy" size={size} color={color} />
           ),

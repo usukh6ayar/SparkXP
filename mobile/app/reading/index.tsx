@@ -56,7 +56,7 @@ export default function ReadingListScreen() {
       passages.map((p) => ({
         id: p.id,
         title: p.title,
-        subtitle: `${p.cefr?.toUpperCase()} · ${p.wordCount} үг · ~${Math.max(1, Math.round(p.estimatedReadingTime / 60))} мин`,
+        subtitle: `${p.cefr?.toUpperCase()} · ${p.wordCount} ${t('unitWords')} · ~${Math.max(1, Math.round(p.estimatedReadingTime / 60))} ${t('unitMin')}`,
         category: p.category,
       })),
     [passages],

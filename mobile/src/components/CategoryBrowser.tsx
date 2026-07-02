@@ -22,8 +22,6 @@ export type BrowserItem = {
 // Row visuals cycle through a palette so lists stay lively.
 const TINT_CYCLE: TintName[] = ['green', 'amber', 'pink', 'purple', 'blue', 'teal', 'orange'];
 
-/** Items with no сэдэв fall under this bucket. */
-const NO_TOPIC = 'Бусад';
 
 /**
  * Two-level сэдэв browser shared by Reading and the skill exercise screens:
@@ -66,6 +64,9 @@ export function CategoryBrowser({
   const c = useColors();
   const styles = useMemo(() => makeStyles(c), [c]);
 
+  // Items with no сэдэв fall under this bucket (follows the app language).
+  const NO_TOPIC = t('otherTopic');
+
   // Group items by сэдэв, preserving first-seen order.
   const categories = useMemo(() => {
     const map = new Map<string, BrowserItem[]>();
@@ -76,7 +77,7 @@ export function CategoryBrowser({
       map.set(cat, list);
     }
     return Array.from(map.entries());
-  }, [items]);
+  }, [items, NO_TOPIC]);
 
   const shown = selectedCat
     ? items.filter((it) => (it.category?.trim() || NO_TOPIC) === selectedCat)

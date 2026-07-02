@@ -50,7 +50,7 @@ export default function LeaderboardScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <TopBar title={t('leaderboardTitle')} back />
+      <TopBar title={t('leaderboardTitle')} back showBadges={false} />
 
       {/* Period segmented control */}
       <PeriodTabs value={period} options={PERIODS} onChange={setPeriod} style={styles.tabs} />

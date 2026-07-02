@@ -12,7 +12,7 @@ import { Button } from '../../src/components/Button';
 import { Skeleton } from '../../src/components/Skeleton';
 import { EmptyState } from '../../src/components/EmptyState';
 import { alertError } from '../../src/lib/alerts';
-import { t } from '../../src/i18n';
+import { t, tf } from '../../src/i18n';
 import { useColors } from '../../src/settings/SettingsContext';
 import { spacing, radius, fontSize, type AppColors } from '../../src/theme/theme';
 
@@ -102,7 +102,7 @@ export default function QuizScreen() {
       setResult(res);
       setPhase('result');
     } catch {
-      alertError('Хариулт илгээхэд алдаа гарлаа.');
+      alertError(t('submitAnswerError'));
     } finally {
       setSubmitting(false);
     }
@@ -144,11 +144,11 @@ export default function QuizScreen() {
         <ScrollView contentContainerStyle={styles.container}>
           <Text style={styles.resultEmoji}>{result.passed ? '🎉' : '😅'}</Text>
           <Text style={styles.resultTitle}>
-            {result.passed ? 'Тэнцлээ!' : 'Дахин оролдоорой'}
+            {result.passed ? t('quizPassed') : t('quizTryAgain')}
           </Text>
           <Text style={styles.resultScore}>{result.percentage}%</Text>
           <Text style={styles.resultSub}>
-            {result.score} / {result.total} оноо
+            {tf('scoreLine', { score: result.score, total: result.total })}
           </Text>
 
           {result.xpEarned > 0 && (
@@ -164,12 +164,12 @@ export default function QuizScreen() {
                 <Text style={b.correct ? styles.correct : styles.wrong}>
                   {b.correct ? '✓' : '✗'}
                 </Text>
-                <Text style={styles.breakdownPts}>{b.points} оноо</Text>
+                <Text style={styles.breakdownPts}>{b.points} {t('pointsUnit')}</Text>
               </View>
             ))}
           </View>
 
-          <Button label="Дуусгах" onPress={() => router.back()} style={{ marginTop: spacing.lg }} />
+          <Button label={t('finish')} onPress={() => router.back()} style={{ marginTop: spacing.lg }} />
         </ScrollView>
       </SafeAreaView>
     );
@@ -199,7 +199,7 @@ export default function QuizScreen() {
       <ScrollView contentContainerStyle={styles.container}>
         <Text style={styles.quizTitle}>{quiz!.title}</Text>
         <Text style={styles.questionText}>
-          {currentQ!.question ?? (currentQ!.type === 'word_match' ? 'Зөв хосыг нь холбоно уу' : '')}
+          {currentQ!.question ?? (currentQ!.type === 'word_match' ? t('matchPairsPrompt') : '')}
         </Text>
 
         {currentQ!.type === 'multiple_choice' && (
@@ -271,7 +271,7 @@ export default function QuizScreen() {
         )}
 
         <Button
-          label={isLast ? (submitting ? 'Илгээж байна...' : t('submit')) : t('next')}
+          label={isLast ? (submitting ? t('submitting') : t('submit')) : t('next')}
           onPress={isLast ? handleSubmit : nextQuestion}
           disabled={!canAdvance() || submitting}
           style={{ marginTop: spacing.xl }}

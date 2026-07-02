@@ -9,19 +9,20 @@ import type { AssignmentType } from '../../../../src/api/assignments';
 import { getLessons } from '../../../../src/api/lessons';
 import { getQuizzes } from '../../../../src/api/quizzes';
 import { ApiError } from '../../../../src/api/client';
-import { t } from '../../../../src/i18n';
+import { t, type TranslationKey } from '../../../../src/i18n';
 import { AppText } from '../../../../src/components/Text';
 import { SelectField } from '../../../../src/components/SelectField';
 import { Button } from '../../../../src/components/Button';
 import { spacing, radius, type AppColors } from '../../../../src/theme/theme';
 import { useColors } from '../../../../src/settings/SettingsContext';
 
-// Due-date presets (no native date-picker dependency for the MVP).
-const DUE_PRESETS: { label: string; days: number | null }[] = [
-  { label: 'Хугацаагүй', days: null },
-  { label: '1 хоног', days: 1 },
-  { label: '3 хоног', days: 3 },
-  { label: '7 хоног', days: 7 },
+// Due-date presets (no native date-picker dependency for the MVP). Labels are
+// i18n keys, resolved with t() at render so they follow the app language.
+const DUE_PRESETS: { labelKey: TranslationKey; days: number | null }[] = [
+  { labelKey: 'noDueDate', days: null },
+  { labelKey: 'due1Day', days: 1 },
+  { labelKey: 'due3Days', days: 3 },
+  { labelKey: 'due7Days', days: 7 },
 ];
 
 export default function AssignScreen() {
@@ -38,7 +39,8 @@ export default function AssignScreen() {
   });
   const [loading, setLoading] = useState(true);
   const [selectedTitle, setSelectedTitle] = useState<string | undefined>();
-  const [duePreset, setDuePreset] = useState<string>(DUE_PRESETS[0].label);
+  const [dueIdx, setDueIdx] = useState(0);
+  const dueLabels = DUE_PRESETS.map((p) => t(p.labelKey));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -66,10 +68,10 @@ export default function AssignScreen() {
   }
 
   function computeDueAt(): string | undefined {
-    const preset = DUE_PRESETS.find((p) => p.label === duePreset);
-    if (!preset?.days) return undefined;
+    const days = DUE_PRESETS[dueIdx]?.days;
+    if (!days) return undefined;
     const d = new Date();
-    d.setDate(d.getDate() + preset.days);
+    d.setDate(d.getDate() + days);
     return d.toISOString();
   }
 
@@ -134,9 +136,9 @@ export default function AssignScreen() {
             <SelectField
               label={t('dueDate')}
               placeholder={t('noDueDate')}
-              value={duePreset}
-              options={DUE_PRESETS.map((p) => p.label)}
-              onSelect={setDuePreset}
+              value={dueLabels[dueIdx]}
+              options={dueLabels}
+              onSelect={(label) => setDueIdx(Math.max(0, dueLabels.indexOf(label)))}
             />
             {error ? (
               <AppText variant="caption" color={colors.danger} style={{ marginBottom: spacing.sm }}>
