@@ -18,6 +18,7 @@ import OrganizationsPage from './pages/organizations/OrganizationsPage';
 import UsagePage from './pages/usage/UsagePage';
 import NotificationsPage from './pages/notifications/NotificationsPage';
 import GuidePage from './pages/guide/GuidePage';
+import SafetyEventsPage from './pages/safety/SafetyEventsPage';
 
 export default function App() {
   return (
@@ -48,6 +49,7 @@ export default function App() {
             <Route path="/notifications" element={<NotificationsPage />} />
             <Route path="/monitor"       element={<MonitorPage />} />
             <Route path="/settings"      element={<SettingsPage />} />
+            <Route path="/safety"        element={<SafetyEventsPage />} />
             <Route path="/guide"         element={<GuidePage />} />
           </Route>
 

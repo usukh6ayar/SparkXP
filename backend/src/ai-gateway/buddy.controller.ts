@@ -5,6 +5,7 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   ParseUUIDPipe,
   UseGuards,
   UseInterceptors,
@@ -14,10 +15,17 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { UserRole } from '../common/enums';
 import { User } from '../entities/user.entity';
 import { BuddyService } from './buddy.service';
-import { StartSessionDto, TextTurnDto } from './dto/buddy-turn.dto';
+import {
+  StartSessionDto,
+  TextTurnDto,
+  TestVoiceDto,
+} from './dto/buddy-turn.dto';
 
 /** Max uploaded voice clip size (~60s of compressed mono audio). */
 const MAX_AUDIO_BYTES = 2 * 1024 * 1024;
@@ -85,5 +93,21 @@ export class BuddyController {
   @Delete('memory')
   clearMemory(@CurrentUser() user: User) {
     return this.buddy.clearMemory(user.id);
+  }
+
+  /** Admin: preview a buddy's voice with sample text. */
+  @Post('admin/test-voice')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  testVoice(@Body() dto: TestVoiceDto, @CurrentUser() user: User) {
+    return this.buddy.testVoice(user.id, dto.buddySlug, dto.text);
+  }
+
+  /** Admin: paginated safety-event audit log. */
+  @Get('admin/safety-events')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  safetyEvents(@Query('page') page?: string) {
+    return this.buddy.getSafetyEvents(page ? parseInt(page, 10) : 1);
   }
 }

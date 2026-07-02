@@ -1,11 +1,16 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Volume2 } from 'lucide-react';
 import { api } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { Modal } from '../../components/Modal';
 import { FormActions } from '../../components/FormActions';
+
+/** Emotion + gesture tags the mobile avatar animates (kept in sync with backend). */
+const EMOTION_TAGS = ['happy', 'curious', 'thinking', 'surprised', 'calm', 'encouraging', 'confused'];
+const GESTURE_TAGS = ['small_nod', 'wave', 'thumbs_up', 'think_pose', 'idle', 'smile'];
+const ALL_TAGS = [...EMOTION_TAGS, ...GESTURE_TAGS];
 
 interface Buddy {
   slug: string;
@@ -19,6 +24,11 @@ interface Buddy {
   voiceMinuteCost: number | null;
   isActive: boolean;
   sortOrder: number;
+  voiceId: string | null;
+  ttsParams: { voiceSettings?: Record<string, number> } | null;
+  emotionMap: Record<string, string> | null;
+  avatarAssetUrl: string | null;
+  avatarThumbUrl: string | null;
 }
 
 interface BuddyStat {
@@ -28,8 +38,18 @@ interface BuddyStat {
   costMicroUsd: number;
 }
 
-type BuddyForm = Omit<Buddy, 'isActive' | 'sortOrder' | 'voiceMinuteCost'> & {
+type BuddyForm = Omit<
+  Buddy,
+  'isActive' | 'sortOrder' | 'voiceMinuteCost' | 'ttsParams' | 'emotionMap' | 'voiceId' | 'avatarAssetUrl' | 'avatarThumbUrl'
+> & {
   voiceMinuteCostStr: string;
+  voiceId: string;
+  avatarAssetUrl: string;
+  avatarThumbUrl: string;
+  stability: string;
+  similarity: string;
+  style: string;
+  emotionMap: Record<string, string>;
 };
 
 const emptyForm = (): BuddyForm => ({
@@ -37,6 +57,9 @@ const emptyForm = (): BuddyForm => ({
   emoji: '🤖', systemPrompt: '',
   extraMessagesAmount: 50, extraMessagesCost: 5000,
   voiceMinuteCostStr: '200',
+  voiceId: '', avatarAssetUrl: '', avatarThumbUrl: '',
+  stability: '', similarity: '', style: '',
+  emotionMap: {},
 });
 
 const CARD_COLORS: Record<string, { bg: string; ring: string; badge: string }> = {
@@ -59,6 +82,7 @@ export default function AiBuddyPage() {
   const [form, setForm] = useState<BuddyForm>(emptyForm());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [testing, setTesting] = useState(false);
 
   const load = useCallback(() => {
     api.get<Buddy[]>('/ai/buddies').then(setBuddies).catch(() => {});
@@ -76,6 +100,7 @@ export default function AiBuddyPage() {
   }
 
   function openEdit(b: Buddy) {
+    const vs = b.ttsParams?.voiceSettings ?? {};
     setForm({
       slug: b.slug, name: b.name, title: b.title,
       description: b.description, emoji: b.emoji,
@@ -83,16 +108,31 @@ export default function AiBuddyPage() {
       extraMessagesAmount: b.extraMessagesAmount,
       extraMessagesCost: b.extraMessagesCost,
       voiceMinuteCostStr: b.voiceMinuteCost != null ? String(b.voiceMinuteCost) : '',
+      voiceId: b.voiceId ?? '',
+      avatarAssetUrl: b.avatarAssetUrl ?? '',
+      avatarThumbUrl: b.avatarThumbUrl ?? '',
+      stability: vs.stability != null ? String(vs.stability) : '',
+      similarity: vs.similarity_boost != null ? String(vs.similarity_boost) : '',
+      style: vs.style != null ? String(vs.style) : '',
+      emotionMap: b.emotionMap ?? {},
     });
     setEditing(b); setError(''); setModal('edit');
   }
 
-  async function save() {
+  async function save(keepOpen = false) {
     if (!form.slug.trim() || !form.title.trim() || !form.emoji.trim()) {
       setError('Slug, гарчиг, emoji заавал бөглөнө'); return;
     }
     setSaving(true); setError('');
     try {
+      const voiceSettings: Record<string, number> = {};
+      if (form.stability.trim() !== '') voiceSettings.stability = Number(form.stability);
+      if (form.similarity.trim() !== '') voiceSettings.similarity_boost = Number(form.similarity);
+      if (form.style.trim() !== '') voiceSettings.style = Number(form.style);
+      // Only keep the emotion rows the admin actually filled in.
+      const emotionMap = Object.fromEntries(
+        Object.entries(form.emotionMap).filter(([, clip]) => clip.trim() !== ''),
+      );
       const payload = {
         slug: form.slug.trim(),
         name: form.name.trim(),
@@ -104,13 +144,19 @@ export default function AiBuddyPage() {
         extraMessagesCost: Number(form.extraMessagesCost),
         voiceMinuteCost: form.voiceMinuteCostStr.trim() !== ''
           ? Number(form.voiceMinuteCostStr) : null,
+        voiceId: form.voiceId.trim() || undefined,
+        ttsParams: Object.keys(voiceSettings).length ? { voiceSettings } : undefined,
+        emotionMap: Object.keys(emotionMap).length ? emotionMap : undefined,
+        avatarAssetUrl: form.avatarAssetUrl.trim() || undefined,
+        avatarThumbUrl: form.avatarThumbUrl.trim() || undefined,
       };
       if (modal === 'create') {
         await api.post('/ai/buddies', payload);
       } else if (editing) {
         await api.patch(`/ai/buddies/${editing.slug}`, payload);
       }
-      setModal(null); load();
+      if (!keepOpen) setModal(null);
+      load();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Алдаа гарлаа');
     } finally { setSaving(false); }
@@ -124,6 +170,27 @@ export default function AiBuddyPage() {
 
   function f(key: keyof BuddyForm, val: string | number) {
     setForm(prev => ({ ...prev, [key]: val }));
+  }
+
+  function setEmotion(tag: string, clip: string) {
+    setForm(prev => ({ ...prev, emotionMap: { ...prev.emotionMap, [tag]: clip } }));
+  }
+
+  /** Save current voice settings first (so the preview uses them), then play. */
+  async function testVoice() {
+    if (!editing) { setError('Эхлээд buddy-г хадгална'); return; }
+    setTesting(true); setError('');
+    try {
+      await save(true);
+      const res = await api.post<{ audio_url: string | null }>('/ai/buddy/admin/test-voice', {
+        buddySlug: editing.slug,
+        text: 'Hello! I am your English speaking buddy. What would you like to talk about today?',
+      });
+      if (res.audio_url) new Audio(res.audio_url).play().catch(() => {});
+      else setError('Аудио үүсгэж чадсангүй (ELEVENLABS_API_KEY шалгана уу)');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Дуут тест амжилтгүй');
+    } finally { setTesting(false); }
   }
 
   return (
@@ -295,9 +362,62 @@ export default function AiBuddyPage() {
                 placeholder="200" />
             </div>
 
+            {/* --- Voice + 3D avatar --- */}
+            <div className="border-t border-gray-100 pt-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-gray-800">Дуу хоолой ба Avatar</h3>
+                {modal === 'edit' && (
+                  <Button variant="secondary" size="sm" onClick={testVoice} disabled={testing || saving}>
+                    <Volume2 className="h-4 w-4" /> {testing ? 'Тест хийж байна…' : 'Дуу сонсох'}
+                  </Button>
+                )}
+              </div>
+
+              <Input label="ElevenLabs voice ID (хоосон=default)"
+                value={form.voiceId} placeholder="EXAVITQu4vr4xnSDxMaL"
+                onChange={(e) => f('voiceId', e.target.value)} />
+
+              <div className="grid grid-cols-3 gap-3">
+                <Input label="Stability (0–1)" type="number" min={0} max={1} step={0.05}
+                  value={form.stability} onChange={(e) => f('stability', e.target.value)} placeholder="0.5" />
+                <Input label="Similarity (0–1)" type="number" min={0} max={1} step={0.05}
+                  value={form.similarity} onChange={(e) => f('similarity', e.target.value)} placeholder="0.75" />
+                <Input label="Style (0–1)" type="number" min={0} max={1} step={0.05}
+                  value={form.style} onChange={(e) => f('style', e.target.value)} placeholder="0" />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <Input label="Avatar GLB URL" value={form.avatarAssetUrl}
+                  placeholder="https://…/fox.glb"
+                  onChange={(e) => f('avatarAssetUrl', e.target.value)} />
+                <Input label="Avatar thumbnail URL" value={form.avatarThumbUrl}
+                  placeholder="https://…/fox.png"
+                  onChange={(e) => f('avatarThumbUrl', e.target.value)} />
+              </div>
+
+              <details className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+                <summary className="cursor-pointer text-sm font-medium text-gray-600">
+                  Emotion/gesture → animation clip (сонголттой)
+                </summary>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  {ALL_TAGS.map((tag) => (
+                    <div key={tag} className="flex items-center gap-2">
+                      <span className="w-24 shrink-0 text-xs text-gray-500">{tag}</span>
+                      <input
+                        className="w-full rounded border border-gray-300 px-2 py-1 text-xs focus:border-primary focus:outline-none"
+                        value={form.emotionMap[tag] ?? ''}
+                        placeholder={tag}
+                        onChange={(e) => setEmotion(tag, e.target.value)}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </details>
+            </div>
+
             {error && <p className="text-sm text-red-500">{error}</p>}
 
-            <FormActions onCancel={() => setModal(null)} onSave={save} saving={saving}
+            <FormActions onCancel={() => setModal(null)} onSave={() => save()} saving={saving}
               className="flex justify-end gap-2 pt-2 border-t border-gray-100" />
           </div>
         </Modal>

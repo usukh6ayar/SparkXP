@@ -557,4 +557,33 @@ export class BuddyService {
   clearMemory(userId: string) {
     return this.memory.clear(userId);
   }
+
+  // ── Admin ─────────────────────────────────────────────────────────────────
+
+  /** Admin: synthesize a sample line in a buddy's voice (reuses the TTS cache). */
+  async testVoice(
+    adminUserId: string,
+    buddySlug: string,
+    text: string,
+  ): Promise<{ audio_url: string | null }> {
+    const buddy = await this.buddies.findOne({ where: { slug: buddySlug } });
+    if (!buddy) throw new NotFoundException('Buddy олдсонгүй');
+    const { audioUrl } = await this.speak(adminUserId, buddy, text, `admin-test-${buddySlug}`);
+    return { audio_url: audioUrl };
+  }
+
+  /** Admin: paginated safety-event audit log (newest first). */
+  async getSafetyEvents(page = 1, limit = 20): Promise<{
+    items: SafetyEvent[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
+    const [items, total] = await this.safetyEvents.findAndCount({
+      order: { createdAt: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+    return { items, total, page, limit };
+  }
 }

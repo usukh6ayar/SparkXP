@@ -23,3 +23,14 @@ export class TextTurnDto {
   @MaxLength(1000)
   text: string;
 }
+
+/** Admin: preview a buddy's TTS voice with a sample line. */
+export class TestVoiceDto {
+  @IsString()
+  buddySlug: string;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(300)
+  text: string;
+}
