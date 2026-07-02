@@ -24,6 +24,7 @@ export default function ReadingListScreen() {
   const [passages, setPassages] = useState<ReadingPassage[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(false);
   const [selectedCat, setSelectedCat] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -31,9 +32,11 @@ export default function ReadingListScreen() {
     try {
       const r = await getReadingList(token);
       setPassages(r.items);
+      setError(false);
     } catch (e) {
       console.warn('Reading load failed:', (e as Error)?.message ?? e);
       setPassages([]);
+      setError(true);
     }
   }, [token]);
 
@@ -76,6 +79,8 @@ export default function ReadingListScreen() {
         loading={loading}
         refreshing={refreshing}
         onRefresh={onRefresh}
+        error={error}
+        onRetry={load}
         selectedCat={selectedCat}
         onSelectCat={setSelectedCat}
         onOpen={(id) => router.push(`/reading/${id}`)}

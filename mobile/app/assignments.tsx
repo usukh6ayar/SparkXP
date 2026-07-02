@@ -9,7 +9,7 @@ import { getQuizzes } from '../src/api/quizzes';
 import { TopBar } from '../src/components/TopBar';
 import { Card } from '../src/components/Card';
 import { AssignmentRow } from '../src/components/AssignmentRow';
-import { Loading } from '../src/components/Loading';
+import { SkeletonRows } from '../src/components/SkeletonRows';
 import { EmptyState } from '../src/components/EmptyState';
 import { t } from '../src/i18n';
 import { useColors } from '../src/settings/SettingsContext';
@@ -24,6 +24,7 @@ export default function AssignmentsScreen() {
   const [titles, setTitles] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(false);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -44,8 +45,10 @@ export default function AssignmentsScreen() {
       lessons.items.forEach((l) => (map[l.id] = l.title));
       quizzes.items.forEach((q) => (map[q.id] = q.title));
       setTitles(map);
-    } catch {
-      // keep last
+      setError(false);
+    } catch (e) {
+      console.warn('Assignments load failed:', (e as Error)?.message ?? e);
+      setError(true);
     } finally {
       setLoading(false);
     }
@@ -71,7 +74,7 @@ export default function AssignmentsScreen() {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <TopBar title={t('myAssignments')} back />
       {loading ? (
-        <Loading />
+        <SkeletonRows count={4} style={styles.skeleton} />
       ) : (
         <ScrollView
           contentContainerStyle={styles.list}
@@ -81,11 +84,20 @@ export default function AssignmentsScreen() {
           }
         >
           {items.length === 0 ? (
-            <EmptyState
-              icon="clipboard-outline"
-              title={t('noAssignmentsStudent')}
-              hint={t('noAssignmentsStudentHint')}
-            />
+            error ? (
+              <EmptyState
+                icon="alert-circle-outline"
+                title={t('error')}
+                hint={t('errorGeneric')}
+                action={{ label: t('retry'), onPress: load }}
+              />
+            ) : (
+              <EmptyState
+                icon="clipboard-outline"
+                title={t('noAssignmentsStudent')}
+                hint={t('noAssignmentsStudentHint')}
+              />
+            )
           ) : (
             items.map((a) => (
               <Card key={a.id} variant="flat" padding="md">
@@ -109,4 +121,5 @@ export default function AssignmentsScreen() {
 const makeStyles = (c: AppColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: c.background },
   list: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, gap: spacing.sm },
+  skeleton: { marginHorizontal: spacing.lg, marginTop: spacing.sm },
 });

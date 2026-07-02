@@ -271,6 +271,7 @@ const mn = {
   readingDone: 'Уншиж дууслаа ✓',
   readingFinish: 'Уншиж дууслаа (+15 XP)',
   tapWordHint: '💡 Үг дээр 2 удаа дарвал монгол утга гарч ирнэ',
+  textSize: 'Үсгийн хэмжээ',
 
   // Soril (games)
   sorilSubtitle: 'Мэдлэгээ шалгаж, амжилтаа ахиулаарай!',
@@ -371,6 +372,8 @@ const mn = {
   continue: 'Үргэлжлүүлэх',
   error: 'Алдаа',
   errorGeneric: 'Алдаа гарлаа. Дахин оролдоно уу.',
+  retry: 'Дахин оролдох',
+  quizRunnerLoadError: 'Сорил ачаалахад алдаа гарлаа.',
   required: 'Заавал бөглөнө үү',
   comingSoon: 'Тун удахгүй',
 };
@@ -623,6 +626,7 @@ const en: Record<TranslationKey, string> = {
   readingDone: 'Finished reading ✓',
   readingFinish: 'Finished reading (+15 XP)',
   tapWordHint: '💡 Double-tap a word to see its Mongolian meaning',
+  textSize: 'Text size',
 
   sorilSubtitle: 'Test your knowledge and level up!',
   dailyChallenge: "TODAY'S CHALLENGE",
@@ -715,6 +719,8 @@ const en: Record<TranslationKey, string> = {
   continue: 'Continue',
   error: 'Error',
   errorGeneric: 'An error occurred. Please try again.',
+  retry: 'Retry',
+  quizRunnerLoadError: 'Could not load the quiz. Please try again.',
   required: 'Required',
   comingSoon: 'Coming soon',
 };

@@ -2,7 +2,8 @@ import { ReactNode, useMemo } from 'react';
 import { View, StyleSheet, ScrollView, Pressable, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AppText } from './Text';
-import { Loading } from './Loading';
+import { SkeletonRows } from './SkeletonRows';
+import { EmptyState } from './EmptyState';
 import { t } from '../i18n';
 import { useColors } from '../settings/SettingsContext';
 import { spacing, radius, tints, type AppColors } from '../theme/theme';
@@ -37,6 +38,8 @@ export function CategoryBrowser({
   loading,
   refreshing,
   onRefresh,
+  error,
+  onRetry,
   selectedCat,
   onSelectCat,
   onOpen,
@@ -49,6 +52,9 @@ export function CategoryBrowser({
   loading: boolean;
   refreshing: boolean;
   onRefresh: () => void;
+  /** Fetch failed (distinct from a genuinely empty, successful response). */
+  error?: boolean;
+  onRetry?: () => void;
   selectedCat: string | null;
   onSelectCat: (cat: string | null) => void;
   onOpen: (id: string) => void;
@@ -85,7 +91,15 @@ export function CategoryBrowser({
       {hero}
 
       {loading ? (
-        <Loading />
+        <SkeletonRows count={5} style={styles.skeleton} />
+      ) : error ? (
+        <EmptyState
+          icon="alert-circle-outline"
+          title={t('error')}
+          hint={t('errorGeneric')}
+          action={onRetry ? { label: t('retry'), onPress: onRetry } : undefined}
+          style={styles.empty}
+        />
       ) : items.length === 0 ? (
         <AppText variant="body" color={c.textMuted} center style={styles.empty}>
           {emptyText}
@@ -159,5 +173,6 @@ const makeStyles = (c: AppColors) =>
     rowBorder: { borderTopWidth: 1, borderTopColor: c.border },
     rowIcon: { width: 44, height: 44, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
     empty: { marginTop: spacing.xxl },
+    skeleton: { marginTop: spacing.xs },
     pressed: { opacity: 0.85 },
   });

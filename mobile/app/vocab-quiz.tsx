@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useState } from 'react';
 import { useEffect, useState, useMemo } from 'react';
 import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -8,7 +9,8 @@ import { getMe } from '../src/api/auth';
 import { getQuiz, submitQuiz, type QuizQuestion, type QuizResult } from '../src/api/wordQuiz';
 import { TopBar } from '../src/components/TopBar';
 import { AppText } from '../src/components/Text';
-import { Loading } from '../src/components/Loading';
+import { Skeleton } from '../src/components/Skeleton';
+import { EmptyState } from '../src/components/EmptyState';
 import { Button } from '../src/components/Button';
 import { ProgressBar } from '../src/components/ProgressBar';
 import { t } from '../src/i18n';
@@ -37,13 +39,17 @@ export default function VocabQuizScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<QuizResult | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     if (!token) return;
-    getQuiz(token, QUESTION_COUNT)
+    setLoading(true);
+    setError(false);
+    return getQuiz(token, QUESTION_COUNT)
       .then(setQuestions)
       .catch(() => setError(true))
       .finally(() => setLoading(false));
   }, [token]);
+
+  useEffect(() => { load(); }, [load]);
 
   async function finish(allChoices: Record<string, string>) {
     if (!token) return;
@@ -78,19 +84,36 @@ export default function VocabQuizScreen() {
     }, 220);
   }
 
-  if (loading) return <Loading />;
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+        <TopBar title={t('gameVocabQuizTitle')} back />
+        <View style={styles.body}>
+          <View style={styles.prompt}>
+            <Skeleton width={120} height={14} style={{ marginBottom: spacing.md }} />
+            <Skeleton width={200} height={36} />
+          </View>
+          <View style={styles.options}>
+            <Skeleton height={64} radius={radius.lg} />
+            <Skeleton height={64} radius={radius.lg} />
+            <Skeleton height={64} radius={radius.lg} />
+            <Skeleton height={64} radius={radius.lg} />
+          </View>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   if (error || questions.length === 0) {
     return (
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <TopBar title={t('gameVocabQuizTitle')} back />
-        <View style={styles.center}>
-          <AppText style={styles.emoji}>😕</AppText>
-          <AppText variant="body" color={colors.textSecondary} center>
-            {t('quizLoadError')}
-          </AppText>
-          <Button label={t('back')} icon="arrow-back" onPress={() => router.back()} style={{ marginTop: spacing.xl }} />
-        </View>
+        <EmptyState
+          icon="alert-circle-outline"
+          title={t('error')}
+          hint={t('quizLoadError')}
+          action={{ label: t('retry'), onPress: load }}
+        />
       </SafeAreaView>
     );
   }
@@ -121,8 +144,7 @@ export default function VocabQuizScreen() {
             icon="refresh"
             onPress={() => {
               setResult(null); setIndex(0); setChoices({}); setPicked(null);
-              setLoading(true); setError(false);
-              if (token) getQuiz(token, QUESTION_COUNT).then(setQuestions).catch(() => setError(true)).finally(() => setLoading(false));
+              load();
             }}
             style={{ marginTop: spacing.xl, alignSelf: 'stretch' }}
           />

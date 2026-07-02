@@ -8,7 +8,8 @@ import { TopBar } from '../src/components/TopBar';
 import { AppText } from '../src/components/Text';
 import { PeriodTabs } from '../src/components/PeriodTabs';
 import { LeaderboardRow } from '../src/components/LeaderboardRow';
-import { Loading } from '../src/components/Loading';
+import { SkeletonRows } from '../src/components/SkeletonRows';
+import { EmptyState } from '../src/components/EmptyState';
 import { PERIODS } from '../src/constants/leaderboard';
 import { t } from '../src/i18n';
 import { colors, spacing, radius } from '../src/theme/theme';
@@ -28,14 +29,17 @@ export default function LeaderboardScreen() {
   const [scope, setScope] = useState<Scope>('global');
   const [data, setData] = useState<LeaderboardResult | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   const load = useCallback(async () => {
     if (!token) return;
     setLoading(true);
     try {
       setData(await getLeaderboard(token, period, scope));
+      setError(false);
     } catch {
       setData(null);
+      setError(true);
     } finally {
       setLoading(false);
     }
@@ -68,7 +72,7 @@ export default function LeaderboardScreen() {
       </View>
 
       {loading ? (
-        <Loading />
+        <SkeletonRows count={6} style={styles.skeleton} />
       ) : (
         <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
           {/* My standing */}
@@ -86,7 +90,15 @@ export default function LeaderboardScreen() {
             </View>
           </View>
 
-          {!data || data.entries.length === 0 ? (
+          {error ? (
+            <EmptyState
+              icon="alert-circle-outline"
+              title={t('error')}
+              hint={t('errorGeneric')}
+              action={{ label: t('retry'), onPress: load }}
+              style={styles.empty}
+            />
+          ) : !data || data.entries.length === 0 ? (
             <AppText variant="body" color={colors.textMuted} center style={styles.empty}>
               {t('noLeaderboardData')}
             </AppText>
@@ -117,6 +129,7 @@ const styles = StyleSheet.create({
   chip: { paddingHorizontal: spacing.md, paddingVertical: 7, borderRadius: radius.full, backgroundColor: colors.surfaceAlt },
   chipActive: { backgroundColor: colors.primary },
   list: { paddingHorizontal: spacing.lg },
+  skeleton: { marginHorizontal: spacing.lg },
   meCard: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
     backgroundColor: colors.primary, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.md,
