@@ -33,7 +33,17 @@ const DEFAULT_LIMITS = {
   dailyMessageLimit: 50,
   dailyTokenLimit: 100_000,
   maxContextMessages: 10,
+  // --- AI Buddy voice (admin-tunable at runtime, no deploy) ---
+  /** STT confidence below this → "I didn't catch that" fallback, no charge. */
+  sttMinConfidence: 0.4,
+  /** Max AI Buddy voice/text turns per user per day (anti-abuse). */
+  dailyVoiceTurnLimit: 60,
+  /** Max spoken reply length in characters (~15s of audio). */
+  maxReplyChars: 280,
 };
+
+/** Runtime-configurable AI limits (see DEFAULT_LIMITS). */
+export type AiLimits = typeof DEFAULT_LIMITS;
 
 /** Model used for the AI buddy. Haiku is fast and cheap for chat. */
 const AI_MODEL = 'claude-haiku-4-5-20251001';
@@ -202,7 +212,7 @@ export class AiGatewayService implements OnModuleInit {
   }
 
   /** Fetch current plan limits from Redis (with fallback to code defaults). */
-  private async getLimits(): Promise<typeof DEFAULT_LIMITS> {
+  async getLimits(): Promise<AiLimits> {
     try {
       const raw = await this.redis.get('ai:limits:default');
       if (raw) return { ...DEFAULT_LIMITS, ...JSON.parse(raw) };

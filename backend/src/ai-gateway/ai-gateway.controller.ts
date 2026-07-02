@@ -40,6 +40,14 @@ export class AiGatewayController {
     return this.aiGateway.getHistory(user.id, conversationId);
   }
 
+  /** Admin: read current runtime AI limits (used by the admin Settings page). */
+  @Get('limits')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  getLimits() {
+    return this.aiGateway.getLimits();
+  }
+
   /** Admin: update plan limits without an app restart. */
   @Patch('limits')
   @UseGuards(RolesGuard)
