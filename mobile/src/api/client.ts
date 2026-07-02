@@ -20,6 +20,8 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    /** Backend error code, e.g. 'VOICE_LIMIT' (used for graceful fallbacks). */
+    public code?: string,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -54,10 +56,11 @@ export async function apiRequest<T>(
     res.status === 204 ? null : await res.json().catch(() => null);
 
   if (!res.ok) {
-    // Backend error shape: { message: string | string[], ... }
-    const raw = (data as { message?: string | string[] } | null)?.message;
+    // Backend error shape: { message: string | string[], code? }
+    const err = data as { message?: string | string[]; code?: string } | null;
+    const raw = err?.message;
     const message = Array.isArray(raw) ? raw.join(', ') : raw ?? 'Алдаа гарлаа';
-    throw new ApiError(res.status, message);
+    throw new ApiError(res.status, message, err?.code);
   }
 
   return data as T;
@@ -84,9 +87,10 @@ export async function apiUpload<T>(
 
   const data = await res.json().catch(() => null);
   if (!res.ok) {
-    const raw = (data as { message?: string | string[] } | null)?.message;
+    const err = data as { message?: string | string[]; code?: string } | null;
+    const raw = err?.message;
     const message = Array.isArray(raw) ? raw.join(', ') : raw ?? 'Алдаа гарлаа';
-    throw new ApiError(res.status, message);
+    throw new ApiError(res.status, message, err?.code);
   }
   return data as T;
 }

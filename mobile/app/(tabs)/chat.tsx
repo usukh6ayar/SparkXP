@@ -1,13 +1,18 @@
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import {
   View, StyleSheet, FlatList, TextInput, ScrollView, Image,
   Pressable, KeyboardAvoidingView, Platform, ActivityIndicator, Alert,
-  type ImageSourcePropType,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import {
+  useAudioPlayer, useAudioRecorder, RecordingPresets,
+  requestRecordingPermissionsAsync, setAudioModeAsync,
+} from 'expo-audio';
 import { useAuth } from '../../src/auth/AuthContext';
 import * as aiApi from '../../src/api/ai';
+import type { Buddy, Correction, BuddyUsageBlock } from '../../src/api/ai';
+import { ApiError } from '../../src/api/client';
 import { TopBar } from '../../src/components/TopBar';
 import { AppText } from '../../src/components/Text';
 import { TappableText } from '../../src/components/DictionaryProvider';
@@ -19,65 +24,164 @@ interface LocalMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  correction?: Correction | null;
+  followUp?: string;
+  audioUrl?: string | null;
 }
 
 const sparkImg = require('../../assets/buddy-menu.png');
-
-/** AI tutor characters. Only Спарк is active for now (with a 3D avatar image;
- *  the rest use emoji until their art is added). */
-type Buddy = { id: string; name: string; emoji?: string; image?: ImageSourcePropType; active?: boolean };
-const BUDDIES: Buddy[] = [
-  { id: 'spark', name: 'Спарк', image: sparkImg, active: true },
-  { id: 'oli', name: 'Оли', emoji: '🦉' },
-  { id: 'lili', name: 'Лили', emoji: '🐰' },
-  { id: 'reks', name: 'Рекс', emoji: '🐲' },
-  { id: 'pandi', name: 'Панди', emoji: '🐼' },
-];
 
 export default function ChatScreen() {
   const { token } = useAuth();
   const c = useColors();
   const styles = useMemo(() => makeStyles(c), [c]);
+
+  const [buddies, setBuddies] = useState<Buddy[]>([]);
+  const [selected, setSelected] = useState<Buddy | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<LocalMessage[]>([]);
-  const [conversationId, setConversationId] = useState<string | undefined>();
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [usage, setUsage] = useState<BuddyUsageBlock | null>(null);
+  const [voiceLimited, setVoiceLimited] = useState(false);
+
   const listRef = useRef<FlatList>(null);
+  const player = useAudioPlayer();
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
 
-  async function send() {
-    const text = input.trim();
-    if (!text || loading) return;
+  const scrollDown = useCallback(() => {
+    setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
+  }, []);
 
-    const userMsg: LocalMessage = { id: Date.now().toString(), role: 'user', content: text };
-    setMessages((prev) => [...prev, userMsg]);
-    setInput('');
-    setLoading(true);
+  function playAudio(url?: string | null) {
+    if (!url) return;
     try {
-      const res = await aiApi.sendMessage(text, token!, conversationId);
-      setConversationId(res.conversationId);
-      setMessages((prev) => [
-        ...prev,
-        { id: (Date.now() + 1).toString(), role: 'assistant', content: res.reply },
-      ]);
+      player.replace({ uri: url });
+      player.play();
+    } catch { /* playback is best-effort */ }
+  }
+
+  // Load buddies once, then open a session with the first one.
+  useEffect(() => {
+    if (!token) return;
+    aiApi.getBuddies(token)
+      .then((list) => {
+        setBuddies(list);
+        if (list.length) selectBuddy(list[0]);
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  const selectBuddy = useCallback(async (buddy: Buddy) => {
+    if (!token) return;
+    setSelected(buddy);
+    setMessages([]);
+    setSessionId(null);
+    setVoiceLimited(false);
+    try {
+      const s = await aiApi.startBuddySession(buddy.slug, token);
+      setSessionId(s.sessionId);
+      setUsage(s.usage);
     } catch {
+      Alert.alert('Алдаа', 'Session эхлүүлж чадсангүй. Дахин оролдоно уу.');
+    }
+  }, [token]);
+
+  /** Show one completed turn (user bubble + AI bubble) and speak the reply. */
+  function renderTurn(userText: string, res: aiApi.TurnResponse) {
+    setMessages((prev) => [
+      ...prev,
+      { id: `${Date.now()}u`, role: 'user', content: userText },
+      {
+        id: `${Date.now()}a`, role: 'assistant',
+        content: res.reply_text,
+        correction: res.correction,
+        followUp: res.follow_up_question,
+        audioUrl: res.audio_url,
+      },
+    ]);
+    setUsage(res.usage);
+    playAudio(res.audio_url);
+    scrollDown();
+  }
+
+  function handleTurnError(err: unknown) {
+    if (err instanceof ApiError && err.code === 'VOICE_LIMIT') {
+      setVoiceLimited(true);
+      Alert.alert('Дуут яриа дууслаа', 'Энэ сарын дуут ярианы хязгаар дууслаа. Бичгээр үргэлжлүүлж болно.');
+      return;
+    }
+    setMessages((prev) => [
+      ...prev,
+      { id: `${Date.now()}e`, role: 'assistant', content: 'Уучлаарай, алдаа гарлаа. Дахин оролдоорой.' },
+    ]);
+  }
+
+  async function sendText() {
+    const text = input.trim();
+    if (!text || loading || !sessionId) return;
+    setInput('');
+    setMessages((prev) => [...prev, { id: `${Date.now()}u`, role: 'user', content: text }]);
+    setLoading(true);
+    scrollDown();
+    try {
+      const res = await aiApi.sendBuddyTextTurn(sessionId, text, token!);
+      // renderTurn also appends the user bubble; we already added it, so append AI only.
       setMessages((prev) => [
         ...prev,
-        { id: (Date.now() + 1).toString(), role: 'assistant', content: 'Уучлаарай, алдаа гарлаа. Дахин оролдоорой.' },
+        {
+          id: `${Date.now()}a`, role: 'assistant',
+          content: res.reply_text, correction: res.correction,
+          followUp: res.follow_up_question, audioUrl: res.audio_url,
+        },
       ]);
+      setUsage(res.usage);
+      playAudio(res.audio_url);
+    } catch (err) {
+      handleTurnError(err);
     } finally {
       setLoading(false);
-      setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
+      scrollDown();
     }
   }
 
-  function onBuddyPress(active?: boolean) {
-    if (active) {
-      setMessages([]);
-      setConversationId(undefined);
-    } else {
-      Alert.alert('Тун удахгүй', 'Энэ дүр удахгүй нэмэгдэнэ. 🦊');
+  async function startRecording() {
+    if (loading || !sessionId || voiceLimited) return;
+    try {
+      const { granted } = await requestRecordingPermissionsAsync();
+      if (!granted) {
+        Alert.alert('Зөвшөөрөл', 'Микрофон ашиглах зөвшөөрөл шаардлагатай.');
+        return;
+      }
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+      setRecording(true);
+    } catch {
+      Alert.alert('Алдаа', 'Бичлэг эхлүүлж чадсангүй.');
     }
   }
+
+  async function stopRecording() {
+    if (!recording) return;
+    setRecording(false);
+    setLoading(true);
+    try {
+      await recorder.stop();
+      const uri = recorder.uri;
+      if (!uri || !sessionId) throw new Error('no audio');
+      const res = await aiApi.sendBuddyAudioTurn(sessionId, uri, token!);
+      renderTurn(res.user_transcript || '🎤', res);
+    } catch (err) {
+      handleTurnError(err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const usageLabel = usage ? formatUsage(usage) : '';
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -90,24 +194,39 @@ export default function ChatScreen() {
         contentContainerStyle={styles.buddyRow}
         style={styles.buddyScroll}
       >
-        {BUDDIES.map((b) => (
-          <Pressable
-            key={b.id}
-            style={[styles.buddyCard, b.active && styles.buddyActive]}
-            onPress={() => onBuddyPress(b.active)}
-          >
-            {b.image ? (
-              <Image source={b.image} style={styles.buddyImg} resizeMode="contain" />
-            ) : (
-              <AppText style={styles.buddyEmoji}>{b.emoji}</AppText>
-            )}
-            <View style={styles.buddyNameRow}>
-              <View style={[styles.dot, { backgroundColor: b.active ? c.success : c.borderStrong }]} />
-              <AppText variant="caption" color={c.text} style={styles.buddyName}>{b.name}</AppText>
-            </View>
-          </Pressable>
-        ))}
+        {buddies.map((b) => {
+          const active = selected?.slug === b.slug;
+          return (
+            <Pressable
+              key={b.slug}
+              style={[styles.buddyCard, active && styles.buddyActive]}
+              onPress={() => selectBuddy(b)}
+            >
+              {b.avatarThumbUrl ? (
+                <Image source={{ uri: b.avatarThumbUrl }} style={styles.buddyImg} resizeMode="contain" />
+              ) : b.slug === 'spark' ? (
+                <Image source={sparkImg} style={styles.buddyImg} resizeMode="contain" />
+              ) : (
+                <AppText style={styles.buddyEmoji}>{b.emoji}</AppText>
+              )}
+              <View style={styles.buddyNameRow}>
+                <View style={[styles.dot, { backgroundColor: active ? c.success : c.borderStrong }]} />
+                <AppText variant="caption" color={c.text} style={styles.buddyName}>{b.name}</AppText>
+              </View>
+            </Pressable>
+          );
+        })}
       </ScrollView>
+
+      {/* Usage meter */}
+      {!!usageLabel && (
+        <View style={styles.usageRow}>
+          <Ionicons name="mic-outline" size={12} color={c.textSecondary} />
+          <AppText variant="caption" color={usage?.warn_level === 'warn95' ? c.danger : c.textSecondary}>
+            {usageLabel}
+          </AppText>
+        </View>
+      )}
 
       {/* Messages */}
       <FlatList
@@ -115,15 +234,23 @@ export default function ChatScreen() {
         data={messages}
         keyExtractor={(m) => m.id}
         contentContainerStyle={styles.messageList}
-        ListEmptyComponent={<EmptyState />}
+        ListEmptyComponent={<EmptyState buddy={selected} />}
         onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: false })}
-        renderItem={({ item }) => <MessageBubble message={item} />}
+        renderItem={({ item }) => <MessageBubble message={item} onReplay={playAudio} buddy={selected} />}
       />
 
       {loading && (
         <View style={styles.typingRow}>
           <ActivityIndicator size="small" color={c.primary} />
-          <AppText variant="caption">Спарк бичиж байна...</AppText>
+          <AppText variant="caption">{selected?.name ?? 'AI'} бичиж байна...</AppText>
+        </View>
+      )}
+
+      {voiceLimited && (
+        <View style={styles.limitBanner}>
+          <AppText variant="caption" color={c.danger} center>
+            Дуут яриа энэ сард дууслаа — бичгээр үргэлжлүүлээрэй.
+          </AppText>
         </View>
       )}
 
@@ -131,25 +258,28 @@ export default function ChatScreen() {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.inputBar}>
           <Pressable
-            style={styles.voiceBtn}
-            onPress={() => Alert.alert('Тун удахгүй', 'Дуу хоолойгоор ярих боломж удахгүй нэмэгдэнэ. 🎤')}
+            style={[styles.voiceBtn, recording && styles.voiceBtnActive, voiceLimited && styles.voiceBtnDisabled]}
+            onPressIn={startRecording}
+            onPressOut={stopRecording}
+            disabled={voiceLimited || !sessionId}
           >
-            <Ionicons name="mic-outline" size={20} color={c.textSecondary} />
+            <Ionicons name={recording ? 'stop' : 'mic-outline'} size={20} color={recording ? c.white : c.textSecondary} />
           </Pressable>
           <TextInput
             style={styles.input}
             value={input}
             onChangeText={setInput}
-            placeholder={t('typeMessage')}
+            placeholder={recording ? 'Сонсож байна…' : t('typeMessage')}
             placeholderTextColor={c.textMuted}
             multiline
-            maxLength={2000}
-            onSubmitEditing={send}
+            maxLength={1000}
+            onSubmitEditing={sendText}
             returnKeyType="send"
+            editable={!recording}
           />
           <Pressable
             style={[styles.sendBtn, (!input.trim() || loading) && styles.sendBtnDisabled]}
-            onPress={send}
+            onPress={sendText}
             disabled={!input.trim() || loading}
           >
             <Ionicons name="arrow-up" size={20} color={c.white} />
@@ -160,42 +290,76 @@ export default function ChatScreen() {
   );
 }
 
-function MessageBubble({ message }: { message: LocalMessage }) {
+function MessageBubble({
+  message, onReplay, buddy,
+}: { message: LocalMessage; onReplay: (url?: string | null) => void; buddy: Buddy | null }) {
   const c = useColors();
   const styles = useMemo(() => makeStyles(c), [c]);
   const isUser = message.role === 'user';
+  const thumb = buddy?.avatarThumbUrl ? { uri: buddy.avatarThumbUrl } : sparkImg;
+
   return (
     <View style={[styles.bubbleRow, isUser && styles.bubbleRowUser]}>
-      {!isUser && <Image source={sparkImg} style={styles.avatarImg} resizeMode="contain" />}
+      {!isUser && <Image source={thumb} style={styles.avatarImg} resizeMode="contain" />}
       <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAi]}>
-        {/* Spark's replies are English-rich — tap any word for a Mongolian
-            explanation. User's own messages stay plain. */}
         {isUser ? (
-          <AppText variant="body" color={c.white}>
-            {message.content}
-          </AppText>
+          <AppText variant="body" color={c.white}>{message.content}</AppText>
         ) : (
-          <TappableText variant="body" color={c.text}>
-            {message.content}
-          </TappableText>
+          <>
+            {message.correction && (
+              <View style={styles.correctionCard}>
+                <AppText variant="caption" color={c.danger} style={styles.strike}>
+                  {message.correction.original}
+                </AppText>
+                <AppText variant="caption" color={c.success} style={styles.correctedText}>
+                  ✓ {message.correction.corrected}
+                </AppText>
+                <AppText variant="caption" color={c.textSecondary}>
+                  {message.correction.short_explanation}
+                </AppText>
+              </View>
+            )}
+            <TappableText variant="body" color={c.text}>{message.content}</TappableText>
+            {!!message.followUp && (
+              <TappableText variant="body" color={c.textSecondary} style={styles.followUp}>
+                {message.followUp}
+              </TappableText>
+            )}
+            {message.audioUrl !== undefined && (
+              <Pressable style={styles.replayBtn} onPress={() => onReplay(message.audioUrl)}>
+                <Ionicons name="volume-medium-outline" size={16} color={c.primary} />
+              </Pressable>
+            )}
+          </>
         )}
       </View>
     </View>
   );
 }
 
-function EmptyState() {
+function EmptyState({ buddy }: { buddy: Buddy | null }) {
   const c = useColors();
   const styles = useMemo(() => makeStyles(c), [c]);
+  const thumb = buddy?.avatarThumbUrl ? { uri: buddy.avatarThumbUrl } : sparkImg;
   return (
     <View style={styles.emptyState}>
-      <Image source={sparkImg} style={styles.emptyImg} resizeMode="contain" />
-      <AppText variant="h2" center style={styles.emptyTitle}>Сайн уу! Би Спарк 👋</AppText>
+      <Image source={thumb} style={styles.emptyImg} resizeMode="contain" />
+      <AppText variant="h2" center style={styles.emptyTitle}>
+        Сайн уу! Би {buddy?.name ?? 'Спарк'} 👋
+      </AppText>
       <AppText variant="body" color={c.textSecondary} center>
-        Англи хэлний асуулт, дасгал, тайлбар — бүгдийг асуугаарай.
+        Ярьж эсвэл бичиж дадлага хийгээрэй — би засаад тусалъя.
       </AppText>
     </View>
   );
+}
+
+/** "3.5 / 25 мин" style label from voice usage seconds. */
+function formatUsage(u: BuddyUsageBlock): string {
+  const used = (u.voice_seconds_used_this_month / 60).toFixed(1);
+  if (u.voice_seconds_limit_this_month == null) return `${used} мин`;
+  const limit = Math.round(u.voice_seconds_limit_this_month / 60);
+  return `${used} / ${limit} мин`;
 }
 
 const makeStyles = (colors: AppColors) => StyleSheet.create({
@@ -212,6 +376,7 @@ const makeStyles = (colors: AppColors) => StyleSheet.create({
   buddyNameRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
   dot: { width: 6, height: 6, borderRadius: 3 },
   buddyName: { fontWeight: '700' },
+  usageRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingBottom: spacing.xs },
   messageList: { padding: spacing.md, gap: spacing.sm, flexGrow: 1 },
   bubbleRow: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm, marginBottom: spacing.xs },
   bubbleRowUser: { flexDirection: 'row-reverse' },
@@ -219,7 +384,16 @@ const makeStyles = (colors: AppColors) => StyleSheet.create({
   bubble: { maxWidth: '78%', borderRadius: radius.lg, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
   bubbleAi: { backgroundColor: colors.surfaceAlt, borderBottomLeftRadius: 4 },
   bubbleUser: { backgroundColor: colors.primary, borderBottomRightRadius: 4 },
+  correctionCard: {
+    backgroundColor: colors.background, borderRadius: radius.md, padding: spacing.sm,
+    marginBottom: spacing.xs, gap: 2, borderLeftWidth: 3, borderLeftColor: colors.success,
+  },
+  strike: { textDecorationLine: 'line-through' },
+  correctedText: { fontWeight: '700' },
+  followUp: { marginTop: spacing.xs, fontStyle: 'italic' },
+  replayBtn: { marginTop: spacing.xs, alignSelf: 'flex-start' },
   typingRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
+  limitBanner: { paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
   inputBar: {
     flexDirection: 'row', alignItems: 'flex-end', padding: spacing.md, gap: spacing.sm,
     borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.surface,
@@ -229,6 +403,8 @@ const makeStyles = (colors: AppColors) => StyleSheet.create({
     paddingHorizontal: spacing.md, paddingTop: 11, paddingBottom: 11, fontSize: 15, color: colors.text,
   },
   voiceBtn: { width: 44, height: 44, borderRadius: radius.full, backgroundColor: colors.surfaceAlt, justifyContent: 'center', alignItems: 'center' },
+  voiceBtnActive: { backgroundColor: colors.danger },
+  voiceBtnDisabled: { opacity: 0.4 },
   sendBtn: { width: 44, height: 44, borderRadius: radius.full, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' },
   sendBtnDisabled: { backgroundColor: colors.borderStrong },
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xl, paddingTop: spacing.xxxl },
