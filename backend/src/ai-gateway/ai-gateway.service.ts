@@ -21,7 +21,12 @@ import { Message } from '../entities/message.entity';
 import { AiUsage } from '../entities/ai-usage.entity';
 import { AiBuddy } from '../entities/ai-buddy.entity';
 import { User } from '../entities/user.entity';
-import { MessageRole, AiUsageType } from '../common/enums';
+import {
+  MessageRole,
+  AiUsageType,
+  BUDDY_EMOTIONS,
+  BUDDY_GESTURES,
+} from '../common/enums';
 import { CreateBuddyDto, UpdateBuddyDto } from './dto/create-buddy.dto';
 import { REDIS_CLIENT } from '../redis/redis.module';
 import type Redis from 'ioredis';
@@ -146,6 +151,15 @@ const DEFAULT_IMAGE_PROMPT = [
 
 /** Flat per-clip TTS cost estimate for vocab/reading audio (micro-USD). */
 const AUDIO_COST_MICRO_USD = 3_000;
+
+/**
+ * Fallback avatar animation map: every emotion/gesture tag maps to a clip of
+ * the same name. Admins can override per-buddy via AiBuddy.emotionMap; the
+ * client falls back to `idle` for any clip it can't find.
+ */
+const DEFAULT_EMOTION_MAP: Record<string, string> = Object.fromEntries(
+  [...BUDDY_EMOTIONS, ...BUDDY_GESTURES].map((tag) => [tag, tag]),
+);
 
 export interface ChatResponse {
   conversationId: string;
@@ -829,9 +843,21 @@ export class AiGatewayService implements OnModuleInit {
     return updated;
   }
 
-  /** Return all active buddies from DB (synced from buddies.ts on every start). */
-  async findAllBuddies(): Promise<AiBuddy[]> {
-    return this.buddies.find({ where: { isActive: true }, order: { sortOrder: 'ASC', createdAt: 'ASC' } });
+  /**
+   * Return all active buddies from DB (synced from buddies.ts on every start).
+   * Each row carries an `emotionMap` the mobile avatar uses; when unset we fill
+   * a `defaultEmotionMap` (emotion/gesture tag → same-name animation clip) so the
+   * client always gets a complete map.
+   */
+  async findAllBuddies(): Promise<(AiBuddy & { emotionMap: Record<string, string> })[]> {
+    const rows = await this.buddies.find({
+      where: { isActive: true },
+      order: { sortOrder: 'ASC', createdAt: 'ASC' },
+    });
+    return rows.map((b) => ({
+      ...b,
+      emotionMap: b.emotionMap ?? DEFAULT_EMOTION_MAP,
+    })) as (AiBuddy & { emotionMap: Record<string, string> })[];
   }
 
   /**

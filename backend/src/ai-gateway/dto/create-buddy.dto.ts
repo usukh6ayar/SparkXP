@@ -1,4 +1,11 @@
-import { IsString, IsOptional, IsInt, IsBoolean, Min } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsInt,
+  IsBoolean,
+  IsObject,
+  Min,
+} from 'class-validator';
 
 export class CreateBuddyDto {
   @IsString()
@@ -41,6 +48,13 @@ export class CreateBuddyDto {
   @IsOptional()
   @IsInt()
   sortOrder?: number;
+
+  // --- Voice + avatar config ---
+  @IsOptional() @IsString() voiceId?: string;
+  @IsOptional() @IsObject() ttsParams?: Record<string, unknown>;
+  @IsOptional() @IsObject() emotionMap?: Record<string, string>;
+  @IsOptional() @IsString() avatarAssetUrl?: string;
+  @IsOptional() @IsString() avatarThumbUrl?: string;
 }
 
 export class UpdateBuddyDto {
@@ -54,4 +68,9 @@ export class UpdateBuddyDto {
   @IsOptional() @IsInt() @Min(0) voiceMinuteCost?: number | null;
   @IsOptional() @IsBoolean() isActive?: boolean;
   @IsOptional() @IsInt() sortOrder?: number;
+  @IsOptional() @IsString() voiceId?: string;
+  @IsOptional() @IsObject() ttsParams?: Record<string, unknown>;
+  @IsOptional() @IsObject() emotionMap?: Record<string, string>;
+  @IsOptional() @IsString() avatarAssetUrl?: string;
+  @IsOptional() @IsString() avatarThumbUrl?: string;
 }

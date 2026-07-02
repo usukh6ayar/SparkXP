@@ -39,6 +39,19 @@ import {
 } from './buddy-contract';
 import { StartSessionDto } from './dto/buddy-turn.dto';
 
+/** Common prompt-injection markers, for audit logging only. */
+const INJECTION_MARKERS = [
+  'ignore previous instructions',
+  'ignore all previous',
+  'system prompt',
+  'disregard the above',
+  'you are now',
+];
+function looksLikeInjection(text: string): boolean {
+  const lower = text.toLowerCase();
+  return INJECTION_MARKERS.some((m) => lower.includes(m));
+}
+
 /** XP granted once per session for practicing with the buddy. */
 const BUDDY_XP = 10;
 /** Safe reply used when the LLM flags unsafe content. */
@@ -192,6 +205,19 @@ export class BuddyService {
   ): Promise<TurnResponse> {
     const buddy = await this.buddies.findOne({ where: { slug: session.buddySlug } });
     if (!buddy) throw new NotFoundException('Buddy олдсонгүй');
+
+    // Audit-only: flag obvious prompt-injection attempts (no blocking).
+    if (looksLikeInjection(rawText)) {
+      await this.safetyEvents.save(
+        this.safetyEvents.create({
+          userId: user.id,
+          sessionId: session.id,
+          eventType: 'jailbreak_attempt',
+          severity: 'low',
+          details: { excerpt: rawText.slice(0, 120) },
+        }),
+      );
+    }
 
     const limits = await this.gateway.getLimits();
     const cefr = (user.level ?? 'b1').toUpperCase();
