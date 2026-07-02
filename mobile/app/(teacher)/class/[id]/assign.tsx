@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { View, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -13,7 +13,8 @@ import { t } from '../../../../src/i18n';
 import { AppText } from '../../../../src/components/Text';
 import { SelectField } from '../../../../src/components/SelectField';
 import { Button } from '../../../../src/components/Button';
-import { colors, spacing, radius } from '../../../../src/theme/theme';
+import { spacing, radius, type AppColors } from '../../../../src/theme/theme';
+import { useColors } from '../../../../src/settings/SettingsContext';
 
 // Due-date presets (no native date-picker dependency for the MVP).
 const DUE_PRESETS: { label: string; days: number | null }[] = [
@@ -26,6 +27,8 @@ const DUE_PRESETS: { label: string; days: number | null }[] = [
 export default function AssignScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { token } = useAuth();
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
 
   const [type, setType] = useState<AssignmentType>('lesson');
@@ -154,7 +157,7 @@ export default function AssignScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: AppColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   topbar: {
     flexDirection: 'row',

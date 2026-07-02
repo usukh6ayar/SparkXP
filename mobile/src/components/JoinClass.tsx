@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { View, Pressable, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,7 +11,8 @@ import { t } from '../i18n';
 import { AppText } from './Text';
 import { TextField } from './TextField';
 import { Button } from './Button';
-import { colors, spacing, radius } from '../theme/theme';
+import { spacing, radius, type AppColors } from '../theme/theme';
+import { useColors } from '../settings/SettingsContext';
 
 /**
  * Student "join a class" flow: type the code or scan the class QR. Either way
@@ -19,6 +20,8 @@ import { colors, spacing, radius } from '../theme/theme';
  * `initialCode` is set when opened via a deep link (`englishxp://join/CODE`).
  */
 export function JoinClass({ initialCode }: { initialCode?: string }) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { token } = useAuth();
   const router = useRouter();
   const [code, setCode] = useState(initialCode ?? '');
@@ -146,7 +149,7 @@ export function JoinClass({ initialCode }: { initialCode?: string }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: AppColors) => StyleSheet.create({
   body: { flex: 1, paddingHorizontal: spacing.lg, paddingTop: spacing.md },
   subtitle: { marginBottom: spacing.lg },
   error: { marginBottom: spacing.sm },

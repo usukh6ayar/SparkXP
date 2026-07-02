@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useMemo } from 'react';
 import { View, ScrollView, Pressable, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -10,10 +10,13 @@ import { t } from '../../src/i18n';
 import { AppText } from '../../src/components/Text';
 import { Avatar } from '../../src/components/Avatar';
 import { Button } from '../../src/components/Button';
-import { colors, spacing, radius, elevation } from '../../src/theme/theme';
+import { spacing, radius, elevation, type AppColors } from '../../src/theme/theme';
+import { useColors } from '../../src/settings/SettingsContext';
 
 export default function TeacherProfileScreen() {
   const { user, token, logout } = useAuth();
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const [classCount, setClassCount] = useState<number | null>(null);
   const [studentCount, setStudentCount] = useState<number | null>(null);
@@ -109,7 +112,7 @@ export default function TeacherProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: AppColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   header: { paddingHorizontal: spacing.lg, paddingTop: spacing.xs, paddingBottom: spacing.sm },
   scroll: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl },

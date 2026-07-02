@@ -1,10 +1,12 @@
+import { useMemo } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { AppText } from './Text';
 import { Button } from './Button';
 import { t } from '../i18n';
-import { colors, spacing, radius } from '../theme/theme';
+import { spacing, radius, type AppColors } from '../theme/theme';
+import { useColors } from '../settings/SettingsContext';
 
 interface Props {
   known: number;
@@ -16,6 +18,8 @@ interface Props {
 
 /** Summary shown after every card in the deck has been swiped. */
 export function ReviewStats({ known, review, xpEarned, streak, onContinue }: Props) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const graded = known + review;
   const accuracy = graded > 0 ? Math.round((known / graded) * 100) : 0;
 
@@ -63,7 +67,7 @@ export function ReviewStats({ known, review, xpEarned, streak, onContinue }: Pro
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: AppColors) => StyleSheet.create({
   wrap: { flex: 1, padding: spacing.lg, justifyContent: 'center', gap: spacing.lg },
   hero: {
     borderRadius: radius.xl,

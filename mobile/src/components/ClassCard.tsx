@@ -1,9 +1,11 @@
+import { useMemo } from 'react';
 import { View, Pressable, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { AppText } from './Text';
 import { t } from '../i18n';
-import { colors, spacing, radius, elevation } from '../theme/theme';
+import { spacing, radius, elevation, type AppColors } from '../theme/theme';
+import { useColors } from '../settings/SettingsContext';
 
 /** A class row in the teacher's list: gradient tile, name, school, code, count. */
 export function ClassCard({
@@ -19,6 +21,8 @@ export function ClassCard({
   studentCount?: number;
   onPress: () => void;
 }) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <Pressable
       onPress={onPress}
@@ -57,7 +61,7 @@ export function ClassCard({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: AppColors) => StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',

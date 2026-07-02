@@ -1,7 +1,9 @@
+import { useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AppText } from './Text';
-import { colors, radius, spacing } from '../theme/theme';
+import { radius, spacing, type AppColors } from '../theme/theme';
+import { useColors } from '../settings/SettingsContext';
 
 /** Small labeled checkbox (e.g. "Remember me"). */
 export function Checkbox({
@@ -13,6 +15,8 @@ export function Checkbox({
   onToggle: () => void;
   label: string;
 }) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <Pressable style={styles.row} onPress={onToggle} hitSlop={6}>
       <View style={[styles.box, checked && styles.boxOn]}>
@@ -27,7 +31,7 @@ export function Checkbox({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: AppColors) => StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   box: {
     width: 20,

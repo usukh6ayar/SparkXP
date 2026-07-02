@@ -1,7 +1,7 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { t } from '../../src/i18n';
-import { colors } from '../../src/theme/theme';
+import { useColors } from '../../src/settings/SettingsContext';
 
 /**
  * Teacher tab navigator — a plain bottom bar (no AI-buddy center like the
@@ -9,12 +9,14 @@ import { colors } from '../../src/theme/theme';
  * hidden from the tab bar (pushed on top).
  */
 export default function TeacherLayout() {
+  const colors = useColors();
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
+        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
       }}
     >
       <Tabs.Screen

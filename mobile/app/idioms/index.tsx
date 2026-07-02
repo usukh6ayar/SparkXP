@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useMemo } from 'react';
 import { View, StyleSheet, ScrollView, RefreshControl, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -10,10 +10,13 @@ import { AppText } from '../../src/components/Text';
 import { Card } from '../../src/components/Card';
 import { Loading } from '../../src/components/Loading';
 import { t } from '../../src/i18n';
-import { colors, spacing, radius } from '../../src/theme/theme';
+import { spacing, radius, type AppColors } from '../../src/theme/theme';
+import { useColors } from '../../src/settings/SettingsContext';
 
 /** Idioms list — tap a card to open the detail. */
 export default function IdiomsScreen() {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { token } = useAuth();
   const router = useRouter();
   const [idioms, setIdioms] = useState<Idiom[]>([]);
@@ -85,7 +88,7 @@ export default function IdiomsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: AppColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   container: { paddingHorizontal: spacing.lg, paddingTop: spacing.xs },
   subtitle: { marginBottom: spacing.md },

@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useMemo } from 'react';
 import { View, ScrollView, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
@@ -10,10 +10,13 @@ import { PeriodTabs } from '../../src/components/PeriodTabs';
 import { LeaderboardRow } from '../../src/components/LeaderboardRow';
 import { PERIODS } from '../../src/constants/leaderboard';
 import { t } from '../../src/i18n';
-import { colors, spacing } from '../../src/theme/theme';
+import { spacing, type AppColors } from '../../src/theme/theme';
+import { useColors } from '../../src/settings/SettingsContext';
 
 export default function TeacherLeaderboardScreen() {
   const { token } = useAuth();
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [period, setPeriod] = useState<Period>('weekly');
   const [data, setData] = useState<LeaderboardResult | null>(null);
   const [loading, setLoading] = useState(true);
@@ -86,7 +89,7 @@ export default function TeacherLeaderboardScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: AppColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   header: { paddingHorizontal: spacing.lg, paddingTop: spacing.xs, paddingBottom: spacing.sm, gap: 2 },
   tabs: { marginHorizontal: spacing.lg, marginBottom: spacing.md },
