@@ -521,6 +521,21 @@ const mn = {
   shareProfileBody: '{name} SparkXP дээр англи хэл сурч байна! 🦊',
   englishLevel: 'Англи хэлний түвшин',
 
+  // AI Buddy memory
+  buddyMemory: 'AI Buddy санах ой',
+  buddyMemorySub: 'Buddy чиний тухай сурсан зүйлс',
+  buddyMemoryEmpty: 'Санах ой хоосон байна',
+  buddyMemoryEmptyHint: 'Ярилцах тусам Buddy чиний сонирхол, зорилго зэргийг санаж эхэлнэ.',
+  buddyMemoryError: 'Санах ойг ачаалж чадсангүй',
+  clearMemory: 'Санах ойг устгах',
+  clearMemoryConfirm: 'Бүх санах ойг устгах уу?',
+  clearMemoryConfirmBody: 'Buddy чиний тухай сурсан бүхнээ мартана. Үүнийг буцаах боломжгүй.',
+  memInterest: 'Сонирхол',
+  memGoal: 'Зорилго',
+  memMistake: 'Түгээмэл алдаа',
+  memPreference: 'Дуртай зүйл',
+  memLevel: 'Түвшин',
+
   // Network / generic
   errorFallback: 'Алдаа гарлаа',
 };
@@ -1014,6 +1029,21 @@ const en: Record<TranslationKey, string> = {
   shareProfile: 'Share profile',
   shareProfileBody: '{name} is learning English on SparkXP! 🦊',
   englishLevel: 'English level',
+
+  // AI Buddy memory
+  buddyMemory: 'AI Buddy memory',
+  buddyMemorySub: 'What your Buddy has learned about you',
+  buddyMemoryEmpty: 'No memories yet',
+  buddyMemoryEmptyHint: 'As you chat, your Buddy remembers your interests, goals and more.',
+  buddyMemoryError: 'Could not load memory',
+  clearMemory: 'Clear memory',
+  clearMemoryConfirm: 'Clear all memory?',
+  clearMemoryConfirmBody: 'Your Buddy will forget everything it learned about you. This cannot be undone.',
+  memInterest: 'Interest',
+  memGoal: 'Goal',
+  memMistake: 'Common mistake',
+  memPreference: 'Preference',
+  memLevel: 'Level',
 
   // Network / generic
   errorFallback: 'Something went wrong',

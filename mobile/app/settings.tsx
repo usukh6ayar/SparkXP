@@ -195,6 +195,7 @@ export default function SettingsScreen() {
           <SectionLabel>{t('account').toUpperCase()}</SectionLabel>
           <Card p={p}>
             <Row p={p} icon="person" tint={tints.blue} label={t('editProfile')} onPress={() => setEditing(true)} />
+            <Row p={p} icon="sparkles" tint={tints.purple} label={t('buddyMemory')} onPress={() => router.push('/buddy-memory')} />
             <Row p={p} icon="lock-closed" tint={tints.purple} label={t('changePassword')} onPress={soon} />
             <Row p={p} icon="shield-checkmark" tint={tints.green} label={t('privacy')} onPress={soon} />
           </Card>
