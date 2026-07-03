@@ -21,6 +21,7 @@ import { getExercises } from "../../src/api/quizzes";
 import { getReadingList } from "../../src/api/reading";
 import { getMyClasses } from "../../src/api/classes";
 import { getLastLesson, type LastLesson } from "../../src/lib/lastLesson";
+import { useUnreadNotifications } from "../../src/lib/useUnreadNotifications";
 import { useDictionary } from "../../src/components/DictionaryProvider";
 import { AppText } from "../../src/components/Text";
 import { ProgressBar } from "../../src/components/ProgressBar";
@@ -102,6 +103,7 @@ export default function HomeScreen() {
   const pageRgb = lightMode ? "244,242,252" : "25,16,64";
   const router = useRouter();
   const { openSearch } = useDictionary();
+  const hasUnread = useUnreadNotifications();
   const firstName =
     user?.englishName?.trim() || (user?.fullName?.split(" ")[0] ?? "");
 
@@ -257,8 +259,7 @@ export default function HomeScreen() {
                 </AppText>
               </View>
               <View style={styles.headerIcons}>
-                {/* TODO: notifications screen */}
-                <IconButton icon="notifications-outline" dot size={44} style={styles.headerIconBtn} onPress={() => {}} />
+                <IconButton icon="notifications-outline" dot={hasUnread} size={44} style={styles.headerIconBtn} onPress={() => router.push('/notifications')} />
                 {/* Dictionary — in-place search overlay (no screen change) */}
                 <IconButton icon="search" size={44} style={styles.headerIconBtn} onPress={openSearch} />
               </View>

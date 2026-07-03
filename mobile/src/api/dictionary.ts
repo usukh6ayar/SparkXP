@@ -20,6 +20,22 @@ export function lookupWord(token: string, word: string): Promise<WordLookup> {
 }
 
 /**
+ * POST /api/dictionary/translate — full Mongolian translation of an English
+ * sentence/phrase (not a 1–4 word gloss). Backend: translation cache → Gemini
+ * with a sentence-tuned prompt, cached after. (Endpoint owned by Өсөхбаяр.)
+ */
+export function translateSentence(
+  token: string,
+  text: string,
+): Promise<{ translation: string }> {
+  return apiRequest<{ translation: string }>('/dictionary/translate', {
+    method: 'POST',
+    body: { text },
+    token,
+  });
+}
+
+/**
  * GET /api/dictionary/:word/audio — pronunciation audio URL (ElevenLabs).
  * Generated once on first request, then cached & reused.
  */

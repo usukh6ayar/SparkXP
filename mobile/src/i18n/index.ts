@@ -521,6 +521,35 @@ const mn = {
   shareProfileBody: '{name} SparkXP дээр англи хэл сурч байна! 🦊',
   englishLevel: 'Англи хэлний түвшин',
 
+  // Reading — sentence translate hint
+  longPressSentenceHint: 'Өгүүлбэрийг удаан дарж бүтэн орчуулгыг үзнэ',
+  selectTranslateHint: 'Үг эсвэл өгүүлбэрийг сонгоод "Орчуулах" дарна',
+  translateSelection: 'Орчуулах',
+
+  // Notifications
+  notificationsEmpty: 'Мэдэгдэл байхгүй',
+  notificationsEmptyHint: 'Шинэ зарлал, мэдэгдэл энд харагдана.',
+  notificationsError: 'Мэдэгдлийг ачаалж чадсангүй',
+  timeNow: 'Дөнгөж сая',
+  timeMinAgo: '{n} мин өмнө',
+  timeHourAgo: '{n} цагийн өмнө',
+  timeDayAgo: '{n} өдрийн өмнө',
+
+  // AI Buddy memory
+  buddyMemory: 'AI Buddy санах ой',
+  buddyMemorySub: 'Buddy чиний тухай сурсан зүйлс',
+  buddyMemoryEmpty: 'Санах ой хоосон байна',
+  buddyMemoryEmptyHint: 'Ярилцах тусам Buddy чиний сонирхол, зорилго зэргийг санаж эхэлнэ.',
+  buddyMemoryError: 'Санах ойг ачаалж чадсангүй',
+  clearMemory: 'Санах ойг устгах',
+  clearMemoryConfirm: 'Бүх санах ойг устгах уу?',
+  clearMemoryConfirmBody: 'Buddy чиний тухай сурсан бүхнээ мартана. Үүнийг буцаах боломжгүй.',
+  memInterest: 'Сонирхол',
+  memGoal: 'Зорилго',
+  memMistake: 'Түгээмэл алдаа',
+  memPreference: 'Дуртай зүйл',
+  memLevel: 'Түвшин',
+
   // Network / generic
   errorFallback: 'Алдаа гарлаа',
 };
@@ -1014,6 +1043,35 @@ const en: Record<TranslationKey, string> = {
   shareProfile: 'Share profile',
   shareProfileBody: '{name} is learning English on SparkXP! 🦊',
   englishLevel: 'English level',
+
+  // Reading — sentence translate hint
+  longPressSentenceHint: 'Long-press a sentence for its full translation',
+  selectTranslateHint: 'Select a word or sentence, then tap "Translate"',
+  translateSelection: 'Translate',
+
+  // Notifications
+  notificationsEmpty: 'No notifications',
+  notificationsEmptyHint: 'New announcements and alerts will appear here.',
+  notificationsError: 'Could not load notifications',
+  timeNow: 'Just now',
+  timeMinAgo: '{n} min ago',
+  timeHourAgo: '{n} h ago',
+  timeDayAgo: '{n} d ago',
+
+  // AI Buddy memory
+  buddyMemory: 'AI Buddy memory',
+  buddyMemorySub: 'What your Buddy has learned about you',
+  buddyMemoryEmpty: 'No memories yet',
+  buddyMemoryEmptyHint: 'As you chat, your Buddy remembers your interests, goals and more.',
+  buddyMemoryError: 'Could not load memory',
+  clearMemory: 'Clear memory',
+  clearMemoryConfirm: 'Clear all memory?',
+  clearMemoryConfirmBody: 'Your Buddy will forget everything it learned about you. This cannot be undone.',
+  memInterest: 'Interest',
+  memGoal: 'Goal',
+  memMistake: 'Common mistake',
+  memPreference: 'Preference',
+  memLevel: 'Level',
 
   // Network / generic
   errorFallback: 'Something went wrong',

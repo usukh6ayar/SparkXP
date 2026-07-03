@@ -207,6 +207,7 @@ Controller-level: JWT. (Reading-ийн tap-to-translate ашигладаг.)
 | Method + Path | Auth | Зорилго | Params / Body |
 | --- | --- | --- | --- |
 | GET `/dictionary/:word` | JWT | Богино монгол утга (DB → cache → Gemini) | path `word` |
+| POST `/dictionary/translate` | JWT | Өгүүлбэрийн бүтэн монгол орчуулга (cache → Gemini) | body `{ text }` |
 | GET `/dictionary/:word/audio` | JWT | Дуудлагын аудио URL (ElevenLabs, cached) | path `word` |
 | POST `/dictionary/:word/save` | JWT | Үг + орчуулгыг хадгалсан үгэнд нэмэх | path `word` |
 
@@ -316,7 +317,7 @@ Controller-level: admin, super_admin.
 | `reading.ts` | `getReadingList`→GET `/reading?limit=50` · `getReadingPassage`→GET `/reading/:id` · `completeReading`→POST `/reading/:id/complete` |
 | `reviews.ts` | `getDue`→GET `/reviews/due` · `submitReview`→POST `/reviews/:wordId` · `getLearnQueue`→GET `/reviews/learn` · `toggleSave`→POST `/reviews/:wordId/save` · `getSaved`→GET `/reviews/saved` · `getReviewStats`→GET `/reviews/stats` |
 | `words.ts` | `getWords`→GET `/words` |
-| `dictionary.ts` | `lookupWord`→GET `/dictionary/:word` · `getWordAudio`→GET `/dictionary/:word/audio` · `saveWord`→POST `/dictionary/:word/save` |
+| `dictionary.ts` | `lookupWord`→GET `/dictionary/:word` · `translateSentence`→POST `/dictionary/translate` · `getWordAudio`→GET `/dictionary/:word/audio` · `saveWord`→POST `/dictionary/:word/save` |
 | `idioms.ts` | `getIdiomList`→GET `/idioms?limit=100` · `getIdiom`→GET `/idioms/:id` |
 | `leaderboard.ts` | `getLeaderboard`→GET `/leaderboard?period=&scope=` |
 | `ai.ts` | `sendMessage`→POST `/ai/chat` · `getHistory`→GET `/ai/conversations/:id` · (AI Buddy voice) `getBuddies`→GET `/ai/buddies` · `startSession`→POST `/ai/buddy/sessions` · `sendBuddyTextTurn`→POST `/ai/buddy/sessions/:id/turn/text` · `sendBuddyAudioTurn`→POST `/ai/buddy/sessions/:id/turn/audio` · `getBuddyUsage`→GET `/ai/buddy/usage` · memory GET/DELETE `/ai/buddy/memory` (Boju хийнэ) |
