@@ -227,7 +227,7 @@ Controller-level: JWT. Бүгд student-ийн өөрийн давталтын �
 
 | Method + Path | Auth | Зорилго | Params / Body |
 | --- | --- | --- | --- |
-| GET `/gamification` | JWT | Streak, level, өнөөдрийн XP, зорилго | — |
+| GET `/gamification` | JWT | Streak, level, өнөөдрийн XP, зорилго + `progressByLevel` (CEFR island бүрийн `done/total`) | — |
 
 ## 14. Classes (багш) — `/api/classes`
 Controller-level: JWT. Зарим бичилт роль шаардана; заримд эзэмшлийг service шалгана.
