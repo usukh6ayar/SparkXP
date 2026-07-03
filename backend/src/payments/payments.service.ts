@@ -11,6 +11,7 @@ import { Plan } from '../entities/plan.entity';
 import { SparksLog } from '../entities/sparks-log.entity';
 import { User } from '../entities/user.entity';
 import { PaymentStatus, SparksSource } from '../common/enums';
+import { ReferralsService } from '../referrals/referrals.service';
 import { CreatePaymentDto, SPARKS_PACKAGES } from './dto/create-payment.dto';
 import { ConfirmPaymentDto } from './dto/confirm-payment.dto';
 
@@ -21,6 +22,7 @@ export class PaymentsService {
     private readonly paymentRepo: Repository<Payment>,
     @InjectRepository(Plan)
     private readonly planRepo: Repository<Plan>,
+    private readonly referrals: ReferralsService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -100,7 +102,7 @@ export class PaymentsService {
             userId: caller.id,
             amount: sparks,
             source: SparksSource.PURCHASE,
-            refId: payment.id,
+            referenceId: payment.id,
           });
           await manager.save(SparksLog, log);
           await manager.increment(User, { id: caller.id }, 'sparks', sparks);
@@ -112,6 +114,10 @@ export class PaymentsService {
         expiresAt.setDate(expiresAt.getDate() + days);
         await manager.update(User, { id: caller.id }, { planId, planExpiresAt: expiresAt });
       }
+
+      // If this buyer was referred, credit their inviter the referral Sparks
+      // bonus — once, on the first confirmed purchase (any type). Atomic here.
+      await this.referrals.creditFirstPurchaseBonus(manager, caller.id);
     });
 
     return { message: 'Payment confirmed', type, paymentId };

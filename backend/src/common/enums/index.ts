@@ -112,6 +112,7 @@ export enum XpSource {
   STREAK = "streak",
   AI_BUDDY = "ai_buddy",
   READING = "reading",
+  REFERRAL = "referral", // signup bonus for inviter + invited friend
 }
 
 /** Which AI capability consumed budget — the AI Gateway logs this per call. */
@@ -199,6 +200,7 @@ export enum SparksSource {
   STREAK = "streak",
   ADMIN_GRANT = "admin_grant",
   PURCHASE = "purchase", // bought Sparks with real money (via a Payment)
+  REFERRAL = "referral", // inviter bonus when an invited friend first purchases
   // Spending
   LESSON_UNLOCK = "lesson_unlock",
   STORE_PURCHASE = "store_purchase",

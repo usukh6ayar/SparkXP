@@ -70,6 +70,23 @@ export class User extends BaseEntity {
   @Column({ type: 'enum', enum: UserRole, default: UserRole.STUDENT })
   role: UserRole;
 
+  /**
+   * Short, shareable referral code (e.g. "SPARK-7K2Q"). Unique when set; a
+   * friend who signs up with this code (or the owner's username) earns both
+   * sides a bonus. Generated lazily on first visit to the invite screen.
+   */
+  @Index({ unique: true, where: '"referral_code" IS NOT NULL' })
+  @Column({ name: 'referral_code', type: 'varchar', nullable: true })
+  referralCode: string | null;
+
+  /** The user who invited this user (set once, at email verification). */
+  @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'referred_by_id' })
+  referredBy: User | null;
+
+  @Column({ name: 'referred_by_id', type: 'uuid', nullable: true })
+  referredById: string | null;
+
   /** Achievement trophies collected by the user (slug list). e.g. ["first_quiz", "streak_7"]. */
   @Column({ type: 'jsonb', nullable: true })
   trophies: string[] | null;

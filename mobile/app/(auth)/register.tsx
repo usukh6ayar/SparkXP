@@ -1,10 +1,11 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { View, Image, Pressable, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/auth/AuthContext';
 import { ApiError } from '../../src/api/client';
 import * as authApi from '../../src/api/auth';
+import { peekPendingReferral, clearPendingReferral } from '../../src/lib/referralLink';
 import type { AuthResult } from '../../src/api/auth';
 import { t } from '../../src/i18n';
 import { spacing, radius, type AppColors } from '../../src/theme/theme';
@@ -85,9 +86,16 @@ export default function RegisterScreen() {
   const [level, setLevel] = useState<string | undefined>();
   const [englishName, setEnglishName] = useState('');
   const [code, setCode] = useState('');
+  const [referral, setReferral] = useState<string | null>(null);
   const [result, setResult] = useState<AuthResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Pick up a referral code captured from an `englishxp://invite/CODE` deep link
+  // (stashed while the user was logged out). Applied when the account is created.
+  useEffect(() => {
+    peekPendingReferral().then(setReferral);
+  }, []);
 
   const isUB = province === 'Улаанбаатар';
   const passOk = rules.minLen(password) && rules.letterCase(password) && rules.number(password);
@@ -120,7 +128,11 @@ export default function RegisterScreen() {
         englishName: englishName.trim() || undefined,
         province,
         district: isUB ? district : undefined,
+        referralCode: referral ?? undefined,
       });
+      // Account created — the referral code has been handed to the backend, so
+      // clear the stash to avoid re-applying it to a later sign-up on this device.
+      if (referral) clearPendingReferral();
       setStep('otp');
     } catch (e) {
       setError(e instanceof ApiError ? e.message : t('errorGeneric'));
@@ -211,6 +223,16 @@ export default function RegisterScreen() {
           <AppText variant="body" center color={colors.textSecondary} style={styles.subtitle}>
             {t('registerSubtitle')}
           </AppText>
+
+          {referral ? (
+            <View style={styles.referralChip}>
+              <Ionicons name="gift" size={16} color={colors.primary} />
+              <AppText variant="caption" color={colors.text} style={{ flex: 1 }}>
+                {t('invitedByCode')}: <AppText variant="label" color={colors.primary}>{referral}</AppText>
+              </AppText>
+              <AppText variant="caption" color={colors.textMuted}>{t('inviteRewardHint')}</AppText>
+            </View>
+          ) : null}
 
           <TextField
             leftIcon="at-outline"
@@ -416,6 +438,11 @@ const makeStyles = (colors: AppColors) => StyleSheet.create({
     marginBottom: spacing.md,
   },
   rulesTitle: { marginBottom: spacing.xs },
+  referralChip: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    backgroundColor: colors.primarySoft, borderRadius: radius.md,
+    paddingVertical: spacing.sm, paddingHorizontal: spacing.md, marginBottom: spacing.md,
+  },
   ruleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   resend: { alignSelf: 'center', marginTop: spacing.lg },
 

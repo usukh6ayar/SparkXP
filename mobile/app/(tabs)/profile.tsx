@@ -160,7 +160,7 @@ export default function ProfileScreen() {
     { icon: 'stats-chart', label: t('myProgress'), tint: tints.pink, onPress: () => router.push('/leaderboard') },
     { icon: 'bookmark', label: t('saved'), tint: tints.green, onPress: () => router.push('/saved') },
     { icon: 'notifications', label: t('notifications'), tint: tints.orange, onPress: () => router.push('/notifications') },
-    { icon: 'gift', label: t('rewards'), tint: tints.purple, onPress: soon },
+    { icon: 'gift', label: t('inviteFriends'), tint: tints.purple, onPress: () => router.push('/invite') },
     { icon: 'time', label: t('recentlyViewed'), tint: tints.blue, onPress: soon },
     { icon: 'heart', label: t('favorites'), tint: tints.pink, onPress: soon },
   ];

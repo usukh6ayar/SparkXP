@@ -1,6 +1,7 @@
 import {
   Injectable,
   Inject,
+  Logger,
   ConflictException,
   UnauthorizedException,
   BadRequestException,
@@ -10,6 +11,7 @@ import type { Redis } from 'ioredis';
 import * as bcrypt from 'bcrypt';
 import { UsersService } from '../users/users.service';
 import { MailService } from '../mail/mail.service';
+import { ReferralsService } from '../referrals/referrals.service';
 import { REDIS_CLIENT } from '../redis/redis.module';
 import { User } from '../entities/user.entity';
 import { RegisterDto } from './dto/register.dto';
@@ -20,6 +22,8 @@ import { JwtPayload } from './strategies/jwt.strategy';
 const BCRYPT_ROUNDS = 10;
 /** OTP codes live for 10 minutes. */
 const OTP_TTL_SECONDS = 600;
+/** A pending referral code is held until the user verifies (24h grace). */
+const REFERRAL_PENDING_TTL = 24 * 60 * 60;
 
 /** What the API returns on successful login / verify. */
 export interface AuthResult {
@@ -44,10 +48,13 @@ export interface PublicUser {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly mail: MailService,
+    private readonly referrals: ReferralsService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
 
@@ -77,6 +84,16 @@ export class AuthService {
       district: dto.district ?? null,
     });
 
+    // Hold any referral code until the email is verified (then it's consumed).
+    if (dto.referralCode?.trim()) {
+      await this.redis.set(
+        this.referralKey(user.email),
+        dto.referralCode.trim(),
+        'EX',
+        REFERRAL_PENDING_TTL,
+      );
+    }
+
     await this.sendOtp('verify', user.email);
     return { pendingVerification: true, email: user.email };
   }
@@ -87,10 +104,27 @@ export class AuthService {
     if (!user) throw new BadRequestException('Хэрэглэгч олдсонгүй');
 
     await this.consumeOtp('verify', email, code);
-    if (!user.emailVerified) {
+    const firstVerification = !user.emailVerified;
+    if (firstVerification) {
       await this.usersService.markEmailVerified(user.id);
       user.emailVerified = true;
     }
+
+    // Apply a pending referral once, on first verification. Guarded so a referral
+    // hiccup never blocks the user from logging in.
+    if (firstVerification) {
+      try {
+        const key = this.referralKey(email);
+        const referralCode = await this.redis.get(key);
+        if (referralCode) {
+          await this.redis.del(key);
+          await this.referrals.applyReferralOnVerify(user, referralCode);
+        }
+      } catch (err) {
+        this.logger.warn(`Referral apply failed for ${email}: ${String(err)}`);
+      }
+    }
+
     return this.buildAuthResult(user);
   }
 
@@ -136,6 +170,11 @@ export class AuthService {
 
   private otpKey(purpose: 'verify' | 'reset', email: string): string {
     return `otp:${purpose}:${email.toLowerCase()}`;
+  }
+
+  /** Redis key holding the referral code a user registered with, until verify. */
+  private referralKey(email: string): string {
+    return `referral:pending:${email.toLowerCase()}`;
   }
 
   /** Generate, store (Redis TTL) and email a 6-digit code. */

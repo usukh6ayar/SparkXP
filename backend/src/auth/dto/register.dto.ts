@@ -61,4 +61,10 @@ export class RegisterDto {
   @IsString()
   @MaxLength(100)
   district?: string;
+
+  /** Referral code (or username) of the friend who invited this user. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  referralCode?: string;
 }
