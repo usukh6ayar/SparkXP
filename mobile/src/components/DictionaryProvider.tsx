@@ -41,6 +41,7 @@ import * as Speech from 'expo-speech';
 import { useAuth } from '../auth/AuthContext';
 import {
   lookupWord,
+  translateSentence,
   getWordAudio,
   saveWord,
   type WordLookup,
@@ -63,6 +64,8 @@ interface Anchor {
 interface DictionaryState {
   /** Look a word up and open the popover anchored above the tap point. */
   lookup: (word: string, anchor: Anchor) => void;
+  /** Translate a full sentence/phrase and open the popover above the anchor. */
+  translatePhrase: (text: string, anchor: Anchor) => void;
   /** Open the in-place search overlay (transparent — no screen change). */
   openSearch: () => void;
 }
@@ -79,6 +82,9 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
   const player = useAudioPlayer();
 
   const [word, setWord] = useState<string | null>(null);
+  // Sentence mode: the popover shows a full-sentence translation (no save,
+  // wrapping text) instead of a single-word gloss.
+  const [isPhrase, setIsPhrase] = useState(false);
   const [anchor, setAnchor] = useState<Anchor>({ x: 0, y: 0 });
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<WordLookup | null>(null);
@@ -100,6 +106,7 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
       const clean = raw.trim().toLowerCase();
       if (!clean || !token) return;
 
+      setIsPhrase(false);
       setWord(clean);
       setAnchor(at);
       setResult(null);
@@ -109,6 +116,33 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
       setLoading(true);
       try {
         setResult(await lookupWord(token, clean));
+      } catch (err) {
+        setError(err instanceof ApiError ? err.message : t('notFoundShort'));
+      } finally {
+        setLoading(false);
+      }
+    },
+    [token],
+  );
+
+  // Translate a whole sentence (long-press in the reader). Keeps original case
+  // for display + text-to-speech; opens the same popover in sentence mode.
+  const translatePhrase = useCallback(
+    async (raw: string, at: Anchor) => {
+      const text = raw.trim();
+      if (!text || !token) return;
+
+      setIsPhrase(true);
+      setWord(text);
+      setAnchor(at);
+      setResult(null);
+      setError(null);
+      setSaved(false);
+      setSize({ w: 0, h: 0 });
+      setLoading(true);
+      try {
+        const { translation } = await translateSentence(token, text);
+        setResult({ word: text, translation, audioUrl: null, cached: false });
       } catch (err) {
         setError(err instanceof ApiError ? err.message : t('notFoundShort'));
       } finally {
@@ -158,6 +192,12 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
   // the backend), fall back to the device voice so it always says something.
   const speak = useCallback(async () => {
     if (!word) return;
+    // Sentences: read aloud with the on-device voice (no per-sentence ElevenLabs).
+    if (isPhrase) {
+      Speech.stop();
+      Speech.speak(word, { language: 'en-US', rate: 0.9 });
+      return;
+    }
     const playUrl = (uri: string) => {
       try {
         player.replace({ uri });
@@ -182,7 +222,7 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
     }
     Speech.stop();
     Speech.speak(word, { language: 'en-US', rate: 0.9 });
-  }, [word, result, token, player]);
+  }, [word, result, token, player, isPhrase]);
 
   // Save the word (+ translation) to the user's saved vocabulary.
   const save = useCallback(async () => {
@@ -206,7 +246,7 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
   const top = above < 60 ? anchor.y + 22 : above; // flip below if no room above
 
   return (
-    <DictionaryContext.Provider value={{ lookup, openSearch }}>
+    <DictionaryContext.Provider value={{ lookup, translatePhrase, openSearch }}>
       {children}
 
       {/* In-place search overlay — transparent backdrop, no screen change */}
@@ -281,7 +321,11 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
             </AppText>
           ) : result ? (
             <>
-              <AppText variant="h3" color={colors.text} style={styles.translation}>
+              <AppText
+                variant={isPhrase ? 'body' : 'h3'}
+                color={colors.text}
+                style={styles.translation}
+              >
                 {result.translation}
               </AppText>
               <Pressable onPress={speak} hitSlop={8} style={styles.iconBtn}>
@@ -291,17 +335,20 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
                   <Ionicons name="volume-high" size={22} color={colors.primary} />
                 )}
               </Pressable>
-              <Pressable onPress={save} hitSlop={8} style={styles.iconBtn}>
-                {saveBusy ? (
-                  <ActivityIndicator size="small" color={colors.primary} />
-                ) : (
-                  <Ionicons
-                    name={saved ? 'bookmark' : 'bookmark-outline'}
-                    size={22}
-                    color={saved ? colors.success : colors.primary}
-                  />
-                )}
-              </Pressable>
+              {/* Save is word-only — sentences aren't added to vocabulary. */}
+              {!isPhrase ? (
+                <Pressable onPress={save} hitSlop={8} style={styles.iconBtn}>
+                  {saveBusy ? (
+                    <ActivityIndicator size="small" color={colors.primary} />
+                  ) : (
+                    <Ionicons
+                      name={saved ? 'bookmark' : 'bookmark-outline'}
+                      size={22}
+                      color={saved ? colors.success : colors.primary}
+                    />
+                  )}
+                </Pressable>
+              ) : null}
             </>
           ) : null}
         </View>

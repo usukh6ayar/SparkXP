@@ -1,5 +1,6 @@
 import {
   Injectable,
+  BadRequestException,
   ForbiddenException,
   InternalServerErrorException,
   Logger,
@@ -206,11 +207,110 @@ export class DictionaryService {
   }
 
   /**
+   * Full Mongolian translation of an English sentence/phrase (reading reader:
+   * long-press a sentence). Unlike `explain`, this is a complete sentence
+   * translation, not a 1–4 word gloss. Cache order: translation cache → Gemini
+   * (sentence-tuned prompt), then cached. The plan's dictionary AI limit applies.
+   */
+  async translateSentence(
+    userId: string,
+    text: string,
+  ): Promise<{ translation: string; cached: boolean }> {
+    const clean = text.trim().replace(/\s+/g, ' ');
+    if (!clean) throw new BadRequestException('Хоосон текст');
+
+    // The `translations.word` cache key is a unique varchar — only cache
+    // sentences short enough to fit; longer ones translate without caching.
+    const cacheKey = clean.toLowerCase();
+    const cacheable = cacheKey.length <= 200;
+
+    // 1. Translation cache (a previous identical sentence).
+    if (cacheable) {
+      const hit = await this.translations.findOne({ where: { word: cacheKey } });
+      if (hit) return { translation: hit.translation, cached: true };
+    }
+
+    // 2. Enforce the monthly plan limit only when we actually call the AI.
+    const user = await this.users.findOne({
+      where: { id: userId },
+      relations: ['plan'],
+    });
+    if (user?.plan && user.plan.dictionaryAiLimit !== null) {
+      if (user.dictionaryAiCount >= user.plan.dictionaryAiLimit) {
+        throw new ForbiddenException(
+          `Сарын толь бичгийн хязгаар хэтэрлээ (${user.plan.dictionaryAiLimit} тайлбар/сар)`,
+        );
+      }
+    }
+
+    const prompt =
+      'Дараах англи өгүүлбэрийг монгол хэл рүү бүтнээр, ойлгомжтой орчуул.\n' +
+      'Зөвхөн монгол орчуулгыг бич — тайлбар, англи эх бичвэр бүү нэм.\n\n' +
+      `"${clean}"`;
+    const { text: translation, model, promptTokens, completionTokens } =
+      await this.runGemini(prompt, 'sentence');
+
+    if (cacheable) {
+      await this.translations.save(
+        this.translations.create({
+          word: cacheKey,
+          translation,
+          audioUrl: null,
+          source: model,
+        }),
+      );
+    }
+
+    const costMicroUsd =
+      Math.round(promptTokens * 0.0001) + Math.round(completionTokens * 0.0004);
+    await this.aiUsages.save(
+      this.aiUsages.create({
+        userId,
+        type: AiUsageType.TEXT_CHAT,
+        model,
+        promptTokens,
+        completionTokens,
+        voiceSeconds: 0,
+        costMicroUsd,
+        metadata: { feature: 'dictionary_sentence' },
+      }),
+    );
+    if (user) {
+      await this.users.increment({ id: userId }, 'dictionaryAiCount', 1);
+    }
+
+    return { translation, cached: false };
+  }
+
+  /**
    * Ask Gemini for ONLY the short Mongolian meaning of an English word (a few
-   * words, no explanation). Retries transient 429/503/overload responses.
+   * words, no explanation).
    */
   private async askGemini(word: string): Promise<{
     translation: string;
+    model: string;
+    promptTokens: number;
+    completionTokens: number;
+  }> {
+    const prompt =
+      `"${word}" гэсэн англи үгийн монгол утгыг бич.\n` +
+      'Зөвхөн монгол орчуулгыг бич — богино (1-4 үг), тайлбар, жишээ, англи үг бүү нэм.';
+    const { text, model, promptTokens, completionTokens } = await this.runGemini(
+      prompt,
+      word,
+    );
+    return { translation: text, model, promptTokens, completionTokens };
+  }
+
+  /**
+   * Low-level Gemini text call shared by word + sentence translation. Retries
+   * transient 429/503/overload responses. `label` is used only for logging.
+   */
+  private async runGemini(
+    prompt: string,
+    label: string,
+  ): Promise<{
+    text: string;
     model: string;
     promptTokens: number;
     completionTokens: number;
@@ -220,10 +320,6 @@ export class DictionaryService {
       throw new InternalServerErrorException('GEMINI_API_KEY тохируулаагүй байна');
     }
     const model = this.config.get<string>('GEMINI_MODEL', 'gemini-2.5-flash');
-
-    const prompt =
-      `"${word}" гэсэн англи үгийн монгол утгыг бич.\n` +
-      'Зөвхөн монгол орчуулгыг бич — богино (1-4 үг), тайлбар, жишээ, англи үг бүү нэм.';
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
     const requestInit = {
@@ -244,16 +340,16 @@ export class DictionaryService {
           usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
         };
         const parts = data.candidates?.[0]?.content?.parts ?? [];
-        const translation = parts
+        const text = parts
           .filter((p) => !p.thought && p.text)
           .map((p) => p.text)
           .join('')
           .trim();
-        if (!translation) {
+        if (!text) {
           throw new InternalServerErrorException('AI хоосон хариу буцаалаа');
         }
         return {
-          translation,
+          text,
           model,
           promptTokens: data.usageMetadata?.promptTokenCount ?? 0,
           completionTokens: data.usageMetadata?.candidatesTokenCount ?? 0,
@@ -269,7 +365,7 @@ export class DictionaryService {
       if (transient && attempt < MAX_ATTEMPTS) {
         const waitMs = geminiRetryDelayMs(body, attempt);
         this.logger.warn(
-          `Gemini ${response.status} for "${word}" — retry ${attempt}/${MAX_ATTEMPTS - 1} in ${waitMs}ms`,
+          `Gemini ${response.status} for "${label}" — retry ${attempt}/${MAX_ATTEMPTS - 1} in ${waitMs}ms`,
         );
         await sleep(waitMs);
         continue;

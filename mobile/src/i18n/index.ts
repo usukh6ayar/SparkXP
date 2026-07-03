@@ -521,6 +521,11 @@ const mn = {
   shareProfileBody: '{name} SparkXP дээр англи хэл сурч байна! 🦊',
   englishLevel: 'Англи хэлний түвшин',
 
+  // Reading — sentence translate hint
+  longPressSentenceHint: 'Өгүүлбэрийг удаан дарж бүтэн орчуулгыг үзнэ',
+  selectTranslateHint: 'Үг эсвэл өгүүлбэрийг сонгоод "Орчуулах" дарна',
+  translateSelection: 'Орчуулах',
+
   // Notifications
   notificationsEmpty: 'Мэдэгдэл байхгүй',
   notificationsEmptyHint: 'Шинэ зарлал, мэдэгдэл энд харагдана.',
@@ -1038,6 +1043,11 @@ const en: Record<TranslationKey, string> = {
   shareProfile: 'Share profile',
   shareProfileBody: '{name} is learning English on SparkXP! 🦊',
   englishLevel: 'English level',
+
+  // Reading — sentence translate hint
+  longPressSentenceHint: 'Long-press a sentence for its full translation',
+  selectTranslateHint: 'Select a word or sentence, then tap "Translate"',
+  translateSelection: 'Translate',
 
   // Notifications
   notificationsEmpty: 'No notifications',
