@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   StyleSheet,
@@ -16,6 +16,7 @@ import { useAuth } from '../../src/auth/AuthContext';
 import { useSettings } from '../../src/settings/SettingsContext';
 import { tf } from '../../src/i18n';
 import { getLessons, type Lesson } from '../../src/api/lessons';
+import { getGamification, type Gamification } from '../../src/api/gamification';
 import { AppText } from '../../src/components/Text';
 import { islandMap } from '../../src/theme/theme';
 
@@ -90,14 +91,17 @@ interface LevelNode {
   isl: { left: number; top: number; w: number };
 }
 
-// Serpentine top→bottom path. The label card is auto-placed under each island.
+// Serpentine bottom→top climb: A1 sits at the BOTTOM slot and the path ascends
+// to C2 at the top (a mountain-climb metaphor). The 6 on-screen slots (and the
+// golden trail stretched over them) are unchanged — only which level occupies
+// each slot is reversed. The label card is auto-placed under each island.
 const LEVELS: LevelNode[] = [
-  { code: 'A1', name: 'Forest',    color: BADGE.green,  unlockAt: null, done: 15, total: 30, isl: { left: 0.00, top: 0.010, w: 0.50 } },
-  { code: 'A2', name: 'Village',   color: BADGE.green,  unlockAt: null, done: 20, total: 30, isl: { left: 0.48, top: 0.140, w: 0.50 } },
-  { code: 'B1', name: 'Castle',    color: BADGE.blue,   unlockAt: null, done: 10, total: 30, isl: { left: 0.00, top: 0.300, w: 0.52 } },
-  { code: 'B2', name: 'Mountain',  color: BADGE.blue,   unlockAt: 30,   done: 0,  total: 30, isl: { left: 0.47, top: 0.455, w: 0.50 } },
-  { code: 'C1', name: 'Space',     color: BADGE.purple, unlockAt: 45,   done: 0,  total: 30, isl: { left: 0.00, top: 0.600, w: 0.50 } },
-  { code: 'C2', name: 'Sky Realm', color: BADGE.purple, unlockAt: 60,   done: 0,  total: 30, isl: { left: 0.44, top: 0.740, w: 0.52 } },
+  { code: 'A1', name: 'Forest',    color: BADGE.green,  unlockAt: null, done: 15, total: 30, isl: { left: 0.44, top: 0.740, w: 0.52 } },
+  { code: 'A2', name: 'Village',   color: BADGE.green,  unlockAt: null, done: 20, total: 30, isl: { left: 0.00, top: 0.600, w: 0.50 } },
+  { code: 'B1', name: 'Castle',    color: BADGE.blue,   unlockAt: null, done: 10, total: 30, isl: { left: 0.47, top: 0.455, w: 0.50 } },
+  { code: 'B2', name: 'Mountain',  color: BADGE.blue,   unlockAt: 30,   done: 0,  total: 30, isl: { left: 0.00, top: 0.300, w: 0.52 } },
+  { code: 'C1', name: 'Space',     color: BADGE.purple, unlockAt: 45,   done: 0,  total: 30, isl: { left: 0.48, top: 0.140, w: 0.50 } },
+  { code: 'C2', name: 'Sky Realm', color: BADGE.purple, unlockAt: 60,   done: 0,  total: 30, isl: { left: 0.00, top: 0.010, w: 0.50 } },
 ];
 
 /** Add thousands separators (Hermes' toLocaleString is unreliable). */
@@ -119,16 +123,22 @@ export default function LessonsScreen() {
   const islandImg = isLight ? ISLAND_IMG_LIGHT : ISLAND_IMG;
 
   const [byLevel, setByLevel] = useState<Record<string, Lesson[]>>({});
+  const [gam, setGam] = useState<Gamification | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  // The climb starts at the bottom (A1), so jump there once on first render.
+  const scrollRef = useRef<ScrollView>(null);
+  const didInitialScroll = useRef(false);
 
-  // Group all published lessons by level so tapping an island opens its first.
+  // Group all published lessons by level so tapping an island opens its first,
+  // and pull the real gamification summary (streak + per-island progress).
   const load = useCallback(async () => {
     if (!token) return;
     try {
-      const r = await getLessons(token, {});
+      const [r, g] = await Promise.all([getLessons(token, {}), getGamification(token)]);
       const map: Record<string, Lesson[]> = {};
       for (const l of r.items) (map[l.level?.toLowerCase()] ??= []).push(l);
       setByLevel(map);
+      setGam(g);
     } catch (e) {
       console.warn('Lessons map load failed:', (e as Error)?.message ?? e);
       setByLevel({});
@@ -147,9 +157,9 @@ export default function LessonsScreen() {
 
   const xp = user?.xp ?? 0;
   const gems = user?.sparks ?? 0;
-  // TODO: real level field + daily-streak counter once the backend has them.
+  // Real daily-streak from the backend; XP still gates island unlocks.
   const userLevel = Math.floor(xp / 100);
-  const streak = 7;
+  const streak = gam?.currentStreak ?? 0;
 
   // Tapping an island opens that level's lesson journey (path of nodes).
   const openLevel = useCallback(
@@ -173,8 +183,16 @@ export default function LessonsScreen() {
       />
       <View style={styles.safe}>
         <ScrollView
+          ref={scrollRef}
           contentContainerStyle={styles.scroll}
           showsVerticalScrollIndicator={false}
+          onContentSizeChange={(_w, h) => {
+            // Start at the bottom island (A1) the first time the map lays out.
+            if (!didInitialScroll.current && h > 0) {
+              didInitialScroll.current = true;
+              scrollRef.current?.scrollToEnd({ animated: false });
+            }
+          }}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={SKY.gold} />
           }
@@ -226,7 +244,10 @@ export default function LessonsScreen() {
               resizeMode="stretch"
             />
 
-            {LEVELS.map((node) => {
+            {LEVELS.map((baseNode) => {
+              // Overlay real per-level lesson progress on the placeholder counts.
+              const p = gam?.progressByLevel?.[baseNode.code.toLowerCase()];
+              const node = p ? { ...baseNode, done: p.done, total: p.total } : baseNode;
               const locked = node.unlockAt != null && userLevel < node.unlockAt;
               const onPress = locked ? undefined : () => openLevel(node);
 
