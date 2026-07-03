@@ -29,6 +29,8 @@ export interface RegisterPayload {
   englishName?: string;
   province?: string;
   district?: string;
+  /** Referral code (or username) of the friend who invited this user. */
+  referralCode?: string;
 }
 
 /** POST /api/auth/register — creates an unverified account + emails an OTP. */

@@ -521,6 +521,26 @@ const mn = {
   shareProfileBody: '{name} SparkXP дээр англи хэл сурч байна! 🦊',
   englishLevel: 'Англи хэлний түвшин',
 
+  // Invite friends (referral)
+  inviteFriends: 'Найзаа урих',
+  inviteSubtitle: 'Найзаа урьж XP цуглуул',
+  inviteCode: 'Урих код',
+  inviteHint: 'Найз энэ кодоор бүртгүүлбэл та хоёр XP авна.',
+  inviteLoadError: 'Урих кодыг ачаалж чадсангүй. Сүлжээгээ шалгаад дахин оролдоно уу.',
+  shareInvite: 'Урих холбоос илгээх',
+  inviteBody: 'SparkXP дээр надтай хамт англи хэл сур! Миний урих код: {code} 🦊',
+  invitedCount: 'Урьсан найз',
+  referralXpEarned: 'Олсон XP',
+  referralSparksEarned: 'Олсон Spark',
+  inviteHowTitle: 'Хэрхэн ажилладаг вэ?',
+  inviteStep1: 'Найздаа урих кодоо илгээ',
+  inviteStep2: 'Найз бүртгүүлбэл та хоёр +50 XP',
+  inviteStep3: 'Найз анхны худалдан авалтаа хийвэл та +200 Spark',
+  invitedByCode: 'Урьсан код',
+  inviteRewardHint: 'Бүртгэл баталгаажсны дараа та хоёр +50 XP авна.',
+  inviteAlreadyTitle: 'Та аль хэдийн гишүүн',
+  inviteAlreadyBody: 'Урих код зөвхөн шинэ хэрэглэгчид зориулагдсан.',
+
   // Reading — sentence translate hint
   longPressSentenceHint: 'Өгүүлбэрийг удаан дарж бүтэн орчуулгыг үзнэ',
   selectTranslateHint: 'Үг дээр 2 дарж орчуул. Олон үг: удаан дараад нэмж дарж сонго.',
@@ -1043,6 +1063,26 @@ const en: Record<TranslationKey, string> = {
   shareProfile: 'Share profile',
   shareProfileBody: '{name} is learning English on SparkXP! 🦊',
   englishLevel: 'English level',
+
+  // Invite friends (referral)
+  inviteFriends: 'Invite friends',
+  inviteSubtitle: 'Invite friends and earn XP',
+  inviteCode: 'Invite code',
+  inviteHint: 'When a friend signs up with this code, you both get XP.',
+  inviteLoadError: "Couldn't load your invite code. Check your connection and try again.",
+  shareInvite: 'Share invite link',
+  inviteBody: 'Learn English with me on SparkXP! My invite code: {code} 🦊',
+  invitedCount: 'Friends invited',
+  referralXpEarned: 'XP earned',
+  referralSparksEarned: 'Sparks earned',
+  inviteHowTitle: 'How it works',
+  inviteStep1: 'Send your invite code to a friend',
+  inviteStep2: 'When they sign up, you both get +50 XP',
+  inviteStep3: 'When they make their first purchase, you get +200 Sparks',
+  invitedByCode: 'Invited by',
+  inviteRewardHint: 'You both get +50 XP after you verify your email.',
+  inviteAlreadyTitle: "You're already a member",
+  inviteAlreadyBody: 'Invite codes are only for new users.',
 
   // Reading — sentence translate hint
   longPressSentenceHint: 'Long-press a sentence for its full translation',

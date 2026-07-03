@@ -33,7 +33,7 @@ Backend (NestJS) endpoint-үүдийн бүрэн лавлах. **Зам/мет�
 
 | Method + Path | Auth | Зорилго | Params / Body |
 | --- | --- | --- | --- |
-| POST `/auth/register` | Public | Баталгаажаагүй бүртгэл үүсгэж, имэйлээр OTP илгээх (token өгөхгүй) | `RegisterDto` |
+| POST `/auth/register` | Public | Баталгаажаагүй бүртгэл үүсгэж, имэйлээр OTP илгээх (token өгөхгүй). Optional `referralCode` (найзын код эсвэл username) — verify хийхэд хэрэглэгдэнэ | `RegisterDto` |
 | POST `/auth/verify-otp` | Public | OTP-оор имэйл баталгаажуулж → token буцаана (нэвтэрнэ) | `{ email, code }` |
 | POST `/auth/resend-otp` | Public | Баталгаажуулах OTP дахин илгээх | `{ email }` |
 | POST `/auth/login` | Public | username/email + нууц үгээр нэвтрэх → token | `LoginDto` |
@@ -274,7 +274,7 @@ Guard per-method. (QPay QR stub — §PRODUCT: Update 1.)
 | GET `/payments/plans` | **Public** | Идэвхтэй багцын жагсаалт | — |
 | POST `/payments/plans` | admin, super_admin | Багц үүсгэх (давхардвал 409) | `CreatePlanDto` |
 | POST `/payments` | JWT | Төлбөрийн intent үүсгэх (QPay QR stub) | `CreatePaymentDto` |
-| POST `/payments/:id/confirm` | JWT | QPay callback дараа баталгаажуулах | `ConfirmPaymentDto` |
+| POST `/payments/:id/confirm` | JWT | QPay callback дараа баталгаажуулах. Худалдан авагчийг урьсан хүн байвал эхний удаад урисан хүнд referral Sparks bonus нэмнэ (transaction дотор, нэг л удаа) | `ConfirmPaymentDto` |
 | GET `/payments/my` | JWT | Өөрийн төлбөрийн түүх | — |
 | GET `/payments` | admin, super_admin | Бүх төлбөр (хэрэглэгчтэй) | — |
 
@@ -298,6 +298,17 @@ Controller-level: admin, super_admin.
 | Method + Path | Auth | Зорилго | Params / Body |
 | --- | --- | --- | --- |
 | GET `/health` | **Public** | Амьд эсэх: DB (SELECT 1) + Redis ping → `{status, db, redis, timestamp}` | — |
+
+## 21. Referrals (урих) — `/api/referrals`
+
+| Method + Path | Auth | Зорилго | Params / Body |
+| --- | --- | --- | --- |
+| GET `/referrals/me` | JWT | Өөрийн урих код + шагналын статистик. Код байхгүй бол анх дуудахад автоматаар үүсгэнэ → `{ referralCode, username, invitedCount, totalXpEarned, totalSparksEarned }` | — |
+
+**Урамшуулал:** найз `referralCode`-оор бүртгүүлж имэйлээ баталгаажуулахад **хоёр тал тус бүр +50 XP**
+(`XpSource.REFERRAL`). Тэр найз анхны төлбөрөө хийхэд **урисан хүнд Sparks bonus**
+(`SparksSource.REFERRAL`, `/payments/:id/confirm` дотор). Урих код нь username-ээр
+ч ажиллана. Шинэ prod багана/enum: migration `AddReferralSystem1782500000000`.
 
 ---
 
@@ -324,6 +335,7 @@ Controller-level: admin, super_admin.
 | `classes.ts` | `getMyClasses`→GET `/classes` · `createClass`→POST `/classes` · `getClass`→GET `/classes/:id` · `getClassStudents`→GET `/classes/:id/students` · `requestJoinClass`→POST `/classes/join` · `getJoinRequests`→GET `/classes/:id/requests` · `approveRequest`→POST `/classes/:id/requests/:studentId/approve` · `rejectRequest`→DELETE `/classes/:id/requests/:studentId` |
 | `assignments.ts` | `createAssignment`→POST `/assignments` · `getClassAssignments`→GET `/assignments?classId=` · `getMyAssignments`→GET `/assignments/mine` · `deleteAssignment`→DELETE `/assignments/:id` |
 | `organizations.ts` | `getOrganizations`→GET `/organizations?limit=100` |
+| `referrals.ts` | `getMyReferral`→GET `/referrals/me` |
 
 ### Admin (`admin/src/pages/**`)
 Token автоматаар залгагдана. Зураг байршуулалт: `components/*` → POST `/upload`.
