@@ -3,7 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, MoreThanOrEqual } from 'typeorm';
 import { XpLog } from '../entities/xp-log.entity';
 import { User } from '../entities/user.entity';
-import { XpSource } from '../common/enums';
+import { Lesson } from '../entities/lesson.entity';
+import { XpSource, ContentLevel } from '../common/enums';
 import {
   computeLevel,
   dayKeyUB,
@@ -30,6 +31,8 @@ export interface GamificationSummary extends LevelInfo {
   cefrLevel: string | null;
   lessonsDone: number;
   quizzesDone: number;
+  /** Per-CEFR-level lesson progress for the Lessons map islands (a1…c2). */
+  progressByLevel: Record<string, { done: number; total: number }>;
 }
 
 /** Default daily-XP goal (could become plan/admin-configurable later). */
@@ -42,6 +45,8 @@ export class XpService {
     private readonly xpLogs: Repository<XpLog>,
     @InjectRepository(User)
     private readonly users: Repository<User>,
+    @InjectRepository(Lesson)
+    private readonly lessons: Repository<Lesson>,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -124,7 +129,7 @@ export class XpService {
     const alive = user?.lastActiveDate === today || user?.lastActiveDate === yesterday;
     const currentStreak = alive ? (user?.currentStreak ?? 0) : 0;
 
-    const [todayRow, lessonRow, quizzesDone] = await Promise.all([
+    const [todayRow, lessonRow, quizzesDone, levelTotals, levelDone] = await Promise.all([
       this.xpLogs
         .createQueryBuilder('x')
         .select('COALESCE(SUM(x.amount), 0)', 'sum')
@@ -140,7 +145,31 @@ export class XpService {
         .andWhere('x.reference_id IS NOT NULL')
         .getRawOne<{ n: string }>(),
       this.xpLogs.count({ where: { userId, source: XpSource.QUIZ } }),
+      // Published lessons per CEFR level → island "total".
+      this.lessons
+        .createQueryBuilder('l')
+        .select('l.level', 'level')
+        .addSelect('COUNT(*)', 'n')
+        .where('l.is_published = true')
+        .groupBy('l.level')
+        .getRawMany<{ level: string; n: string }>(),
+      // Distinct lessons this user finished per CEFR level → island "done".
+      this.xpLogs
+        .createQueryBuilder('x')
+        .innerJoin(Lesson, 'l', 'l.id = x.reference_id')
+        .select('l.level', 'level')
+        .addSelect('COUNT(DISTINCT x.reference_id)', 'n')
+        .where('x.user_id = :userId', { userId })
+        .andWhere('x.source = :src', { src: XpSource.LESSON })
+        .groupBy('l.level')
+        .getRawMany<{ level: string; n: string }>(),
     ]);
+
+    // Seed every CEFR level to 0/0, then fill in the grouped counts.
+    const progressByLevel: Record<string, { done: number; total: number }> = {};
+    for (const lvl of Object.values(ContentLevel)) progressByLevel[lvl] = { done: 0, total: 0 };
+    for (const r of levelTotals) if (progressByLevel[r.level]) progressByLevel[r.level].total = Number(r.n);
+    for (const r of levelDone) if (progressByLevel[r.level]) progressByLevel[r.level].done = Number(r.n);
 
     return {
       xp,
@@ -152,6 +181,7 @@ export class XpService {
       cefrLevel: user?.level ?? null,
       lessonsDone: Number(lessonRow?.n ?? 0),
       quizzesDone,
+      progressByLevel,
     };
   }
 }

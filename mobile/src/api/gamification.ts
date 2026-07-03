@@ -15,6 +15,8 @@ export interface Gamification {
   cefrLevel: string | null;
   lessonsDone: number;
   quizzesDone: number;
+  /** Per-CEFR-level lesson progress for the Lessons map islands (a1…c2). */
+  progressByLevel: Record<string, { done: number; total: number }>;
 }
 
 export function getGamification(token: string): Promise<Gamification> {
