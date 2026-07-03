@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, useMemo } from 'react';
-import { View, StyleSheet, ScrollView, Pressable, TextInput, Dimensions } from 'react-native';
+import { View, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppImage } from '../../src/components/AppImage';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -14,13 +14,13 @@ import {
 } from '../../src/api/reading';
 import { TopBar } from '../../src/components/TopBar';
 import { AppText } from '../../src/components/Text';
-import { useDictionary } from '../../src/components/DictionaryProvider';
+import { SelectableText } from '../../src/components/SelectableText';
 import { Card } from '../../src/components/Card';
 import { Skeleton } from '../../src/components/Skeleton';
 import { EmptyState } from '../../src/components/EmptyState';
 import { ReadingQuiz } from '../../src/components/ReadingQuiz';
 import { t } from '../../src/i18n';
-import { spacing, radius, levelColor, typography, elevation, type AppColors } from '../../src/theme/theme';
+import { spacing, radius, levelColor, type AppColors } from '../../src/theme/theme';
 import { useColors } from '../../src/settings/SettingsContext';
 
 function fmtTime(sec: number): string {
@@ -49,10 +49,6 @@ export default function ReadingDetailScreen() {
   const [notFound, setNotFound] = useState(false);
   const [done, setDone] = useState(false);
   const [fontIndex, setFontIndex] = useState(DEFAULT_FONT_INDEX);
-  // Currently selected span of the passage (native text selection). Empty when
-  // nothing is highlighted; drives the floating "Translate" action.
-  const [selection, setSelection] = useState('');
-  const { lookup, translatePhrase } = useDictionary();
 
   const finish = useCallback(async () => {
     if (!token || !id || done) return;
@@ -96,19 +92,8 @@ export default function ReadingDetailScreen() {
   const canShrink = fontIndex > 0;
   const canGrow = fontIndex < BODY_FONT_SIZES.length - 1;
 
-  // Whole passage as one string so the reader can use native text selection.
+  // Whole passage as one string for the selectable reader.
   const passageText = passage ? passage.sentences.map((s) => s.text).join(' ') : '';
-
-  // Translate the highlighted span: a single word opens the word popover (with
-  // pronunciation + save); a phrase/sentence gets a full translation.
-  const translateSelection = useCallback(() => {
-    const clean = selection.trim();
-    if (!clean) return;
-    const screen = Dimensions.get('window');
-    const at = { x: screen.width / 2, y: screen.height * 0.34 };
-    if (/^[A-Za-z]+$/.test(clean)) lookup(clean, at);
-    else translatePhrase(clean, at);
-  }, [selection, lookup, translatePhrase]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -251,24 +236,7 @@ export default function ReadingDetailScreen() {
           {/* Passage body — double-tap a word → meaning popover
               (Word DB → translation cache → Gemini). */}
           <Card variant="filled" style={styles.body}>
-            {/* Read-only but selectable: native long-press + drag selects any
-                span; `onSelectionChange` hands us the highlighted text. No
-                keyboard (showSoftInputOnFocus off) and edits are ignored. */}
-            <TextInput
-              value={passageText}
-              multiline
-              editable
-              scrollEnabled={false}
-              showSoftInputOnFocus={false}
-              caretHidden
-              contextMenuHidden
-              onChangeText={() => {}}
-              onSelectionChange={(e) => {
-                const { start, end } = e.nativeEvent.selection;
-                setSelection(end > start ? passageText.slice(start, end) : '');
-              }}
-              style={[typography.body, bodyTextStyle, styles.bodyInput]}
-            />
+            <SelectableText text={passageText} variant="body" style={bodyTextStyle} />
           </Card>
           <AppText variant="caption" color={colors.textMuted} style={styles.hint}>
             {t('selectTranslateHint')}
@@ -301,19 +269,6 @@ export default function ReadingDetailScreen() {
           <View style={{ height: 60 }} />
         </ScrollView>
       )}
-
-      {/* Floating action: appears while a span is selected. */}
-      {selection.trim() ? (
-        <View style={styles.selectBar} pointerEvents="box-none">
-          <Pressable
-            onPress={translateSelection}
-            style={({ pressed }) => [styles.selectBtn, pressed && { opacity: 0.9 }]}
-          >
-            <Ionicons name="language" size={18} color={colors.white} />
-            <AppText variant="bodyStrong" color={colors.white}>{t('translateSelection')}</AppText>
-          </Pressable>
-        </View>
-      ) : null}
     </SafeAreaView>
   );
 }
@@ -381,25 +336,7 @@ const makeStyles = (colors: AppColors) => StyleSheet.create({
   fontBtnTextLarge: { fontSize: 19 },
 
   body: {},
-  bodyInput: { color: colors.text, padding: 0, margin: 0, textAlignVertical: 'top' },
   hint: { marginTop: spacing.md, textAlign: 'center' },
-  selectBar: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: spacing.xl,
-    alignItems: 'center',
-  },
-  selectBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    backgroundColor: colors.primary,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderRadius: radius.full,
-    ...(elevation.float as object),
-  },
   finishBtn: {
     flexDirection: 'row',
     alignItems: 'center',

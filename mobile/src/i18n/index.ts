@@ -523,7 +523,7 @@ const mn = {
 
   // Reading — sentence translate hint
   longPressSentenceHint: 'Өгүүлбэрийг удаан дарж бүтэн орчуулгыг үзнэ',
-  selectTranslateHint: 'Үг эсвэл өгүүлбэрийг сонгоод "Орчуулах" дарна',
+  selectTranslateHint: 'Үг дээр 2 дарж орчуул. Олон үг: удаан дараад нэмж дарж сонго.',
   translateSelection: 'Орчуулах',
 
   // Notifications
@@ -1046,7 +1046,7 @@ const en: Record<TranslationKey, string> = {
 
   // Reading — sentence translate hint
   longPressSentenceHint: 'Long-press a sentence for its full translation',
-  selectTranslateHint: 'Select a word or sentence, then tap "Translate"',
+  selectTranslateHint: 'Double-tap a word to translate. Multiple: long-press, then tap to extend.',
   translateSelection: 'Translate',
 
   // Notifications
