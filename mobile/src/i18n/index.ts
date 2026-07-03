@@ -521,6 +521,15 @@ const mn = {
   shareProfileBody: '{name} SparkXP дээр англи хэл сурч байна! 🦊',
   englishLevel: 'Англи хэлний түвшин',
 
+  // Notifications
+  notificationsEmpty: 'Мэдэгдэл байхгүй',
+  notificationsEmptyHint: 'Шинэ зарлал, мэдэгдэл энд харагдана.',
+  notificationsError: 'Мэдэгдлийг ачаалж чадсангүй',
+  timeNow: 'Дөнгөж сая',
+  timeMinAgo: '{n} мин өмнө',
+  timeHourAgo: '{n} цагийн өмнө',
+  timeDayAgo: '{n} өдрийн өмнө',
+
   // AI Buddy memory
   buddyMemory: 'AI Buddy санах ой',
   buddyMemorySub: 'Buddy чиний тухай сурсан зүйлс',
@@ -1029,6 +1038,15 @@ const en: Record<TranslationKey, string> = {
   shareProfile: 'Share profile',
   shareProfileBody: '{name} is learning English on SparkXP! 🦊',
   englishLevel: 'English level',
+
+  // Notifications
+  notificationsEmpty: 'No notifications',
+  notificationsEmptyHint: 'New announcements and alerts will appear here.',
+  notificationsError: 'Could not load notifications',
+  timeNow: 'Just now',
+  timeMinAgo: '{n} min ago',
+  timeHourAgo: '{n} h ago',
+  timeDayAgo: '{n} d ago',
 
   // AI Buddy memory
   buddyMemory: 'AI Buddy memory',

@@ -159,7 +159,7 @@ export default function ProfileScreen() {
   const QUICK: { icon: IconName; label: string; tint: { bg: string; fg: string }; onPress: () => void }[] = [
     { icon: 'stats-chart', label: t('myProgress'), tint: tints.pink, onPress: () => router.push('/leaderboard') },
     { icon: 'bookmark', label: t('saved'), tint: tints.green, onPress: () => router.push('/saved') },
-    { icon: 'notifications', label: t('notifications'), tint: tints.orange, onPress: soon },
+    { icon: 'notifications', label: t('notifications'), tint: tints.orange, onPress: () => router.push('/notifications') },
     { icon: 'gift', label: t('rewards'), tint: tints.purple, onPress: soon },
     { icon: 'time', label: t('recentlyViewed'), tint: tints.blue, onPress: soon },
     { icon: 'heart', label: t('favorites'), tint: tints.pink, onPress: soon },
