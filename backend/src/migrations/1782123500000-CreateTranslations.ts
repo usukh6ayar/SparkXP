@@ -10,7 +10,7 @@ export class CreateTranslations1782123500000 implements MigrationInterface {
 
   async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
-      CREATE TABLE "translations" (
+      CREATE TABLE IF NOT EXISTS "translations" (
         "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
         "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
         "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
@@ -22,7 +22,7 @@ export class CreateTranslations1782123500000 implements MigrationInterface {
       )
     `);
     await queryRunner.query(
-      `CREATE UNIQUE INDEX "IDX_translations_word" ON "translations" ("word")`,
+      `CREATE UNIQUE INDEX IF NOT EXISTS "IDX_translations_word" ON "translations" ("word")`,
     );
   }
 

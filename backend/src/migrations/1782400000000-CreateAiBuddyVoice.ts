@@ -10,17 +10,21 @@ export class CreateAiBuddyVoice1782400000000 implements MigrationInterface {
   name = 'CreateAiBuddyVoice1782400000000';
 
   async up(queryRunner: QueryRunner): Promise<void> {
-    // --- Enums ---
-    await queryRunner.query(
-      `CREATE TYPE "buddy_sessions_mode_enum" AS ENUM ('voice', 'text')`,
-    );
-    await queryRunner.query(
-      `CREATE TYPE "buddy_memories_memory_type_enum" AS ENUM ('interest', 'goal', 'mistake_pattern', 'preference', 'level')`,
-    );
+    // --- Enums (CREATE TYPE has no IF NOT EXISTS → guard with a DO block) ---
+    await queryRunner.query(`
+      DO $$ BEGIN
+        CREATE TYPE "buddy_sessions_mode_enum" AS ENUM ('voice', 'text');
+      EXCEPTION WHEN duplicate_object THEN null; END $$;
+    `);
+    await queryRunner.query(`
+      DO $$ BEGIN
+        CREATE TYPE "buddy_memories_memory_type_enum" AS ENUM ('interest', 'goal', 'mistake_pattern', 'preference', 'level');
+      EXCEPTION WHEN duplicate_object THEN null; END $$;
+    `);
 
     // --- buddy_sessions ---
     await queryRunner.query(`
-      CREATE TABLE "buddy_sessions" (
+      CREATE TABLE IF NOT EXISTS "buddy_sessions" (
         "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
         "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
         "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
@@ -34,12 +38,12 @@ export class CreateAiBuddyVoice1782400000000 implements MigrationInterface {
       )
     `);
     await queryRunner.query(
-      `CREATE INDEX "IDX_buddy_sessions_user" ON "buddy_sessions" ("user_id")`,
+      `CREATE INDEX IF NOT EXISTS "IDX_buddy_sessions_user" ON "buddy_sessions" ("user_id")`,
     );
 
     // --- buddy_memories ---
     await queryRunner.query(`
-      CREATE TABLE "buddy_memories" (
+      CREATE TABLE IF NOT EXISTS "buddy_memories" (
         "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
         "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
         "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
@@ -54,12 +58,12 @@ export class CreateAiBuddyVoice1782400000000 implements MigrationInterface {
       )
     `);
     await queryRunner.query(
-      `CREATE INDEX "IDX_buddy_memories_user" ON "buddy_memories" ("user_id")`,
+      `CREATE INDEX IF NOT EXISTS "IDX_buddy_memories_user" ON "buddy_memories" ("user_id")`,
     );
 
     // --- buddy_voice_cache ---
     await queryRunner.query(`
-      CREATE TABLE "buddy_voice_cache" (
+      CREATE TABLE IF NOT EXISTS "buddy_voice_cache" (
         "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
         "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
         "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
@@ -72,12 +76,12 @@ export class CreateAiBuddyVoice1782400000000 implements MigrationInterface {
       )
     `);
     await queryRunner.query(
-      `CREATE UNIQUE INDEX "IDX_buddy_voice_cache_hash_voice" ON "buddy_voice_cache" ("text_hash", "voice_id")`,
+      `CREATE UNIQUE INDEX IF NOT EXISTS "IDX_buddy_voice_cache_hash_voice" ON "buddy_voice_cache" ("text_hash", "voice_id")`,
     );
 
     // --- safety_events ---
     await queryRunner.query(`
-      CREATE TABLE "safety_events" (
+      CREATE TABLE IF NOT EXISTS "safety_events" (
         "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
         "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
         "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
@@ -91,31 +95,31 @@ export class CreateAiBuddyVoice1782400000000 implements MigrationInterface {
       )
     `);
     await queryRunner.query(
-      `CREATE INDEX "IDX_safety_events_user" ON "safety_events" ("user_id")`,
+      `CREATE INDEX IF NOT EXISTS "IDX_safety_events_user" ON "safety_events" ("user_id")`,
     );
 
     // --- messages: AI Buddy voice columns ---
     await queryRunner.query(`
       ALTER TABLE "messages"
-        ADD COLUMN "session_id" uuid,
-        ADD COLUMN "buddy_slug" character varying,
-        ADD COLUMN "audio_url" character varying,
-        ADD COLUMN "duration_ms" integer,
-        ADD COLUMN "raw_text" text,
-        ADD COLUMN "metadata" jsonb
+        ADD COLUMN IF NOT EXISTS "session_id" uuid,
+        ADD COLUMN IF NOT EXISTS "buddy_slug" character varying,
+        ADD COLUMN IF NOT EXISTS "audio_url" character varying,
+        ADD COLUMN IF NOT EXISTS "duration_ms" integer,
+        ADD COLUMN IF NOT EXISTS "raw_text" text,
+        ADD COLUMN IF NOT EXISTS "metadata" jsonb
     `);
     await queryRunner.query(
-      `CREATE INDEX "IDX_messages_session" ON "messages" ("session_id")`,
+      `CREATE INDEX IF NOT EXISTS "IDX_messages_session" ON "messages" ("session_id")`,
     );
 
     // --- ai_buddies: voice + avatar columns ---
     await queryRunner.query(`
       ALTER TABLE "ai_buddies"
-        ADD COLUMN "voice_id" character varying,
-        ADD COLUMN "tts_params" jsonb,
-        ADD COLUMN "emotion_map" jsonb,
-        ADD COLUMN "avatar_asset_url" character varying,
-        ADD COLUMN "avatar_thumb_url" character varying
+        ADD COLUMN IF NOT EXISTS "voice_id" character varying,
+        ADD COLUMN IF NOT EXISTS "tts_params" jsonb,
+        ADD COLUMN IF NOT EXISTS "emotion_map" jsonb,
+        ADD COLUMN IF NOT EXISTS "avatar_asset_url" character varying,
+        ADD COLUMN IF NOT EXISTS "avatar_thumb_url" character varying
     `);
   }
 
