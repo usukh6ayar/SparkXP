@@ -5,9 +5,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppImage } from '../../src/components/AppImage';
+import { BuddyAvatar } from '../../src/components/BuddyAvatar';
 import { Ionicons } from '@expo/vector-icons';
 import {
-  useAudioPlayer, useAudioRecorder, RecordingPresets,
+  useAudioPlayer, useAudioPlayerStatus, useAudioRecorder, RecordingPresets,
   requestRecordingPermissionsAsync, setAudioModeAsync,
 } from 'expo-audio';
 import { useAuth } from '../../src/auth/AuthContext';
@@ -49,9 +50,12 @@ export default function ChatScreen() {
   const [recording, setRecording] = useState(false);
   const [usage, setUsage] = useState<BuddyUsageBlock | null>(null);
   const [voiceLimited, setVoiceLimited] = useState(false);
+  // Latest AI turn's avatar cues → drive the 3D buddy's emotion/gesture.
+  const [avatarCue, setAvatarCue] = useState<{ emotion?: string; gesture?: string }>({});
 
   const listRef = useRef<FlatList>(null);
   const player = useAudioPlayer();
+  const playerStatus = useAudioPlayerStatus(player);
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
 
   const scrollDown = useCallback(() => {
@@ -107,6 +111,7 @@ export default function ChatScreen() {
       },
     ]);
     setUsage(res.usage);
+    setAvatarCue({ emotion: res.avatar_instruction.emotion, gesture: res.avatar_instruction.gesture });
     playAudio(res.audio_url);
     scrollDown();
   }
@@ -142,6 +147,7 @@ export default function ChatScreen() {
         },
       ]);
       setUsage(res.usage);
+      setAvatarCue({ emotion: res.avatar_instruction.emotion, gesture: res.avatar_instruction.gesture });
       playAudio(res.audio_url);
     } catch (err) {
       handleTurnError(err);
@@ -221,6 +227,18 @@ export default function ChatScreen() {
           );
         })}
       </ScrollView>
+
+      {/* 3D avatar (only when the buddy has a GLB; else the 2D bubbles show) */}
+      {selected?.avatarAssetUrl && (
+        <BuddyAvatar
+          assetUrl={selected.avatarAssetUrl}
+          emotionMap={selected.emotionMap}
+          emotion={avatarCue.emotion}
+          gesture={avatarCue.gesture}
+          isSpeaking={playerStatus.playing}
+          style={styles.avatar3d}
+        />
+      )}
 
       {/* Usage meter */}
       {!!usageLabel && (
@@ -380,6 +398,7 @@ const makeStyles = (colors: AppColors) => StyleSheet.create({
   buddyNameRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
   dot: { width: 6, height: 6, borderRadius: 3 },
   buddyName: { fontWeight: '700' },
+  avatar3d: { height: 200, marginBottom: spacing.xs },
   usageRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingBottom: spacing.xs },
   messageList: { padding: spacing.md, gap: spacing.sm, flexGrow: 1 },
   bubbleRow: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm, marginBottom: spacing.xs },
