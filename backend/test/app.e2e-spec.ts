@@ -163,6 +163,69 @@ describe('Quiz submit + XP', () => {
   });
 });
 
+// ── Lesson completion + XP (idempotent) ──────────────────────────────────────
+
+describe('Lesson complete + XP', () => {
+  let app: INestApplication;
+  let adminToken: string;
+  let studentToken: string;
+  let lessonId: string;
+
+  beforeAll(async () => {
+    app = await createApp();
+    const ds = app.get(DataSource);
+    adminToken = await registerAndLogin(app, 'lesson_admin@test.mn');
+    const adminRes = await request(app.getHttpServer())
+      .get('/api/auth/me')
+      .set('Authorization', `Bearer ${adminToken}`);
+    await ds.query(`UPDATE users SET role = 'admin' WHERE id = $1`, [adminRes.body.id]);
+    // Fresh student starts at xp = 0, so the assertions below can be exact.
+    studentToken = await registerAndLogin(app, 'lesson_student@test.mn');
+  });
+
+  afterAll(async () => { await app.close(); });
+
+  it('POST /api/lessons (admin, free) → 201', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/lessons')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ title: 'Free Lesson Test', type: 'vocabulary', level: 'a1', content: {}, isPublished: true });
+    expect(res.status).toBe(201);
+    lessonId = res.body.id;
+  });
+
+  it('POST /api/lessons/:id/complete → awards XP once (xpAwarded = 15)', async () => {
+    const res = await request(app.getHttpServer())
+      .post(`/api/lessons/${lessonId}/complete`)
+      .set('Authorization', `Bearer ${studentToken}`);
+    expect(res.status).toBe(201);
+    expect(res.body.alreadyCompleted).toBe(false);
+    expect(res.body.xpAwarded).toBe(15);
+  });
+
+  it('GET /api/users/me/stats reflects the +15 XP', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/api/users/me/stats')
+      .set('Authorization', `Bearer ${studentToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body.xp).toBe(15);
+  });
+
+  it('POST /api/lessons/:id/complete again → idempotent, no double XP', async () => {
+    const res = await request(app.getHttpServer())
+      .post(`/api/lessons/${lessonId}/complete`)
+      .set('Authorization', `Bearer ${studentToken}`);
+    expect(res.status).toBe(201);
+    expect(res.body.alreadyCompleted).toBe(true);
+    expect(res.body.xpAwarded).toBe(0);
+
+    const stats = await request(app.getHttpServer())
+      .get('/api/users/me/stats')
+      .set('Authorization', `Bearer ${studentToken}`);
+    expect(stats.body.xp).toBe(15); // still 15 — not doubled
+  });
+});
+
 // ── Sparks unlock ─────────────────────────────────────────────────────────────
 
 describe('Sparks lesson unlock', () => {

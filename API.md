@@ -1,7 +1,7 @@
 # SparkXP — Backend API Reference
 
 Backend (NestJS) endpoint-үүдийн бүрэн лавлах. **Зам/метод англиар**, тайлбар монголоор.
-Шинэчилсэн: 2026-07-01. Эх сурвалж: `backend/src/**/*.controller.ts` (20 controller).
+Шинэчилсэн: 2026-07-04. Эх сурвалж: `backend/src/**/*.controller.ts` (22 controller).
 
 > Mobile dev-үүд (Choi/Boju) `/backend`-ийг шууд заслахгүй — шинэ endpoint хэрэгтэй бол
 > Өсөхбаяр-аас хүсэн авч, энэ файлыг шинэчилнэ. Дэлгэрэнгүй дүрэм: `CLAUDE.md`.
@@ -194,6 +194,8 @@ Controller-level: JWT. Realtime speaking companion (STT→LLM→TTS→avatar). �
 | GET `/ai/buddy/usage` | JWT | Энэ сарын voice/STT хэрэглээ | — |
 | GET `/ai/buddy/memory` | JWT | Buddy-гийн санах ой | — |
 | DELETE `/ai/buddy/memory` | JWT | Санах ой цэвэрлэх | — |
+| POST `/ai/buddy/admin/test-voice` | admin, super_admin | Buddy-гийн дуу хоолойг жишээ текстээр сонсох (preview) | `TestVoiceDto` `{ buddySlug, text }` |
+| GET `/ai/buddy/admin/safety-events` | admin, super_admin | Аюулгүй байдлын үйл явдлын audit log (хуудаслалттай) | `page?` |
 
 Turn response: `{ session_id, message_id, user_transcript, reply_text,
 correction, follow_up_question, audio_url, avatar_instruction{emotion,gesture,

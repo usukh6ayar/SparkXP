@@ -13,7 +13,6 @@ import {
   BadRequestException,
   UploadedFile,
   UseInterceptors,
-  Logger,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { WordsService } from './words.service';
@@ -38,8 +37,6 @@ import { UserRole } from '../common/enums';
  */
 @Controller('words')
 export class WordsController {
-  private readonly logger = new Logger(WordsController.name);
-
   constructor(private readonly wordsService: WordsService) {}
 
   /**

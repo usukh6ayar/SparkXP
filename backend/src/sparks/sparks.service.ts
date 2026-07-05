@@ -23,8 +23,6 @@ export interface AwardSparksOptions {
 @Injectable()
 export class SparksService {
   constructor(
-    @InjectRepository(SparksLog)
-    private readonly sparksLogs: Repository<SparksLog>,
     @InjectRepository(LessonUnlock)
     private readonly unlocks: Repository<LessonUnlock>,
     @InjectRepository(Lesson)

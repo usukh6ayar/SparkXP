@@ -18,7 +18,10 @@ import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { Modal } from '../../components/Modal';
 import { FormActions } from '../../components/FormActions';
+import { Pagination } from '../../components/Pagination';
 import { formatDate } from '../../lib/utils';
+
+const LIMIT = 20;
 
 interface Payment {
   id: string; amount: number; currency: string;
@@ -61,6 +64,7 @@ const planColors: Record<string, 'blue' | 'yellow' | 'red'> = {
 
 export default function MonitorPage() {
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [payPage, setPayPage] = useState(1);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [planModal, setPlanModal] = useState(false);
   const [planForm, setPlanForm] = useState<PlanForm>(emptyPlanForm);
@@ -195,7 +199,13 @@ export default function MonitorPage() {
 
       {/* Payments */}
       <h2 className="text-lg font-semibold text-gray-800 mb-3">Төлбөрийн жагсаалт</h2>
-      <Table columns={paymentColumns} rows={payments} keyFn={(p) => p.id} empty="Төлбөр байхгүй" />
+      <Table
+        columns={paymentColumns}
+        rows={payments.slice((payPage - 1) * LIMIT, payPage * LIMIT)}
+        keyFn={(p) => p.id}
+        empty="Төлбөр байхгүй"
+      />
+      <Pagination page={payPage} total={payments.length} limit={LIMIT} onPage={setPayPage} />
 
       {/* Cost Dashboard */}
       <div className="flex items-center gap-2 mt-10 mb-3">

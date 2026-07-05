@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { BuddyMemory } from '../entities/buddy-memory.entity';
@@ -23,8 +23,6 @@ export interface MemorySuggestion {
  */
 @Injectable()
 export class BuddyMemoryService {
-  private readonly logger = new Logger(BuddyMemoryService.name);
-
   constructor(
     @InjectRepository(BuddyMemory)
     private readonly memories: Repository<BuddyMemory>,

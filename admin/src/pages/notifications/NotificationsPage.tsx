@@ -8,6 +8,9 @@ import { Select } from '../../components/Select';
 import { Badge } from '../../components/Badge';
 import { formatDate } from '../../lib/utils';
 import { Table } from '../../components/Table';
+import { Pagination } from '../../components/Pagination';
+
+const LIMIT = 20;
 
 interface Notification {
   id: string;
@@ -31,6 +34,7 @@ const ROLE_LABELS: Record<string, string> = {
 
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [page, setPage] = useState(1);
   const [form, setForm] = useState({ title: '', body: '', targetRole: '' });
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
@@ -146,10 +150,11 @@ export default function NotificationsPage() {
       <h2 className="text-lg font-semibold text-gray-800 mb-3">Илгээсэн мэдэгдлүүд</h2>
       <Table
         columns={columns}
-        rows={notifications}
+        rows={notifications.slice((page - 1) * LIMIT, page * LIMIT)}
         keyFn={(n) => n.id}
         empty="Мэдэгдэл илгээгдээгүй байна"
       />
+      <Pagination page={page} total={notifications.length} limit={LIMIT} onPage={setPage} />
     </>
   );
 }

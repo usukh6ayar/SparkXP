@@ -10,6 +10,7 @@ import { Input } from '../../components/Input';
 import { Select } from '../../components/Select';
 import { FormActions } from '../../components/FormActions';
 import { RowActions } from '../../components/RowActions';
+import { Pagination } from '../../components/Pagination';
 import { levelFormOptions as LEVEL_OPTIONS, exerciseCategoryOptions } from '../../lib/options';
 import {
   QuizQuestionsEditor,
@@ -17,6 +18,8 @@ import {
   type QuestionType,
 } from '../../components/QuizQuestionsEditor';
 import ReadingPage from '../reading/ReadingPage';
+
+const LIMIT = 20;
 
 /** The 4 exercise (Дасгал) categories. Speaking = coming soon for now. */
 const CATS = [
@@ -60,6 +63,7 @@ const emptyForm: Form = {
 export default function ExercisesPage() {
   const [cat, setCat] = useState<string>('listening');
   const [items, setItems] = useState<Exercise[]>([]);
+  const [page, setPage] = useState(1);
   const [modal, setModal] = useState<null | 'create' | 'edit'>(null);
   const [editing, setEditing] = useState<Exercise | null>(null);
   const [form, setForm] = useState<Form>(emptyForm);
@@ -147,7 +151,7 @@ export default function ExercisesPage() {
     });
   }
   function toggleAll() {
-    setSelected((s) => (s.size === items.length ? new Set() : new Set(items.map((i) => i.id))));
+    setSelected((s) => (paged.every((i) => s.has(i.id)) ? new Set() : new Set(paged.map((i) => i.id))));
   }
   async function bulkPublish(isPublished: boolean) {
     await Promise.all([...selected].map((id) => api.patch(`/quizzes/${id}`, { isPublished })));
@@ -209,7 +213,9 @@ export default function ExercisesPage() {
     } finally { setImporting(false); }
   }
 
-  const allChecked = items.length > 0 && selected.size === items.length;
+  const total = items.length;
+  const paged = items.slice((page - 1) * LIMIT, page * LIMIT);
+  const allChecked = paged.length > 0 && paged.every((e) => selected.has(e.id));
   const columns = [
     {
       key: 'sel',
@@ -269,7 +275,7 @@ export default function ExercisesPage() {
         {CATS.map((c) => (
           <button
             key={c.key}
-            onClick={() => setCat(c.key)}
+            onClick={() => { setCat(c.key); setPage(1); }}
             className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${cat === c.key ? 'bg-primary text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}
           >
             {c.label}
@@ -294,7 +300,10 @@ export default function ExercisesPage() {
       ) : reading ? (
         <ReadingPage embedded />
       ) : (
-        <Table columns={columns} rows={items} keyFn={(e) => e.id} empty="Дасгал байхгүй" />
+        <>
+          <Table columns={columns} rows={paged} keyFn={(e) => e.id} empty="Дасгал байхгүй" />
+          <Pagination page={page} total={total} limit={LIMIT} onPage={setPage} />
+        </>
       )}
 
       {(modal === 'create' || modal === 'edit') && (

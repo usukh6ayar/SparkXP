@@ -9,11 +9,13 @@ export class CreateReadingPassages1782123000000 implements MigrationInterface {
   name = 'CreateReadingPassages1782123000000';
 
   async up(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(
-      `CREATE TYPE "public"."reading_passages_cefr_enum" AS ENUM('a1', 'a2', 'b1', 'b2', 'c1', 'c2')`,
-    );
     await queryRunner.query(`
-      CREATE TABLE "reading_passages" (
+      DO $$ BEGIN
+        CREATE TYPE "public"."reading_passages_cefr_enum" AS ENUM('a1', 'a2', 'b1', 'b2', 'c1', 'c2');
+      EXCEPTION WHEN duplicate_object THEN null; END $$;
+    `);
+    await queryRunner.query(`
+      CREATE TABLE IF NOT EXISTS "reading_passages" (
         "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
         "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
         "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
@@ -29,10 +31,10 @@ export class CreateReadingPassages1782123000000 implements MigrationInterface {
       )
     `);
     await queryRunner.query(
-      `CREATE INDEX "IDX_reading_passages_cefr" ON "reading_passages" ("cefr")`,
+      `CREATE INDEX IF NOT EXISTS "IDX_reading_passages_cefr" ON "reading_passages" ("cefr")`,
     );
     await queryRunner.query(
-      `CREATE INDEX "IDX_reading_passages_published" ON "reading_passages" ("is_published")`,
+      `CREATE INDEX IF NOT EXISTS "IDX_reading_passages_published" ON "reading_passages" ("is_published")`,
     );
     // XP can now come from finishing a reading passage.
     await queryRunner.query(

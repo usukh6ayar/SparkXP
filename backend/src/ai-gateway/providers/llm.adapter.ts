@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Anthropic from '@anthropic-ai/sdk';
 
@@ -38,7 +38,6 @@ const DEFAULT_MODEL = 'claude-haiku-4-5-20251001';
 export class AnthropicLlmAdapter implements LlmAdapter {
   private readonly client: Anthropic;
   private readonly model: string;
-  private readonly logger = new Logger(AnthropicLlmAdapter.name);
 
   constructor(config: ConfigService) {
     this.client = new Anthropic({ apiKey: config.get<string>('ANTHROPIC_API_KEY') });

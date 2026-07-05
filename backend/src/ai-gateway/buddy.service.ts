@@ -147,7 +147,7 @@ export class BuddyService {
     const session = await this.ownedSession(userId, sessionId);
     const user = await this.loadUser(userId);
     await this.preCheckVoice(user);
-    return this.runTurn(user, session, text, text, 0);
+    return this.runTurn(user, session, text, text);
   }
 
   /** Voice turn: pre-check → STT → (confidence gate) → shared pipeline. */
@@ -191,7 +191,7 @@ export class BuddyService {
       metadata: { sessionId: session.id, stage: 'stt' },
     });
 
-    return this.runTurn(user, session, transcript, transcript, sttSeconds);
+    return this.runTurn(user, session, transcript, transcript);
   }
 
   // ── Core pipeline (shared by text + voice) ───────────────────────────────
@@ -201,7 +201,6 @@ export class BuddyService {
     session: BuddySession,
     displayText: string,
     rawText: string,
-    sttSeconds: number,
   ): Promise<TurnResponse> {
     const buddy = await this.buddies.findOne({ where: { slug: session.buddySlug } });
     if (!buddy) throw new NotFoundException('Buddy олдсонгүй');
