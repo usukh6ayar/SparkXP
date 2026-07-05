@@ -26,8 +26,6 @@ export class BuddyUsageService {
   constructor(
     @InjectRepository(AiUsage)
     private readonly aiUsages: Repository<AiUsage>,
-    @InjectRepository(User)
-    private readonly users: Repository<User>,
   ) {}
 
   /** Sum of voice_seconds for one AiUsageType in the current calendar month. */
