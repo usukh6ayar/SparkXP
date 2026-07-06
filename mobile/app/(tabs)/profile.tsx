@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
-import { View, StyleSheet, ScrollView, Pressable, Share } from 'react-native';
+import { View, StyleSheet, ScrollView, Pressable, Share, RefreshControl } from 'react-native';
+import { haptics } from '../../src/lib/haptics';
 import { AppImage } from '../../src/components/AppImage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { setStatusBarStyle } from 'expo-status-bar';
@@ -12,6 +13,8 @@ import * as usersApi from '../../src/api/users';
 import * as classesApi from '../../src/api/classes';
 import { getGamification, type Gamification } from '../../src/api/gamification';
 import { AppText } from '../../src/components/Text';
+import { CountUp } from '../../src/components/CountUp';
+import { ProgressRing } from '../../src/components/ProgressRing';
 import { Pill } from '../../src/components/Pill';
 import { Button } from '../../src/components/Button';
 import { EditProfileModal } from '../../src/components/EditProfileModal';
@@ -169,12 +172,24 @@ export default function ProfileScreen() {
     <View style={styles.root}>
       <LinearGradient colors={p.bg} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} style={StyleSheet.absoluteFill} />
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={styles.container}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={false} onRefresh={() => { haptics.tap(); loadProfile(); }} tintColor={p.primary} />
+          }
+        >
           {/* Header */}
           <View style={styles.header}>
             <AppText variant="h1" color={p.text}>{t('profile')}</AppText>
             <View style={styles.headerActions}>
-              <Pressable onPress={() => router.push('/settings')} hitSlop={8} style={styles.iconBtn}>
+              <Pressable
+                onPress={() => router.push('/settings')}
+                hitSlop={8}
+                style={styles.iconBtn}
+                accessibilityRole="button"
+                accessibilityLabel={t('settings')}
+              >
                 <Ionicons name="settings-outline" size={20} color={p.text} />
               </Pressable>
               <View style={styles.diamondBadge}>
@@ -189,12 +204,22 @@ export default function ProfileScreen() {
           <View style={styles.hero}>
             <View style={styles.avatarOuter}>
               <View style={styles.avatarGlow} />
-              <Pressable onPress={pickPhoto} disabled={avatarBusy}>
-                <LinearGradient colors={[p.primaryLight, p.primary]} style={styles.avatarRing}>
-                  <AppImage source={resolveAvatar(user?.avatarUrl) ?? avatarImg} width={200} style={styles.avatar} contentFit="cover" />
-                </LinearGradient>
-              </Pressable>
-              <Pressable style={styles.editBtn} onPress={pickPhoto} disabled={avatarBusy} hitSlop={6}>
+              {/* Level progress ring hugging the avatar (replaces a flat bar). */}
+              <ProgressRing progress={pct / 100} size={108} stroke={5} color={colors.xp} track={p.track}>
+                <Pressable onPress={pickPhoto} disabled={avatarBusy}>
+                  <LinearGradient colors={[p.primaryLight, p.primary]} style={styles.avatarRing}>
+                    <AppImage source={resolveAvatar(user?.avatarUrl) ?? avatarImg} width={200} style={styles.avatar} contentFit="cover" />
+                  </LinearGradient>
+                </Pressable>
+              </ProgressRing>
+              <Pressable
+                style={styles.editBtn}
+                onPress={pickPhoto}
+                disabled={avatarBusy}
+                hitSlop={6}
+                accessibilityRole="button"
+                accessibilityLabel={t('editProfile')}
+              >
                 <Ionicons name="camera" size={13} color={colors.white} />
               </Pressable>
             </View>
@@ -214,16 +239,11 @@ export default function ProfileScreen() {
                 <Ionicons name="star" size={15} color={colors.xp} />
                 <AppText variant="bodyStrong" color={p.text}>{t('levelLabel')} {level}</AppText>
               </View>
-              {/* XP progress */}
-              <View style={styles.xpTrack}>
-                <LinearGradient
-                  colors={[p.primaryLight, p.primary]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={[styles.xpFill, { width: `${Math.max(pct, 4)}%` }]}
-                />
+              {/* Exact XP numbers (the ring around the avatar shows progress). */}
+              <View style={styles.xpNumRow}>
+                <Ionicons name="flash" size={13} color={colors.xp} />
+                <AppText variant="caption" color={p.textMuted}>{levelXp} / {levelTarget} XP</AppText>
               </View>
-              <AppText variant="caption" color={p.textMuted} style={styles.levelXp}>{levelXp} / {levelTarget} XP</AppText>
             </View>
           </View>
 
@@ -238,7 +258,7 @@ export default function ProfileScreen() {
             {STATS.map((s, i) => (
               <View key={s.label} style={[styles.statCell, i > 0 && styles.statCellBorder]}>
                 <Ionicons name={s.icon} size={22} color={s.color} />
-                <AppText variant="h3" color={p.text} style={styles.statValue}>{s.value}</AppText>
+                <CountUp value={s.value} variant="h3" color={p.text} style={styles.statValue} />
                 <AppText variant="caption" color={p.textMuted} center numberOfLines={2}>{s.label}</AppText>
               </View>
             ))}
@@ -408,7 +428,7 @@ const makeStyles = (p: PremiumPalette, isDark: boolean) => {
     borderRadius: radius.xl, padding: spacing.lg, marginTop: spacing.lg,
     backgroundColor: p.card, ...cardEdge,
   },
-  avatarOuter: { width: 100, height: 100, alignItems: 'center', justifyContent: 'center' },
+  avatarOuter: { width: 108, height: 108, alignItems: 'center', justifyContent: 'center' },
   avatarGlow: {
     position: 'absolute', top: -8, left: -8, width: 116, height: 116, borderRadius: 58,
     backgroundColor: 'rgba(124,77,255,0.35)',
@@ -430,9 +450,7 @@ const makeStyles = (p: PremiumPalette, isDark: boolean) => {
     backgroundColor: alpha(p.primary, 0.22),
   },
   levelRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
-  xpTrack: { height: 12, borderRadius: 6, backgroundColor: p.track, overflow: 'hidden', marginTop: 4 },
-  xpFill: { height: 12, borderRadius: 6 },
-  levelXp: { alignSelf: 'flex-end', marginTop: 3 },
+  xpNumRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
 
   // Edit / Share action row
   profileActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },

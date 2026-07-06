@@ -1,7 +1,9 @@
 import { useEffect, useState, useCallback } from 'react';
-import { View, StyleSheet, ScrollView, Pressable } from 'react-native';
+import { View, StyleSheet, ScrollView, Pressable, RefreshControl } from 'react-native';
+import Animated, { FadeInDown, FadeInUp, FadeOutDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { haptics } from '../src/lib/haptics';
 import { useAuth } from '../src/auth/AuthContext';
 import { getLeaderboard, type Period, type Scope, type LeaderboardResult } from '../src/api/leaderboard';
 import { TopBar } from '../src/components/TopBar';
@@ -32,6 +34,8 @@ export default function LeaderboardScreen() {
   const [data, setData] = useState<LeaderboardResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  // Show a pinned "my rank" bar once the top hero card scrolls out of view.
+  const [showSelfBar, setShowSelfBar] = useState(false);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -65,7 +69,7 @@ export default function LeaderboardScreen() {
             <Pressable
               key={s.key}
               style={[styles.chip, { backgroundColor: active ? colors.primary : c.surfaceAlt }]}
-              onPress={() => setScope(s.key)}
+              onPress={() => { haptics.select(); setScope(s.key); }}
             >
               <AppText variant="label" color={active ? colors.white : c.textSecondary}>{s.label}</AppText>
             </Pressable>
@@ -76,7 +80,15 @@ export default function LeaderboardScreen() {
       {loading ? (
         <SkeletonRows count={6} style={styles.skeleton} />
       ) : (
-        <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
+          scrollEventThrottle={16}
+          onScroll={(e) => setShowSelfBar(e.nativeEvent.contentOffset.y > 220)}
+          refreshControl={
+            <RefreshControl refreshing={false} onRefresh={() => { haptics.tap(); load(); }} tintColor={colors.primary} />
+          }
+        >
           {/* My standing */}
           <View style={styles.meCard}>
             <View style={styles.meRankWrap}>
@@ -105,20 +117,41 @@ export default function LeaderboardScreen() {
               {t('noLeaderboardData')}
             </AppText>
           ) : (
-            data.entries.map((e) => (
-              <LeaderboardRow
-                key={e.userId}
-                rank={e.rank}
-                name={e.fullName}
-                username={e.username}
-                avatarUrl={e.avatarUrl}
-                xp={e.xp}
-                isSelf={e.userId === user?.id}
-              />
+            data.entries.map((e, i) => (
+              <Animated.View key={e.userId} entering={FadeInDown.delay(Math.min(i, 8) * 50)}>
+                <LeaderboardRow
+                  rank={e.rank}
+                  name={e.fullName}
+                  username={e.username}
+                  avatarUrl={e.avatarUrl}
+                  xp={e.xp}
+                  isSelf={e.userId === user?.id}
+                />
+              </Animated.View>
             ))
           )}
           <View style={{ height: 110 }} />
         </ScrollView>
+      )}
+
+      {/* Sticky "my rank" bar — appears once the hero card scrolls away. */}
+      {showSelfBar && data?.me && (
+        <Animated.View
+          entering={FadeInUp.springify().damping(16)}
+          exiting={FadeOutDown.duration(160)}
+          style={styles.selfBar}
+        >
+          <View style={styles.selfRankWrap}>
+            <AppText variant="label" color={colors.white}>#{data.me.rank ?? '—'}</AppText>
+          </View>
+          <AppText variant="bodyStrong" color={colors.white} numberOfLines={1} style={{ flex: 1 }}>
+            {user?.fullName} {t('youSuffix')}
+          </AppText>
+          <View style={styles.selfXp}>
+            <Ionicons name="flash" size={13} color={colors.xp} />
+            <AppText variant="bodyStrong" color={colors.white}>{data.me.xp ?? 0}</AppText>
+          </View>
+        </Animated.View>
       )}
     </SafeAreaView>
   );
@@ -141,4 +174,17 @@ const styles = StyleSheet.create({
   },
   meXp: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   empty: { marginTop: spacing.xxl },
+  selfBar: {
+    position: 'absolute', left: spacing.lg, right: spacing.lg, bottom: spacing.lg,
+    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+    backgroundColor: colors.primary, borderRadius: radius.lg,
+    paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+    shadowColor: colors.primary, shadowOpacity: 0.4, shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 }, elevation: 8,
+  },
+  selfRankWrap: {
+    minWidth: 40, height: 32, paddingHorizontal: spacing.sm, borderRadius: radius.md,
+    backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center',
+  },
+  selfXp: { flexDirection: 'row', alignItems: 'center', gap: 4 },
 });

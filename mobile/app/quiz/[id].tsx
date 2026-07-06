@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, TextInput,
   Pressable, Image,
 } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../src/auth/AuthContext';
@@ -11,12 +12,31 @@ import type { Quiz, AnswerItem, QuizResult } from '../../src/api/quizzes';
 import { Button } from '../../src/components/Button';
 import { Skeleton } from '../../src/components/Skeleton';
 import { EmptyState } from '../../src/components/EmptyState';
+import { PressableScale } from '../../src/components/PressableScale';
+import { WordMatchBoard } from '../../src/components/WordMatchBoard';
+import { ProgressBar } from '../../src/components/ProgressBar';
+import { Confetti } from '../../src/components/Confetti';
+import { CountUp } from '../../src/components/CountUp';
+import { AppText } from '../../src/components/Text';
+import { haptics } from '../../src/lib/haptics';
+import { showXpToast } from '../../src/lib/xpToast';
 import { alertError } from '../../src/lib/alerts';
 import { t, tf } from '../../src/i18n';
 import { useColors } from '../../src/settings/SettingsContext';
 import { spacing, radius, fontSize, type AppColors } from '../../src/theme/theme';
 
 type Phase = 'loading' | 'quiz' | 'result' | 'error';
+
+/** Longest run of consecutive correct answers — the quiz "combo" (Duolingo feel).
+ *  Computed from the graded breakdown (no per-question data needed client-side). */
+function bestCombo(breakdown: QuizResult['breakdown']): number {
+  let best = 0, run = 0;
+  for (const b of breakdown) {
+    run = b.correct ? run + 1 : 0;
+    if (run > best) best = run;
+  }
+  return best;
+}
 
 export default function QuizScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -31,9 +51,8 @@ export default function QuizScreen() {
   const [answers, setAnswers] = useState<AnswerItem[]>([]);
   const [fillText, setFillText] = useState('');
   const [selected, setSelected] = useState<number | null>(null);
-  // word_match: leftIndex → chosen right value, plus the currently-picked left.
+  // word_match: leftIndex → chosen right value (drag/tap handled in WordMatchBoard).
   const [matches, setMatches] = useState<Record<number, string>>({});
-  const [selLeft, setSelLeft] = useState<number | null>(null);
   const [result, setResult] = useState<QuizResult | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -45,6 +64,18 @@ export default function QuizScreen() {
   }, [id, token]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Celebrate (or commiserate) the moment results land. On a pass with XP the
+  // "+XP" toast already carries a success haptic, so we don't double it up.
+  useEffect(() => {
+    if (phase !== 'result' || !result) return;
+    if (result.passed) {
+      if (result.xpEarned > 0) showXpToast(result.xpEarned);
+      else haptics.success();
+    } else {
+      haptics.error();
+    }
+  }, [phase, result]);
 
   const currentQ = quiz?.questions[currentIndex];
   const isLast = quiz ? currentIndex === quiz.questions.length - 1 : false;
@@ -86,7 +117,6 @@ export default function QuizScreen() {
     setSelected(null);
     setFillText('');
     setMatches({});
-    setSelLeft(null);
     setCurrentIndex((i) => i + 1);
   }
 
@@ -141,31 +171,49 @@ export default function QuizScreen() {
   if (phase === 'result' && result) {
     return (
       <SafeAreaView style={styles.safe}>
+        {result.passed && <Confetti />}
         <ScrollView contentContainerStyle={styles.container}>
-          <Text style={styles.resultEmoji}>{result.passed ? '🎉' : '😅'}</Text>
-          <Text style={styles.resultTitle}>
-            {result.passed ? t('quizPassed') : t('quizTryAgain')}
-          </Text>
-          <Text style={styles.resultScore}>{result.percentage}%</Text>
-          <Text style={styles.resultSub}>
-            {tf('scoreLine', { score: result.score, total: result.total })}
-          </Text>
+          <Animated.View entering={FadeInDown.springify().damping(14)} style={styles.resultHead}>
+            <Text style={styles.resultEmoji}>{result.passed ? '🎉' : '😅'}</Text>
+            <AppText variant="h1" center>
+              {result.passed ? t('quizPassed') : t('quizTryAgain')}
+            </AppText>
+            <CountUp value={result.percentage} suffix="%" variant="display" color={c.primary}
+              style={styles.resultScore} />
+            <AppText variant="caption" center>
+              {tf('scoreLine', { score: result.score, total: result.total })}
+            </AppText>
+          </Animated.View>
 
-          {result.xpEarned > 0 && (
-            <View style={styles.xpBadge}>
-              <Text style={styles.xpBadgeText}>+{result.xpEarned} XP ⚡</Text>
-            </View>
-          )}
+          <View style={styles.badgeRow}>
+            {result.xpEarned > 0 && (
+              <Animated.View entering={FadeInDown.delay(300).springify()} style={styles.xpBadge}>
+                <CountUp value={result.xpEarned} prefix="+" suffix=" XP ⚡" variant="bodyStrong"
+                  color={c.primary} />
+              </Animated.View>
+            )}
+            {bestCombo(result.breakdown) >= 2 && (
+              <Animated.View entering={FadeInDown.delay(380).springify()} style={styles.comboBadge}>
+                <AppText variant="bodyStrong" color={c.streak}>
+                  {tf('comboLabel', { count: bestCombo(result.breakdown) })}
+                </AppText>
+              </Animated.View>
+            )}
+          </View>
 
           <View style={styles.breakdownBox}>
-            {result.breakdown.map((b) => (
-              <View key={b.questionIndex} style={styles.breakdownRow}>
+            {result.breakdown.map((b, i) => (
+              <Animated.View
+                key={b.questionIndex}
+                entering={FadeInDown.delay(360 + i * 50)}
+                style={styles.breakdownRow}
+              >
                 <Text style={styles.breakdownNum}>{b.questionIndex + 1}</Text>
                 <Text style={b.correct ? styles.correct : styles.wrong}>
                   {b.correct ? '✓' : '✗'}
                 </Text>
                 <Text style={styles.breakdownPts}>{b.points} {t('pointsUnit')}</Text>
-              </View>
+              </Animated.View>
             ))}
           </View>
 
@@ -186,21 +234,18 @@ export default function QuizScreen() {
         </Text>
       </View>
 
-      {/* Progress bar */}
-      <View style={styles.progressBar}>
-        <View
-          style={[
-            styles.progressFill,
-            { width: `${((currentIndex + 1) / quiz!.questions.length) * 100}%` },
-          ]}
-        />
-      </View>
+      {/* Progress bar — eases to its new value on each question. */}
+      <ProgressBar
+        value={(currentIndex + 1) / quiz!.questions.length}
+        height={4}
+        style={{ marginHorizontal: spacing.lg }}
+      />
 
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.quizTitle}>{quiz!.title}</Text>
-        <Text style={styles.questionText}>
+        <AppText variant="caption" style={styles.quizTitle}>{quiz!.title}</AppText>
+        <AppText variant="h2" style={styles.questionText}>
           {currentQ!.question ?? (currentQ!.type === 'word_match' ? t('matchPairsPrompt') : '')}
-        </Text>
+        </AppText>
 
         {currentQ!.type === 'multiple_choice' && currentQ!.imageUrl ? (
           <Image source={{ uri: currentQ!.imageUrl }} style={styles.questionImage} resizeMode="cover" />
@@ -209,18 +254,19 @@ export default function QuizScreen() {
         {currentQ!.type === 'multiple_choice' && (
           <View style={styles.optionsContainer}>
             {currentQ!.options!.map((opt, i) => (
-              <Pressable
+              <PressableScale
                 key={i}
+                haptic={false}
                 style={[styles.option, selected === i && styles.optionSelected]}
-                onPress={() => setSelected(i)}
+                onPress={() => { haptics.select(); setSelected(i); }}
               >
                 <Text style={[styles.optionLabel, selected === i && styles.optionLabelSelected]}>
                   {String.fromCharCode(65 + i)}
                 </Text>
-                <Text style={[styles.optionText, selected === i && styles.optionTextSelected]}>
+                <AppText variant="body" style={[styles.optionText, selected === i && styles.optionTextSelected]}>
                   {opt}
-                </Text>
-              </Pressable>
+                </AppText>
+              </PressableScale>
             ))}
           </View>
         )}
@@ -237,41 +283,20 @@ export default function QuizScreen() {
         )}
 
         {currentQ!.type === 'word_match' && (
-          <View style={styles.wmRow}>
-            {/* Left column — tap to pick, shows the chosen match */}
-            <View style={styles.wmCol}>
-              {(currentQ!.pairs ?? []).map((p, i) => (
-                <Pressable
-                  key={i}
-                  style={[styles.wmItem, selLeft === i && styles.wmItemSel, matches[i] && styles.wmItemDone]}
-                  onPress={() => setSelLeft(i)}
-                >
-                  <Text style={styles.wmText}>{p.left}</Text>
-                  {matches[i] ? <Text style={styles.wmMatch}>→ {matches[i]}</Text> : null}
-                </Pressable>
-              ))}
-            </View>
-            {/* Right column — tap to assign to the picked left */}
-            <View style={styles.wmCol}>
-              {shuffledRights.map((r, i) => {
-                const used = Object.values(matches).includes(r);
-                return (
-                  <Pressable
-                    key={i}
-                    disabled={used}
-                    style={[styles.wmItem, used && styles.wmItemUsed]}
-                    onPress={() => {
-                      if (selLeft === null) return;
-                      setMatches((m) => ({ ...m, [selLeft]: r }));
-                      setSelLeft(null);
-                    }}
-                  >
-                    <Text style={[styles.wmText, used && styles.wmTextUsed]}>{r}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
+          <WordMatchBoard
+            pairs={currentQ!.pairs ?? []}
+            rights={shuffledRights}
+            matches={matches}
+            onAssign={(leftIndex, right) =>
+              setMatches((m) => {
+                // Drop the right value from any other left it was on (1:1 mapping).
+                const next: Record<number, string> = {};
+                for (const [k, v] of Object.entries(m)) if (v !== right) next[Number(k)] = v;
+                next[leftIndex] = right;
+                return next;
+              })
+            }
+          />
         )}
 
         <Button
@@ -298,8 +323,6 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   },
   backBtn: { color: c.primary, fontWeight: '600', fontSize: fontSize.md },
   progress: { color: c.textMuted, fontSize: fontSize.sm },
-  progressBar: { height: 4, backgroundColor: c.border, marginHorizontal: spacing.lg, borderRadius: 2 },
-  progressFill: { height: 4, backgroundColor: c.primary, borderRadius: 2 },
   container: { padding: spacing.lg, paddingTop: spacing.md },
   quizTitle: { fontSize: fontSize.sm, color: c.textMuted, marginBottom: spacing.sm },
   questionText: {
@@ -348,34 +371,27 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
     fontSize: fontSize.md,
     color: c.text,
   },
-  // word_match
-  wmRow: { flexDirection: 'row', gap: spacing.md },
-  wmCol: { flex: 1, gap: spacing.sm },
-  wmItem: {
-    borderWidth: 2, borderColor: c.border, borderRadius: radius.md,
-    paddingVertical: spacing.md, paddingHorizontal: spacing.md, minHeight: 48, justifyContent: 'center',
-  },
-  wmItemSel: { borderColor: c.primary, backgroundColor: c.primarySoft },
-  wmItemDone: { borderColor: c.success, backgroundColor: c.successSoft },
-  wmItemUsed: { opacity: 0.35 },
-  wmText: { fontSize: fontSize.md, color: c.text, fontWeight: '600' },
-  wmTextUsed: { color: c.textMuted },
-  wmMatch: { fontSize: fontSize.sm, color: c.primary, marginTop: 2 },
   errorText: { color: c.danger, fontSize: fontSize.md },
   // Result styles
+  resultHead: { alignItems: 'center', marginBottom: spacing.lg },
   resultEmoji: { fontSize: 64, textAlign: 'center', marginBottom: spacing.sm },
-  resultTitle: { fontSize: fontSize.xl, fontWeight: '800', color: c.navy, textAlign: 'center' },
-  resultScore: { fontSize: 56, fontWeight: '900', color: c.primary, textAlign: 'center', marginTop: spacing.sm },
-  resultSub: { color: c.textMuted, textAlign: 'center', marginBottom: spacing.lg },
+  resultScore: { fontSize: 56, lineHeight: 60, fontWeight: '900', marginTop: spacing.sm },
+  badgeRow: {
+    flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap',
+    gap: spacing.sm, marginBottom: spacing.lg,
+  },
   xpBadge: {
-    alignSelf: 'center',
     backgroundColor: c.primarySoft,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
     borderRadius: radius.full,
-    marginBottom: spacing.lg,
   },
-  xpBadgeText: { color: c.primary, fontWeight: '800', fontSize: fontSize.md },
+  comboBadge: {
+    backgroundColor: c.surfaceAlt,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.full,
+  },
   breakdownBox: {
     backgroundColor: c.surfaceAlt,
     borderRadius: radius.md,

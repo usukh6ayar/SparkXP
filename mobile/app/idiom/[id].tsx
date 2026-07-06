@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState, useMemo } from 'react';
 import { View, StyleSheet, ScrollView, Pressable } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { haptics } from '../../src/lib/haptics';
 import { AppImage } from '../../src/components/AppImage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams } from 'expo-router';
@@ -58,6 +60,7 @@ export default function IdiomDetailScreen() {
 
   function playAudio() {
     if (!idiom) return;
+    haptics.tap();
     if (idiom.audioUrl) {
       try {
         player.replace({ uri: idiom.audioUrl });
@@ -122,19 +125,19 @@ export default function IdiomDetailScreen() {
           <AppText variant="h3" color={colors.primary} style={styles.mongolian}>{idiom.mongolian}</AppText>
 
           {idiom.meaning ? (
-            <Section label={t('meaningLabel')}>
+            <Section label={t('meaningLabel')} delay={60}>
               <AppText variant="body">{idiom.meaning}</AppText>
             </Section>
           ) : null}
 
           {idiom.definition ? (
-            <Section label={t('definitionLabel')}>
+            <Section label={t('definitionLabel')} delay={120}>
               <AppText variant="body">{idiom.definition}</AppText>
             </Section>
           ) : null}
 
           {idiom.exampleSentence ? (
-            <Section label={t('exampleLabel')}>
+            <Section label={t('exampleLabel')} delay={180}>
               <Card variant="filled" style={styles.example}>
                 <TappableText variant="body">{idiom.exampleSentence}</TappableText>
                 {idiom.exampleTranslation ? (
@@ -153,14 +156,14 @@ export default function IdiomDetailScreen() {
   );
 }
 
-function Section({ label, children }: { label: string; children: React.ReactNode }) {
+function Section({ label, children, delay = 0 }: { label: string; children: React.ReactNode; delay?: number }) {
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
-    <View style={styles.section}>
+    <Animated.View entering={FadeInDown.delay(delay).duration(280)} style={styles.section}>
       <AppText variant="overline" color={colors.textMuted} style={styles.sectionLabel}>{label}</AppText>
       {children}
-    </View>
+    </Animated.View>
   );
 }
 

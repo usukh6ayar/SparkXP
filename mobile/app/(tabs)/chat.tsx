@@ -4,9 +4,11 @@ import {
   Pressable, KeyboardAvoidingView, Platform, ActivityIndicator, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { AppImage } from '../../src/components/AppImage';
 import { BuddyAvatar } from '../../src/components/BuddyAvatar';
 import { Ionicons } from '@expo/vector-icons';
+import { haptics } from '../../src/lib/haptics';
 import {
   useAudioPlayer, useAudioPlayerStatus, useAudioRecorder, RecordingPresets,
   requestRecordingPermissionsAsync, setAudioModeAsync,
@@ -131,6 +133,7 @@ export default function ChatScreen() {
   async function sendText() {
     const text = input.trim();
     if (!text || loading || !sessionId) return;
+    haptics.tap();
     setInput('');
     setMessages((prev) => [...prev, { id: `${Date.now()}u`, role: 'user', content: text }]);
     setLoading(true);
@@ -210,7 +213,7 @@ export default function ChatScreen() {
             <Pressable
               key={b.slug}
               style={[styles.buddyCard, active && styles.buddyActive]}
-              onPress={() => selectBuddy(b)}
+              onPress={() => { haptics.select(); selectBuddy(b); }}
             >
               {b.avatarThumbUrl ? (
                 <AppImage source={{ uri: b.avatarThumbUrl }} width={46} style={styles.buddyImg} contentFit="contain" />
@@ -284,6 +287,8 @@ export default function ChatScreen() {
             onPressIn={startRecording}
             onPressOut={stopRecording}
             disabled={voiceLimited || !sessionId}
+            accessibilityRole="button"
+            accessibilityLabel={recording ? t('stopRecording') : t('recordVoice')}
           >
             <Ionicons name={recording ? 'stop' : 'mic-outline'} size={20} color={recording ? c.white : c.textSecondary} />
           </Pressable>
@@ -303,6 +308,8 @@ export default function ChatScreen() {
             style={[styles.sendBtn, (!input.trim() || loading) && styles.sendBtnDisabled]}
             onPress={sendText}
             disabled={!input.trim() || loading}
+            accessibilityRole="button"
+            accessibilityLabel={t('send')}
           >
             <Ionicons name="arrow-up" size={20} color={c.white} />
           </Pressable>
@@ -321,7 +328,10 @@ function MessageBubble({
   const thumb = buddy?.avatarThumbUrl ? { uri: buddy.avatarThumbUrl } : sparkImg;
 
   return (
-    <View style={[styles.bubbleRow, isUser && styles.bubbleRowUser]}>
+    <Animated.View
+      entering={FadeInDown.duration(220)}
+      style={[styles.bubbleRow, isUser && styles.bubbleRowUser]}
+    >
       {!isUser && <AppImage source={thumb} width={28} style={styles.avatarImg} contentFit="contain" />}
       <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAi]}>
         {isUser ? (
@@ -355,7 +365,7 @@ function MessageBubble({
           </>
         )}
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
