@@ -33,12 +33,15 @@ import {
   type GestureResponderEvent,
   type TextStyle,
 } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAudioPlayer } from 'expo-audio';
 import * as Speech from 'expo-speech';
 import { useAuth } from '../auth/AuthContext';
+import { haptics } from '../lib/haptics';
+import { DURATION, useReduceMotion } from '../lib/motion';
 import {
   lookupWord,
   translateSentence,
@@ -114,6 +117,7 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
       setSaved(false);
       setSize({ w: 0, h: 0 });
       setLoading(true);
+      haptics.select(); // tactile tick as the meaning popover reveals
       try {
         setResult(await lookupWord(token, clean));
       } catch (err) {
@@ -140,6 +144,7 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
       setSaved(false);
       setSize({ w: 0, h: 0 });
       setLoading(true);
+      haptics.select(); // tactile tick as the translation popover reveals
       try {
         const { translation } = await translateSentence(token, text);
         setResult({ word: text, translation, audioUrl: null, cached: false });
@@ -245,6 +250,18 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
   const above = anchor.y - size.h - GAP;
   const top = above < 60 ? anchor.y + 22 : above; // flip below if no room above
 
+  // Reveal: fade + slide the popover up once it has been measured (size known),
+  // so it "presents" instead of snapping in. Respects Reduce Motion.
+  const reveal = useSharedValue(0);
+  const reduce = useReduceMotion();
+  useEffect(() => {
+    reveal.value = word && size.w ? (reduce ? 1 : withTiming(1, { duration: DURATION.fast })) : 0;
+  }, [word, size.w, reduce]);
+  const popoverStyle = useAnimatedStyle(() => ({
+    opacity: reveal.value,
+    transform: [{ translateY: (1 - reveal.value) * 8 }],
+  }));
+
   return (
     <DictionaryContext.Provider value={{ lookup, translatePhrase, openSearch }}>
       {children}
@@ -307,11 +324,11 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
       {/* Tap-word meaning popover */}
       <Modal visible={word !== null} transparent animationType="fade" onRequestClose={close}>
         <Pressable style={StyleSheet.absoluteFill} onPress={close} />
-        <View
+        <Animated.View
           onLayout={(e) =>
             setSize({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })
           }
-          style={[styles.popover, { left, top, opacity: size.w ? 1 : 0 }]}
+          style={[styles.popover, { left, top }, popoverStyle]}
         >
           {loading ? (
             <ActivityIndicator color={colors.primary} />
@@ -351,7 +368,7 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
               ) : null}
             </>
           ) : null}
-        </View>
+        </Animated.View>
       </Modal>
     </DictionaryContext.Provider>
   );

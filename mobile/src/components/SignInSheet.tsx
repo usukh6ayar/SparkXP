@@ -8,13 +8,20 @@ import {
   type BottomSheetBackdropProps,
   type BottomSheetBackgroundProps,
 } from '@gorhom/bottom-sheet';
-import Animated, { interpolate, useAnimatedStyle, Extrapolation } from 'react-native-reanimated';
+import Animated, {
+  interpolate,
+  useAnimatedStyle,
+  useSharedValue,
+  Extrapolation,
+} from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../auth/AuthContext';
 import { ApiError } from '../api/client';
+import { haptics } from '../lib/haptics';
+import { shake, useReduceMotion } from '../lib/motion';
 import { t } from '../i18n';
 import { spacing, radius, type AppColors } from '../theme/theme';
 import { useColors, useSettings } from '../settings/SettingsContext';
@@ -64,6 +71,16 @@ export function SignInSheet({ onClose }: { onClose: () => void }) {
   const [remember, setRemember] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const reduce = useReduceMotion();
+
+  // Shake + error haptic when sign-in fails.
+  const shakeX = useSharedValue(0);
+  const formStyle = useAnimatedStyle(() => ({ transform: [{ translateX: shakeX.value }] }));
+  const fail = (msg: string) => {
+    setError(msg);
+    haptics.error();
+    if (!reduce) shakeX.value = shake();
+  };
 
   // Smooth spring motion for snapping + finger release.
   const springConfigs = useBottomSheetSpringConfigs({
@@ -93,7 +110,7 @@ export function SignInSheet({ onClose }: { onClose: () => void }) {
     try {
       await login(username.trim(), password); // auth gate redirects on success
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : t('errorGeneric'));
+      fail(e instanceof ApiError ? e.message : t('errorGeneric'));
     } finally {
       setBusy(false);
     }
@@ -133,23 +150,25 @@ export function SignInSheet({ onClose }: { onClose: () => void }) {
           {t('welcomeBack')}
         </AppText>
 
-        <TextField
-          InputComponent={BottomSheetTextInput}
-          leftIcon="person-outline"
-          placeholder={t('usernameOrEmail')}
-          autoCapitalize="none"
-          autoCorrect={false}
-          value={username}
-          onChangeText={setUsername}
-        />
-        <TextField
-          InputComponent={BottomSheetTextInput}
-          leftIcon="lock-closed-outline"
-          placeholder={t('password')}
-          secureToggle
-          value={password}
-          onChangeText={setPassword}
-        />
+        <Animated.View style={formStyle}>
+          <TextField
+            InputComponent={BottomSheetTextInput}
+            leftIcon="person-outline"
+            placeholder={t('usernameOrEmail')}
+            autoCapitalize="none"
+            autoCorrect={false}
+            value={username}
+            onChangeText={setUsername}
+          />
+          <TextField
+            InputComponent={BottomSheetTextInput}
+            leftIcon="lock-closed-outline"
+            placeholder={t('password')}
+            secureToggle
+            value={password}
+            onChangeText={setPassword}
+          />
+        </Animated.View>
 
         <View style={styles.row}>
           <Checkbox checked={remember} onToggle={() => setRemember((v) => !v)} label={t('rememberMe')} />

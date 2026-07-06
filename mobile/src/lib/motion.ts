@@ -12,12 +12,27 @@
  */
 import { useEffect, useState } from 'react';
 import { AccessibilityInfo } from 'react-native';
+import { withSequence, withTiming } from 'react-native-reanimated';
 
 /** Standard entrance/fill duration (ms). One source so motion feels uniform. */
 export const DURATION = { fast: 180, base: 300, slow: 500 } as const;
 
 /** Standard spring for press / bounce feedback. */
 export const SPRING = { damping: 18, stiffness: 180, mass: 0.6 } as const;
+
+/**
+ * A left-right "shake" animation for invalid form input. Assign it to a
+ * translateX shared value: `offset.value = shake()`. Pair with `haptics.error()`.
+ */
+export function shake() {
+  return withSequence(
+    withTiming(-8, { duration: 45 }),
+    withTiming(8, { duration: 45 }),
+    withTiming(-6, { duration: 45 }),
+    withTiming(6, { duration: 45 }),
+    withTiming(0, { duration: 45 }),
+  );
+}
 
 /**
  * Reactive "reduce motion" flag. Returns true when the OS accessibility setting

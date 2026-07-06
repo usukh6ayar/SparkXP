@@ -13,6 +13,8 @@ export function IconButton({
   variant = 'surface',
   /** Small red notification dot (attention cue), top-right of the icon. */
   dot,
+  /** Screen-reader label — required for icon-only buttons to be accessible. */
+  accessibilityLabel,
   style,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
@@ -22,6 +24,7 @@ export function IconButton({
   iconColor?: string;
   variant?: 'surface' | 'filled';
   dot?: boolean;
+  accessibilityLabel?: string;
   style?: ViewStyle;
 }) {
   const c = useColors();
@@ -36,6 +39,8 @@ export function IconButton({
       ]}
       onPress={onPress}
       hitSlop={8}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
     >
       <Ionicons name={icon} size={iconSize} color={iconColor ?? c.text} />
       {dot ? <View style={styles.dot} /> : null}

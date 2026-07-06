@@ -9,6 +9,7 @@ import {
   ScrollView,
   useWindowDimensions,
 } from 'react-native';
+import Animated, { ZoomIn } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,6 +19,8 @@ import { useSettings } from '../../src/settings/SettingsContext';
 import { getLessons, type Lesson } from '../../src/api/lessons';
 import { getGamification, type Gamification } from '../../src/api/gamification';
 import { AppText } from '../../src/components/Text';
+import { haptics } from '../../src/lib/haptics';
+import { useReduceMotion } from '../../src/lib/motion';
 import { colors, islandMap } from '../../src/theme/theme';
 
 /**
@@ -113,6 +116,7 @@ export default function LevelScreen() {
   const isLight = theme === 'light';
   const bg = isLight ? bgLight : bgDark;
   const C = palette(isLight);
+  const reduceMotion = useReduceMotion();
 
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [gam, setGam] = useState<Gamification | null>(null);
@@ -236,21 +240,25 @@ export default function LevelScreen() {
                       },
                     ]}
                   />
-                  {/* Node circle (number or lock) */}
-                  <Pressable
-                    onPress={lesson ? () => router.push(`/lesson/${lesson.id}`) : undefined}
-                    style={({ pressed }) => [
-                      styles.node,
-                      { left: c.x - NODE / 2, top: c.y - NODE / 2 },
-                      pressed && lesson && { transform: [{ scale: 0.94 }] },
-                    ]}
+                  {/* Node circle (number or lock) — pops in as the trail builds */}
+                  <Animated.View
+                    style={[styles.nodeWrap, { left: c.x - NODE / 2, top: c.y - NODE / 2 }]}
+                    entering={reduceMotion ? undefined : ZoomIn.delay(i * 45).springify()}
                   >
-                    {locked ? (
-                      <Ionicons name="lock-closed" size={22} color="rgba(255,255,255,0.75)" />
-                    ) : (
-                      <AppText variant="h3" color={colors.white}>{i + 1}</AppText>
-                    )}
-                  </Pressable>
+                    <Pressable
+                      onPress={lesson ? () => { haptics.tap(); router.push(`/lesson/${lesson.id}`); } : undefined}
+                      style={({ pressed }) => [
+                        styles.node,
+                        pressed && lesson && { transform: [{ scale: 0.94 }] },
+                      ]}
+                    >
+                      {locked ? (
+                        <Ionicons name="lock-closed" size={22} color="rgba(255,255,255,0.75)" />
+                      ) : (
+                        <AppText variant="h3" color={colors.white}>{i + 1}</AppText>
+                      )}
+                    </Pressable>
+                  </Animated.View>
                   {/* Three stars sitting on the lower rim of a completed node */}
                   {completed && (
                     <View style={[styles.starRow, { left: c.x - 33, top: c.y + NODE / 2 - 14 }]} pointerEvents="none">
@@ -494,8 +502,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 5,
   },
+  nodeWrap: { position: 'absolute', width: NODE, height: NODE },
   node: {
-    position: 'absolute',
     width: NODE,
     height: NODE,
     borderRadius: NODE / 2,

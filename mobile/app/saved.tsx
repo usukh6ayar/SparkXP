@@ -15,6 +15,7 @@ import { IconButton } from '../src/components/IconButton';
 import { Card } from '../src/components/Card';
 import { t } from '../src/i18n';
 import { useColors } from '../src/settings/SettingsContext';
+import { haptics } from '../src/lib/haptics';
 import { spacing, radius, type AppColors } from '../src/theme/theme';
 
 /**
@@ -46,6 +47,7 @@ export default function SavedScreen() {
 
   async function onRefresh() {
     setRefreshing(true);
+    haptics.tap();
     await load();
     setRefreshing(false);
   }

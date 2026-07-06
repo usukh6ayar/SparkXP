@@ -12,6 +12,7 @@ import { ProgressBar } from '../../src/components/ProgressBar';
 import { CategoryBrowser, type BrowserItem } from '../../src/components/CategoryBrowser';
 import { t, tf, type TranslationKey } from '../../src/i18n';
 import { useColors } from '../../src/settings/SettingsContext';
+import { haptics } from '../../src/lib/haptics';
 import { spacing, radius, skillGradients, type AppColors } from '../../src/theme/theme';
 
 type IconName = keyof typeof Ionicons.glyphMap;
@@ -70,6 +71,7 @@ export default function SkillScreen() {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
+    haptics.tap();
     await load();
     setRefreshing(false);
   }, [load]);

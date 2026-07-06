@@ -8,6 +8,15 @@ import {
   type NativeSyntheticEvent,
   type NativeScrollEvent,
 } from 'react-native';
+import Animated, {
+  Extrapolation,
+  interpolate,
+  LinearTransition,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue,
+  type SharedValue,
+} from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,6 +25,7 @@ import { t } from '../../src/i18n';
 import { AppText } from '../../src/components/Text';
 import { Button } from '../../src/components/Button';
 import { MascotCircle } from '../../src/components/MascotCircle';
+import { useReduceMotion } from '../../src/lib/motion';
 import { spacing, radius, elevation, type AppColors } from '../../src/theme/theme';
 import { useColors } from '../../src/settings/SettingsContext';
 
@@ -110,15 +120,71 @@ const SLIDES: Slide[] = [
   },
 ];
 
+/**
+ * One onboarding page. Its content (mascot + copy) fades and drifts with a mild
+ * parallax as the pager scrolls, for a premium first impression. Split out so
+ * each page can own its `useAnimatedStyle` hook. Frozen under Reduce Motion.
+ */
+function OnboardingSlide({
+  slide,
+  index,
+  width,
+  scrollX,
+  reduce,
+}: {
+  slide: Slide;
+  index: number;
+  width: number;
+  scrollX: SharedValue<number>;
+  reduce: boolean;
+}) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+
+  const animatedStyle = useAnimatedStyle(() => {
+    if (reduce) return {};
+    const range = [(index - 1) * width, index * width, (index + 1) * width];
+    return {
+      opacity: interpolate(scrollX.value, range, [0.3, 1, 0.3], Extrapolation.CLAMP),
+      transform: [
+        { scale: interpolate(scrollX.value, range, [0.88, 1, 0.88], Extrapolation.CLAMP) },
+        { translateX: interpolate(scrollX.value, range, [width * 0.18, 0, -width * 0.18], Extrapolation.CLAMP) },
+      ],
+    };
+  });
+
+  return (
+    <View style={[styles.slide, { width }]}>
+      <Animated.View style={[styles.slideInner, animatedStyle]}>
+        <MascotCircle image={fox} gradient={slide.gradient}>
+          {slide.decor(colors)}
+        </MascotCircle>
+        <AppText variant="h1" center style={styles.title}>
+          {slide.title}
+        </AppText>
+        <AppText variant="body" center color={colors.textSecondary}>
+          {slide.body}
+        </AppText>
+      </Animated.View>
+    </View>
+  );
+}
+
 export default function OnboardingScreen() {
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { width } = useWindowDimensions();
   const { completeOnboarding } = useAuth();
   const router = useRouter();
-  const scroller = useRef<ScrollView>(null);
+  const scroller = useRef<Animated.ScrollView>(null);
   const [index, setIndex] = useState(0);
   const last = index === SLIDES.length - 1;
+  const reduce = useReduceMotion();
+
+  const scrollX = useSharedValue(0);
+  const scrollHandler = useAnimatedScrollHandler((e) => {
+    scrollX.value = e.contentOffset.x;
+  });
 
   async function finish() {
     await completeOnboarding();
@@ -142,33 +208,36 @@ export default function OnboardingScreen() {
         </AppText>
       </Pressable>
 
-      <ScrollView
+      <Animated.ScrollView
         ref={scroller}
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         onMomentumScrollEnd={onScrollEnd}
+        onScroll={scrollHandler}
+        scrollEventThrottle={16}
         style={styles.flex}
       >
-        {SLIDES.map((s) => (
-          <View key={s.title} style={[styles.slide, { width }]}>
-            <MascotCircle image={fox} gradient={s.gradient}>
-              {s.decor(colors)}
-            </MascotCircle>
-            <AppText variant="h1" center style={styles.title}>
-              {s.title}
-            </AppText>
-            <AppText variant="body" center color={colors.textSecondary}>
-              {s.body}
-            </AppText>
-          </View>
+        {SLIDES.map((s, i) => (
+          <OnboardingSlide
+            key={s.title}
+            slide={s}
+            index={i}
+            width={width}
+            scrollX={scrollX}
+            reduce={reduce}
+          />
         ))}
-      </ScrollView>
+      </Animated.ScrollView>
 
       <View style={styles.footer}>
         <View style={styles.dots}>
           {SLIDES.map((_, i) => (
-            <View key={i} style={[styles.dot, i === index && styles.dotActive]} />
+            <Animated.View
+              key={i}
+              layout={reduce ? undefined : LinearTransition.springify()}
+              style={[styles.dot, i === index && styles.dotActive]}
+            />
           ))}
         </View>
         <Button label={last ? t('onbStart') : t('onbNext')} onPress={onNext} />
@@ -186,8 +255,8 @@ const makeStyles = (colors: AppColors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.xl,
-    gap: spacing.lg,
   },
+  slideInner: { alignItems: 'center', gap: spacing.lg },
   title: { marginTop: spacing.sm },
   badge: {
     position: 'absolute',
