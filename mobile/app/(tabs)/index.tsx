@@ -8,6 +8,14 @@ import {
   RefreshControl,
   Dimensions,
 } from "react-native";
+import Animated, {
+  FadeInDown,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -24,9 +32,11 @@ import { getLastLesson, type LastLesson } from "../../src/lib/lastLesson";
 import { useUnreadNotifications } from "../../src/lib/useUnreadNotifications";
 import { useDictionary } from "../../src/components/DictionaryProvider";
 import { AppText } from "../../src/components/Text";
-import { ProgressBar } from "../../src/components/ProgressBar";
 import { IconButton } from "../../src/components/IconButton";
+import { Skeleton } from "../../src/components/Skeleton";
 import { useColors, useSettings } from "../../src/settings/SettingsContext";
+import { useReduceMotion } from "../../src/lib/motion";
+import { haptics } from "../../src/lib/haptics";
 import { tf, type TranslationKey } from "../../src/i18n";
 import {
   spacing,
@@ -88,11 +98,45 @@ const TASKS: {
   { key: "writing", labelKey: "catWriting", icon: "create", tint: tints.orange },
 ];
 
+/**
+ * Streak flame that gently pulses (scale) while the streak is alive, so the
+ * hero feels "on fire" instead of static. Freezes when streak is 0 or the user
+ * has Reduce Motion enabled.
+ */
+function StreakFlame({ streak, color }: { streak: number; color: string }) {
+  const scale = useSharedValue(1);
+  const reduce = useReduceMotion();
+
+  useEffect(() => {
+    if (streak > 0 && !reduce) {
+      scale.value = withRepeat(
+        withSequence(
+          withTiming(1.18, { duration: 650 }),
+          withTiming(1, { duration: 650 }),
+        ),
+        -1,
+        false,
+      );
+    } else {
+      scale.value = withTiming(1);
+    }
+  }, [streak, reduce]);
+
+  const style = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+
+  return (
+    <Animated.View style={style}>
+      <Ionicons name="flame" size={25} color={color} />
+    </Animated.View>
+  );
+}
+
 export default function HomeScreen() {
   const { user, token } = useAuth();
   const c = useColors();
   const { theme, t } = useSettings();
   const styles = useMemo(() => makeStyles(c), [c]);
+  const reduceMotion = useReduceMotion();
 
   // Hero swaps with the appearance toggle: bright daytime sky in light mode,
   // purple night sky in dark. The bottom scrim dissolves the sky into the
@@ -116,6 +160,8 @@ export default function HomeScreen() {
   // class, so the "My assignments" card only shows for enrolled students.
   const [enrolled, setEnrolled] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  // First-load flag → show skeletons instead of "jumping from 0" content.
+  const [loading, setLoading] = useState(true);
   // How many published exercises each skill category has (keyed by TASKS.key).
   const [taskCounts, setTaskCounts] = useState<Record<string, number>>({});
 
@@ -153,6 +199,8 @@ export default function HomeScreen() {
       setTaskCounts(Object.fromEntries(results));
     } catch {
       // keep last counts
+    } finally {
+      setLoading(false);
     }
   }, [token]);
 
@@ -189,13 +237,12 @@ export default function HomeScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
+    haptics.tap(); // tactile confirmation of the pull-to-refresh
     await load();
     setRefreshing(false);
   };
 
   const streak = gam?.currentStreak ?? 0;
-  // TODO(data): real per-lesson progress — visual placeholder for now.
-  const continueProgress = 0.75;
   // Total published exercises across all skills (header count pill).
   const totalExercises = Object.values(taskCounts).reduce((a, b) => a + b, 0);
 
@@ -259,16 +306,16 @@ export default function HomeScreen() {
                 </AppText>
               </View>
               <View style={styles.headerIcons}>
-                <IconButton icon="notifications-outline" dot={hasUnread} size={44} style={styles.headerIconBtn} onPress={() => router.push('/notifications')} />
+                <IconButton icon="notifications-outline" dot={hasUnread} size={44} style={styles.headerIconBtn} accessibilityLabel={t('notifications')} onPress={() => router.push('/notifications')} />
                 {/* Dictionary — in-place search overlay (no screen change) */}
-                <IconButton icon="search" size={44} style={styles.headerIconBtn} onPress={openSearch} />
+                <IconButton icon="search" size={44} style={styles.headerIconBtn} accessibilityLabel={t('searchEnglishWord')} onPress={openSearch} />
               </View>
             </View>
 
             {/* Streak / gem / XP badges over the scene */}
             <View style={styles.heroTop}>
               <View style={styles.streakBadge}>
-                <Ionicons name="flame" size={25} color={c.streak} />
+                <StreakFlame streak={streak} color={c.streak} />
                 <AppText variant="h2" color={c.white}>{streak}</AppText>
                 <View>
                   <AppText variant="caption" color={c.textOnDark}>
@@ -315,21 +362,9 @@ export default function HomeScreen() {
                 <AppText variant="overline" color={c.textOnDarkMuted}>
                   {(cont.resume ? t("resumeLearning") : t("startLearning")).toUpperCase()}
                 </AppText>
-                <AppText variant="h2" color={c.white} numberOfLines={1}>
+                <AppText variant="h2" color={c.white} numberOfLines={2}>
                   {cont.lesson.title}
                 </AppText>
-                <View style={styles.progressRow}>
-                  <AppText variant="caption" color={c.textOnDark}>
-                    {Math.round(continueProgress * 100)}%
-                  </AppText>
-                  <ProgressBar
-                    value={continueProgress}
-                    color={c.white}
-                    track="rgba(255,255,255,0.25)"
-                    height={8}
-                    style={styles.continueBarInline}
-                  />
-                </View>
                 <View style={styles.continueBtn}>
                   <AppText variant="bodyStrong" color={c.primary}>
                     {t("continue")} →
@@ -337,7 +372,15 @@ export default function HomeScreen() {
                 </View>
               </View>
               <View style={styles.continueIcon}>
-                <AppText variant="display" color={c.white}>Aa</AppText>
+                {cont.lesson.thumbnailUrl ? (
+                  <Image
+                    source={{ uri: cont.lesson.thumbnailUrl }}
+                    style={styles.continueThumb}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <Ionicons name="play" size={28} color={c.white} />
+                )}
               </View>
             </Pressable>
           ) : null}
@@ -399,31 +442,40 @@ export default function HomeScreen() {
             </View>
           </View>
           <View style={styles.grid}>
-            {TASKS.map((task) => {
-              const count = taskCounts[task.key] ?? 0;
-              return (
-                <Pressable
-                  key={task.key}
-                  style={({ pressed }) => [styles.task, pressed && styles.pressed]}
-                  // Reading = passages grouped by сэдэв (own screen); the other
-                  // skills are quiz-based exercise lists.
-                  onPress={() => router.push(task.key === 'reading' ? '/reading' : `/skill/${task.key}`)}
-                >
-                  <View style={[styles.taskIcon, { backgroundColor: task.tint.bg, borderColor: task.tint.fg }]}>
-                    <Ionicons name={task.icon} size={24} color={task.tint.fg} />
-                  </View>
-                  <AppText variant="label" numberOfLines={1}>
-                    {t(task.labelKey)}
-                  </AppText>
-                  <View style={styles.taskCount}>
-                    <Ionicons name="ribbon" size={12} color={c.xp} />
-                    <AppText variant="caption">
-                      {tf("exerciseCount", { n: count })}
-                    </AppText>
-                  </View>
-                </Pressable>
-              );
-            })}
+            {loading
+              ? TASKS.map((task) => (
+                  <Skeleton key={task.key} width="48%" height={120} radius={radius.lg} />
+                ))
+              : TASKS.map((task, i) => {
+                  const count = taskCounts[task.key] ?? 0;
+                  return (
+                    <Animated.View
+                      key={task.key}
+                      style={styles.taskWrap}
+                      entering={reduceMotion ? undefined : FadeInDown.delay(i * 60).springify()}
+                    >
+                      <Pressable
+                        style={({ pressed }) => [styles.task, pressed && styles.pressed]}
+                        // Reading = passages grouped by сэдэв (own screen); the other
+                        // skills are quiz-based exercise lists.
+                        onPress={() => router.push(task.key === 'reading' ? '/reading' : `/skill/${task.key}`)}
+                      >
+                        <View style={[styles.taskIcon, { backgroundColor: task.tint.bg, borderColor: task.tint.fg }]}>
+                          <Ionicons name={task.icon} size={26} color={task.tint.fg} />
+                        </View>
+                        <AppText variant="label" numberOfLines={1}>
+                          {t(task.labelKey)}
+                        </AppText>
+                        <View style={styles.taskCount}>
+                          <Ionicons name="ribbon" size={12} color={c.xp} />
+                          <AppText variant="caption">
+                            {tf("exerciseCount", { n: count })}
+                          </AppText>
+                        </View>
+                      </Pressable>
+                    </Animated.View>
+                  );
+                })}
           </View>
 
           <View style={{ height: 110 }} />
@@ -506,15 +558,7 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
     backgroundColor: c.primary,
     ...(elevation.md as object),
   },
-  continueBody: { flex: 1, gap: 2 },
-  progressRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    marginTop: spacing.sm,
-    marginBottom: spacing.md,
-  },
-  continueBarInline: { flex: 1 },
+  continueBody: { flex: 1, gap: 6 },
   continueBtn: {
     alignSelf: "flex-start",
     backgroundColor: c.white,
@@ -530,7 +574,9 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.18)",
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
   },
+  continueThumb: { width: "100%", height: "100%" },
 
   // Review reminder
   reviewCard: {
@@ -605,10 +651,13 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
     justifyContent: "space-between",
     rowGap: spacing.md,
   },
+  // 2×2 tiles — bigger, thumb-friendly, and no cramped 23% columns on small
+  // screens. The wrapper holds the width so the entrance animation is stable.
+  taskWrap: { width: "48%" },
   task: {
-    width: "23%",
+    width: "100%",
     borderRadius: radius.lg,
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.lg,
     alignItems: "center",
     gap: spacing.sm,
     backgroundColor: c.surface, // dark tile so the colored icon chip pops

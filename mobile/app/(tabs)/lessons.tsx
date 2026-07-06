@@ -14,6 +14,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/auth/AuthContext';
 import { useSettings } from '../../src/settings/SettingsContext';
+import { haptics } from '../../src/lib/haptics';
 import { tf } from '../../src/i18n';
 import { getLessons, type Lesson } from '../../src/api/lessons';
 import { getGamification, type Gamification } from '../../src/api/gamification';
@@ -151,6 +152,7 @@ export default function LessonsScreen() {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
+    haptics.tap();
     await load();
     setRefreshing(false);
   }, [load]);

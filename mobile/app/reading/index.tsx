@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../src/auth/AuthContext';
 import { getReadingList, type ReadingPassage } from '../../src/api/reading';
+import { haptics } from '../../src/lib/haptics';
 import { TopBar } from '../../src/components/TopBar';
 import { CategoryBrowser, type BrowserItem } from '../../src/components/CategoryBrowser';
 import { t } from '../../src/i18n';
@@ -47,6 +48,7 @@ export default function ReadingListScreen() {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
+    haptics.tap();
     await load();
     setRefreshing(false);
   }, [load]);

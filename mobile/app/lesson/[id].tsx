@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { View, StyleSheet, ScrollView, Pressable, Image, Alert } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,6 +19,8 @@ import { Button } from '../../src/components/Button';
 import { Skeleton } from '../../src/components/Skeleton';
 import { EmptyState } from '../../src/components/EmptyState';
 import { getSkill } from '../../src/constants/skills';
+import { haptics } from '../../src/lib/haptics';
+import { useReduceMotion } from '../../src/lib/motion';
 import { t, tf } from '../../src/i18n';
 import { useColors } from '../../src/settings/SettingsContext';
 import { spacing, radius, levelColor, type AppColors } from '../../src/theme/theme';
@@ -41,6 +44,7 @@ export default function LessonDetailScreen() {
   const c = useColors();
   const styles = useMemo(() => makeStyles(c), [c]);
   const router = useRouter();
+  const reduceMotion = useReduceMotion();
 
   const [lesson, setLesson] = useState<Lesson | null>(null);
   const [hasAccess, setHasAccess] = useState(false);
@@ -94,6 +98,7 @@ export default function LessonDetailScreen() {
   async function markDone() {
     await AsyncStorage.setItem(doneKey, '1');
     setDone(true);
+    haptics.success(); // tests unlocked — reward the milestone
     if (token && id) {
       try {
         const res = await lessonsApi.completeLesson(id, token);
@@ -122,6 +127,7 @@ export default function LessonDetailScreen() {
         try {
           await lessonsApi.unlockLesson(id!, token!);
           setHasAccess(true);
+          haptics.success(); // lesson unlocked with sparks
           Alert.alert(t('unlockSuccessTitle'), t('unlockSuccessBody'));
         } catch {
           alertError(t('unlockError'));
@@ -277,21 +283,25 @@ export default function LessonDetailScreen() {
                   <AppText variant="overline" color={c.textSecondary} style={styles.catLabel}>
                     {(CAT_LABELS[group.category] ?? group.category).toUpperCase()}
                   </AppText>
-                  {group.quizzes.map((q) => (
-                    <Pressable
+                  {group.quizzes.map((q, i) => (
+                    <Animated.View
                       key={q.id}
-                      style={({ pressed }) => [styles.quizRow, pressed && styles.quizRowPressed]}
-                      onPress={() => router.push(`/quiz/${q.id}`)}
+                      entering={reduceMotion ? undefined : FadeInDown.delay(i * 60).springify()}
                     >
-                      <View style={styles.quizIcon}>
-                        <Ionicons name="help-circle" size={20} color={c.primary} />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <AppText variant="bodyStrong" numberOfLines={1}>{q.title}</AppText>
-                        <AppText variant="caption">{tf('questionCount', { n: q.questions?.length ?? 0 })} · {q.xpReward} XP</AppText>
-                      </View>
-                      <Ionicons name="chevron-forward" size={18} color={c.borderStrong} />
-                    </Pressable>
+                      <Pressable
+                        style={({ pressed }) => [styles.quizRow, pressed && styles.quizRowPressed]}
+                        onPress={() => { haptics.tap(); router.push(`/quiz/${q.id}`); }}
+                      >
+                        <View style={styles.quizIcon}>
+                          <Ionicons name="help-circle" size={20} color={c.primary} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <AppText variant="bodyStrong" numberOfLines={1}>{q.title}</AppText>
+                          <AppText variant="caption">{tf('questionCount', { n: q.questions?.length ?? 0 })} · {q.xpReward} XP</AppText>
+                        </View>
+                        <Ionicons name="chevron-forward" size={18} color={c.borderStrong} />
+                      </Pressable>
+                    </Animated.View>
                   ))}
                 </View>
               ))

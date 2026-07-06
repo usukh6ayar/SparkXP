@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useState, useMemo } from 'react';
-import { View, StyleSheet, ScrollView, Pressable } from 'react-native';
+import { View, StyleSheet, Pressable } from 'react-native';
+import Animated, {
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue,
+} from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppImage } from '../../src/components/AppImage';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -49,6 +54,14 @@ export default function ReadingDetailScreen() {
   const [notFound, setNotFound] = useState(false);
   const [done, setDone] = useState(false);
   const [fontIndex, setFontIndex] = useState(DEFAULT_FONT_INDEX);
+
+  // Scroll-linked reading progress (0..1) → thin bar under the top bar.
+  const progress = useSharedValue(0);
+  const scrollHandler = useAnimatedScrollHandler((e) => {
+    const max = e.contentSize.height - e.layoutMeasurement.height;
+    progress.value = max > 0 ? Math.min(1, Math.max(0, e.contentOffset.y / max)) : 0;
+  });
+  const progressStyle = useAnimatedStyle(() => ({ width: `${progress.value * 100}%` }));
 
   const finish = useCallback(async () => {
     if (!token || !id || done) return;
@@ -130,9 +143,16 @@ export default function ReadingDetailScreen() {
           style={styles.empty}
         />
       ) : (
-        <ScrollView
+        <>
+        {/* Reading progress — fills as the reader scrolls through the passage. */}
+        <View style={styles.progressTrack}>
+          <Animated.View style={[styles.progressFill, progressStyle]} />
+        </View>
+        <Animated.ScrollView
           contentContainerStyle={styles.container}
           showsVerticalScrollIndicator={false}
+          onScroll={scrollHandler}
+          scrollEventThrottle={16}
         >
           {/* Cover */}
           <View style={styles.cover}>
@@ -267,7 +287,8 @@ export default function ReadingDetailScreen() {
           )}
 
           <View style={{ height: 60 }} />
-        </ScrollView>
+        </Animated.ScrollView>
+        </>
       )}
     </SafeAreaView>
   );
@@ -287,6 +308,9 @@ function Meta({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; text: stri
 const makeStyles = (colors: AppColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   container: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg },
+
+  progressTrack: { height: 3, backgroundColor: colors.surfaceAlt },
+  progressFill: { height: 3, backgroundColor: colors.primary },
 
   cover: {
     height: 180,

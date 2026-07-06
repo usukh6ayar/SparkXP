@@ -1,9 +1,12 @@
 import { useState, useMemo, useEffect } from 'react';
 import { View, Image, Pressable, StyleSheet } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/auth/AuthContext';
 import { ApiError } from '../../src/api/client';
+import { haptics } from '../../src/lib/haptics';
+import { shake, useReduceMotion } from '../../src/lib/motion';
 import * as authApi from '../../src/api/auth';
 import { peekPendingReferral, clearPendingReferral } from '../../src/lib/referralLink';
 import type { AuthResult } from '../../src/api/auth';
@@ -90,6 +93,16 @@ export default function RegisterScreen() {
   const [result, setResult] = useState<AuthResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const reduce = useReduceMotion();
+
+  // Shake the form + error haptic on any validation / submit failure.
+  const shakeX = useSharedValue(0);
+  const formStyle = useAnimatedStyle(() => ({ transform: [{ translateX: shakeX.value }] }));
+  const fail = (msg: string) => {
+    setError(msg);
+    haptics.error();
+    if (!reduce) shakeX.value = shake();
+  };
 
   // Pick up a referral code captured from an `englishxp://invite/CODE` deep link
   // (stashed while the user was logged out). Applied when the account is created.
@@ -109,8 +122,8 @@ export default function RegisterScreen() {
 
   function goInfoNext() {
     setError(null);
-    if (!passOk) return setError(t('required'));
-    if (confirm !== password) return setError(t('passwordMismatch'));
+    if (!passOk) return fail(t('required'));
+    if (confirm !== password) return fail(t('passwordMismatch'));
     setStep('location');
   }
 
@@ -135,7 +148,7 @@ export default function RegisterScreen() {
       if (referral) clearPendingReferral();
       setStep('otp');
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : t('errorGeneric'));
+      fail(e instanceof ApiError ? e.message : t('errorGeneric'));
     } finally {
       setBusy(false);
     }
@@ -150,7 +163,7 @@ export default function RegisterScreen() {
       setResult(res);
       setStep('success');
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : t('errorGeneric'));
+      fail(e instanceof ApiError ? e.message : t('errorGeneric'));
     } finally {
       setBusy(false);
     }
@@ -215,6 +228,7 @@ export default function RegisterScreen() {
         <Ionicons name="chevron-back" size={26} color={colors.text} />
       </Pressable>
 
+      <Animated.View style={formStyle}>
       {step === 'info' ? (
         <>
           <AppText variant="h1" center style={styles.title}>
@@ -419,6 +433,7 @@ export default function RegisterScreen() {
           </Pressable>
         </>
       )}
+      </Animated.View>
     </Screen>
   );
 }
