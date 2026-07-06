@@ -25,6 +25,7 @@ import {
   StartSessionDto,
   TextTurnDto,
   TestVoiceDto,
+  FeedbackDto,
 } from './dto/buddy-turn.dto';
 
 /** Max uploaded voice clip size (~60s of compressed mono audio). */
@@ -93,6 +94,12 @@ export class BuddyController {
   @Delete('memory')
   clearMemory(@CurrentUser() user: User) {
     return this.buddy.clearMemory(user.id);
+  }
+
+  /** User rates one buddy reply (👍/👎 + optional reason). */
+  @Post('feedback')
+  feedback(@Body() dto: FeedbackDto, @CurrentUser() user: User) {
+    return this.buddy.submitFeedback(user.id, dto.messageId, dto.rating, dto.reason);
   }
 
   /** Admin: preview a buddy's voice with sample text. */

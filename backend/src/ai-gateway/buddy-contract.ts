@@ -14,6 +14,8 @@ export interface BuddyTurnResult {
     short_explanation: string;
   };
   follow_up_question: string;
+  /** Grammar/vocab tags for this turn's mistake (e.g. ["past_simple"]); [] if none. */
+  mistake_tags: string[];
   emotion: string;
   gesture: string;
   cefr_level_used: string;
@@ -33,6 +35,7 @@ export const FALLBACK_TURN: BuddyTurnResult = {
   reply_text: "Sorry, I got stuck for a second. Let's try again!",
   correction: { has_correction: false, original: '', corrected: '', short_explanation: '' },
   follow_up_question: 'What would you like to talk about?',
+  mistake_tags: [],
   emotion: 'calm',
   gesture: 'idle',
   cefr_level_used: 'B1',
@@ -75,6 +78,9 @@ export function parseBuddyTurn(raw: string): BuddyTurnResult | null {
       short_explanation: str(correction.short_explanation),
     },
     follow_up_question: d.follow_up_question.trim(),
+    mistake_tags: Array.isArray(d.mistake_tags)
+      ? d.mistake_tags.filter((t: unknown) => typeof t === 'string' && t.trim()).slice(0, 5)
+      : [],
     emotion: BUDDY_EMOTIONS.includes(d.emotion) ? d.emotion : 'calm',
     gesture: BUDDY_GESTURES.includes(d.gesture) ? d.gesture : 'idle',
     cefr_level_used: str(d.cefr_level_used) || 'B1',
@@ -114,6 +120,8 @@ export function buildBuddySystemPrompt(
     `Always match the user CEFR level (${cefr}).`,
     'Keep the spoken reply short enough for 8–15 seconds of audio.',
     'Give only one correction per turn, unless the user asks for detailed correction.',
+    'Write correction.short_explanation in Mongolian (Cyrillic), one short sentence.',
+    'Set mistake_tags to short grammar/vocab labels for the mistake (e.g. "past_simple"); [] if none.',
     'Always end with one natural follow-up question.',
     'Do not give long lectures. Do not over-explain grammar.',
     'If the user asks for medical, legal, or financial advice, or brings up self-harm',
@@ -125,6 +133,7 @@ export function buildBuddySystemPrompt(
     '  "reply_text": "short natural reply (goes to text-to-speech)",',
     '  "correction": { "has_correction": bool, "original": "", "corrected": "", "short_explanation": "" },',
     '  "follow_up_question": "one short question",',
+    '  "mistake_tags": ["past_simple"],',
     `  "emotion": "one of: ${BUDDY_EMOTIONS.join('|')}",`,
     `  "gesture": "one of: ${BUDDY_GESTURES.join('|')}",`,
     '  "cefr_level_used": "A1|A2|B1|B2|C1|C2",',

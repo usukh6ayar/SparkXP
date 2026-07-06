@@ -65,6 +65,10 @@ export interface TurnResponse {
   reply_text: string;
   correction: { original: string; corrected: string; short_explanation: string } | null;
   follow_up_question: string;
+  /** Grammar/vocab tags for this turn's mistake; [] when none. */
+  mistake_tags: string[];
+  /** XP granted by THIS turn (0 if already awarded earlier this session). */
+  xp_reward: number;
   audio_url: string | null;
   avatar_instruction: { emotion: string; gesture: string; duration_ms: number };
   usage: {
@@ -307,6 +311,7 @@ export class BuddyService {
         metadata: {
           correction: hasCorrection ? turn.correction : null,
           follow_up_question: turn.follow_up_question,
+          mistake_tags: turn.mistake_tags,
           emotion,
           gesture: turn.gesture,
           cefr_level_used: turn.cefr_level_used,
@@ -323,8 +328,8 @@ export class BuddyService {
       });
     }
 
-    // --- XP once per session ---
-    await this.xp.awardOnce({
+    // --- XP once per session (awardOnce returns null if already granted) ---
+    const awarded = await this.xp.awardOnce({
       userId: user.id,
       amount: BUDDY_XP,
       source: XpSource.AI_BUDDY,
@@ -345,6 +350,8 @@ export class BuddyService {
           }
         : null,
       follow_up_question: turn.follow_up_question,
+      mistake_tags: turn.mistake_tags,
+      xp_reward: awarded ? BUDDY_XP : 0,
       audio_url: audioUrl,
       avatar_instruction: { emotion, gesture: turn.gesture, duration_ms: durationMs },
       usage: this.usageBlock(allowance),
@@ -543,6 +550,8 @@ export class BuddyService {
       reply_text: partial.reply_text,
       correction: null,
       follow_up_question: '',
+      mistake_tags: [],
+      xp_reward: 0,
       audio_url: null,
       avatar_instruction: { emotion, gesture: 'idle', duration_ms: 0 },
       usage: { voice_seconds_used_this_month: 0, voice_seconds_limit_this_month: null, warn_level: 'none' },
@@ -555,6 +564,28 @@ export class BuddyService {
   }
   clearMemory(userId: string) {
     return this.memory.clear(userId);
+  }
+
+  /**
+   * User feedback on a buddy reply (👍/👎 + optional reason). Stored on the AI
+   * message's metadata (no separate table), so it's queryable alongside the turn.
+   */
+  async submitFeedback(
+    userId: string,
+    messageId: string,
+    rating: 'up' | 'down',
+    reason?: string,
+  ): Promise<{ ok: true }> {
+    const message = await this.messages.findOne({
+      where: { id: messageId, userId, role: MessageRole.ASSISTANT },
+    });
+    if (!message) throw new NotFoundException('Мессеж олдсонгүй');
+    message.metadata = {
+      ...(message.metadata ?? {}),
+      feedback: { rating, reason: reason ?? null, at: new Date().toISOString() },
+    };
+    await this.messages.save(message);
+    return { ok: true };
   }
 
   // ── Admin ─────────────────────────────────────────────────────────────────

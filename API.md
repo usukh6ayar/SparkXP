@@ -194,14 +194,17 @@ Controller-level: JWT. Realtime speaking companion (STT→LLM→TTS→avatar). �
 | GET `/ai/buddy/usage` | JWT | Энэ сарын voice/STT хэрэглээ | — |
 | GET `/ai/buddy/memory` | JWT | Buddy-гийн санах ой | — |
 | DELETE `/ai/buddy/memory` | JWT | Санах ой цэвэрлэх | — |
+| POST `/ai/buddy/feedback` | JWT | Buddy хариултад 👍/👎 өгөх (мессежийн metadata-д хадгална) | `FeedbackDto` `{ messageId, rating:'up'\|'down', reason? }` → `{ ok }` |
 | POST `/ai/buddy/admin/test-voice` | admin, super_admin | Buddy-гийн дуу хоолойг жишээ текстээр сонсох (preview) | `TestVoiceDto` `{ buddySlug, text }` |
 | GET `/ai/buddy/admin/safety-events` | admin, super_admin | Аюулгүй байдлын үйл явдлын audit log (хуудаслалттай) | `page?` |
 
 Turn response: `{ session_id, message_id, user_transcript, reply_text,
-correction, follow_up_question, audio_url, avatar_instruction{emotion,gesture,
-duration_ms}, usage{voice_seconds_used_this_month, voice_seconds_limit_this_month,
-warn_level} }`. Voice limit хэтэрвэл `403 { code: 'VOICE_LIMIT' }` (mobile текст
-рүү шилжинэ).
+correction, follow_up_question, mistake_tags[], xp_reward, audio_url,
+avatar_instruction{emotion,gesture,duration_ms}, usage{voice_seconds_used_this_month,
+voice_seconds_limit_this_month, warn_level} }`. `xp_reward` = энэ turn-д өгсөн XP
+(session-д 1 удаа, дараа нь 0). `mistake_tags` = грамматик/vocab таг (жишээ
+`["past_simple"]`). Voice limit хэтэрвэл `403 { code: 'VOICE_LIMIT' }` (mobile
+текст рүү шилжинэ).
 
 ## 11. Dictionary — `/api/dictionary`
 Controller-level: JWT. (Reading-ийн tap-to-translate ашигладаг.)
