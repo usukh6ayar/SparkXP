@@ -1,4 +1,4 @@
-import { IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsIn, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
 import { BuddySessionMode } from '../../common/enums';
 
 /** Start an AI Buddy conversation session. */
@@ -33,4 +33,18 @@ export class TestVoiceDto {
   @MinLength(1)
   @MaxLength(300)
   text: string;
+}
+
+/** User feedback (👍/👎 + optional reason) on one AI Buddy reply. */
+export class FeedbackDto {
+  @IsUUID()
+  messageId: string;
+
+  @IsIn(['up', 'down'])
+  rating: 'up' | 'down';
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  reason?: string;
 }
