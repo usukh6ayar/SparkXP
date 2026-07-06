@@ -53,7 +53,8 @@ function RootNavigator() {
     );
   }
 
-  return <Stack screenOptions={{ headerShown: false }} />;
+  // Platform-standard push transition so screens slide in instead of snapping.
+  return <Stack screenOptions={{ headerShown: false, animation: "slide_from_right" }} />;
 }
 
 /**

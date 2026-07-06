@@ -1,10 +1,12 @@
 import { useMemo } from 'react';
-import { View, StyleSheet, type ViewStyle } from 'react-native';
+import { View, Image, StyleSheet, type ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AppText } from './Text';
 import { Button } from './Button';
 import { useColors } from '../settings/SettingsContext';
-import { spacing, radius, type AppColors } from '../theme/theme';
+import { spacing, radius, elevation, type AppColors } from '../theme/theme';
+
+const fox = require('../../assets/fox-home.webp');
 
 export function EmptyState({
   icon,
@@ -25,8 +27,12 @@ export function EmptyState({
 
   return (
     <View style={[styles.empty, style]}>
-      <View style={styles.emptyIcon}>
-        <Ionicons name={icon} size={40} color={c.primary} />
+      {/* Fox mascot with a small contextual icon badge — warmer than a bare icon. */}
+      <View style={styles.mascot}>
+        <Image source={fox} style={styles.foxImg} resizeMode="contain" />
+        <View style={styles.badge}>
+          <Ionicons name={icon} size={18} color={c.white} />
+        </View>
       </View>
       <AppText variant="h3" center style={{ marginTop: spacing.md }}>{title}</AppText>
       <AppText variant="body" center color={c.textSecondary} style={{ marginTop: 2 }}>
@@ -48,8 +54,13 @@ export function EmptyState({
 
 const makeStyles = (c: AppColors) => StyleSheet.create({
   empty: { alignItems: 'center', paddingHorizontal: spacing.xl, marginTop: spacing.xxxl },
-  emptyIcon: {
-    width: 80, height: 80, borderRadius: radius.full, backgroundColor: c.primarySoft,
+  mascot: { width: 120, height: 120, alignItems: 'center', justifyContent: 'center' },
+  foxImg: { width: 120, height: 120 },
+  badge: {
+    position: 'absolute', right: 4, bottom: 4,
+    width: 36, height: 36, borderRadius: radius.full, backgroundColor: c.primary,
     alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2, borderColor: c.background,
+    ...elevation.sm,
   },
 });

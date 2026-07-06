@@ -1,11 +1,15 @@
+import { useEffect } from "react";
 import { View, Text, Pressable, Image, StyleSheet } from "react-native";
+import Animated, { useAnimatedStyle, useSharedValue, withSequence, withSpring } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
-import { colors, spacing } from "../theme/theme";
+import { colors, spacing, type AppColors } from "../theme/theme";
 import { useSettings } from "../settings/SettingsContext";
+import { haptics } from "../lib/haptics";
+import { SPRING, useReduceMotion } from "../lib/motion";
 
 const buddy = require("../../assets/buddy-menu.webp");
 
@@ -70,7 +74,6 @@ export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
             if (!meta) return null; // hidden routes
 
             const focused = state.index === index;
-            const tint = focused ? PURPLE : inactive;
             const onPress = () => {
               const event = navigation.emit({
                 type: "tabPress",
@@ -78,44 +81,88 @@ export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
                 canPreventDefault: true,
               });
               if (!focused && !event.defaultPrevented) {
+                haptics.select(); // tactile tick when switching tabs
                 navigation.navigate(route.name);
               }
             };
 
-            // Center AI buddy = big fox avatar disc (raised, purple ring).
-            if (meta.image) {
-              return (
-                <Pressable key={route.key} style={styles.tab} onPress={onPress}>
-                  <View
-                    style={[
-                      styles.foxBig,
-                      { backgroundColor: c.surface, borderColor: focused ? PURPLE : "rgba(108,59,255,0.55)" },
-                    ]}
-                  >
-                    <Image source={meta.image} style={styles.foxBigImg} resizeMode="cover" />
-                  </View>
-                  <Text style={[styles.label, { color: tint }, focused && styles.labelActive]} numberOfLines={1}>
-                    {meta.label}
-                  </Text>
-                </Pressable>
-              );
-            }
-
             return (
-              <Pressable key={route.key} style={styles.tab} onPress={onPress}>
-                {/* Active = purple glass chip; icon slightly magnified */}
-                <View style={[styles.chip, focused && styles.chipActive]}>
-                  <Ionicons name={focused ? meta.icon! : meta.iconOutline!} size={focused ? 26 : 23} color={tint} />
-                </View>
-                <Text style={[styles.label, { color: tint }, focused && styles.labelActive]} numberOfLines={1}>
-                  {meta.label}
-                </Text>
-              </Pressable>
+              <TabButton
+                key={route.key}
+                meta={meta}
+                focused={focused}
+                onPress={onPress}
+                c={c}
+                tint={focused ? PURPLE : inactive}
+              />
             );
           })}
         </BlurView>
       </View>
     </View>
+  );
+}
+
+/**
+ * One tab. Split into its own component so each tab can own reanimated hooks
+ * (rules-of-hooks forbid calling them inside the `.map`). The active chip
+ * springs with a small "pop" the moment it becomes focused.
+ */
+function TabButton({
+  meta,
+  focused,
+  onPress,
+  c,
+  tint,
+}: {
+  meta: TabMeta;
+  focused: boolean;
+  onPress: () => void;
+  c: AppColors;
+  tint: string;
+}) {
+  const scale = useSharedValue(1);
+  const reduce = useReduceMotion();
+
+  // Pop the chip/avatar when this tab becomes the active one.
+  useEffect(() => {
+    if (focused && !reduce) {
+      scale.value = withSequence(withSpring(1.14, SPRING), withSpring(1, SPRING));
+    }
+  }, [focused, reduce]);
+
+  const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+
+  // Center AI buddy = big fox avatar disc (raised, purple ring).
+  if (meta.image) {
+    return (
+      <Pressable style={styles.tab} onPress={onPress}>
+        <Animated.View
+          style={[
+            styles.foxBig,
+            animatedStyle,
+            { backgroundColor: c.surface, borderColor: focused ? colors.primary : "rgba(108,59,255,0.55)" },
+          ]}
+        >
+          <Image source={meta.image} style={styles.foxBigImg} resizeMode="cover" />
+        </Animated.View>
+        <Text style={[styles.label, { color: tint }, focused && styles.labelActive]} numberOfLines={1}>
+          {meta.label}
+        </Text>
+      </Pressable>
+    );
+  }
+
+  return (
+    <Pressable style={styles.tab} onPress={onPress}>
+      {/* Active = purple glass chip; icon slightly magnified */}
+      <Animated.View style={[styles.chip, focused && styles.chipActive, animatedStyle]}>
+        <Ionicons name={focused ? meta.icon! : meta.iconOutline!} size={focused ? 26 : 23} color={tint} />
+      </Animated.View>
+      <Text style={[styles.label, { color: tint }, focused && styles.labelActive]} numberOfLines={1}>
+        {meta.label}
+      </Text>
+    </Pressable>
   );
 }
 
