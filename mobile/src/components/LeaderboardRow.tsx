@@ -35,6 +35,8 @@ export function LeaderboardRow({
       style={StyleSheet.flatten([
         styles.row,
         { backgroundColor: c.surface, borderColor: c.border },
+        // Top-3 get a soft coloured glow so the podium reads at a glance.
+        medalColor && { borderColor: medalColor, shadowColor: medalColor, ...styles.medalGlow },
         isSelf && { borderColor: colors.primary, backgroundColor: c.primarySoft },
       ])}
       leading={
@@ -60,5 +62,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   rankBadge: { width: 28, height: 28, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center' },
+  medalGlow: { shadowOpacity: 0.35, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 4 },
   xp: { flexDirection: 'row', alignItems: 'center', gap: 4 },
 });

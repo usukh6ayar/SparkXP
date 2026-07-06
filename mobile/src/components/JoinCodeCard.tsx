@@ -1,7 +1,10 @@
 import { View, Pressable, Share, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
 import QRCode from 'react-native-qrcode-svg';
 import { AppText } from './Text';
+import { toast } from './Toast';
+import { haptics } from '../lib/haptics';
 import { t, tf } from '../i18n';
 import { buildJoinLink } from '../lib/joinLink';
 import { colors, spacing, radius, elevation } from '../theme/theme';
@@ -13,9 +16,16 @@ import { colors, spacing, radius, elevation } from '../theme/theme';
  */
 export function JoinCodeCard({ code, className }: { code: string; className?: string }) {
   async function onShare() {
+    haptics.tap();
     await Share.share({
       message: `${className ? className + ' — ' : ''}${tf('joinShareBody', { code })}\n${buildJoinLink(code)}`,
     });
+  }
+
+  /** Tap the big code to copy it to the clipboard (teachers dictate it a lot). */
+  async function onCopy() {
+    await Clipboard.setStringAsync(code);
+    toast.success(t('codeCopied'), 'copy');
   }
 
   return (
@@ -30,9 +40,12 @@ export function JoinCodeCard({ code, className }: { code: string; className?: st
         <QRCode value={buildJoinLink(code)} size={140} backgroundColor={colors.white} color="#18244A" />
       </View>
 
-      <AppText variant="display" color={colors.white} style={styles.code}>
-        {code}
-      </AppText>
+      <Pressable onPress={onCopy} hitSlop={8} style={styles.codeRow}>
+        <AppText variant="display" color={colors.white} style={styles.code}>
+          {code}
+        </AppText>
+        <Ionicons name="copy-outline" size={18} color={colors.textOnDarkMuted} />
+      </Pressable>
       <AppText variant="caption" color={colors.textOnDarkMuted} style={styles.hint}>
         {t('joinCodeHint')}
       </AppText>
@@ -64,7 +77,8 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     marginTop: spacing.md,
   },
-  code: { letterSpacing: 6, marginTop: spacing.md },
+  codeRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.md },
+  code: { letterSpacing: 6 },
   hint: { textAlign: 'center', marginTop: 4, marginBottom: spacing.lg },
   btn: {
     flexDirection: 'row',

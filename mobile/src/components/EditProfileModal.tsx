@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { ScrollView, Alert } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useAuth } from '../auth/AuthContext';
+import { haptics } from '../lib/haptics';
 import { useSettings } from '../settings/SettingsContext';
 import * as usersApi from '../api/users';
 import { MN_PROVINCES as PROVINCES, UB_DISTRICTS } from '../constants/locations';
@@ -34,6 +36,7 @@ export function EditProfileModal({ visible, onClose }: { visible: boolean; onClo
   // Province/district aren't returned by the API, so they start blank.
   useEffect(() => {
     if (!visible) return;
+    haptics.tap();
     setFullName(user?.fullName ?? '');
     setEnglishName(user?.englishName ?? '');
     setLevel(user?.level ?? '');
@@ -73,7 +76,8 @@ export function EditProfileModal({ visible, onClose }: { visible: boolean; onClo
   }
 
   return (
-    <ModalScreen visible={visible} onClose={onClose}>
+    <ModalScreen visible={visible} onClose={onClose} animationType="fade">
+      <Animated.View entering={FadeInDown.springify().damping(16)} style={{ flex: 1 }}>
       <TopBar title={t('editProfile')} showBadges={false} />
       <ScrollView contentContainerStyle={{ padding: spacing.lg }} keyboardShouldPersistTaps="handled">
         <TextField label={t('fullName')} value={fullName} onChangeText={setFullName} placeholder={t('enterName')} />
@@ -97,6 +101,7 @@ export function EditProfileModal({ visible, onClose }: { visible: boolean; onClo
         <Button label={saving ? t('saving') : t('save')} onPress={save} disabled={saving} style={{ marginTop: spacing.lg }} />
         <Button label={t('cancel')} variant="secondary" onPress={onClose} style={{ marginTop: spacing.md }} />
       </ScrollView>
+      </Animated.View>
     </ModalScreen>
   );
 }

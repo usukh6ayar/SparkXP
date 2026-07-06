@@ -8,8 +8,10 @@ import {
   Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Animated, { FadeInDown } from "react-native-reanimated";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { haptics } from "../../src/lib/haptics";
 import { useAuth } from "../../src/auth/AuthContext";
 import { getGamification, type Gamification } from "../../src/api/gamification";
 import { AppText } from "../../src/components/Text";
@@ -123,7 +125,10 @@ export default function SorilScreen() {
   const router = useRouter();
   const open = () =>
     Alert.alert(t("comingSoon"), t("gameComingSoon"));
-  const openGame = (g: Game) => (g.route ? router.push(g.route as never) : open());
+  const openGame = (g: Game) => {
+    haptics.tap();
+    return g.route ? router.push(g.route as never) : open();
+  };
   const GAMES = games(t);
 
   return (
@@ -214,9 +219,9 @@ export default function SorilScreen() {
 
         {/* Games grid */}
         <View style={styles.grid}>
-          {GAMES.map((g) => (
+          {GAMES.map((g, i) => (
+            <Animated.View key={g.title} entering={FadeInDown.delay(i * 60)} style={styles.cardWrap}>
             <Pressable
-              key={g.title}
               style={({ pressed }) => [styles.card, pressed && styles.pressed]}
               onPress={() => openGame(g)}
             >
@@ -249,6 +254,7 @@ export default function SorilScreen() {
                 </View>
               </View>
             </Pressable>
+            </Animated.View>
           ))}
         </View>
 
@@ -404,8 +410,9 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
     justifyContent: "space-between",
     rowGap: spacing.md,
   },
+  cardWrap: { width: "48.5%" },
   card: {
-    width: "48.5%",
+    width: "100%",
     flexDirection: "row",
     backgroundColor: c.surface,
     borderRadius: radius.lg,

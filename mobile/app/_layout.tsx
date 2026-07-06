@@ -8,6 +8,7 @@ import { ThemeProvider, DarkTheme, DefaultTheme } from "@react-navigation/native
 import { AuthProvider, useAuth } from "../src/auth/AuthContext";
 import { SettingsProvider, useColors, useSettings } from "../src/settings/SettingsContext";
 import { DictionaryProvider } from "../src/components/DictionaryProvider";
+import { ToastHost } from "../src/components/Toast";
 
 /**
  * Auth gate: redirects based on whether the user is logged in.
@@ -89,6 +90,7 @@ export default function RootLayout() {
             <DictionaryProvider>
               <BottomSheetModalProvider>
                 <ThemedNav />
+                <ToastHost />
               </BottomSheetModalProvider>
             </DictionaryProvider>
           </AuthProvider>
