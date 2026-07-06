@@ -1,13 +1,9 @@
-import {
-  Pressable,
-  ActivityIndicator,
-  StyleSheet,
-  View,
-  type ViewStyle,
-} from 'react-native';
+import { ActivityIndicator, StyleSheet, View, type ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { AppText } from './Text';
-import { colors, radius, spacing } from '../theme/theme';
+import { PressableScale } from './PressableScale';
+import { radius, spacing, elevation } from '../theme/theme';
 import { useColors } from '../settings/SettingsContext';
 
 type IconName = keyof typeof Ionicons.glyphMap;
@@ -15,7 +11,7 @@ type IconName = keyof typeof Ionicons.glyphMap;
 interface Props {
   label: string;
   onPress: () => void;
-  /** primary = orange fill · secondary = navy outline · ghost = text only */
+  /** primary = glowing violet gradient · secondary = surface outline · ghost = text only */
   variant?: 'primary' | 'secondary' | 'ghost';
   size?: 'md' | 'lg';
   icon?: IconName;
@@ -27,7 +23,12 @@ interface Props {
   style?: ViewStyle;
 }
 
-/** Brand button with size + variant system and an optional leading icon. */
+/**
+ * Brand button. The `primary` variant uses the glowing violet gradient + soft
+ * glow (DESIGN.md's "glowing CTA"); `secondary`/`ghost` are flat. Press gives a
+ * spring scale + haptic (via PressableScale). Colors come from `useColors()`
+ * so it flips with the light/dark theme.
+ */
 export function Button({
   label,
   onPress,
@@ -44,51 +45,63 @@ export function Button({
   const isPrimary = variant === 'primary';
   const isSecondary = variant === 'secondary';
   const blocked = disabled || loading;
-  const fg = isPrimary ? colors.white : colors.primary;
+  const fg = isPrimary ? c.white : c.primary;
+  const iconSize = size === 'lg' ? 20 : 18;
 
   return (
-    <Pressable
+    <PressableScale
       onPress={onPress}
       disabled={blocked}
-      style={({ pressed }) => [
+      haptic={!blocked}
+      style={[
         styles.base,
         size === 'lg' ? styles.lg : styles.md,
-        isPrimary && styles.primary,
-        isSecondary && [styles.secondary, { backgroundColor: c.surface }],
+        isSecondary && { backgroundColor: c.surface, borderWidth: 1.5, borderColor: c.primary },
         variant === 'ghost' && styles.ghost,
+        isPrimary && elevation.md,
         fullWidth && styles.fullWidth,
         blocked && styles.disabled,
-        pressed && !blocked && styles.pressed,
         style,
       ]}
     >
+      {/* Glowing gradient fill for the primary CTA. Its own borderRadius clips
+          the corners so the parent needs no `overflow:hidden` (which would clip
+          the glow shadow on iOS). */}
+      {isPrimary ? (
+        <LinearGradient
+          colors={c.primaryGradient}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[StyleSheet.absoluteFill, { borderRadius: radius.md }]}
+        />
+      ) : null}
+
       {loading ? (
         <ActivityIndicator color={fg} />
       ) : (
         <View style={styles.content}>
-          {icon ? <Ionicons name={icon} size={size === 'lg' ? 20 : 18} color={fg} /> : null}
+          {icon ? <Ionicons name={icon} size={iconSize} color={fg} /> : null}
           <AppText variant="bodyStrong" color={fg} style={styles.label}>
             {label}
           </AppText>
-          {iconRight ? (
-            <Ionicons name={iconRight} size={size === 'lg' ? 20 : 18} color={fg} />
-          ) : null}
+          {iconRight ? <Ionicons name={iconRight} size={iconSize} color={fg} /> : null}
         </View>
       )}
-    </Pressable>
+    </PressableScale>
   );
 }
 
 const styles = StyleSheet.create({
-  base: { borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
+  base: {
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   lg: { height: 52, paddingHorizontal: spacing.xl },
   md: { height: 44, paddingHorizontal: spacing.lg },
   fullWidth: { alignSelf: 'stretch' },
-  primary: { backgroundColor: colors.primary },
-  secondary: { backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.primary },
   ghost: { backgroundColor: 'transparent' },
   disabled: { opacity: 0.45 },
-  pressed: { opacity: 0.88, transform: [{ scale: 0.99 }] },
   content: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   label: { fontWeight: '700' },
 });
