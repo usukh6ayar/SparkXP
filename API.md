@@ -195,6 +195,7 @@ Controller-level: JWT. Realtime speaking companion (STT→LLM→TTS→avatar). �
 | GET `/ai/buddy/memory` | JWT | Buddy-гийн санах ой | — |
 | DELETE `/ai/buddy/memory` | JWT | Санах ой цэвэрлэх | — |
 | POST `/ai/buddy/feedback` | JWT | Buddy хариултад 👍/👎 өгөх (мессежийн metadata-д хадгална) | `FeedbackDto` `{ messageId, rating:'up'\|'down', reason? }` → `{ ok }` |
+| GET `/ai/buddy/admin/feedback` | admin, super_admin | Хэрэглэгчийн 👍/👎 санал (хуудаслалттай, message metadata-аас) | `page?` |
 | POST `/ai/buddy/admin/test-voice` | admin, super_admin | Buddy-гийн дуу хоолойг жишээ текстээр сонсох (preview) | `TestVoiceDto` `{ buddySlug, text }` |
 | GET `/ai/buddy/admin/safety-events` | admin, super_admin | Аюулгүй байдлын үйл явдлын audit log (хуудаслалттай) | `page?` |
 
