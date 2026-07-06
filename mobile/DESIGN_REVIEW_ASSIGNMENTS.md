@@ -6,6 +6,27 @@
 
 ---
 
+## ✅ Choi-гийн ажлын явц (2026-07-06) — Boju АНХААР, давхардуулж бүү хий
+
+Доорх хүснэгтүүдэд ✅ = дууссан (Choi), ⏸ = хойшлуулсан. Choi-гийн бүх Stage
+дууссан бөгөөд PR-аар оруулсан:
+
+- **PR #101 (merge болсон)** — Stage 1 Foundation: #1, #2, #3, #6, #7, #8, #28,
+  #29, #40, #42, #43. Shared файлууд: `lib/haptics.ts`, `lib/motion.ts`,
+  `components/PressableScale.tsx`, `Button.tsx`, `CustomTabBar.tsx`,
+  `ProgressBar.tsx`, `EmptyState.tsx`, `app/_layout.tsx`.
+- **PR #102** — Stage 2 (Choi дэлгэцүүд): #9, #10, #12a, #15, #16, #20, #21, #22,
+  #23, #24, #36, #37. + Stage 3: #18 (`IconButton` a11y), #31 (pull-refresh
+  haptic). #19 (Choi дэлгэцүүд theme-reactive тул хэрэггүй), #30/#39 (аль хэдийн
+  байсан), **#48 хойшлуулсан** (theme cross-fade).
+
+> ⚠️ Choi аль хэдийн `haptics.ts` / `motion.ts` / `PressableScale.tsx` /
+> `shake()` helper-ийг бүтээсэн — **Boju эдгээрийг дахин бүү үүсгэ, import хийж
+> ашигла.** Reward-infra (#14/#38/#47/#49) болон Boju-гийн дэлгэцүүд (#4,5,11,13,
+> 17,25,26,27,34,35,44,45,46 г.м) **Boju-д хэвээр** — доор ⬜ тэмдэгтэй.
+
+---
+
 ## 0. Хуваарилалтын зарчим (CLAUDE.md-ийн эзэмшлээр)
 
 | Dev | Branch | Эзэмшдэг дэлгэцүүд |
@@ -54,40 +75,43 @@
 
 > 🔒 = shared файл (нэг хүн, зөрчилтэй) · ⚡ = Stage 1-тэй зэрэг эхэлж болно (дэлгэц-дотоод) · ✅ = parallel-safe
 
-### 🟥 Stage 1 — Foundation (Choi, ЭХЭЛЖ push)
+### 🟥 Stage 1 — Foundation (Choi, ЭХЭЛЖ push) — ✅ ДУУССАН (PR #101)
 
-| № | Ажил | Эзэн | Файл | Зэрэг? |
+| № | Ажил | Эзэн | Файл | Төлөв |
 | --- | --- | --- | --- | --- |
-| 1 | `haptics.ts` helper | **Choi** 🔒 | `src/lib/haptics.ts` (шинэ) | Эхлэл — бусад үүн дээр тулна |
-| 2 | Button — glow gradient + `useColors` бүрэн | **Choi** 🔒 | `components/Button.tsx` | — |
-| 3 | `PressableScale` wrapper (scale 0.97 + spring) | **Choi** 🔒 | `components/PressableScale.tsx` (шинэ) | — |
-| 6 | Tab press haptic + active chip spring | **Choi** 🔒 | `components/CustomTabBar.tsx` | — |
-| 7 | Shared component-ууд static colors устгах | **Choi** 🔒 | `components/*` | — |
-| 8 | ProgressBar — `withTiming` дүүргэлт | **Choi** 🔒 | `components/ProgressBar.tsx` | — |
-| 28 | `radius` нийцлийг нэгтгэх | **Choi** 🔒 | `components/*` | — |
-| 29 | EmptyState-д fox mascot | **Choi** 🔒 | `components/EmptyState.tsx` | — |
-| 40 | Button `secondary`/`ghost` төлөв нэгтгэх | **Choi** 🔒 | `components/Button.tsx` | — |
-| 42 | Root screen transition (fade/slide) | **Choi** 🔒 | `app/_layout.tsx` | — |
-| 43 | Reduce-Motion хүндэтгэх wrapper | **Choi** 🔒 | `src/lib/motion.ts` (шинэ) | — |
+| 1 | `haptics.ts` helper | **Choi** 🔒 | `src/lib/haptics.ts` | ✅ |
+| 2 | Button — glow gradient + `useColors` бүрэн | **Choi** 🔒 | `components/Button.tsx` | ✅ |
+| 3 | `PressableScale` wrapper (scale 0.97 + spring) | **Choi** 🔒 | `components/PressableScale.tsx` | ✅ |
+| 6 | Tab press haptic + active chip spring | **Choi** 🔒 | `components/CustomTabBar.tsx` | ✅ |
+| 7 | Shared component-ууд static colors устгах | **Choi** 🔒 | `components/*` | ✅ |
+| 8 | ProgressBar — `withTiming` дүүргэлт | **Choi** 🔒 | `components/ProgressBar.tsx` | ✅ |
+| 28 | `radius` нийцлийг нэгтгэх | **Choi** 🔒 | `components/*` | ✅ |
+| 29 | EmptyState-д fox mascot | **Choi** 🔒 | `components/EmptyState.tsx` | ✅ |
+| 40 | Button `secondary`/`ghost` төлөв нэгтгэх | **Choi** 🔒 | `components/Button.tsx` | ✅ |
+| 42 | Root screen transition (fade/slide) | **Choi** 🔒 | `app/_layout.tsx` | ✅ |
+| 43 | Reduce-Motion хүндэтгэх wrapper | **Choi** 🔒 | `src/lib/motion.ts` | ✅ |
 
-### 🟥 Stage 2 — Choi-ийн дэлгэцүүд (foundation-ийн дараа)
+### 🟥 Stage 2 — Choi-ийн дэлгэцүүд — ✅ ДУУССАН (PR #102)
 
-| № | Ажил | Файл | Зэрэг? |
+> "Төлөв" багана: ✅ = Choi дуусгасан. ("Зэрэг?" мэдээллийг доор тайлбарт үлдээв.)
+
+| № | Ажил | Файл | Төлөв |
 | --- | --- | --- | --- |
-| 9 | Home skeleton loading | `app/(tabs)/index.tsx` | ✅ Boju-тай зэрэг |
-| 10 | Home continueProgress placeholder засах* | `app/(tabs)/index.tsx` | ✅ |
+| 9 | Home skeleton loading | `app/(tabs)/index.tsx` | ✅ |
+| 10 | Home continueProgress placeholder засах* | `app/(tabs)/index.tsx` | ✅ (хуурамч 75% устгав) |
 | 12a | Home/Lessons list entrance stagger | `index.tsx`, `lessons.tsx` | ✅ |
 | 15 | Onboarding slide parallax/fade | `app/(auth)/onboarding.tsx` | ✅ |
-| 16 | Form validation shake + error haptic | `login.tsx`, `register.tsx` | ✅ |
+| 16 | Form validation shake + error haptic | `SignInSheet.tsx`, `register.tsx` | ✅ (`shake()` helper) |
 | 20 | Streak flame pulse | `app/(tabs)/index.tsx` | ✅ |
-| 21 | Lesson map node → detail transition | `app/level/[code].tsx` | ✅ |
+| 21 | Lesson map node → detail transition | `app/level/[code].tsx` | ✅ (node pop-in + haptic) |
 | 22 | Lesson lock/unlock reveal + haptic | `app/lesson/[id].tsx` | ✅ |
-| 23 | Reading double-tap translate sheet | `app/reading/[id].tsx` | ✅ |
+| 23 | Reading double-tap translate sheet | `reading/[id].tsx`, `DictionaryProvider.tsx` | ✅ |
 | 24 | Reading scroll-linked progress | `app/reading/[id].tsx` | ✅ |
 | 36 | Continue карт жинхэнэ thumbnail | `app/(tabs)/index.tsx` | ✅ |
-| 37 | Task grid responsive (23% засах) | `app/(tabs)/index.tsx` | ✅ |
+| 37 | Task grid responsive (23% засах) | `app/(tabs)/index.tsx` | ✅ (2×2 tile) |
 
-\* #10-ийн жинхэнэ progress өгөгдөл = **backend (Өсөхбаяр)**; Choi нь frontend талыг.
+\* #10-ийн жинхэнэ progress өгөгдөл = **backend (Өсөхбаяр)**; Choi нь frontend талыг
+хийсэн (өгөгдөлгүй тул хуурамч 75%-ийг нууж, thumbnail + CTA үлдээв).
 
 ### 🟥 Stage 2 — Boju-ийн дэлгэцүүд (⚡ = Stage 1-тэй зэрэг эхэлж болно)
 
@@ -125,15 +149,15 @@
 
 | № | Ажил | Choi (өөрийн дэлгэц) | Boju (өөрийн дэлгэц) |
 | --- | --- | --- | --- |
-| 19 | Static `colors` → `useColors()` migration (46 файл) | Auth/Home/Lessons/Reading/Swipe | Quiz/Chat/Profile/Leaderboard/Teacher/Join |
-| 18 | Icon-only товчинд `accessibilityLabel` | өөрийн дэлгэцийн icon | өөрийн дэлгэцийн icon |
-| 30 | Modal spring open/close | Auth modals | `EditProfileModal` |
-| 31 | Pull-refresh haptic | Home/Lessons/Reading | Leaderboard/Profile |
-| 39 | Skeleton нэгтгэл | Lessons/Reading | Profile/Leaderboard |
+| 19 | Static `colors` → `useColors()` migration (46 файл) | ✅ n/a — Choi дэлгэцүүд theme-reactive (static нь brand/semantic л) | ⬜ Quiz/Chat/Profile/Leaderboard/Teacher/Join |
+| 18 | Icon-only товчинд `accessibilityLabel` | ✅ `IconButton` role+label (Home) | ⬜ өөрийн дэлгэцийн icon |
+| 30 | Modal spring open/close | ✅ `SignInSheet` bottom-sheet spring | ⬜ `EditProfileModal` |
+| 31 | Pull-refresh haptic | ✅ Home/Lessons/Reading/skill/saved | ⬜ Leaderboard/Profile |
+| 39 | Skeleton нэгтгэл | ✅ Home/Lessons/Reading/skill | ⬜ Profile/Leaderboard |
 | 32 | Contrast (WCAG AA) audit | \| **Shared** — Өсөхбаяр/lead шалгаж token засна \| |
 | 33 | Dynamic font scale тэсвэр | \| **Shared** — хамтдаа шалгах \| |
 | 41 | Fox idle blink/breathe loop | \| **Shared** `MascotCircle`/`BuddyAvatar` — Boju (avatar эзэн) \| |
-| 48 | Theme toggle cross-fade | \| **Shared** — Choi (`SettingsContext`) \| |
+| 48 | Theme toggle cross-fade | \| ⏸ **ХОЙШЛУУЛСАН** (Choi, `SettingsContext`) — эрсдэл өндөр/ROI бага \| |
 | 50 | App icon + splash + font (Onest/Inter) | \| **Shared** — lead/launch checklist \| |
 
 ---
