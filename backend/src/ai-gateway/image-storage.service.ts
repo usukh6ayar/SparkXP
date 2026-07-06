@@ -1,5 +1,6 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { createHash } from 'crypto';
 import { mkdir, writeFile } from 'fs/promises';
 import { join } from 'path';
@@ -10,7 +11,8 @@ interface StoreImageInput {
   mimeType: string;
   folder?: string;
   localSubdir?: string;
-  resourceType?: 'image' | 'video';
+  /** `model` (GLB/GLTF 3D assets) go to Cloudflare R2; image/video to Cloudinary. */
+  resourceType?: 'image' | 'video' | 'model';
 }
 
 interface CloudinaryUploadResponse {
@@ -31,11 +33,63 @@ export class ImageStorageService {
   }
 
   async storeMedia(input: StoreImageInput): Promise<string> {
+    // 3D model assets (GLB/GLTF) go to Cloudflare R2 — cheap, zero-egress, and
+    // Cloudinary has no benefit for raw binaries. Falls back to local in dev.
+    if (input.resourceType === 'model') {
+      if (this.hasR2Config()) return this.uploadToR2(input);
+      return this.storeLocal(input);
+    }
+
     if (this.hasCloudinaryConfig()) {
       return this.uploadToCloudinary(input);
     }
 
     return this.storeLocal(input);
+  }
+
+  private hasR2Config(): boolean {
+    return Boolean(
+      this.config.get<string>('R2_ENDPOINT') &&
+        this.config.get<string>('R2_ACCESS_KEY_ID') &&
+        this.config.get<string>('R2_SECRET_ACCESS_KEY') &&
+        this.config.get<string>('R2_BUCKET') &&
+        this.config.get<string>('R2_PUBLIC_BASE_URL'),
+    );
+  }
+
+  /** Upload a file to Cloudflare R2 (S3-compatible) and return its public URL. */
+  private async uploadToR2(input: StoreImageInput): Promise<string> {
+    const endpoint = this.config.getOrThrow<string>('R2_ENDPOINT');
+    const bucket = this.config.getOrThrow<string>('R2_BUCKET');
+    const publicBase = this.config.getOrThrow<string>('R2_PUBLIC_BASE_URL');
+    const folder = input.folder ?? this.config.get<string>('R2_FOLDER', 'englishxp/models');
+    const key = `${folder}/${input.filename}`;
+
+    const client = new S3Client({
+      region: 'auto',
+      endpoint,
+      credentials: {
+        accessKeyId: this.config.getOrThrow<string>('R2_ACCESS_KEY_ID'),
+        secretAccessKey: this.config.getOrThrow<string>('R2_SECRET_ACCESS_KEY'),
+      },
+    });
+
+    try {
+      await client.send(
+        new PutObjectCommand({
+          Bucket: bucket,
+          Key: key,
+          Body: input.buffer,
+          ContentType: input.mimeType,
+        }),
+      );
+    } catch (err) {
+      throw new InternalServerErrorException(
+        `R2 upload failed: ${err instanceof Error ? err.message : 'unknown'}`,
+      );
+    }
+
+    return `${publicBase.replace(/\/$/, '')}/${key}`;
   }
 
   private hasCloudinaryConfig(): boolean {

@@ -19,8 +19,17 @@ import { ImageStorageService } from '../ai-gateway/image-storage.service';
 const ALLOWED_IMAGE_EXT = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
 const ALLOWED_VIDEO_EXT = ['.mp4', '.mov', '.webm', '.m4v'];
 const ALLOWED_AUDIO_EXT = ['.mp3', '.m4a', '.wav', '.ogg', '.aac'];
+const ALLOWED_MODEL_EXT = ['.glb', '.gltf']; // 3D avatars → Cloudflare R2
 const MAX_SIZE_IMAGE = 10 * 1024 * 1024; // 10 MB
+const MAX_SIZE_MODEL = 50 * 1024 * 1024; // 50 MB
 const MAX_SIZE_VIDEO = 200 * 1024 * 1024; // 200 MB
+
+/** Correct MIME for GLB/GLTF (multer often reports octet-stream). */
+function modelMime(ext: string, fallback: string): string {
+  if (ext === '.glb') return 'model/gltf-binary';
+  if (ext === '.gltf') return 'model/gltf+json';
+  return fallback;
+}
 
 function fileFilter(
   _req: Express.Request,
@@ -29,9 +38,12 @@ function fileFilter(
 ) {
   const ext = extname(file.originalname).toLowerCase();
   if (
-    [...ALLOWED_IMAGE_EXT, ...ALLOWED_VIDEO_EXT, ...ALLOWED_AUDIO_EXT].includes(
-      ext,
-    )
+    [
+      ...ALLOWED_IMAGE_EXT,
+      ...ALLOWED_VIDEO_EXT,
+      ...ALLOWED_AUDIO_EXT,
+      ...ALLOWED_MODEL_EXT,
+    ].includes(ext)
   ) {
     cb(null, true);
   } else {
@@ -67,20 +79,25 @@ export class UploadController {
     const isImage = ALLOWED_IMAGE_EXT.includes(ext);
     const isVideo = ALLOWED_VIDEO_EXT.includes(ext);
     const isAudio = ALLOWED_AUDIO_EXT.includes(ext);
+    const isModel = ALLOWED_MODEL_EXT.includes(ext);
 
     if (isImage && file.size > MAX_SIZE_IMAGE) {
       throw new BadRequestException('Зургийн хэмжээ 10 MB-аас бага байх ёстой');
+    }
+    if (isModel && file.size > MAX_SIZE_MODEL) {
+      throw new BadRequestException('3D загварын хэмжээ 50 MB-аас бага байх ёстой');
     }
 
     const filename = `${randomUUID()}${ext}`;
     const url = await this.storage.storeMedia({
       buffer: file.buffer,
       filename,
-      mimeType: file.mimetype,
-      // Cloudinary serves audio under its "video" resource type.
-      resourceType: isImage ? 'image' : 'video',
-      localSubdir: 'media',
-      folder: 'englishxp/uploads',
+      // GLB/GLTF: force the correct model MIME (multer reports octet-stream).
+      mimeType: isModel ? modelMime(ext, file.mimetype) : file.mimetype,
+      // model → Cloudflare R2; image → Cloudinary image; audio/video → Cloudinary video.
+      resourceType: isModel ? 'model' : isImage ? 'image' : 'video',
+      localSubdir: isModel ? 'models' : 'media',
+      folder: isModel ? 'englishxp/models' : 'englishxp/uploads',
     });
 
     return {
@@ -88,7 +105,15 @@ export class UploadController {
       filename,
       originalName: file.originalname,
       size: file.size,
-      type: isImage ? 'image' : isVideo ? 'video' : isAudio ? 'audio' : 'file',
+      type: isImage
+        ? 'image'
+        : isVideo
+          ? 'video'
+          : isAudio
+            ? 'audio'
+            : isModel
+              ? 'model'
+              : 'file',
     };
   }
 }
