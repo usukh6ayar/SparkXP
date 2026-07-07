@@ -195,6 +195,10 @@ export default function WordsPage() {
   const [levelFilter, setLevelFilter] = useState('');
   const [mediaFilter, setMediaFilter] = useState(''); // '' | 'noImage' | 'noAudio'
   const [search, setSearch] = useState('');
+  // Debounced search: the input updates `search` on every keystroke (snappy), but
+  // we only refetch 350ms after typing stops — otherwise each key fires a heavy
+  // 5000-row query and the out-of-order responses make results "flash" in and out.
+  const [debouncedSearch, setDebouncedSearch] = useState('');
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -234,7 +238,17 @@ export default function WordsPage() {
     api.get<WordStats>('/words/stats').then(setStats).catch(() => {});
   }, []);
 
+  // Debounce the search box → `debouncedSearch` (only this drives the fetch).
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 350);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // Monotonic id so a slow earlier request can't overwrite a newer one's result
+  // (the cause of results "flashing" in then vanishing while typing).
+  const loadSeq = useRef(0);
   const load = useCallback(async () => {
+    const seq = ++loadSeq.current;
     // Load up to 5000 so "select all" can cover a large filtered set (e.g. words
     // with noImage) and send them all to the batch image job at once.
     const params = new URLSearchParams({ limit: '5000' });
@@ -242,17 +256,18 @@ export default function WordsPage() {
     else params.set('all', 'true');
     if (levelFilter) params.set('level', levelFilter);
     if (mediaFilter) params.set(mediaFilter, 'true'); // noImage / noAudio / duplicates
-    if (search.trim()) params.set('search', search.trim());
+    if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim());
     const data = await api.get<{ items: Word[] }>(`/words?${params}`);
+    if (seq !== loadSeq.current) return; // a newer load started → drop this stale result
     setWords(data.items ?? []);
     setSelected(new Set());
-  }, [statusTab, levelFilter, mediaFilter, search]);
+  }, [statusTab, levelFilter, mediaFilter, debouncedSearch]);
 
   useEffect(() => { load(); }, [load]);
 
   // Display pagination only — `words` holds the full filtered set (up to 5000) so
   // "select all → batch image" still covers everything; we just page the table.
-  useEffect(() => { setPage(1); }, [statusTab, levelFilter, mediaFilter, search]);
+  useEffect(() => { setPage(1); }, [statusTab, levelFilter, mediaFilter, debouncedSearch]);
   const pagedWords = words.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   useEffect(() => { loadStats(); }, [loadStats]);
   // On open, surface any image-batch run already in progress on the server
@@ -587,6 +602,29 @@ export default function WordsPage() {
     }
   }
 
+  /**
+   * One click: queue EVERY word with no image on the server (not just the ≤5,000
+   * loaded here). The server figures out which words are missing images.
+   */
+  async function enqueueAllMissing() {
+    if (batchBusy) return;
+    if (!confirm('Зураггүй БҮХ үгийг дараалалд оруулах уу? Сервер автоматаар үүсгэнэ.')) return;
+    setBatchBusy(true);
+    try {
+      const res = await api.post<{ queued: number; total: number }>(
+        '/words/image-batch/enqueue-all-missing',
+        {},
+      );
+      console.log(`[batch] enqueued all missing: +${res.queued} (queue=${res.total})`);
+      setBatch({ queued: res.total, active: null, saved: 0, failed: 0, justEnqueued: res.queued });
+      pollBatchQueue();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Дараалалд нэмэх алдаа');
+    } finally {
+      setBatchBusy(false);
+    }
+  }
+
   /** Poll the server-side queue for display (operation runs on the server). */
   function pollBatchQueue() {
     const tick = async () => {
@@ -837,6 +875,11 @@ export default function WordsPage() {
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Хайх…" className="w-40 text-xs" />
           <Select options={levelOptions} value={levelFilter} onChange={(e) => setLevelFilter(e.target.value)} className="w-32 text-xs" />
           <Select options={MEDIA_FILTER_OPTIONS} value={mediaFilter} onChange={(e) => setMediaFilter(e.target.value)} className="w-36 text-xs" />
+          {!!stats?.missingImage && (
+            <Button variant="secondary" size="sm" onClick={enqueueAllMissing} disabled={batchBusy} title="Зураггүй БҮХ үгийг серверийн дараалалд оруулна (UI-ийн 5000 хязгааргүй). Сервер автоматаар үүсгэнэ.">
+              <ImageIcon className="h-4 w-4 text-green-600" /> Бүх зураггүйг үүсгэх ({stats.missingImage.toLocaleString()})
+            </Button>
+          )}
           {!!stats?.duplicates && (
             <Button variant="ghost" size="sm" onClick={dedupe} disabled={bulkBusy} title="Давхардсан үг бүрээс нэгийг үлдээж бусдыг устгах">
               <Trash2 className="h-4 w-4 text-red-500" /> Давхардал цэвэрлэх

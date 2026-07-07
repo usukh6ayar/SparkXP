@@ -814,6 +814,26 @@ export class WordsService {
   /** In-memory guard so cron ticks never overlap on a single instance. */
   private batchDraining = false;
 
+  /**
+   * Queue EVERY word that still has no image (imageUrl IS NULL) in one call,
+   * bypassing the admin UI's 5,000-row load cap. Skips ids already in the queue
+   * so re-running is safe (no duplicate generation). Returns how many were added.
+   */
+  async enqueueAllMissingImages(): Promise<{ queued: number; total: number }> {
+    const rows = await this.words.find({
+      where: { imageUrl: IsNull() },
+      select: { id: true },
+    });
+    let missing = rows.map((r) => r.id);
+    try {
+      const already = new Set(await this.redis.lrange(WordsService.Q.queue, 0, -1));
+      missing = missing.filter((id) => !already.has(id));
+    } catch {
+      // Redis down → enqueueImageBatch below surfaces the clear error.
+    }
+    return this.enqueueImageBatch(missing);
+  }
+
   /** Queue words for hands-off server-side image generation. Returns queued count. */
   async enqueueImageBatch(wordIds: string[]): Promise<{ queued: number; total: number }> {
     try {

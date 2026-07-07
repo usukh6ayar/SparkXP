@@ -75,6 +75,7 @@ Controller-level: бүгд JWT. Заримд нэмэлт роль.
 | POST `/words/bulk-generate-media` | admin-баг | Одоо байгаа үгсэд зураг/аудио (background) → `{jobId}` | `{ wordIds[], image?, audio? }` |
 | POST `/words/image-batch` | admin-баг | OpenAI Batch зураг → `{batchId}` | `{ wordIds[] }` |
 | POST `/words/image-batch/enqueue` | admin-баг | Cron image batch-д дараалалд оруулах | `{ wordIds[] }` |
+| POST `/words/image-batch/enqueue-all-missing` | admin-баг | Зураггүй БҮХ үгийг нэг товчоор дараалалд оруулах (UI-ийн 5000 хязгааргүй; queue-д байгааг алгасна) | — |
 | GET `/words/image-batch-queue` | admin-баг | Серверийн image-batch дарааллын явц | — |
 | POST `/words/image-batch-queue/stop` | admin-баг | Дараалал зогсоох + OpenAI batch цуцлах | — |
 | GET `/words/image-batch/:batchId` | admin-баг | Batch зургийн job харах | path `batchId` |

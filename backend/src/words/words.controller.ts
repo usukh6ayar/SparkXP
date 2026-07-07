@@ -223,6 +223,17 @@ export class WordsController {
     return this.wordsService.enqueueImageBatch(wordIds);
   }
 
+  /**
+   * One-click: queue EVERY word with no image (bypasses the UI's 5,000 cap).
+   * POST /api/words/image-batch/enqueue-all-missing
+   */
+  @Post('image-batch/enqueue-all-missing')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  enqueueAllMissingImages() {
+    return this.wordsService.enqueueAllMissingImages();
+  }
+
   /** Server-side image-batch queue progress: GET /api/words/image-batch-queue */
   @Get('image-batch-queue')
   @UseGuards(JwtAuthGuard, RolesGuard)
