@@ -905,9 +905,10 @@ export class AiGatewayService implements OnModuleInit {
     return this.buddies.save(buddy);
   }
 
-  async removeBuddy(slug: string): Promise<void> {
-    const buddy = await this.buddies.findOneOrFail({ where: { slug } });
-    await this.buddies.remove(buddy);
+  async removeBuddy(slug: string): Promise<{ ok: true }> {
+    const buddy = await this.buddies.findOne({ where: { slug } });
+    if (buddy) await this.buddies.remove(buddy); // idempotent — already-gone is fine
+    return { ok: true };
   }
 
   /**
