@@ -110,6 +110,14 @@ export class BuddyController {
     return this.buddy.testVoice(user.id, dto.buddySlug, dto.text);
   }
 
+  /** Admin: paginated user feedback (👍/👎) on buddy replies. */
+  @Get('admin/feedback')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  feedbackLog(@Query('page') page?: string) {
+    return this.buddy.getFeedback(page ? parseInt(page, 10) : 1);
+  }
+
   /** Admin: paginated safety-event audit log. */
   @Get('admin/safety-events')
   @UseGuards(RolesGuard)

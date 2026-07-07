@@ -19,6 +19,7 @@ import UsagePage from './pages/usage/UsagePage';
 import NotificationsPage from './pages/notifications/NotificationsPage';
 import GuidePage from './pages/guide/GuidePage';
 import SafetyEventsPage from './pages/safety/SafetyEventsPage';
+import BuddyFeedbackPage from './pages/feedback/BuddyFeedbackPage';
 
 export default function App() {
   return (
@@ -50,6 +51,7 @@ export default function App() {
             <Route path="/monitor"       element={<MonitorPage />} />
             <Route path="/settings"      element={<SettingsPage />} />
             <Route path="/safety"        element={<SafetyEventsPage />} />
+            <Route path="/buddy-feedback" element={<BuddyFeedbackPage />} />
             <Route path="/guide"         element={<GuidePage />} />
           </Route>
 

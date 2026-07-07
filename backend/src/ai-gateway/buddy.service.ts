@@ -602,6 +602,54 @@ export class BuddyService {
     return { audio_url: audioUrl };
   }
 
+  /**
+   * Admin: paginated user feedback on buddy replies (newest first). Reads the
+   * `feedback` blob stored on AI messages — no separate table.
+   */
+  async getFeedback(page = 1, limit = 20): Promise<{
+    items: {
+      messageId: string;
+      userId: string;
+      buddySlug: string | null;
+      reply: string;
+      rating: string;
+      reason: string | null;
+      at: string | null;
+      createdAt: Date;
+    }[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
+    const [rows, total] = await this.messages
+      .createQueryBuilder('m')
+      .where('m.role = :role', { role: MessageRole.ASSISTANT })
+      .andWhere("m.metadata -> 'feedback' IS NOT NULL")
+      .orderBy('m.createdAt', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
+
+    const items = rows.map((m) => {
+      const fb = (m.metadata?.feedback ?? {}) as {
+        rating?: string;
+        reason?: string | null;
+        at?: string | null;
+      };
+      return {
+        messageId: m.id,
+        userId: m.userId,
+        buddySlug: m.buddySlug,
+        reply: m.content,
+        rating: fb.rating ?? 'down',
+        reason: fb.reason ?? null,
+        at: fb.at ?? null,
+        createdAt: m.createdAt,
+      };
+    });
+    return { items, total, page, limit };
+  }
+
   /** Admin: paginated safety-event audit log (newest first). */
   async getSafetyEvents(page = 1, limit = 20): Promise<{
     items: SafetyEvent[];
