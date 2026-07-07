@@ -64,3 +64,57 @@ export class AnthropicLlmAdapter implements LlmAdapter {
     };
   }
 }
+
+/** Default OpenAI chat model (JSON-mode capable). Override with OPENAI_LLM_MODEL. */
+const DEFAULT_OPENAI_MODEL = 'gpt-4o-mini';
+
+/**
+ * OpenAI (GPT) implementation of {@link LlmAdapter}. Uses the REST API directly
+ * (the rest of the codebase calls OpenAI via fetch too — no SDK) and turns on
+ * JSON mode so the buddy contract parses reliably (the system prompt already
+ * says "Return valid JSON only", which JSON mode requires).
+ */
+@Injectable()
+export class OpenAiLlmAdapter implements LlmAdapter {
+  private readonly apiKey: string;
+  private readonly model: string;
+
+  constructor(config: ConfigService) {
+    this.apiKey = config.get<string>('OPENAI_API_KEY', '');
+    this.model = config.get<string>('OPENAI_LLM_MODEL', DEFAULT_OPENAI_MODEL);
+  }
+
+  async complete(
+    system: string,
+    messages: LlmMessage[],
+    maxTokens: number,
+  ): Promise<LlmResult> {
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${this.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: this.model,
+        max_tokens: maxTokens,
+        response_format: { type: 'json_object' }, // force valid JSON for the contract
+        messages: [{ role: 'system', content: system }, ...messages],
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error(`OpenAI LLM ${res.status}: ${body.slice(0, 300)}`);
+    }
+    const data = (await res.json()) as {
+      choices?: { message?: { content?: string } }[];
+      usage?: { prompt_tokens?: number; completion_tokens?: number };
+    };
+    return {
+      text: data.choices?.[0]?.message?.content ?? '',
+      promptTokens: data.usage?.prompt_tokens ?? 0,
+      completionTokens: data.usage?.completion_tokens ?? 0,
+      model: this.model,
+    };
+  }
+}
