@@ -41,9 +41,10 @@ export async function apiFetch<T>(
     throw new ApiError(res.status, body.message ?? `HTTP ${res.status}`);
   }
 
-  // 204 No Content
-  if (res.status === 204) return undefined as T;
-  return res.json();
+  // Empty body (204, or a 200 DELETE with no content) → don't call res.json(),
+  // which throws "The string did not match the expected pattern" on empty input.
+  const text = await res.text();
+  return (text ? JSON.parse(text) : undefined) as T;
 }
 
 /**
@@ -66,8 +67,8 @@ export async function apiUpload<T>(
     const body = await res.json().catch(() => ({}));
     throw new ApiError(res.status, body.message ?? `HTTP ${res.status}`);
   }
-  if (res.status === 204) return undefined as T;
-  return res.json();
+  const text = await res.text();
+  return (text ? JSON.parse(text) : undefined) as T;
 }
 
 export const api = {

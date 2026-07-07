@@ -1,7 +1,7 @@
 import { Provider } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { TTS_ADAPTER, ElevenLabsTtsAdapter } from './tts.adapter';
-import { LLM_ADAPTER, AnthropicLlmAdapter } from './llm.adapter';
+import { LLM_ADAPTER, AnthropicLlmAdapter, OpenAiLlmAdapter } from './llm.adapter';
 import { STT_ADAPTER, ElevenLabsSttAdapter } from './stt.adapter';
 
 /**
@@ -13,6 +13,7 @@ import { STT_ADAPTER, ElevenLabsSttAdapter } from './stt.adapter';
 export const aiProviders: Provider[] = [
   ElevenLabsTtsAdapter,
   AnthropicLlmAdapter,
+  OpenAiLlmAdapter,
   ElevenLabsSttAdapter,
   {
     provide: TTS_ADAPTER,
@@ -28,10 +29,16 @@ export const aiProviders: Provider[] = [
   },
   {
     provide: LLM_ADAPTER,
-    inject: [ConfigService, AnthropicLlmAdapter],
-    useFactory: (config: ConfigService, anthropic: AnthropicLlmAdapter) => {
+    inject: [ConfigService, AnthropicLlmAdapter, OpenAiLlmAdapter],
+    useFactory: (
+      config: ConfigService,
+      anthropic: AnthropicLlmAdapter,
+      openai: OpenAiLlmAdapter,
+    ) => {
       const provider = config.get<string>('LLM_PROVIDER', 'anthropic');
       switch (provider) {
+        case 'openai':
+          return openai;
         case 'anthropic':
         default:
           return anthropic;

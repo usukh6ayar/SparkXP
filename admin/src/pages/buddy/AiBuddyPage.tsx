@@ -165,8 +165,13 @@ export default function AiBuddyPage() {
 
   async function remove(slug: string) {
     if (!confirm('AI Buddy устгах уу?')) return;
-    await api.delete(`/ai/buddies/${slug}`);
-    load();
+    setError('');
+    try {
+      await api.delete(`/ai/buddies/${slug}`);
+      load();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Устгах үед алдаа гарлаа');
+    }
   }
 
   function f(key: keyof BuddyForm, val: string | number) {
