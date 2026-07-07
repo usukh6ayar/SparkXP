@@ -3,6 +3,8 @@ import { View, type ViewStyle } from 'react-native';
 import { Canvas, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three-stdlib';
+import { toByteArray } from 'base64-js';
+import { decode as decodeJpeg } from 'jpeg-js';
 
 /**
  * 3D AI Buddy avatar (Meshy-generated GLB rendered with three.js on expo-gl).
@@ -163,15 +165,94 @@ function mouthCurve(t: number): number {
   return Math.min(1, a * 0.6 + b * 0.4) * 0.85;
 }
 
-/** Fetch + parse a remote GLB into a scene + clips (embedded textures decoded by three). */
+/** Fetch + parse a remote GLB into a scene + clips, then decode its textures. */
 async function loadGlb(url: string): Promise<Loaded> {
   const buffer = await (await fetch(url)).arrayBuffer();
-  return new Promise((resolve, reject) => {
-    new GLTFLoader().parse(
-      buffer,
-      '',
-      (gltf) => resolve({ scene: gltf.scene as unknown as THREE.Group, animations: gltf.animations }),
-      reject,
-    );
+  const gltf = await new Promise<GLTFResult>((resolve, reject) => {
+    new GLTFLoader().parse(buffer, '', resolve as (g: unknown) => void, reject);
+  });
+  // RN three.js can't decode embedded base64 textures (no DOM image decoder), so
+  // GLTFLoader leaves the mesh untextured. Decode them ourselves — best-effort:
+  // on any failure the avatar just stays untextured (never crashes).
+  try {
+    applyEmbeddedTextures(gltf);
+  } catch {
+    /* keep untextured */
+  }
+  return { scene: gltf.scene as unknown as THREE.Group, animations: gltf.animations };
+}
+
+/** Minimal shape of what we read off the parsed glTF (parser.json + associations). */
+interface GLTFResult {
+  scene: THREE.Group;
+  animations: THREE.AnimationClip[];
+  parser?: {
+    json?: {
+      images?: { uri?: string }[];
+      textures?: { source?: number }[];
+      materials?: { pbrMetallicRoughness?: { baseColorTexture?: { index?: number } } }[];
+    };
+    associations?: Map<object, { materials?: number }>;
+  };
+}
+
+/** Decode a `data:image/jpeg;base64,…` URI into a GPU-uploadable DataTexture. */
+function dataUriToTexture(uri: string): THREE.Texture | null {
+  const m = /^data:(image\/[a-z0-9.+-]+);base64,(.*)$/i.exec(uri);
+  if (!m) return null;
+  const mime = m[1].toLowerCase();
+  // Pure-JS JPEG decode → raw RGBA (no DOM). PNG/other are skipped (untextured).
+  if (!mime.includes('jpeg') && !mime.includes('jpg')) return null;
+  try {
+    const bytes = toByteArray(m[2]);
+    const { width, height, data } = decodeJpeg(bytes, { useTArray: true, formatAsRGBA: true });
+    const tex = new THREE.DataTexture(new Uint8Array(data), width, height, THREE.RGBAFormat);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.flipY = false; // glTF texture convention
+    tex.needsUpdate = true;
+    return tex;
+  } catch {
+    return null;
+  }
+}
+
+/** Decode every embedded image and assign it back to the right material's map. */
+function applyEmbeddedTextures(gltf: GLTFResult): void {
+  const json = gltf.parser?.json;
+  const images = json?.images ?? [];
+  if (!images.length) return;
+
+  // image index → decoded texture (null for non-data-URI / non-JPEG / failures).
+  const texByImage = images.map((img) => (img?.uri ? dataUriToTexture(img.uri) : null));
+  const decoded = texByImage.filter(Boolean) as THREE.Texture[];
+  if (!decoded.length) return;
+  // A single-texture avatar (the common Meshy case) → apply it everywhere.
+  const single = decoded.length === 1 ? decoded[0] : null;
+
+  const textures = json?.textures ?? [];
+  const materials = json?.materials ?? [];
+  const assoc = gltf.parser?.associations;
+
+  gltf.scene.traverse((obj) => {
+    const mesh = obj as THREE.Mesh;
+    if (!mesh.isMesh || !mesh.material) return;
+    const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    for (const mat of mats) {
+      const std = mat as THREE.MeshStandardMaterial;
+      if (std.map) continue; // already textured
+      let tex: THREE.Texture | null = null;
+      // Exact mapping: material → baseColorTexture → source image.
+      const matIndex = assoc?.get(mat)?.materials;
+      if (matIndex != null) {
+        const texIndex = materials[matIndex]?.pbrMetallicRoughness?.baseColorTexture?.index;
+        const src = texIndex != null ? textures[texIndex]?.source : undefined;
+        if (src != null) tex = texByImage[src] ?? null;
+      }
+      tex = tex ?? single;
+      if (tex) {
+        std.map = tex;
+        std.needsUpdate = true;
+      }
+    }
   });
 }
