@@ -1,6 +1,7 @@
 import { useRef, useState, useMemo } from 'react';
 import {
   View,
+  Image,
   ScrollView,
   Pressable,
   StyleSheet,
@@ -8,183 +9,36 @@ import {
   type NativeSyntheticEvent,
   type NativeScrollEvent,
 } from 'react-native';
-import Animated, {
-  Extrapolation,
-  interpolate,
-  LinearTransition,
-  useAnimatedScrollHandler,
-  useAnimatedStyle,
-  useSharedValue,
-  type SharedValue,
-} from 'react-native-reanimated';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BlurView } from 'expo-blur';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/auth/AuthContext';
 import { t } from '../../src/i18n';
 import { AppText } from '../../src/components/Text';
-import { Button } from '../../src/components/Button';
-import { MascotCircle } from '../../src/components/MascotCircle';
-import { useReduceMotion } from '../../src/lib/motion';
-import { spacing, radius, elevation, type AppColors } from '../../src/theme/theme';
 import { useColors } from '../../src/settings/SettingsContext';
+import { spacing, radius, type AppColors } from '../../src/theme/theme';
 
-const fox = require('../../assets/logo.webp');
+const BG = '#F4F2FC';
 
-interface Slide {
-  title: string;
-  body: string;
-  gradient?: boolean;
-  decor: (colors: AppColors) => React.ReactNode;
-}
-
-// A small floating chip/badge used to decorate the mascot circle.
-function Badge({
-  style,
-  bg,
-  children,
-}: {
-  style: object;
-  bg?: string;
-  children: React.ReactNode;
-}) {
-  const colors = useColors();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
-  return <View style={[styles.badge, { backgroundColor: bg ?? colors.surface }, style]}>{children}</View>;
-}
-
-const SLIDES: Slide[] = [
-  {
-    title: t('onb1Title'),
-    body: t('onb1Body'),
-    decor: (colors: AppColors) => (
-      <>
-        <Badge style={{ top: 36, right: 12 }} bg={colors.primary}>
-          <AppText variant="label" color={colors.white}>
-            Hi!
-          </AppText>
-        </Badge>
-        <Ionicons
-          name="sparkles"
-          size={22}
-          color={colors.primary}
-          style={{ position: 'absolute', bottom: 40, left: 6 }}
-        />
-        <Ionicons
-          name="sparkles"
-          size={16}
-          color={colors.primaryDark}
-          style={{ position: 'absolute', top: 24, left: 30 }}
-        />
-      </>
-    ),
-  },
-  {
-    title: t('onb2Title'),
-    body: t('onb2Body'),
-    gradient: true,
-    decor: (colors: AppColors) => (
-      <>
-        <Badge style={{ top: 24, right: 18 }} bg={colors.primaryDark}>
-          <AppText variant="label" color={colors.white}>
-            XP
-          </AppText>
-        </Badge>
-        <Badge style={{ top: 30, left: 14 }} bg={colors.xp}>
-          <Ionicons name="trophy" size={18} color={colors.white} />
-        </Badge>
-        <Badge style={{ bottom: 36, right: 22 }} bg={colors.sparks}>
-          <Ionicons name="diamond" size={16} color={colors.white} />
-        </Badge>
-      </>
-    ),
-  },
-  {
-    title: t('onb3Title'),
-    body: t('onb3Body'),
-    decor: (colors: AppColors) => (
-      <>
-        <Badge style={{ top: 28, left: 10 }} bg={colors.primary}>
-          <Ionicons name="ellipsis-horizontal" size={18} color={colors.white} />
-        </Badge>
-        <Badge style={{ bottom: 44, right: 0 }}>
-          <AppText variant="caption" color={colors.text}>
-            Great job! 👍
-          </AppText>
-        </Badge>
-        <Badge style={{ bottom: 28, left: 18 }} bg={colors.surface}>
-          <Ionicons name="laptop-outline" size={18} color={colors.primary} />
-        </Badge>
-      </>
-    ),
-  },
+// Each slide is a full-screen background artwork (title + mascot + scene baked
+// in). Navigation chrome (Skip / dots / CTA) is overlaid on top.
+const SLIDES = [
+  require('../../assets/onboarding/onboard1.png'),
+  require('../../assets/onboarding/onboard2.png'),
+  require('../../assets/onboarding/onboard3.png'),
 ];
 
-/**
- * One onboarding page. Its content (mascot + copy) fades and drifts with a mild
- * parallax as the pager scrolls, for a premium first impression. Split out so
- * each page can own its `useAnimatedStyle` hook. Frozen under Reduce Motion.
- */
-function OnboardingSlide({
-  slide,
-  index,
-  width,
-  scrollX,
-  reduce,
-}: {
-  slide: Slide;
-  index: number;
-  width: number;
-  scrollX: SharedValue<number>;
-  reduce: boolean;
-}) {
-  const colors = useColors();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
-
-  const animatedStyle = useAnimatedStyle(() => {
-    if (reduce) return {};
-    const range = [(index - 1) * width, index * width, (index + 1) * width];
-    return {
-      opacity: interpolate(scrollX.value, range, [0.3, 1, 0.3], Extrapolation.CLAMP),
-      transform: [
-        { scale: interpolate(scrollX.value, range, [0.88, 1, 0.88], Extrapolation.CLAMP) },
-        { translateX: interpolate(scrollX.value, range, [width * 0.18, 0, -width * 0.18], Extrapolation.CLAMP) },
-      ],
-    };
-  });
-
-  return (
-    <View style={[styles.slide, { width }]}>
-      <Animated.View style={[styles.slideInner, animatedStyle]}>
-        <MascotCircle image={fox} gradient={slide.gradient}>
-          {slide.decor(colors)}
-        </MascotCircle>
-        <AppText variant="h1" center style={styles.title}>
-          {slide.title}
-        </AppText>
-        <AppText variant="body" center color={colors.textSecondary}>
-          {slide.body}
-        </AppText>
-      </Animated.View>
-    </View>
-  );
-}
-
 export default function OnboardingScreen() {
-  const colors = useColors();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { width } = useWindowDimensions();
+  const c = useColors();
+  const styles = useMemo(() => makeStyles(c), [c]);
+  const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
   const { completeOnboarding } = useAuth();
   const router = useRouter();
-  const scroller = useRef<Animated.ScrollView>(null);
+  const scroller = useRef<ScrollView>(null);
   const [index, setIndex] = useState(0);
   const last = index === SLIDES.length - 1;
-  const reduce = useReduceMotion();
-
-  const scrollX = useSharedValue(0);
-  const scrollHandler = useAnimatedScrollHandler((e) => {
-    scrollX.value = e.contentOffset.x;
-  });
 
   async function finish() {
     await completeOnboarding();
@@ -201,81 +55,100 @@ export default function OnboardingScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      <Pressable style={styles.skip} onPress={finish} hitSlop={8}>
-        <AppText variant="bodyStrong" color={colors.textSecondary}>
-          {t('skip')}
-        </AppText>
-      </Pressable>
-
-      <Animated.ScrollView
+    <View style={styles.root}>
+      {/* Full-screen background artwork pager — all slides positioned alike. */}
+      <ScrollView
         ref={scroller}
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         onMomentumScrollEnd={onScrollEnd}
-        onScroll={scrollHandler}
-        scrollEventThrottle={16}
-        style={styles.flex}
       >
-        {SLIDES.map((s, i) => (
-          <OnboardingSlide
-            key={s.title}
-            slide={s}
-            index={i}
-            width={width}
-            scrollX={scrollX}
-            reduce={reduce}
-          />
+        {SLIDES.map((src, i) => (
+          <Image key={i} source={src} style={{ width, height }} resizeMode="cover" />
         ))}
-      </Animated.ScrollView>
+      </ScrollView>
 
-      <View style={styles.footer}>
+      {/* Skip — top-right, frosted glass. */}
+      <Pressable style={[styles.skip, { top: insets.top + spacing.sm }]} onPress={finish} hitSlop={8}>
+        <BlurView intensity={30} tint="light" experimentalBlurMethod="dimezisBlurView" style={StyleSheet.absoluteFill} />
+        <View style={[StyleSheet.absoluteFill, styles.skipTint]} />
+        <AppText variant="bodyStrong" color={c.primary}>{t('skip')}</AppText>
+      </Pressable>
+
+      {/* Bottom controls — dots + frosted-glass CTA over the artwork. */}
+      <View style={[styles.bottom, { paddingBottom: insets.bottom + spacing.lg }]}>
         <View style={styles.dots}>
           {SLIDES.map((_, i) => (
-            <Animated.View
-              key={i}
-              layout={reduce ? undefined : LinearTransition.springify()}
-              style={[styles.dot, i === index && styles.dotActive]}
-            />
+            <View key={i} style={[styles.dot, i === index && styles.dotActive]} />
           ))}
         </View>
-        <Button label={last ? t('onbStart') : t('onbNext')} onPress={onNext} />
+        <Pressable
+          onPress={onNext}
+          style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}
+          accessibilityRole="button"
+          accessibilityLabel={last ? t('onbStart') : t('onbNext')}
+        >
+          <BlurView
+            intensity={40}
+            tint="light"
+            experimentalBlurMethod="dimezisBlurView"
+            style={StyleSheet.absoluteFill}
+          />
+          <View style={[StyleSheet.absoluteFill, styles.ctaTint]} />
+          <View style={styles.ctaContent}>
+            <AppText variant="bodyStrong" color={c.primary} style={styles.ctaLabel}>
+              {t('onbStart')}
+            </AppText>
+            <Ionicons name={last ? 'checkmark' : 'arrow-forward'} size={20} color={c.primary} />
+          </View>
+        </Pressable>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
-const makeStyles = (colors: AppColors) => StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
-  flex: { flex: 1 },
-  skip: { alignSelf: 'flex-end', paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
-  slide: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.xl,
-  },
-  slideInner: { alignItems: 'center', gap: spacing.lg },
-  title: { marginTop: spacing.sm },
-  badge: {
-    position: 'absolute',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 6,
-    borderRadius: radius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: 34,
-    minHeight: 34,
-    ...(elevation.sm as object),
-  },
-  footer: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg, gap: spacing.lg },
-  dots: { flexDirection: 'row', justifyContent: 'center', gap: spacing.sm },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.borderStrong,
-  },
-  dotActive: { width: 22, backgroundColor: colors.primary },
-});
+const makeStyles = (c: AppColors) =>
+  StyleSheet.create({
+    root: { flex: 1, backgroundColor: BG },
+
+    // Frosted Skip pill.
+    skip: {
+      position: 'absolute',
+      right: spacing.lg,
+      paddingHorizontal: spacing.md,
+      paddingVertical: 6,
+      borderRadius: radius.full,
+      overflow: 'hidden',
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.7)',
+    },
+    skipTint: { backgroundColor: 'rgba(255,255,255,0.35)' },
+
+    bottom: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      bottom: 0,
+      paddingHorizontal: spacing.xl,
+      gap: spacing.md,
+    },
+    dots: { flexDirection: 'row', justifyContent: 'center', gap: spacing.sm },
+    dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: 'rgba(108,59,255,0.3)' },
+    dotActive: { width: 22, backgroundColor: c.primary },
+
+    // Frosted-glass CTA — real background blur clipped to the rounded shape.
+    cta: {
+      height: 56,
+      borderRadius: radius.xl,
+      overflow: 'hidden',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1.5,
+      borderColor: 'rgba(255,255,255,0.85)',
+    },
+    ctaTint: { backgroundColor: 'rgba(255,255,255,0.3)' },
+    ctaContent: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+    ctaPressed: { opacity: 0.9, transform: [{ scale: 0.99 }] },
+    ctaLabel: { fontWeight: '700' },
+  });
