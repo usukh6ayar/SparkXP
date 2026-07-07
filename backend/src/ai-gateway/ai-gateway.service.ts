@@ -861,40 +861,37 @@ export class AiGatewayService implements OnModuleInit {
   }
 
   /**
-   * Full sync: upsert every buddy from buddies.ts, delete DB rows not in the file.
-   * Called automatically on module init so the DB always reflects the code definition.
+   * Seed default buddies from buddies.ts — **non-destructive**. The admin panel
+   * is the source of truth for buddies (add / edit / delete via /ai/buddies), so
+   * this only INSERTS buddies whose slug is missing; it never overwrites an
+   * existing row's fields and never deletes rows absent from the file. That way
+   * admin add/edit/delete all survive restarts and deploys.
    */
   async syncBuddiesFromFile(): Promise<void> {
     const { AI_BUDDIES } = await import('./buddies');
-    const fileSlugs = new Set(AI_BUDDIES.map((b) => b.slug));
-
-    // Remove DB rows whose slug is no longer in the file
-    const existing = await this.buddies.find();
-    const toRemove = existing.filter((b) => !fileSlugs.has(b.slug));
-    if (toRemove.length > 0) {
-      await this.buddies.remove(toRemove);
-      this.logger.log(`Removed ${toRemove.length} outdated AI buddy rows`);
-    }
-
-    // Upsert every buddy from the file
+    let seeded = 0;
     for (let i = 0; i < AI_BUDDIES.length; i++) {
       const b = AI_BUDDIES[i];
-      const row = (await this.buddies.findOne({ where: { slug: b.slug } })) ??
-        this.buddies.create({ slug: b.slug });
-      row.name = b.name;
-      row.title = b.title;
-      row.description = b.description;
-      row.emoji = b.emoji;
-      row.systemPrompt = b.systemPrompt;
-      row.extraMessagesAmount = b.pricing.extraMessagesAmount;
-      row.extraMessagesCost = b.pricing.extraMessagesCost;
-      row.voiceMinuteCost = b.pricing.voiceMinuteCost;
-      row.isActive = true;
-      row.sortOrder = i;
-      await this.buddies.save(row);
+      const exists = await this.buddies.findOne({ where: { slug: b.slug }, select: { id: true } });
+      if (exists) continue; // admin owns this row — leave it untouched
+      await this.buddies.save(
+        this.buddies.create({
+          slug: b.slug,
+          name: b.name,
+          title: b.title,
+          description: b.description,
+          emoji: b.emoji,
+          systemPrompt: b.systemPrompt,
+          extraMessagesAmount: b.pricing.extraMessagesAmount,
+          extraMessagesCost: b.pricing.extraMessagesCost,
+          voiceMinuteCost: b.pricing.voiceMinuteCost,
+          isActive: true,
+          sortOrder: i,
+        }),
+      );
+      seeded++;
     }
-
-    this.logger.log(`Synced ${AI_BUDDIES.length} AI buddies from buddies.ts`);
+    if (seeded > 0) this.logger.log(`Seeded ${seeded} default AI buddies (missing only)`);
   }
 
   async createBuddy(dto: CreateBuddyDto): Promise<AiBuddy> {
