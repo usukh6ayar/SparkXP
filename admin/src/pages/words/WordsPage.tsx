@@ -103,12 +103,12 @@ interface WordAnalytics {
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
+// Compact status filter (dropdown). Only the statuses used day-to-day are kept;
+// `Бүх статус` still lists every word regardless of status (incl. approved/rejected).
 const STATUS_TABS = [
-  { value: '',             label: 'Бүгд' },
+  { value: '',             label: 'Бүх статус' },
   { value: 'needs_review', label: '⏳ Хянах' },
-  { value: 'approved',     label: '✅ Батлагдсан' },
   { value: 'published',    label: '🌐 Нийтлэгдсэн' },
-  { value: 'rejected',     label: '❌ Буцаагдсан' },
   { value: 'draft',        label: '📝 Ноорог' },
 ];
 
@@ -860,18 +860,9 @@ export default function WordsPage() {
         </div>
       )}
 
-      {/* Status filter tabs */}
-      <div className="flex gap-1 mb-3 border-b border-gray-200 overflow-x-auto">
-        {STATUS_TABS.map(t => (
-          <button
-            key={t.value}
-            onClick={() => setStatusTab(t.value)}
-            className={`px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors border-b-2 -mb-px ${statusTab === t.value ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-          >
-            {t.label}
-          </button>
-        ))}
-        <div className="ml-auto flex items-center gap-2 pb-1">
+      {/* Filter row — status / level / media as compact dropdowns + search */}
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+          <Select options={STATUS_TABS} value={statusTab} onChange={(e) => setStatusTab(e.target.value)} className="w-40 text-xs" />
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Хайх…" className="w-40 text-xs" />
           <Select options={levelOptions} value={levelFilter} onChange={(e) => setLevelFilter(e.target.value)} className="w-32 text-xs" />
           <Select options={MEDIA_FILTER_OPTIONS} value={mediaFilter} onChange={(e) => setMediaFilter(e.target.value)} className="w-36 text-xs" />
@@ -885,7 +876,6 @@ export default function WordsPage() {
               <Trash2 className="h-4 w-4 text-red-500" /> Давхардал цэвэрлэх
             </Button>
           )}
-        </div>
       </div>
 
       {/* Bulk action bar */}
