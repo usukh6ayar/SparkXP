@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Pencil, Trash2, Volume2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Volume2, Upload } from 'lucide-react';
 import { api } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
 import { Button } from '../../components/Button';
@@ -83,6 +83,7 @@ export default function AiBuddyPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [testing, setTesting] = useState(false);
+  const [uploadingGlb, setUploadingGlb] = useState(false);
 
   const load = useCallback(() => {
     api.get<Buddy[]>('/ai/buddies').then(setBuddies).catch(() => {});
@@ -170,6 +171,24 @@ export default function AiBuddyPage() {
 
   function f(key: keyof BuddyForm, val: string | number) {
     setForm(prev => ({ ...prev, [key]: val }));
+  }
+
+  /** Upload a .glb/.gltf 3D avatar to Cloudflare R2 → fill the URL field. */
+  async function uploadGlb(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingGlb(true); setError('');
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await api.upload<{ url: string }>('/upload', fd);
+      f('avatarAssetUrl', res.url);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'GLB байршуулж чадсангүй');
+    } finally {
+      setUploadingGlb(false);
+      e.target.value = ''; // allow re-uploading the same file
+    }
   }
 
   function setEmotion(tag: string, clip: string) {
@@ -387,9 +406,18 @@ export default function AiBuddyPage() {
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <Input label="Avatar GLB URL" value={form.avatarAssetUrl}
-                  placeholder="https://…/fox.glb"
-                  onChange={(e) => f('avatarAssetUrl', e.target.value)} />
+                <div>
+                  <Input label="Avatar GLB URL" value={form.avatarAssetUrl}
+                    placeholder="https://…/fox.glb"
+                    onChange={(e) => f('avatarAssetUrl', e.target.value)} />
+                  {/* Upload a .glb → Cloudflare R2, auto-fills the URL above */}
+                  <label className="mt-1.5 inline-flex cursor-pointer items-center gap-1.5 text-xs font-medium text-primary hover:underline">
+                    <Upload className="h-3.5 w-3.5" />
+                    {uploadingGlb ? 'Байршуулж байна…' : 'GLB файл байршуулах (R2)'}
+                    <input type="file" accept=".glb,.gltf" className="hidden"
+                      disabled={uploadingGlb} onChange={uploadGlb} />
+                  </label>
+                </div>
                 <Input label="Avatar thumbnail URL" value={form.avatarThumbUrl}
                   placeholder="https://…/fox.png"
                   onChange={(e) => f('avatarThumbUrl', e.target.value)} />

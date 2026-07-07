@@ -288,7 +288,7 @@ Controller-level: admin-баг.
 
 | Method + Path | Auth | Зорилго | Params / Body |
 | --- | --- | --- | --- |
-| POST `/upload` | admin-баг | Зураг/аудио/видео → нийтийн URL (Cloudinary/local). Зураг ≤10MB, видео/аудио ≤200MB | multipart `file` |
+| POST `/upload` | admin-баг | Зураг/аудио/видео/**3D загвар** → нийтийн URL. Зураг→Cloudinary (≤10MB), аудио/видео→Cloudinary (≤200MB), **`.glb/.gltf`→Cloudflare R2 (≤50MB)**. Хариу `{ url, filename, type }` (`type: image\|video\|audio\|model`) | multipart `file` |
 
 ## 19. Notifications — `/api/notifications`
 Controller-level: admin, super_admin.
