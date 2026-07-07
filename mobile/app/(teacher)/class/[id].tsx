@@ -19,6 +19,9 @@ import { RequestRow } from '../../../src/components/RequestRow';
 import { AssignmentRow } from '../../../src/components/AssignmentRow';
 import { Button } from '../../../src/components/Button';
 import { Card } from '../../../src/components/Card';
+import { EmptyState } from '../../../src/components/EmptyState';
+import { haptics } from '../../../src/lib/haptics';
+import { alertError } from '../../../src/lib/alerts';
 import { spacing, radius, type AppColors } from '../../../src/theme/theme';
 import { useColors } from '../../../src/settings/SettingsContext';
 
@@ -70,6 +73,8 @@ export default function ClassDetailScreen() {
       lessons.items.forEach((l) => (map[l.id] = l.title));
       quizzes.items.forEach((q) => (map[q.id] = q.title));
       setTitles(map);
+    } catch {
+      // detail stays null → the error screen below offers a retry
     } finally {
       setLoading(false);
     }
@@ -92,7 +97,10 @@ export default function ClassDetailScreen() {
     setActingId(studentId);
     try {
       await classesApi.approveRequest(id, studentId, token);
+      haptics.success();
       await load();
+    } catch {
+      alertError(t('errorGeneric'));
     } finally {
       setActingId(null);
     }
@@ -110,6 +118,8 @@ export default function ClassDetailScreen() {
           try {
             await classesApi.rejectRequest(id, studentId, token);
             await load();
+          } catch {
+            alertError(t('errorGeneric'));
           } finally {
             setActingId(null);
           }
@@ -126,17 +136,36 @@ export default function ClassDetailScreen() {
         style: 'destructive',
         onPress: async () => {
           if (!token) return;
-          await assignmentsApi.deleteAssignment(assignmentId, token);
-          load();
+          try {
+            await assignmentsApi.deleteAssignment(assignmentId, token);
+            load();
+          } catch {
+            alertError(t('errorGeneric'));
+          }
         },
       },
     ]);
   }
 
-  if (loading || !detail) {
+  // First load — spinner. Only while we have nothing to show yet.
+  if (loading && !detail) {
     return (
       <SafeAreaView style={[styles.safe, styles.center]} edges={['top']}>
         <ActivityIndicator color={colors.primary} />
+      </SafeAreaView>
+    );
+  }
+
+  // Load failed and we have no cached detail → recoverable error, not a dead spinner.
+  if (!detail) {
+    return (
+      <SafeAreaView style={[styles.safe, styles.center]} edges={['top']}>
+        <EmptyState
+          icon="alert-circle-outline"
+          title={t('error')}
+          hint={t('errorGeneric')}
+          action={{ label: t('retry'), onPress: () => { setLoading(true); load(); } }}
+        />
       </SafeAreaView>
     );
   }

@@ -7,6 +7,7 @@ import { useAuth } from '../auth/AuthContext';
 import { requestJoinClass } from '../api/classes';
 import { ApiError } from '../api/client';
 import { parseJoinCode } from '../lib/joinLink';
+import { haptics } from '../lib/haptics';
 import { t } from '../i18n';
 import { AppText } from './Text';
 import { TextField } from './TextField';
@@ -39,8 +40,10 @@ export function JoinClass({ initialCode }: { initialCode?: string }) {
     setBusy(true);
     try {
       const res = await requestJoinClass(c, token);
+      haptics.success();
       setPending(res.className);
     } catch (e) {
+      haptics.error();
       setError(e instanceof ApiError ? e.message : t('errorGeneric'));
     } finally {
       setBusy(false);

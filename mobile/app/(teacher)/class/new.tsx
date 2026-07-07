@@ -14,6 +14,7 @@ import { useAuth } from '../../../src/auth/AuthContext';
 import * as classesApi from '../../../src/api/classes';
 import { getOrganizations, type Organization } from '../../../src/api/organizations';
 import { ApiError } from '../../../src/api/client';
+import { haptics } from '../../../src/lib/haptics';
 import { t } from '../../../src/i18n';
 import { AppText } from '../../../src/components/Text';
 import { TextField } from '../../../src/components/TextField';
@@ -52,6 +53,7 @@ export default function NewClassScreen() {
     setBusy(true);
     try {
       const created = await classesApi.createClass(name.trim(), org.id, token);
+      haptics.success();
       // Replace so Back from the detail returns to the class list, not here.
       router.replace(`/(teacher)/class/${created.id}`);
     } catch (e) {
