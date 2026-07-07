@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three-stdlib';
 import { toByteArray } from 'base64-js';
 import { decode as decodeJpeg } from 'jpeg-js';
+import UPNG from 'upng-js';
 
 /**
  * 3D AI Buddy avatar (Meshy-generated GLB rendered with three.js on expo-gl).
@@ -55,7 +56,9 @@ export function BuddyAvatar({ assetUrl, emotion, gesture, emotionMap, isSpeaking
     <View style={style} pointerEvents="none">
       <Canvas
         camera={{ position: [0, 0.2, 2.6], fov: 32 }}
-        gl={{ alpha: true }}
+        gl={{ alpha: true, antialias: false, powerPreference: 'low-power' }}
+        // Cap pixel ratio so hi-DPI phones don't render a huge buffer (FPS/heat).
+        dpr={[1, 2]}
         style={{ flex: 1, backgroundColor: 'transparent' }}
       >
         <ambientLight intensity={0.9} />
@@ -93,7 +96,8 @@ function BuddyModel({
     scene.scale.setScalar(scale);
     scene.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
 
-    mixer.current = new THREE.AnimationMixer(scene);
+    const mx = new THREE.AnimationMixer(scene);
+    mixer.current = mx;
     mouths.current = [];
     scene.traverse((obj: THREE.Object3D) => {
       const mesh = obj as THREE.Mesh;
@@ -105,8 +109,28 @@ function BuddyModel({
       if ((obj as THREE.Bone).isBone && /jaw/i.test(obj.name)) jaw.current = obj as THREE.Bone;
     });
 
+    // When a one-shot emotion/gesture clip ends, settle back to the idle loop.
+    const onFinished = () => playClip(pickClip(animations, 'idle'), true);
+    mx.addEventListener('finished', onFinished);
+
     playClip(pickClip(animations, 'idle'), true);
-    return () => { mixer.current?.stopAllAction(); };
+
+    return () => {
+      mx.removeEventListener('finished', onFinished);
+      mx.stopAllAction();
+      // Free GPU memory so switching buddies doesn't leak (low-end Android).
+      scene.traverse((obj) => {
+        const mesh = obj as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        mesh.geometry?.dispose();
+        const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        mats.forEach((mm) => {
+          const std = mm as THREE.MeshStandardMaterial;
+          std.map?.dispose();
+          std.dispose?.();
+        });
+      });
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scene]);
 
@@ -196,17 +220,32 @@ interface GLTFResult {
   };
 }
 
-/** Decode a `data:image/jpeg;base64,…` URI into a GPU-uploadable DataTexture. */
+/** Exact-size ArrayBuffer from a Uint8Array (avoids passing a larger backing buffer). */
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+}
+
+/** Decode a `data:image/(jpeg|png);base64,…` URI into a GPU-uploadable DataTexture.
+ *  RN has no DOM image decoder, so we decode in pure JS: jpeg-js for JPEG, UPNG
+ *  for PNG (Meshy commonly exports PNG base-colour maps). Other formats → null. */
 function dataUriToTexture(uri: string): THREE.Texture | null {
   const m = /^data:(image\/[a-z0-9.+-]+);base64,(.*)$/i.exec(uri);
   if (!m) return null;
   const mime = m[1].toLowerCase();
-  // Pure-JS JPEG decode → raw RGBA (no DOM). PNG/other are skipped (untextured).
-  if (!mime.includes('jpeg') && !mime.includes('jpg')) return null;
   try {
     const bytes = toByteArray(m[2]);
-    const { width, height, data } = decodeJpeg(bytes, { useTArray: true, formatAsRGBA: true });
-    const tex = new THREE.DataTexture(new Uint8Array(data), width, height, THREE.RGBAFormat);
+    let width: number, height: number, data: Uint8Array<ArrayBuffer>;
+    if (mime.includes('png')) {
+      const img = UPNG.decode(toArrayBuffer(bytes));
+      const rgba = UPNG.toRGBA8(img)[0]; // first (only) frame → RGBA bytes
+      width = img.width; height = img.height; data = new Uint8Array(rgba);
+    } else if (mime.includes('jpeg') || mime.includes('jpg')) {
+      const dec = decodeJpeg(bytes, { useTArray: true, formatAsRGBA: true });
+      width = dec.width; height = dec.height; data = new Uint8Array(dec.data);
+    } else {
+      return null; // unsupported format → stay untextured
+    }
+    const tex = new THREE.DataTexture(data, width, height, THREE.RGBAFormat);
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.flipY = false; // glTF texture convention
     tex.needsUpdate = true;
