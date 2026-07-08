@@ -13,6 +13,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../src/auth/AuthContext";
 import { getGamification, type Gamification } from "../../src/api/gamification";
 import { AppText } from "../../src/components/Text";
+import { AppIcon } from "../../src/components/AppIcon";
+import { appIcons } from "../../src/constants/appIcons";
 import { IconTile } from "../../src/components/IconTile";
 import { Pill } from "../../src/components/Pill";
 import { ProgressBar } from "../../src/components/ProgressBar";
@@ -50,7 +52,7 @@ interface Game {
 const GAMES: Game[] = [
   {
     icon: "locate",
-    // img: imgTarget,
+    img: appIcons.reading,
     title: "Үг ангууч",
     desc: "Англи үгийн зөв утгыг сонго.",
     tint: tints.purple,
@@ -58,35 +60,35 @@ const GAMES: Game[] = [
   },
   {
     icon: "headset",
-    // img: imgHeadphones,
+    img: appIcons.listening,
     title: "Сонсож барь",
     desc: "Аудио сонсож, зөв хариул.",
     tint: tints.blue,
   },
   {
     icon: "flash",
-    // img: imgBolt,
+    img: appIcons.xp,
     title: "Хурдан бууд",
     desc: "Хугацаанд багтааж хариул!",
     tint: tints.amber,
   },
   {
     icon: "link",
-    // img: imgLink,
+    img: appIcons.water,
     title: "Холбож ял",
     desc: "Үг, зургийг зөв холбо.",
     tint: tints.teal,
   },
   {
     icon: "extension-puzzle",
-    // img: imgPuzzle,
+    img: appIcons.fill,
     title: "Нөхөж дуусга",
     desc: "Хоосон зайг зөв нөх.",
     tint: tints.pink,
   },
   {
     icon: "book",
-    // img: imgBook,
+    img: appIcons.grammar,
     title: "Grammar Boss",
     desc: "Грамматик мэдлэгээ шалга.",
     tint: tints.green,
@@ -122,7 +124,7 @@ export default function SorilScreen() {
         <View style={styles.header}>
           <AppText variant="h1">Сорил</AppText>
           <View style={styles.diamondBadge}>
-            <Ionicons name="diamond" size={16} color={colors.sparks} />
+            <AppIcon name="sparks" size={20} />
             <AppText variant="label" color={colors.text}>
               {user?.sparks ?? 0}
             </AppText>
@@ -243,6 +245,7 @@ export default function SorilScreen() {
           <View style={styles.pathHead}>
             <IconTile
               icon="trophy"
+              image={appIcons.trophy}
               bg={tints.amber.bg}
               fg={tints.amber.fg}
               size={44}

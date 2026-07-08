@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react';
-import { View, StyleSheet, ScrollView, Pressable, Image, Modal, Alert } from 'react-native';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { View, StyleSheet, ScrollView, Pressable, Image, Modal, Alert, Animated, Easing } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,6 +11,8 @@ import { getGamification, type Gamification } from '../../src/api/gamification';
 import { MN_PROVINCES as PROVINCES, UB_DISTRICTS } from '../../src/constants/locations';
 import { TopBar } from '../../src/components/TopBar';
 import { AppText } from '../../src/components/Text';
+import { AppIcon } from '../../src/components/AppIcon';
+import { type AppIconName } from '../../src/constants/appIcons';
 import { Pill } from '../../src/components/Pill';
 import { SectionHeader } from '../../src/components/SectionHeader';
 import { TextField } from '../../src/components/TextField';
@@ -18,8 +20,6 @@ import { SelectField } from '../../src/components/SelectField';
 import { Button } from '../../src/components/Button';
 import { resolveAvatar } from '../../src/lib/avatar';
 import { colors, spacing, radius, tints, elevation } from '../../src/theme/theme';
-
-type IconName = keyof typeof Ionicons.glyphMap;
 
 const avatarImg = require('../../assets/buddy-menu.png');
 
@@ -51,13 +51,71 @@ function UsageBar({ label, used, limit, unit }: { label: string; used: number; l
   );
 }
 
-const ACHIEVEMENTS: { icon: IconName; label: string; tint: { bg: string; fg: string }; earned: boolean }[] = [
-  { icon: 'book', label: 'Анхны хичээл', tint: tints.purple, earned: true },
-  { icon: 'trophy', label: 'Шилдэг сурагч', tint: tints.amber, earned: true },
-  { icon: 'flash', label: '10 дараалал', tint: tints.blue, earned: true },
-  { icon: 'calendar', label: '7 хоног дараалал', tint: tints.green, earned: true },
-  { icon: 'diamond', label: '100 очирхон', tint: tints.purple, earned: false },
+const ACHIEVEMENTS: { img: number; label: string; earned: boolean }[] = [
+  { img: require('../../assets/badges/monthly-grinder.png'), label: 'Сарын тэмүүлэл', earned: true },
+  { img: require('../../assets/badges/quiz-veteran.png'), label: 'Сорилын мастер', earned: true },
+  { img: require('../../assets/badges/word-collector.png'), label: 'Үг цуглуулагч', earned: true },
+  { img: require('../../assets/badges/a1-finisher.png'), label: 'A1 төгсөгч', earned: true },
+  { img: require('../../assets/badges/perfect-ten.png'), label: 'Төгс арав', earned: true },
+  { img: require('../../assets/badges/grammar-builder-2.png'), label: 'Дүрэм II', earned: false },
+  { img: require('../../assets/badges/card-collector-1.png'), label: 'Карт цуглуулагч I', earned: false },
+  { img: require('../../assets/badges/conversation-fighter.png'), label: 'Ярианы дайчин', earned: false },
+  { img: require('../../assets/badges/listening-builder-2.png'), label: 'Сонсгол II', earned: false },
+  { img: require('../../assets/badges/mistake-slayer-1.png'), label: 'Алдаа дийлэгч I', earned: false },
 ];
+
+/** One collectible badge. Earned badges gently "breathe" — a subtle scale + float (staggered). */
+function GlowBadge({ a, index }: { a: (typeof ACHIEVEMENTS)[number]; index: number }) {
+  const t = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!a.earned) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(t, { toValue: 1, duration: 2200, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(t, { toValue: 0, duration: 2200, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ]),
+    );
+    // Stagger so the row breathes like a slow wave rather than in unison.
+    const timer = setTimeout(() => loop.start(), index * 260);
+    return () => { clearTimeout(timer); loop.stop(); };
+  }, [a.earned, index, t]);
+
+  const scale = t.interpolate({ inputRange: [0, 1], outputRange: [1, 1.045] });
+  const translateY = t.interpolate({ inputRange: [0, 1], outputRange: [0, -3] });
+
+  return (
+    <View style={styles.achItem}>
+      <Animated.View
+        style={[
+          styles.achBadge,
+          a.earned ? styles.achEarned : styles.achLocked,
+          a.earned && { transform: [{ translateY }, { scale }] },
+        ]}
+      >
+        <Image
+          source={a.img}
+          style={[styles.achImg, !a.earned && styles.achImgLocked]}
+          resizeMode="contain"
+        />
+        {!a.earned ? (
+          <View style={styles.achLockPill}>
+            <Ionicons name="lock-closed" size={12} color={colors.white} />
+          </View>
+        ) : null}
+      </Animated.View>
+      <AppText
+        variant="caption"
+        center
+        numberOfLines={2}
+        color={a.earned ? colors.text : colors.textMuted}
+        style={styles.achLabel}
+      >
+        {a.label}
+      </AppText>
+    </View>
+  );
+}
 
 export default function ProfileScreen() {
   const { user, token, logout } = useAuth();
@@ -105,22 +163,22 @@ export default function ProfileScreen() {
   const lessonsDone = gam?.lessonsDone ?? 0;
   const quizzesDone = gam?.quizzesDone ?? 0;
 
-  const STATS = [
-    { icon: 'book' as IconName, value: lessonsDone, label: 'Хичээл', tint: tints.purple },
-    { icon: 'trophy' as IconName, value: quizzesDone, label: 'Сорил', tint: tints.green },
-    { icon: 'flame' as IconName, value: streak, label: 'Өдөр дараалал', tint: tints.blue },
-    { icon: 'diamond' as IconName, value: sparks, label: 'Очирхон', tint: tints.amber },
+  const STATS: { img: AppIconName; value: number; label: string; tint: { bg: string; fg: string } }[] = [
+    { img: 'reading', value: lessonsDone, label: 'Хичээл', tint: tints.purple },
+    { img: 'trophy', value: quizzesDone, label: 'Сорил', tint: tints.green },
+    { img: 'streak', value: streak, label: 'Өдөр дараалал', tint: tints.blue },
+    { img: 'sparks', value: sparks, label: 'Очирхон', tint: tints.amber },
   ];
 
-  const QUICK: { icon: IconName; label: string; tint: { bg: string; fg: string }; onPress: () => void }[] = [
-    { icon: 'person', label: 'Миний мэдээлэл', tint: tints.blue, onPress: () => setEditing(true) },
-    { icon: 'stats-chart', label: 'Миний ахиц', tint: tints.pink, onPress: () => router.push('/leaderboard') },
-    { icon: 'bookmark', label: 'Хадгалсан', tint: tints.green, onPress: () => router.push('/saved') },
-    { icon: 'notifications', label: 'Мэдэгдэл', tint: tints.orange, onPress: soon },
-    { icon: 'gift', label: 'Шагналууд', tint: tints.purple, onPress: soon },
-    { icon: 'time', label: 'Сүүлийн үзсэн', tint: tints.blue, onPress: soon },
-    { icon: 'heart', label: 'Дуртай', tint: tints.pink, onPress: soon },
-    { icon: 'settings', label: 'Тохиргоо', tint: tints.teal, onPress: soon },
+  const QUICK: { img: AppIconName; label: string; tint: { bg: string; fg: string }; onPress: () => void }[] = [
+    { img: 'profile', label: 'Миний мэдээлэл', tint: tints.blue, onPress: () => setEditing(true) },
+    { img: 'stats', label: 'Миний ахиц', tint: tints.pink, onPress: () => router.push('/leaderboard') },
+    { img: 'saved', label: 'Хадгалсан', tint: tints.green, onPress: () => router.push('/saved') },
+    { img: 'notifications', label: 'Мэдэгдэл', tint: tints.orange, onPress: soon },
+    { img: 'gift', label: 'Шагналууд', tint: tints.purple, onPress: soon },
+    { img: 'time', label: 'Сүүлийн үзсэн', tint: tints.blue, onPress: soon },
+    { img: 'heart', label: 'Дуртай', tint: tints.pink, onPress: soon },
+    { img: 'settings', label: 'Тохиргоо', tint: tints.teal, onPress: soon },
   ];
 
   return (
@@ -131,7 +189,7 @@ export default function ProfileScreen() {
           <View style={styles.header}>
             <AppText variant="h1">Профайл</AppText>
             <View style={styles.diamondBadge}>
-              <Ionicons name="diamond" size={16} color={colors.sparks} />
+              <AppIcon name="sparks" size={20} />
               <AppText variant="label" color={colors.text}>{sparks}</AppText>
             </View>
           </View>
@@ -178,7 +236,7 @@ export default function ProfileScreen() {
             {STATS.map((s) => (
               <View key={s.label} style={[styles.statCell, { backgroundColor: s.tint.bg }]}>
                 <View style={[styles.statIcon, { backgroundColor: colors.white }]}>
-                  <Ionicons name={s.icon} size={20} color={s.tint.fg} />
+                  <AppIcon name={s.img} size={30} />
                 </View>
                 <AppText variant="h3" style={styles.statValue}>{s.value}</AppText>
                 <AppText variant="caption" center numberOfLines={2}>{s.label}</AppText>
@@ -224,19 +282,8 @@ export default function ProfileScreen() {
           {/* Achievements — large collectible badges */}
           <SectionHeader title="Миний амжилтууд" actionLabel="Бүгдийг харах ›" onAction={soon} style={styles.section} />
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.achRow}>
-            {ACHIEVEMENTS.map((a) => (
-              <View key={a.label} style={styles.achItem}>
-                {a.earned ? (
-                  <LinearGradient colors={['#FFFFFF', a.tint.bg]} style={[styles.achBadge, styles.achEarned]}>
-                    <Ionicons name={a.icon} size={32} color={a.tint.fg} />
-                  </LinearGradient>
-                ) : (
-                  <View style={[styles.achBadge, styles.achLocked]}>
-                    <Ionicons name="lock-closed" size={28} color={colors.textMuted} />
-                  </View>
-                )}
-                <AppText variant="caption" center numberOfLines={2} style={styles.achLabel}>{a.label}</AppText>
-              </View>
+            {ACHIEVEMENTS.map((a, i) => (
+              <GlowBadge key={a.label} a={a} index={i} />
             ))}
           </ScrollView>
 
@@ -245,8 +292,8 @@ export default function ProfileScreen() {
           <View style={styles.quickGrid}>
             {QUICK.map((q) => (
               <Pressable key={q.label} style={({ pressed }) => [styles.quickItem, pressed && styles.pressed]} onPress={q.onPress}>
-                <View style={[styles.quickIcon, { backgroundColor: q.tint.bg }]}>
-                  <Ionicons name={q.icon} size={22} color={q.tint.fg} />
+                <View style={[styles.quickIcon, { backgroundColor: colors.surface }]}>
+                  <AppIcon name={q.img} size={38} />
                 </View>
                 <AppText variant="caption" center numberOfLines={1} style={styles.quickLabel}>{q.label}</AppText>
               </Pressable>
@@ -454,11 +501,21 @@ const styles = StyleSheet.create({
   statValue: { marginTop: 2 },
 
   // Achievements
-  achRow: { gap: spacing.md, paddingRight: spacing.lg, paddingVertical: spacing.xs },
-  achItem: { alignItems: 'center', width: 84 },
-  achBadge: { width: 74, height: 74, borderRadius: radius.lg, alignItems: 'center', justifyContent: 'center' },
-  achEarned: { borderWidth: 1, borderColor: 'rgba(124,77,255,0.15)', ...(elevation.sm as object) },
-  achLocked: { backgroundColor: colors.surfaceAlt },
+  achRow: { gap: spacing.lg, paddingRight: spacing.lg, paddingVertical: spacing.xs },
+  achItem: { alignItems: 'center', width: 92 },
+  achBadge: { width: 88, height: 88, borderRadius: radius.lg, alignItems: 'center', justifyContent: 'center' },
+  achEarned: {
+    shadowColor: colors.primary, shadowOpacity: 0.28, shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 }, elevation: 5,
+  },
+  achLocked: { opacity: 0.55 },
+  achImg: { width: 88, height: 88 },
+  achImgLocked: { opacity: 0.5 },
+  achLockPill: {
+    position: 'absolute', right: 4, bottom: 4, width: 22, height: 22, borderRadius: 11,
+    backgroundColor: colors.textMuted, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2, borderColor: colors.white,
+  },
   achLabel: { marginTop: spacing.sm },
 
   // Quick menu
@@ -468,7 +525,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', gap: spacing.sm, paddingHorizontal: 2,
     ...(elevation.sm as object),
   },
-  quickIcon: { width: 44, height: 44, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center' },
+  quickIcon: { width: 52, height: 52, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center' },
   quickLabel: { marginTop: 2 },
 
   // Premium

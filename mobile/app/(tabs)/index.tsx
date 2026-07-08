@@ -19,6 +19,8 @@ import { getLessons } from "../../src/api/lessons";
 import { apiRequest } from "../../src/api/client";
 import { getLastLesson, type LastLesson } from "../../src/lib/lastLesson";
 import { AppText } from "../../src/components/Text";
+import { AppIcon } from "../../src/components/AppIcon";
+import { type AppIconName } from "../../src/constants/appIcons";
 import { ProgressBar } from "../../src/components/ProgressBar";
 import { SectionHeader } from "../../src/components/SectionHeader";
 import {
@@ -183,18 +185,8 @@ export default function HomeScreen() {
             </AppText>
           </View>
           <View style={styles.badges}>
-            <Badge
-              icon="flame"
-              color={colors.streak}
-              value={streak}
-              label="Цуврал"
-            />
-            <Badge
-              icon="diamond"
-              color={colors.sparks}
-              value={sparks}
-              label="Очирхон"
-            />
+            <Badge img="streak" value={streak} label="Цуврал" />
+            <Badge img="sparks" value={sparks} label="Очирхон" />
           </View>
         </View>
 
@@ -261,7 +253,7 @@ export default function HomeScreen() {
         {/* Review reminder */}
         <View style={styles.reviewCard}>
           <View style={styles.reviewIcon}>
-            <Ionicons name="time" size={24} color={colors.primary} />
+            <AppIcon name="time" size={34} />
           </View>
           <View style={styles.reviewBody}>
             <AppText variant="h3">Давтах үгс</AppText>
@@ -329,7 +321,7 @@ export default function HomeScreen() {
             >
               <View style={styles.catTop}>
                 <View style={styles.catIcon}>
-                  <Ionicons name={c.icon} size={20} color={c.tint.fg} />
+                  <AppIcon name={c.key as AppIconName} size={30} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <AppText variant="h3" numberOfLines={1}>
@@ -356,26 +348,11 @@ export default function HomeScreen() {
 
         {/* Stats summary */}
         <View style={styles.statsCard}>
-          <StatCol
-            icon="flash"
-            color={colors.xp}
-            value={xp.toLocaleString()}
-            label="XP оноо"
-          />
+          <StatCol img="xp" value={xp.toLocaleString()} label="XP оноо" />
           <View style={styles.statDivider} />
-          <StatCol
-            icon="diamond"
-            color={colors.sparks}
-            value={sparks}
-            label="Очирхон"
-          />
+          <StatCol img="sparks" value={sparks} label="Очирхон" />
           <View style={styles.statDivider} />
-          <StatCol
-            icon="flame"
-            color={colors.streak}
-            value={`${streak} өдөр`}
-            label="Цуврал"
-          />
+          <StatCol img="streak" value={`${streak} өдөр`} label="Цуврал" />
         </View>
         <View style={{ height: 110 }} />
       </ScrollView>
@@ -384,20 +361,18 @@ export default function HomeScreen() {
 }
 
 function Badge({
-  icon,
-  color,
+  img,
   value,
   label,
 }: {
-  icon: IconName;
-  color: string;
+  img: AppIconName;
   value: number | string;
   label: string;
 }) {
   return (
     <View style={styles.badge}>
       <View style={styles.badgeTop}>
-        <Ionicons name={icon} size={16} color={color} />
+        <AppIcon name={img} size={20} />
         <AppText variant="h3">{value}</AppText>
       </View>
       <AppText variant="caption">{label}</AppText>
@@ -406,20 +381,18 @@ function Badge({
 }
 
 function StatCol({
-  icon,
-  color,
+  img,
   value,
   label,
 }: {
-  icon: IconName;
-  color: string;
+  img: AppIconName;
   value: number | string;
   label: string;
 }) {
   return (
     <View style={styles.statCol}>
-      <View style={[styles.statIcon, { backgroundColor: `${color}22` }]}>
-        <Ionicons name={icon} size={18} color={color} />
+      <View style={styles.statIcon}>
+        <AppIcon name={img} size={26} />
       </View>
       <View>
         <AppText variant="h3" numberOfLines={1}>
@@ -574,9 +547,10 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   statIcon: {
-    width: 34,
-    height: 34,
+    width: 38,
+    height: 38,
     borderRadius: radius.full,
+    backgroundColor: colors.surfaceAlt,
     alignItems: "center",
     justifyContent: "center",
   },
