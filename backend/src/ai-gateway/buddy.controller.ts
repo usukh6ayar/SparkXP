@@ -23,6 +23,7 @@ import { User } from '../entities/user.entity';
 import { BuddyService } from './buddy.service';
 import {
   StartSessionDto,
+  ResumeTextSessionDto,
   TextTurnDto,
   TestVoiceDto,
   FeedbackDto,
@@ -76,6 +77,26 @@ export class BuddyController {
     @CurrentUser() user: User,
   ) {
     return this.buddy.getMessages(user.id, sessionId);
+  }
+
+  /**
+   * Open a TEXT chat thread for a buddy and return its message history —
+   * ChatGPT-style. Body picks which thread: `sessionId` (a specific past
+   * thread), `new: true` (a fresh "New chat"), or default (most recent).
+   * Voice sessions stay separate.
+   */
+  @Post('text-session')
+  resumeTextSession(@Body() dto: ResumeTextSessionDto, @CurrentUser() user: User) {
+    return this.buddy.resumeTextSession(user.id, dto.buddySlug, {
+      sessionId: dto.sessionId,
+      create: dto.new === true,
+    });
+  }
+
+  /** List the user's past typed-chat threads with a buddy (history panel). */
+  @Get('text-sessions')
+  listTextSessions(@Query('buddySlug') buddySlug: string, @CurrentUser() user: User) {
+    return this.buddy.listTextSessions(user.id, buddySlug);
   }
 
   /** Current-month voice + STT usage for the usage meter. */

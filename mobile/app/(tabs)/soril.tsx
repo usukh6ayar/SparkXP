@@ -15,6 +15,8 @@ import { haptics } from "../../src/lib/haptics";
 import { useAuth } from "../../src/auth/AuthContext";
 import { getGamification, type Gamification } from "../../src/api/gamification";
 import { AppText } from "../../src/components/Text";
+import { AppIcon } from "../../src/components/AppIcon";
+import { appIcons } from "../../src/constants/appIcons";
 import { IconTile } from "../../src/components/IconTile";
 import { Pill } from "../../src/components/Pill";
 import { ProgressBar } from "../../src/components/ProgressBar";
@@ -52,12 +54,13 @@ interface Game {
 }
 
 /** Game cards. `title`/`desc` have no matching backend content — this is
- *  static UI copy, so it goes through i18n like everything else in the app. */
+ *  static UI copy, so it goes through i18n like everything else in the app.
+ *  `img` = 3D glossy icon (assets/icons) shown instead of the Ionicons `icon`. */
 function games(t: (key: import("../../src/i18n").TranslationKey) => string): Game[] {
   return [
     {
       icon: "locate",
-      // img: imgTarget,
+      img: appIcons.reading,
       title: t("gameVocabQuizTitle"),
       desc: t("gameVocabQuizDesc"),
       tint: tints.purple,
@@ -65,7 +68,7 @@ function games(t: (key: import("../../src/i18n").TranslationKey) => string): Gam
     },
     {
       icon: "headset",
-      // img: imgHeadphones,
+      img: appIcons.listening,
       title: t("gameListenTitle"),
       desc: t("gameListenDesc"),
       tint: tints.blue,
@@ -73,7 +76,7 @@ function games(t: (key: import("../../src/i18n").TranslationKey) => string): Gam
     },
     {
       icon: "flash",
-      // img: imgBolt,
+      img: appIcons.xp,
       title: t("gameSpeedTitle"),
       desc: t("gameSpeedDesc"),
       tint: tints.amber,
@@ -81,7 +84,7 @@ function games(t: (key: import("../../src/i18n").TranslationKey) => string): Gam
     },
     {
       icon: "link",
-      // img: imgLink,
+      img: appIcons.water,
       title: t("gameMatchTitle"),
       desc: t("gameMatchDesc"),
       tint: tints.teal,
@@ -89,7 +92,7 @@ function games(t: (key: import("../../src/i18n").TranslationKey) => string): Gam
     },
     {
       icon: "extension-puzzle",
-      // img: imgPuzzle,
+      img: appIcons.fill,
       title: t("gameFillTitle"),
       desc: t("gameFillDesc"),
       tint: tints.pink,
@@ -97,7 +100,7 @@ function games(t: (key: import("../../src/i18n").TranslationKey) => string): Gam
     },
     {
       icon: "book",
-      // img: imgBook,
+      img: appIcons.grammar,
       title: t("gameGrammarTitle"),
       desc: t("gameGrammarDesc"),
       tint: tints.green,
@@ -141,7 +144,7 @@ export default function SorilScreen() {
         <View style={styles.header}>
           <AppText variant="h1">{t("quiz")}</AppText>
           <View style={styles.diamondBadge}>
-            <Ionicons name="diamond" size={16} color={c.sparks} />
+            <AppIcon name="sparks" size={20} />
             <AppText variant="label" color={c.text}>
               {user?.sparks ?? 0}
             </AppText>
@@ -263,6 +266,7 @@ export default function SorilScreen() {
           <View style={styles.pathHead}>
             <IconTile
               icon="trophy"
+              image={appIcons.trophy}
               bg={tints.amber.bg}
               fg={tints.amber.fg}
               size={44}

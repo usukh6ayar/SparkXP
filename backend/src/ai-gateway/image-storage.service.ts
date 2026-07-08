@@ -11,8 +11,14 @@ interface StoreImageInput {
   mimeType: string;
   folder?: string;
   localSubdir?: string;
-  /** `model` (GLB/GLTF 3D assets) go to Cloudflare R2; image/video to Cloudinary. */
-  resourceType?: 'image' | 'video' | 'model';
+  /**
+   * Where the media lands:
+   *  - `model` (GLB/GLTF) → Cloudflare R2 (else local in dev)
+   *  - `audio` → R2 when configured, else Cloudinary (safe hybrid — no regression
+   *    until R2 env is set in prod)
+   *  - `image` / `video` → Cloudinary (image transforms), else local
+   */
+  resourceType?: 'image' | 'video' | 'audio' | 'model';
 }
 
 interface CloudinaryUploadResponse {
@@ -38,6 +44,12 @@ export class ImageStorageService {
     if (input.resourceType === 'model') {
       if (this.hasR2Config()) return this.uploadToR2(input);
       return this.storeLocal(input);
+    }
+
+    // Audio → R2 when configured (zero-egress, no transforms needed); otherwise
+    // fall through to Cloudinary so nothing regresses until R2 is set up in prod.
+    if (input.resourceType === 'audio' && this.hasR2Config()) {
+      return this.uploadToR2(input);
     }
 
     if (this.hasCloudinaryConfig()) {
@@ -108,7 +120,8 @@ export class ImageStorageService {
       input.folder ??
       this.config.get<string>('CLOUDINARY_FOLDER', 'englishxp/generated');
     const publicId = input.filename.replace(/\.[^.]+$/, '');
-    const resourceType = input.resourceType ?? 'image';
+    // Cloudinary has no 'audio' resource type — it serves audio under 'video'.
+    const resourceType = input.resourceType === 'audio' ? 'video' : (input.resourceType ?? 'image');
     const timestamp = Math.floor(Date.now() / 1000).toString();
 
     // overwrite=true so re-generating a word's media replaces the same asset

@@ -46,6 +46,15 @@ export interface Buddy {
   avatarAssetUrl: string | null;
   avatarThumbUrl: string | null;
   emotionMap: Record<string, string>;
+  // Buddy-shop fields — not sent by the backend yet (AiBuddy entity has no
+  // personality/motto/unlock columns as of 2026-07). BuddySelector.tsx fills
+  // in sensible defaults when these are missing. Remove the fallback once
+  // Usukhbayar ships them server-side.
+  personalityTags?: string[];
+  motto?: string | null;
+  isLocked?: boolean;
+  unlockCostSparks?: number | null;
+  isFeatured?: boolean;
 }
 
 export interface Correction {
@@ -92,6 +101,58 @@ export function startBuddySession(
     body: { buddySlug, mode: opts?.mode, topic: opts?.topic },
     token,
   });
+}
+
+/** A stored message flattened for the chat UI (from resumeBuddyTextSession). */
+export interface BuddyHistoryMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  correction: Correction | null;
+  followUp: string | null;
+  audioUrl: string | null;
+}
+
+export interface BuddyTextSession {
+  sessionId: string;
+  messages: BuddyHistoryMessage[];
+}
+
+/** One past typed-chat thread, for the ChatGPT-style history panel. */
+export interface BuddyTextSessionSummary {
+  sessionId: string;
+  title: string;
+  messageCount: number;
+  updatedAt: string;
+}
+
+/**
+ * Open a typed-chat thread for a buddy and load its history — ChatGPT-style,
+ * carrying across app launches. `opts` picks which thread: `sessionId` (a
+ * specific past thread), `fresh: true` (a new "New chat"), or default (most
+ * recent). Separate from the ephemeral voice session.
+ */
+export function resumeBuddyTextSession(
+  buddySlug: string,
+  token: string,
+  opts?: { sessionId?: string; fresh?: boolean },
+): Promise<BuddyTextSession> {
+  return apiRequest<BuddyTextSession>('/ai/buddy/text-session', {
+    method: 'POST',
+    body: { buddySlug, sessionId: opts?.sessionId, new: opts?.fresh },
+    token,
+  });
+}
+
+/** List the user's past typed-chat threads with a buddy (history panel). */
+export function listBuddyTextSessions(
+  buddySlug: string,
+  token: string,
+): Promise<BuddyTextSessionSummary[]> {
+  return apiRequest<BuddyTextSessionSummary[]>(
+    `/ai/buddy/text-sessions?buddySlug=${encodeURIComponent(buddySlug)}`,
+    { token },
+  );
 }
 
 export function sendBuddyTextTurn(

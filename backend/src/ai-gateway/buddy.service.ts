@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { createHash } from 'crypto';
 import type Redis from 'ioredis';
 import { REDIS_CLIENT } from '../redis/redis.module';
@@ -78,6 +78,45 @@ export interface TurnResponse {
   };
 }
 
+/** One stored message flattened for the chat UI (resumeTextSession). */
+export interface SerializedBuddyMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  correction: { original: string; corrected: string; short_explanation: string } | null;
+  followUp: string | null;
+  audioUrl: string | null;
+}
+
+/** One row in the ChatGPT-style history panel (a past typed-chat thread). */
+export interface TextSessionSummary {
+  sessionId: string;
+  title: string;
+  messageCount: number;
+  updatedAt: string;
+}
+
+function serializeBuddyMessage(m: Message): SerializedBuddyMessage {
+  const meta = (m.metadata ?? {}) as {
+    correction?: { original?: string; corrected?: string; short_explanation?: string } | null;
+    follow_up_question?: string;
+  };
+  return {
+    id: m.id,
+    role: m.role === MessageRole.USER ? 'user' : 'assistant',
+    content: m.content,
+    correction: meta.correction
+      ? {
+          original: meta.correction.original ?? '',
+          corrected: meta.correction.corrected ?? '',
+          short_explanation: meta.correction.short_explanation ?? '',
+        }
+      : null,
+    followUp: meta.follow_up_question ?? null,
+    audioUrl: m.audioUrl ?? null,
+  };
+}
+
 @Injectable()
 export class BuddyService {
   private readonly logger = new Logger(BuddyService.name);
@@ -130,6 +169,86 @@ export class BuddyService {
       where: { userId, sessionId },
       order: { createdAt: 'ASC' },
     });
+  }
+
+  /**
+   * Open a typed-chat thread and return its history. Picks the thread by:
+   *   - `opts.sessionId` → that exact thread (must be the user's own TEXT one),
+   *   - `opts.create`    → a brand-new empty thread ("New chat"),
+   *   - otherwise        → the most recent thread (or a new one if none).
+   * This gives the typed chat persistent, ChatGPT-style threads that survive
+   * app restarts, while voice sessions stay separate and ephemeral.
+   */
+  async resumeTextSession(
+    userId: string,
+    buddySlug: string,
+    opts?: { sessionId?: string; create?: boolean },
+  ): Promise<{ sessionId: string; messages: SerializedBuddyMessage[] }> {
+    const buddy = await this.buddies.findOne({ where: { slug: buddySlug, isActive: true } });
+    if (!buddy) throw new NotFoundException('Buddy олдсонгүй');
+
+    let session: BuddySession | null = null;
+    if (opts?.sessionId) {
+      session = await this.sessions.findOne({
+        where: { id: opts.sessionId, userId, mode: BuddySessionMode.TEXT },
+      });
+      if (!session) throw new NotFoundException('Session олдсонгүй');
+    } else if (!opts?.create) {
+      session = await this.sessions.findOne({
+        where: { userId, buddySlug, mode: BuddySessionMode.TEXT },
+        order: { createdAt: 'DESC' },
+      });
+    }
+    if (!session) {
+      session = await this.sessions.save(
+        this.sessions.create({ userId, buddySlug, mode: BuddySessionMode.TEXT, topic: null }),
+      );
+    }
+
+    const rows = await this.messages.find({
+      where: { userId, sessionId: session.id },
+      order: { createdAt: 'ASC' },
+    });
+    return { sessionId: session.id, messages: rows.map((m) => serializeBuddyMessage(m)) };
+  }
+
+  /**
+   * List the user's past typed-chat threads with this buddy (most-recent
+   * activity first) for the ChatGPT-style history panel. Empty threads (no
+   * messages yet) are omitted so a fresh "New chat" doesn't clutter the list.
+   */
+  async listTextSessions(userId: string, buddySlug: string): Promise<TextSessionSummary[]> {
+    const sessions = await this.sessions.find({
+      where: { userId, buddySlug, mode: BuddySessionMode.TEXT },
+    });
+    if (!sessions.length) return [];
+
+    const rows = await this.messages.find({
+      where: { userId, sessionId: In(sessions.map((s) => s.id)) },
+      order: { createdAt: 'ASC' },
+    });
+    const bySession = new Map<string, Message[]>();
+    for (const m of rows) {
+      if (!m.sessionId) continue;
+      const list = bySession.get(m.sessionId) ?? [];
+      list.push(m);
+      bySession.set(m.sessionId, list);
+    }
+
+    return sessions
+      .map((s) => {
+        const list = bySession.get(s.id) ?? [];
+        const firstUser = list.find((m) => m.role === MessageRole.USER);
+        const last = list[list.length - 1];
+        return {
+          sessionId: s.id,
+          title: (firstUser?.content ?? '').trim().slice(0, 80),
+          messageCount: list.length,
+          updatedAt: (last?.createdAt ?? s.createdAt).toISOString(),
+        };
+      })
+      .filter((s) => s.messageCount > 0)
+      .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
   }
 
   async getUsage(userId: string): Promise<{
@@ -423,7 +542,7 @@ export class BuddyService {
         buffer: result.audio,
         filename: `${textHash.slice(0, 24)}.mp3`,
         mimeType: 'audio/mpeg',
-        resourceType: 'video',
+        resourceType: 'audio', // → R2 when configured, else Cloudinary
         folder: 'englishxp/ai-buddy',
         localSubdir: 'audio',
       });
