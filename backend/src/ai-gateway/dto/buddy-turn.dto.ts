@@ -1,4 +1,4 @@
-import { IsIn, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
+import { IsBoolean, IsIn, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
 import { BuddySessionMode } from '../../common/enums';
 
 /** Start an AI Buddy conversation session. */
@@ -14,6 +14,23 @@ export class StartSessionDto {
   @IsString()
   @MaxLength(120)
   topic?: string;
+}
+
+/**
+ * Open a typed-chat thread: a specific `sessionId`, a brand-new thread
+ * (`new: true`), or (default) the most recent one for this buddy.
+ */
+export class ResumeTextSessionDto {
+  @IsString()
+  buddySlug: string;
+
+  @IsOptional()
+  @IsUUID()
+  sessionId?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  new?: boolean;
 }
 
 /** A typed (text) turn — STT is skipped. */
