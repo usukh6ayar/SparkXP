@@ -66,6 +66,13 @@
 ### Boju (Mobile — games & social)
 - [ ] Quiz/Soril, Idioms, Leaderboard, Profile, Teacher, Join урсгалыг турших, алдаа засах.
 - [ ] AI chat prod endpoint-той холбогдож буйг шалгах (limit warning харагдана).
+- ⚠️ **AI Buddy mobile UI-г Choi аль хэдийн барьсан (branch `choi` / PR) — ДАВХАР ХИЙХГҮЙ.**
+      Хийгдсэн: buddy сонголт (`BuddySelector`), voice stage (`BuddyVoiceStage`),
+      бичгийн чат + **ChatGPT маягийн олон-thread түүх** (`chat.tsx` + `TopBar`
+      history товч + `ChatHistoryPanel`), `api/ai.ts` (`resumeBuddyTextSession`
+      opts, `listBuddyTextSessions`), i18n. Backend: `resumeTextSession` opts +
+      `GET /ai/buddy/text-sessions` (Өсөхбаяр review-д). Boju зөвхөн 3D avatar
+      (Part 4) + limit-warning тестээр үргэлжлүүлнэ. Өөрчлөх бол эхлээд Choi-той ярь.
 - [ ] Багшийн урсгал (анги үүсгэх → QR/код → сурагч батлах → даалгавар) бүрэн тест.
 
 ### Хамтын (launch bundle — 07.06–09)
