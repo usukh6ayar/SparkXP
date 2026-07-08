@@ -13,17 +13,26 @@ import { useColors } from '../settings/SettingsContext';
  */
 export function TopBar({
   title,
+  subtitle,
   back = false,
   onBack,
   streak = 0,
   showBadges = true,
+  onAddSparks,
+  onHistory,
 }: {
   title?: string;
+  /** Small status line under the title (shown with a green "online" dot). */
+  subtitle?: string;
   back?: boolean;
   /** Custom back handler (e.g. step back one level in-screen). Defaults to router.back(). */
   onBack?: () => void;
   streak?: number;
   showBadges?: boolean;
+  /** Shows a small "+" button next to the Sparks badge (e.g. open the Sparks store). */
+  onAddSparks?: () => void;
+  /** Shows a history icon in the top corner (e.g. open the ChatGPT-style chat history). */
+  onHistory?: () => void;
 }) {
   const router = useRouter();
   const { user } = useAuth();
@@ -37,11 +46,32 @@ export function TopBar({
             <Ionicons name="chevron-back" size={22} color={c.text} />
           </Pressable>
         ) : null}
-        {title ? <AppText variant="h1" numberOfLines={1}>{title}</AppText> : null}
+        {title ? (
+          <View style={styles.titleCol}>
+            <AppText variant="h1" numberOfLines={1}>{title}</AppText>
+            {subtitle ? (
+              <View style={styles.subtitleRow}>
+                <View style={[styles.onlineDot, { backgroundColor: c.success }]} />
+                <AppText variant="caption" color={c.textSecondary}>{subtitle}</AppText>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
       </View>
 
-      {showBadges ? (
-        <View style={styles.badges}>
+      <View style={styles.badges}>
+        {onHistory ? (
+          <Pressable
+            style={[styles.iconBtn, { backgroundColor: c.surfaceAlt }]}
+            onPress={onHistory}
+            hitSlop={8}
+            accessibilityRole="button"
+          >
+            <Ionicons name="time-outline" size={20} color={c.text} />
+          </Pressable>
+        ) : null}
+        {showBadges ? (
+          <>
           <View style={[styles.badge, { backgroundColor: c.surfaceAlt }]}>
             <Ionicons name="flame" size={15} color={colors.streak} />
             <AppText variant="label" color={c.text}>{streak}</AppText>
@@ -49,9 +79,15 @@ export function TopBar({
           <View style={[styles.badge, { backgroundColor: c.surfaceAlt }]}>
             <Ionicons name="sparkles" size={14} color={colors.sparks} />
             <AppText variant="label" color={c.text}>{user?.sparks ?? 0}</AppText>
+            {onAddSparks ? (
+              <Pressable onPress={onAddSparks} hitSlop={6} style={[styles.addBtn, { backgroundColor: c.primary }]}>
+                <Ionicons name="add" size={12} color={c.white} />
+              </Pressable>
+            ) : null}
           </View>
-        </View>
-      ) : null}
+          </>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -66,6 +102,9 @@ const styles = StyleSheet.create({
     minHeight: 48,
   },
   left: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexShrink: 1 },
+  titleCol: { flexShrink: 1, gap: 2 },
+  subtitleRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  onlineDot: { width: 7, height: 7, borderRadius: 4 },
   backBtn: {
     width: 36,
     height: 36,
@@ -73,7 +112,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  badges: { flexDirection: 'row', gap: spacing.sm },
+  badges: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  iconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   badge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -81,5 +127,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: 7,
     borderRadius: radius.full,
+  },
+  addBtn: {
+    width: 16,
+    height: 16,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

@@ -192,6 +192,8 @@ Controller-level: JWT. Realtime speaking companion (STT→LLM→TTS→avatar). �
 | POST `/ai/buddy/sessions/:id/turn/audio` | JWT | Дуут turn (multipart `file`, ≤2MB) | full pipeline → turn response |
 | POST `/ai/buddy/sessions/:id/turn/text` | JWT | Бичсэн turn (STT алгасна) | `{ text }` → turn response |
 | GET `/ai/buddy/sessions/:id/messages` | JWT | Яриа түүх | path `id` |
+| POST `/ai/buddy/text-session` | JWT | Бичгийн чат thread нээх + түүх (ChatGPT маягийн, апп дахин нээхэд хадгалагдана; voice-оос тусдаа). Body-оор thread сонгоно: `sessionId` (тодорхой хуучин thread), `new:true` (шинэ chat), эсвэл default (хамгийн сүүлийн) | `{ buddySlug, sessionId?, new? }` → `{ sessionId, messages: [{ id, role, content, correction, followUp, audioUrl }] }` |
+| GET `/ai/buddy/text-sessions` | JWT | Тухайн buddy-тэй хийсэн бичгийн чатны түүх (thread жагсаалт, ChatGPT-style history panel) | query `buddySlug` → `[{ sessionId, title, messageCount, updatedAt }]` |
 | GET `/ai/buddy/usage` | JWT | Энэ сарын voice/STT хэрэглээ | — |
 | GET `/ai/buddy/memory` | JWT | Buddy-гийн санах ой | — |
 | DELETE `/ai/buddy/memory` | JWT | Санах ой цэвэрлэх | — |
