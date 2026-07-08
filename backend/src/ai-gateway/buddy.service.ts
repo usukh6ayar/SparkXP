@@ -423,7 +423,7 @@ export class BuddyService {
         buffer: result.audio,
         filename: `${textHash.slice(0, 24)}.mp3`,
         mimeType: 'audio/mpeg',
-        resourceType: 'video',
+        resourceType: 'audio', // → R2 when configured, else Cloudinary
         folder: 'englishxp/ai-buddy',
         localSubdir: 'audio',
       });
