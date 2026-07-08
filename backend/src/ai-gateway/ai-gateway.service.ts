@@ -501,8 +501,7 @@ export class AiGatewayService implements OnModuleInit {
       buffer,
       filename: `${this.safeFilename(input.english)}-${Date.now()}.mp3`,
       mimeType: 'audio/mpeg',
-      // Cloudinary serves audio under its "video" resource type.
-      resourceType: 'video',
+      resourceType: 'audio', // → R2 when configured, else Cloudinary (video type)
       folder: this.config.get<string>('CLOUDINARY_AUDIO_FOLDER', 'englishxp/audio'),
       localSubdir: 'audio',
     });
@@ -547,7 +546,7 @@ export class AiGatewayService implements OnModuleInit {
       // Stable filename → stable Cloudinary public_id → overwrite on regen.
       filename: `${this.safeFilename(input.filenameBase)}.mp3`,
       mimeType: 'audio/mpeg',
-      resourceType: 'video',
+      resourceType: 'audio', // → R2 when configured, else Cloudinary (video type)
       folder:
         input.folder ??
         this.config.get<string>('CLOUDINARY_AUDIO_FOLDER', 'englishxp/audio'),
