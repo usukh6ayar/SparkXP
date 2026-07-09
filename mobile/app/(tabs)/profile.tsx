@@ -13,6 +13,8 @@ import * as usersApi from '../../src/api/users';
 import * as classesApi from '../../src/api/classes';
 import { getGamification, type Gamification } from '../../src/api/gamification';
 import { AppText } from '../../src/components/Text';
+import { AppIcon } from '../../src/components/AppIcon';
+import { type AppIconName } from '../../src/constants/appIcons';
 import { CountUp } from '../../src/components/CountUp';
 import { ProgressRing } from '../../src/components/ProgressRing';
 import { Pill } from '../../src/components/Pill';
@@ -150,18 +152,18 @@ export default function ProfileScreen() {
     earned: a.earned({ lessonsDone, quizzesDone, longestStreak, level, sparks }),
   }));
 
-  const STATS = [
-    { icon: 'flame' as IconName, value: streak, label: t('statStreak'), color: colors.streak },
-    { icon: 'diamond' as IconName, value: sparks, label: t('sparks'), color: colors.sparks },
-    { icon: 'trophy' as IconName, value: quizzesDone, label: t('statQuizzes'), color: colors.xp },
-    { icon: 'book' as IconName, value: lessonsDone, label: t('statLessons'), color: p.primaryLight },
+  const STATS: { icon: AppIconName; value: number; label: string }[] = [
+    { icon: 'streak', value: streak, label: t('statStreak') },
+    { icon: 'sparks', value: sparks, label: t('sparks') },
+    { icon: 'trophy', value: quizzesDone, label: t('statQuizzes') },
+    { icon: 'reading', value: lessonsDone, label: t('statLessons') },
   ];
 
   // Quick menu. "My info" lives in the hero Edit-profile button (Instagram-style),
   // and settings lives in the header — so neither is repeated here.
-  const QUICK: { icon: IconName; label: string; tint: { bg: string; fg: string }; onPress: () => void }[] = [
-    { icon: 'stats-chart', label: t('myProgress'), tint: tints.pink, onPress: () => router.push('/leaderboard') },
-    { icon: 'bookmark', label: t('saved'), tint: tints.green, onPress: () => router.push('/saved') },
+  const QUICK: { icon: AppIconName; label: string; tint: { bg: string; fg: string }; onPress: () => void }[] = [
+    { icon: 'stats', label: t('myProgress'), tint: tints.pink, onPress: () => router.push('/leaderboard') },
+    { icon: 'saved', label: t('saved'), tint: tints.green, onPress: () => router.push('/saved') },
     { icon: 'notifications', label: t('notifications'), tint: tints.orange, onPress: () => router.push('/notifications') },
     { icon: 'gift', label: t('inviteFriends'), tint: tints.purple, onPress: () => router.push('/invite') },
     { icon: 'time', label: t('recentlyViewed'), tint: tints.blue, onPress: soon },
@@ -190,10 +192,10 @@ export default function ProfileScreen() {
                 accessibilityRole="button"
                 accessibilityLabel={t('settings')}
               >
-                <Ionicons name="settings-outline" size={20} color={p.text} />
+                <Ionicons name="settings-outline" size={26} color={p.text} />
               </Pressable>
               <View style={styles.diamondBadge}>
-                <Ionicons name="diamond" size={16} color={colors.sparks} />
+                <AppIcon name="sparks" size={26} />
                 <AppText variant="label" color={p.text}>{sparks}</AppText>
               </View>
             </View>
@@ -241,7 +243,7 @@ export default function ProfileScreen() {
               </View>
               {/* Exact XP numbers (the ring around the avatar shows progress). */}
               <View style={styles.xpNumRow}>
-                <Ionicons name="flash" size={13} color={colors.xp} />
+                <AppIcon name="xp" size={17} />
                 <AppText variant="caption" color={p.textMuted}>{levelXp} / {levelTarget} XP</AppText>
               </View>
             </View>
@@ -257,7 +259,7 @@ export default function ProfileScreen() {
           <View style={styles.statsCard}>
             {STATS.map((s, i) => (
               <View key={s.label} style={[styles.statCell, i > 0 && styles.statCellBorder]}>
-                <Ionicons name={s.icon} size={22} color={s.color} />
+                <AppIcon name={s.icon} size={40} />
                 <CountUp value={s.value} variant="h3" color={p.text} style={styles.statValue} />
                 <AppText variant="caption" color={p.textMuted} center numberOfLines={2}>{s.label}</AppText>
               </View>
@@ -328,7 +330,7 @@ export default function ProfileScreen() {
                 onPress={q.onPress}
               >
                 <View style={[styles.quickIcon, { backgroundColor: alpha(q.tint.fg, 0.16) }]}>
-                  <Ionicons name={q.icon} size={20} color={q.tint.fg} />
+                  <AppIcon name={q.icon} size={42} />
                 </View>
                 <AppText variant="bodyStrong" color={p.text} numberOfLines={1} style={{ flex: 1 }}>{q.label}</AppText>
               </Pressable>
@@ -413,7 +415,7 @@ const makeStyles = (p: PremiumPalette, isDark: boolean) => {
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   iconBtn: {
-    width: 40, height: 40, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center',
+    width: 46, height: 46, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center',
     backgroundColor: p.card, ...cardEdge,
   },
   diamondBadge: {
@@ -512,7 +514,7 @@ const makeStyles = (p: PremiumPalette, isDark: boolean) => {
     width: '48%', flexGrow: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
     backgroundColor: p.card, borderRadius: radius.lg, padding: spacing.md, ...cardEdge,
   },
-  quickIcon: { width: 38, height: 38, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  quickIcon: { width: 50, height: 50, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
 
   // Premium
   premium: {

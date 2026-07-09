@@ -19,6 +19,8 @@ import { tf } from '../../src/i18n';
 import { getLessons, type Lesson } from '../../src/api/lessons';
 import { getGamification, type Gamification } from '../../src/api/gamification';
 import { AppText } from '../../src/components/Text';
+import { AppIcon } from '../../src/components/AppIcon';
+import { type AppIconName } from '../../src/constants/appIcons';
 import { islandMap } from '../../src/theme/theme';
 
 /**
@@ -226,9 +228,9 @@ export default function LessonsScreen() {
               </View>
 
               <View style={styles.stats}>
-                <StatPill icon="flame" tint={islandMap.streak} value={String(streak)} label={t('statStreak')} />
-                <StatPill icon="diamond" tint={BADGE.blue} value={fmt(gems)} label={t('sparks')} />
-                <StatPill icon="flash" tint={SKY.gold} value={fmt(xp)} label={t('xpPoints')} />
+                <StatPill icon="streak" tint={islandMap.streak} value={String(streak)} label={t('statStreak')} />
+                <StatPill icon="sparks" tint={BADGE.blue} value={fmt(gems)} label={t('sparks')} />
+                <StatPill icon="xp" tint={SKY.gold} value={fmt(xp)} label={t('xpPoints')} />
               </View>
             </View>
           </View>
@@ -306,7 +308,7 @@ function StatPill({
   value,
   label,
 }: {
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: AppIconName;
   tint: string;
   value: string;
   label: string;
@@ -314,7 +316,7 @@ function StatPill({
   return (
     <View style={styles.pill}>
       <View style={[styles.pillIcon, { backgroundColor: `${tint}26` }]}>
-        <Ionicons name={icon} size={16} color={tint} />
+        <AppIcon name={icon} size={30} />
       </View>
       <View style={{ flex: 1 }}>
         <AppText variant="bodyStrong" color="#FFFFFF" numberOfLines={1}>{value}</AppText>
@@ -385,7 +387,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: SKY.cardBorder,
   },
-  pillIcon: { width: 30, height: 30, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
+  pillIcon: { width: 38, height: 38, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
 
   scene: { position: 'relative' },
   island: { width: '100%', height: '100%' },

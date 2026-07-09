@@ -141,7 +141,7 @@ export function BuddyChatSheet({
           accessibilityRole="button"
           accessibilityLabel={t('chatHistoryTitle')}
         >
-          <Ionicons name="time-outline" size={20} color={c.text} />
+          <Ionicons name="time-outline" size={24} color={c.text} />
         </Pressable>
       </View>
 
@@ -195,7 +195,7 @@ const ChatInputBar = memo(function ChatInputBar({
         accessibilityRole="button"
         accessibilityLabel={t('send')}
       >
-        <Ionicons name="arrow-up" size={20} color={c.white} />
+        <Ionicons name="arrow-up" size={24} color={c.white} />
       </Pressable>
     </View>
   );

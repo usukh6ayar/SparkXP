@@ -4,6 +4,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { AppIcon } from '../../src/components/AppIcon';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../../src/auth/AuthContext';
@@ -223,7 +224,7 @@ export default function LessonDetailScreen() {
               {t('lessonLockedBodyPrefix')} {lesson.priceSparks} {t('lessonLockedBodySuffix')}
             </AppText>
             <View style={styles.balance}>
-              <Ionicons name="diamond" size={15} color={c.sparks} />
+              <AppIcon name="sparks" size={16} />
               <AppText variant="bodyStrong" color={c.sparks}>{t('balanceLabel')}: {user?.sparks ?? 0}</AppText>
             </View>
             <Button

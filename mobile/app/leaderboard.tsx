@@ -3,6 +3,7 @@ import { View, StyleSheet, ScrollView, Pressable, RefreshControl } from 'react-n
 import Animated, { FadeInDown, FadeInUp, FadeOutDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { AppIcon } from '../src/components/AppIcon';
 import { haptics } from '../src/lib/haptics';
 import { useAuth } from '../src/auth/AuthContext';
 import { getLeaderboard, type Period, type Scope, type LeaderboardResult } from '../src/api/leaderboard';
@@ -99,7 +100,7 @@ export default function LeaderboardScreen() {
               <AppText variant="h3" color={colors.white} numberOfLines={1}>{user?.fullName}</AppText>
             </View>
             <View style={styles.meXp}>
-              <Ionicons name="flash" size={14} color={colors.xp} />
+              <AppIcon name="xp" size={15} />
               <AppText variant="bodyStrong" color={colors.white}>{data?.me?.xp ?? 0}</AppText>
             </View>
           </View>
@@ -148,7 +149,7 @@ export default function LeaderboardScreen() {
             {user?.fullName} {t('youSuffix')}
           </AppText>
           <View style={styles.selfXp}>
-            <Ionicons name="flash" size={13} color={colors.xp} />
+            <AppIcon name="xp" size={14} />
             <AppText variant="bodyStrong" color={colors.white}>{data.me.xp ?? 0}</AppText>
           </View>
         </Animated.View>

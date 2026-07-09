@@ -287,12 +287,12 @@ export function BuddyVoiceStage({
       {/* Type-to-chat handoff → the separate text-only chat screen. */}
       <PressableScale onPress={onOpenText} style={[styles.typeBar, { backgroundColor: c.surface, borderColor: c.border }, elevation.sm]}>
         <View style={[styles.typeBarLead, { backgroundColor: c.primarySoft }]}>
-          <Ionicons name="create-outline" size={18} color={c.primary} />
+          <Ionicons name="create-outline" size={24} color={c.primary} />
         </View>
         <AppText variant="bodyStrong" color={c.text} style={styles.typeBarText}>{t('buddyTypeToChat')}</AppText>
         <View style={styles.typeBarIcon}>
           <LinearGradient colors={staticColors.primaryGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
-          <Ionicons name="arrow-forward" size={16} color={c.white} />
+          <Ionicons name="arrow-forward" size={18} color={c.white} />
         </View>
       </PressableScale>
     </View>
