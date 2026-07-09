@@ -3,8 +3,6 @@ import { View, Pressable, Image, StyleSheet } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withSequence, withSpring } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { BlurView } from "expo-blur";
-import { LinearGradient } from "expo-linear-gradient";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { colors, spacing, type AppColors } from "../theme/theme";
 import { useSettings } from "../settings/SettingsContext";
@@ -48,31 +46,14 @@ export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   const isDark = theme === "dark";
   const TAB_META = tabMeta(t);
 
-  // Glass material per theme — kept white-leaning for the "liquid glass" feel.
-  const glassFill = isDark ? "rgba(30,26,58,0.45)" : "rgba(255,255,255,0.42)";
-  const glassBorder = isDark ? "rgba(255,255,255,0.20)" : "rgba(255,255,255,0.65)";
-  const sheen = isDark
-    ? (["rgba(255,255,255,0.22)", "rgba(255,255,255,0.04)", "rgba(255,255,255,0)"] as const)
-    : (["rgba(255,255,255,0.75)", "rgba(255,255,255,0.18)", "rgba(255,255,255,0)"] as const);
   const inactive = isDark ? "rgba(233,229,255,0.62)" : "rgba(60,54,90,0.55)";
 
   return (
     <View style={[styles.wrap, { backgroundColor: c.background }]}>
-      <BlurView
-        intensity={isDark ? 55 : 75}
-        tint={isDark ? "dark" : "light"}
-        style={[styles.bar, { paddingBottom: insets.bottom || spacing.sm, borderTopColor: glassBorder }]}
+      {/* Solid bar — same background as the screen, with a top border. */}
+      <View
+        style={[styles.bar, { backgroundColor: c.background, paddingBottom: insets.bottom || spacing.sm, borderTopColor: c.border }]}
       >
-        {/* Frosted glass fill */}
-        <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: glassFill }]} />
-        {/* Top light-reflection sheen (refraction highlight) */}
-        <LinearGradient
-          pointerEvents="none"
-          colors={sheen}
-          locations={[0, 0.5, 1]}
-          style={StyleSheet.absoluteFill}
-        />
-
           {state.routes.map((route, index) => {
             const meta = TAB_META[route.name];
             if (!meta) return null; // hidden routes
@@ -101,7 +82,7 @@ export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
               />
             );
           })}
-      </BlurView>
+      </View>
     </View>
   );
 }
