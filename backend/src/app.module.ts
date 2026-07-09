@@ -27,6 +27,7 @@ import { DictionaryModule } from './dictionary/dictionary.module';
 import { ReadingModule } from './reading/reading.module';
 import { IdiomsModule } from './idioms/idioms.module';
 import { ReferralsModule } from './referrals/referrals.module';
+import { AchievementsModule } from './achievements/achievements.module';
 
 @Module({
   imports: [
@@ -61,6 +62,7 @@ import { ReferralsModule } from './referrals/referrals.module';
     ReadingModule,
     IdiomsModule,
     ReferralsModule,
+    AchievementsModule,
   ],
 })
 export class AppModule {}

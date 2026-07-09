@@ -319,6 +319,16 @@ Controller-level: admin, super_admin.
 (`SparksSource.REFERRAL`, `/payments/:id/confirm` дотор). Урих код нь username-ээр
 ч ажиллана. Шинэ prod багана/enum: migration `AddReferralSystem1782500000000`.
 
+## 22. Achievements (trophy) — `/api/achievements`
+
+| Method + Path | Auth | Зорилго | Params / Body |
+| --- | --- | --- | --- |
+| GET `/achievements` | JWT | Trophy catalog (100 badge, 10 тир, Cloudflare R2 зурагтай) + өөрийн авсан төлөв → `{ tiers[], total, earned, trophies: [{slug, tier, name, image, earned}] }` | — |
+
+Catalog нь `src/achievements/catalog.ts` (R2-аас generate). `earned` = `User.trophies`
+(jsonb slug list) дотор байгаа эсэх. **Award логик тусдаа** (одоо зөвхөн харагдац).
+⚠️ Зураг тус бүр ~2MB — mobile-д resize (Cloudflare Image Transformations) хэрэгтэй.
+
 ---
 
 ## Frontend → Backend зураглал
