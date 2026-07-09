@@ -1,6 +1,5 @@
-import { useEffect } from "react";
 import { View, Pressable, Image, StyleSheet } from "react-native";
-import Animated, { useAnimatedStyle, useSharedValue, withSequence, withSpring } from "react-native-reanimated";
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
@@ -107,19 +106,12 @@ function TabButton({
   c: AppColors;
   tint: string;
 }) {
-  const scale = useSharedValue(focused ? 1.05 : 1);
+  const scale = useSharedValue(1);
   const reduce = useReduceMotion();
 
-  // Duolingo-style: focused icon rests a touch larger with a springy pop.
-  useEffect(() => {
-    if (reduce) {
-      scale.value = focused ? 1.05 : 1;
-      return;
-    }
-    scale.value = focused
-      ? withSequence(withSpring(1.16, SPRING), withSpring(1.05, SPRING))
-      : withSpring(1, SPRING);
-  }, [focused, reduce]);
+  // No size change on selection — only a small press-down shrink for feedback.
+  const onPressIn = () => { if (!reduce) scale.value = withSpring(0.9, SPRING); };
+  const onPressOut = () => { scale.value = withSpring(1, SPRING); };
 
   const iconStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
   const chipStyle = iconStyle;
@@ -134,7 +126,7 @@ function TabButton({
   // Center AI buddy = big fox avatar disc (raised, purple ring).
   if (meta.image) {
     return (
-      <Pressable style={styles.tab} onPress={onPress} {...a11y}>
+      <Pressable style={styles.tab} onPress={onPress} onPressIn={onPressIn} onPressOut={onPressOut} {...a11y}>
         <Animated.View
           style={[
             styles.foxBig,
@@ -152,7 +144,7 @@ function TabButton({
   // aren't tinted; the active glowing pill + magnify + lift signal focus.
   if (meta.png) {
     return (
-      <Pressable style={styles.tab} onPress={onPress} {...a11y}>
+      <Pressable style={styles.tab} onPress={onPress} onPressIn={onPressIn} onPressOut={onPressOut} {...a11y}>
         <Animated.View style={[styles.chip, focused && styles.chipActive, chipStyle]}>
           <Image
             source={meta.png}
@@ -165,9 +157,9 @@ function TabButton({
   }
 
   return (
-    <Pressable style={styles.tab} onPress={onPress} {...a11y}>
+    <Pressable style={styles.tab} onPress={onPress} onPressIn={onPressIn} onPressOut={onPressOut} {...a11y}>
       <Animated.View style={[styles.chip, focused && styles.chipActive, chipStyle]}>
-        <Ionicons name={focused ? meta.icon! : meta.iconOutline!} size={focused ? 30 : 27} color={tint} />
+        <Ionicons name={focused ? meta.icon! : meta.iconOutline!} size={28} color={tint} />
       </Animated.View>
     </Pressable>
   );
