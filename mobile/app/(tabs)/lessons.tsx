@@ -185,34 +185,27 @@ export default function LessonsScreen() {
         colors={isLight ? LIGHT_SKY.grad : ['#150F38', '#0E0A2A', '#0E0A2A']}
         style={StyleSheet.absoluteFill}
       />
+      {/* THE sky — one fixed backdrop behind the header AND the map. Because the
+          header and the scrolling map both float over this single image (neither
+          draws its own sky), there is no seam/line between them, and pull-to-
+          refresh overscroll simply reveals more of the same continuous sky. The
+          map scrolls over it as parallax. */}
+      <Image source={bgImg} style={[styles.headerSky, { width: sceneW, height: sceneH, top: -sceneH * 0.12 }]} resizeMode="cover" />
       <View style={styles.safe}>
-        <ScrollView
-          ref={scrollRef}
-          contentContainerStyle={styles.scroll}
-          showsVerticalScrollIndicator={false}
-          onContentSizeChange={(_w, h) => {
-            // Start at the bottom island (A1) the first time the map lays out.
-            if (!didInitialScroll.current && h > 0) {
-              didInitialScroll.current = true;
-              scrollRef.current?.scrollToEnd({ animated: false });
-            }
-          }}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={SKY.gold} />
-          }
-        >
-          {/* Header + stats — backed by the real starry sky so it blends with
-              the scene (no flat block). The sky image is offset to a star field
-              below the galaxy, which stays unique to the scene below. */}
-          <View style={styles.top}>
-            {/* Backdrop sky behind the header (dark=starry, light=bright sky).
-                A theme-tuned gradient overlay keeps the header text readable. */}
-            <Image source={bgImg} style={[styles.headerSky, { width: sceneW, height: sceneH, top: -sceneH * 0.12 }]} resizeMode="cover" />
+        {/* STICKY header — pinned above the scrolling map (Apple/Duolingo-style)
+            so the title, subtitle and stats (streak / gems / XP) stay visible
+            while only the world map below scrolls. Backed by the starry sky
+            (clipped by `top`'s overflow:hidden) so its backdrop stays fixed. */}
+        <View style={styles.top}>
+            {/* The header has NO sky of its own — it floats over the single fixed
+                backdrop sky (below), so there's no seam where it meets the map.
+                This theme-tuned gradient only tints the top for text readability
+                and fades to transparent so the header melts into the sky. */}
             <LinearGradient
               colors={
                 isLight
                   ? ['rgba(255,255,255,0.35)', 'rgba(255,255,255,0.12)', 'rgba(199,228,251,0.0)']
-                  : ['rgba(14,10,42,0.55)', 'rgba(14,10,42,0.35)', 'rgba(14,10,42,0.6)']
+                  : ['rgba(14,10,42,0.60)', 'rgba(14,10,42,0.30)', 'rgba(14,10,42,0.0)']
               }
               style={StyleSheet.absoluteFill}
             />
@@ -233,12 +226,28 @@ export default function LessonsScreen() {
                 <StatPill icon="xp" tint={SKY.gold} value={fmt(xp)} label={t('xpPoints')} />
               </View>
             </View>
-          </View>
+        </View>
 
-          {/* Map scene: starry-sky backdrop + 6 floating islands + labels */}
+        {/* Only the world map scrolls — the header above stays pinned. */}
+        <ScrollView
+          ref={scrollRef}
+          contentContainerStyle={styles.scroll}
+          showsVerticalScrollIndicator={false}
+          onContentSizeChange={(_w, h) => {
+            // Start at the bottom island (A1) the first time the map lays out.
+            if (!didInitialScroll.current && h > 0) {
+              didInitialScroll.current = true;
+              scrollRef.current?.scrollToEnd({ animated: false });
+            }
+          }}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={SKY.gold} />
+          }
+        >
+          {/* Map scene: the islands + trail float over the single fixed sky
+              backdrop (rendered once at root), so the sky stays put and scrolls
+              as parallax while the map moves — no seam with the header. */}
           <View style={[styles.scene, { width: sceneW, height: sceneH }]}>
-            <Image source={bgImg} style={StyleSheet.absoluteFill} resizeMode="cover" />
-
             {/* Golden winding trail (line.png) threading the islands, behind them.
                 Span (top / height) is tuned to reach from the first to the last
                 island — adjust the 0.06 / 0.84 fractions if it drifts. */}

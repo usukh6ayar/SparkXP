@@ -37,7 +37,8 @@
     "react-native-svg": "15.12.1",
     "react-native-worklets": "0.5.1",
     "three": "^0.169.0",
-    "three-stdlib": "^2.36.1"
+    "three-stdlib": "^2.36.1",
+    "upng-js": "^2.1.0"
   },
   "devDependencies": {
     "@types/react": "~19.1.10",

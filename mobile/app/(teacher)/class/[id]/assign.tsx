@@ -9,6 +9,7 @@ import type { AssignmentType } from '../../../../src/api/assignments';
 import { getLessons } from '../../../../src/api/lessons';
 import { getQuizzes } from '../../../../src/api/quizzes';
 import { ApiError } from '../../../../src/api/client';
+import { haptics } from '../../../../src/lib/haptics';
 import { t, type TranslationKey } from '../../../../src/i18n';
 import { AppText } from '../../../../src/components/Text';
 import { SelectField } from '../../../../src/components/SelectField';
@@ -84,6 +85,7 @@ export default function AssignScreen() {
         { classId: id, type, targetId: selected.id, dueAt: computeDueAt() },
         token,
       );
+      haptics.success();
       router.back(); // class detail refetches on focus
     } catch (e) {
       setError(e instanceof ApiError ? e.message : t('errorGeneric'));
@@ -126,6 +128,11 @@ export default function AssignScreen() {
           <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.xl }} />
         ) : (
           <>
+            {list.length === 0 ? (
+              <AppText variant="caption" color={colors.textSecondary} style={{ marginBottom: spacing.sm }}>
+                {t('noContentToAssign')}
+              </AppText>
+            ) : null}
             <SelectField
               label={t('selectContent')}
               placeholder={t('selectContent')}
