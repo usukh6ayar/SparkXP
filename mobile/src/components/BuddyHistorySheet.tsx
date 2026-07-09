@@ -81,7 +81,7 @@ export function BuddyHistorySheet({
       </View>
 
       <Pressable style={[styles.newChatBtn, { borderColor: c.primary }]} onPress={newChat}>
-        <Ionicons name="add" size={18} color={c.primary} />
+        <Ionicons name="add" size={22} color={c.primary} />
         <AppText variant="label" color={c.primary}>{t('chatNewChat')}</AppText>
       </Pressable>
 

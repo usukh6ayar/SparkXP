@@ -32,6 +32,8 @@ import { getLastLesson, type LastLesson } from "../../src/lib/lastLesson";
 import { useUnreadNotifications } from "../../src/lib/useUnreadNotifications";
 import { useDictionary } from "../../src/components/DictionaryProvider";
 import { AppText } from "../../src/components/Text";
+import { AppIcon } from "../../src/components/AppIcon";
+import { type AppIconName } from "../../src/constants/appIcons";
 import { IconButton } from "../../src/components/IconButton";
 import { Skeleton } from "../../src/components/Skeleton";
 import { useColors, useSettings } from "../../src/settings/SettingsContext";
@@ -90,12 +92,14 @@ const TASKS: {
   key: string;
   labelKey: TranslationKey;
   icon: IconName;
+  // Brand 3D icon when one exists (speaking has no PNG → falls back to `icon`).
+  appIcon?: AppIconName;
   tint: { bg: string; fg: string };
 }[] = [
-  { key: "reading", labelKey: "catReading", icon: "book", tint: tints.green },
-  { key: "listening", labelKey: "catListening", icon: "headset", tint: tints.blue },
-  { key: "speaking", labelKey: "catSpeaking", icon: "mic", tint: tints.pink },
-  { key: "writing", labelKey: "catWriting", icon: "create", tint: tints.orange },
+  { key: "reading", labelKey: "catReading", icon: "book", appIcon: "reading", tint: tints.green },
+  { key: "listening", labelKey: "catListening", icon: "headset", appIcon: "listening", tint: tints.blue },
+  { key: "speaking", labelKey: "catSpeaking", icon: "mic", appIcon: "speaking", tint: tints.pink },
+  { key: "writing", labelKey: "catWriting", icon: "create", appIcon: "writing", tint: tints.orange },
 ];
 
 /**
@@ -103,7 +107,7 @@ const TASKS: {
  * hero feels "on fire" instead of static. Freezes when streak is 0 or the user
  * has Reduce Motion enabled.
  */
-function StreakFlame({ streak, color }: { streak: number; color: string }) {
+function StreakFlame({ streak }: { streak: number }) {
   const scale = useSharedValue(1);
   const reduce = useReduceMotion();
 
@@ -126,7 +130,7 @@ function StreakFlame({ streak, color }: { streak: number; color: string }) {
 
   return (
     <Animated.View style={style}>
-      <Ionicons name="flame" size={25} color={color} />
+      <AppIcon name="streak" size={32} />
     </Animated.View>
   );
 }
@@ -315,7 +319,7 @@ export default function HomeScreen() {
             {/* Streak / gem / XP badges over the scene */}
             <View style={styles.heroTop}>
               <View style={styles.streakBadge}>
-                <StreakFlame streak={streak} color={c.streak} />
+                <StreakFlame streak={streak} />
                 <AppText variant="h2" color={c.white}>{streak}</AppText>
                 <View>
                   <AppText variant="caption" color={c.textOnDark}>
@@ -328,13 +332,13 @@ export default function HomeScreen() {
               </View>
               <View style={styles.heroPillCol}>
                 <View style={styles.heroPill}>
-                  <Ionicons name="diamond" size={25} color={c.sparks} />
+                  <AppIcon name="sparks" size={30} />
                   <AppText variant="label" color={c.white}>
                     {sparks} {t("sparks")}
                   </AppText>
                 </View>
                 <View style={styles.heroPill}>
-                  <Ionicons name="flash" size={25} color={c.xp} />
+                  <AppIcon name="xp" size={30} />
                   <AppText variant="label" color={c.white}>
                     {xp.toLocaleString()} XP
                   </AppText>
@@ -461,15 +465,19 @@ export default function HomeScreen() {
                         onPress={() => router.push(task.key === 'reading' ? '/reading' : `/skill/${task.key}`)}
                       >
                         <View style={[styles.taskIcon, { backgroundColor: task.tint.bg, borderColor: task.tint.fg }]}>
-                          <Ionicons name={task.icon} size={26} color={task.tint.fg} />
+                          {task.appIcon ? (
+                            <AppIcon name={task.appIcon} size={42} />
+                          ) : (
+                            <Ionicons name={task.icon} size={32} color={task.tint.fg} />
+                          )}
                         </View>
                         <AppText variant="label" numberOfLines={1}>
                           {t(task.labelKey)}
                         </AppText>
                         <View style={styles.taskCount}>
-                          <Ionicons name="ribbon" size={12} color={c.xp} />
-                          <AppText variant="caption">
-                            {tf("exerciseCount", { n: count })}
+                          <Ionicons name="ribbon" size={11} color={c.xp} />
+                          <AppText variant="caption" numberOfLines={1}>
+                            {count}
                           </AppText>
                         </View>
                       </Pressable>
@@ -651,21 +659,22 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
     justifyContent: "space-between",
     rowGap: spacing.md,
   },
-  // 2×2 tiles — bigger, thumb-friendly, and no cramped 23% columns on small
-  // screens. The wrapper holds the width so the entrance animation is stable.
-  taskWrap: { width: "48%" },
+  // 4 tiles in a single row. The wrapper holds the width so the entrance
+  // animation is stable; 23% × 4 + space-between leaves even gaps.
+  taskWrap: { width: "23%" },
   task: {
     width: "100%",
     borderRadius: radius.lg,
-    paddingVertical: spacing.lg,
+    paddingVertical: spacing.md,
+    paddingHorizontal: 4,
     alignItems: "center",
-    gap: spacing.sm,
+    gap: spacing.xs,
     backgroundColor: c.surface, // dark tile so the colored icon chip pops
     ...(elevation.sm as object),
   },
   taskIcon: {
-    width: 44,
-    height: 44,
+    width: 50,
+    height: 50,
     borderRadius: radius.md,
     borderWidth: 1,
     alignItems: "center",

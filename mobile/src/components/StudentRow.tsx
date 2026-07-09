@@ -1,5 +1,5 @@
 import { View, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { AppIcon } from './AppIcon';
 import { AppText } from './Text';
 import { PersonRow } from './PersonRow';
 import { useColors } from '../settings/SettingsContext';
@@ -39,7 +39,7 @@ export function StudentRow({
       }
       right={
         <View style={styles.xp}>
-          <Ionicons name="flash" size={13} color={c.xp} />
+          <AppIcon name="xp" size={14} />
           <AppText variant="label" color={c.textSecondary}>{xp}</AppText>
         </View>
       }

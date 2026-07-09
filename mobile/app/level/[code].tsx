@@ -14,6 +14,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { AppIcon } from '../../src/components/AppIcon';
 import { useAuth } from '../../src/auth/AuthContext';
 import { useSettings } from '../../src/settings/SettingsContext';
 import { getLessons, type Lesson } from '../../src/api/lessons';
@@ -313,11 +314,11 @@ export default function LevelScreen() {
           </Pressable>
           <View style={{ flex: 1 }} />
           <View style={[styles.statPill, { backgroundColor: C.card, borderColor: C.cardBorder }]}>
-            <Ionicons name="flame" size={16} color={islandMap.streak} />
+            <AppIcon name="streak" size={16} />
             <AppText variant="bodyStrong" color={C.text}>{streak}</AppText>
           </View>
           <View style={[styles.statPill, { backgroundColor: C.card, borderColor: C.cardBorder }]}>
-            <Ionicons name="diamond" size={16} color={islandMap.blue} />
+            <AppIcon name="sparks" size={16} />
             <AppText variant="bodyStrong" color={C.text}>{gems}</AppText>
             <View style={[styles.plusBtn, { backgroundColor: C.plus }]}>
               <Ionicons name="add" size={14} color={C.backIcon} />

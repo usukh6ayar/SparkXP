@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { View, StyleSheet, Pressable, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import { AppIcon } from "./AppIcon";
 import { useAuth } from "../auth/AuthContext";
 import { getMe } from "../api/auth";
 import {
@@ -127,11 +127,11 @@ export function MatchGame() {
           </AppText>
           <View style={styles.rewards}>
             <View style={[styles.rewardPill, { backgroundColor: colors.cream }]}>
-              <Ionicons name="flash" size={16} color={colors.xp} />
+              <AppIcon name="xp" size={16} />
               <AppText variant="label" color={colors.xp}>+{result.xpAwarded} XP</AppText>
             </View>
             <View style={[styles.rewardPill, { backgroundColor: colors.primarySoft }]}>
-              <Ionicons name="diamond" size={16} color={colors.primary} />
+              <AppIcon name="sparks" size={16} />
               <AppText variant="label" color={colors.primary}>+{result.sparksAwarded}</AppText>
             </View>
           </View>

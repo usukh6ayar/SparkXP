@@ -3,7 +3,8 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../auth/AuthContext';
 import { AppText } from './Text';
-import { colors, spacing, radius } from '../theme/theme';
+import { AppIcon } from './AppIcon';
+import { spacing, radius } from '../theme/theme';
 import { useColors } from '../settings/SettingsContext';
 
 /**
@@ -73,11 +74,11 @@ export function TopBar({
         {showBadges ? (
           <>
           <View style={[styles.badge, { backgroundColor: c.surfaceAlt }]}>
-            <Ionicons name="flame" size={15} color={colors.streak} />
+            <AppIcon name="streak" size={22} />
             <AppText variant="label" color={c.text}>{streak}</AppText>
           </View>
           <View style={[styles.badge, { backgroundColor: c.surfaceAlt }]}>
-            <Ionicons name="sparkles" size={14} color={colors.sparks} />
+            <AppIcon name="sparks" size={21} />
             <AppText variant="label" color={c.text}>{user?.sparks ?? 0}</AppText>
             {onAddSparks ? (
               <Pressable onPress={onAddSparks} hitSlop={6} style={[styles.addBtn, { backgroundColor: c.primary }]}>

@@ -3,6 +3,7 @@ import { View, ScrollView, Pressable, StyleSheet, ActivityIndicator, Alert, Refr
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { AppIcon } from '../../../src/components/AppIcon';
 import { useAuth } from '../../../src/auth/AuthContext';
 import * as classesApi from '../../../src/api/classes';
 import * as assignmentsApi from '../../../src/api/assignments';
@@ -264,12 +265,12 @@ export default function ClassDetailScreen() {
                 </View>
                 <View style={styles.statRow}>
                   <View style={styles.statBox}>
-                    <Ionicons name="flash" size={18} color={colors.xp} />
+                    <AppIcon name="xp" size={18} />
                     <AppText variant="h3">{selectedStudent.xp}</AppText>
                     <AppText variant="caption" color={colors.textSecondary}>{t('xp')}</AppText>
                   </View>
                   <View style={styles.statBox}>
-                    <Ionicons name="diamond" size={18} color={colors.sparks} />
+                    <AppIcon name="sparks" size={18} />
                     <AppText variant="h3">{selectedStudent.sparks}</AppText>
                     <AppText variant="caption" color={colors.textSecondary}>{t('sparks')}</AppText>
                   </View>

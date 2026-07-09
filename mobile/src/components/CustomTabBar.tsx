@@ -8,6 +8,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { colors, spacing, type AppColors } from "../theme/theme";
 import { useSettings } from "../settings/SettingsContext";
+import { appIcons } from "../constants/appIcons";
 import { haptics } from "../lib/haptics";
 import { SPRING, useReduceMotion } from "../lib/motion";
 
@@ -19,18 +20,19 @@ const PURPLE = colors.primary; // #6C3BFF SparkXP accent
 type IconName = keyof typeof Ionicons.glyphMap;
 
 type TabMeta =
-  | { icon: IconName; iconOutline: IconName; label: string; image?: undefined }
-  | { image: number; label: string; icon?: undefined; iconOutline?: undefined };
+  | { icon: IconName; iconOutline: IconName; label: string; image?: undefined; png?: undefined }
+  | { image: number; label: string; icon?: undefined; iconOutline?: undefined; png?: undefined }
+  | { png: number; label: string; icon?: undefined; iconOutline?: undefined; image?: undefined };
 
-/** Icon (filled + outline) + label per tab route. The `chat` route shows the
- *  fox AI-buddy image instead of a vector glyph. */
+/** Icon + label per tab route. Most tabs use a brand 3D PNG icon (appIcons);
+ *  `chat` shows the fox AI-buddy image. */
 function tabMeta(t: (key: import("../i18n").TranslationKey) => string): Record<string, TabMeta> {
   return {
-    index: { icon: "home", iconOutline: "home-outline", label: t("home") },
-    lessons: { icon: "book", iconOutline: "book-outline", label: t("tabLessons") },
+    index: { png: appIcons.home, label: t("home") },
+    lessons: { png: appIcons.reading, label: t("tabLessons") },
     chat: { image: buddy, label: t("aiBuddyShort") },
-    soril: { icon: "trophy", iconOutline: "trophy-outline", label: t("quiz") },
-    profile: { icon: "person", iconOutline: "person-outline", label: t("profile") },
+    soril: { png: appIcons.trophy, label: t("quiz") },
+    profile: { png: appIcons.profile, label: t("profile") },
   };
 }
 
@@ -153,11 +155,31 @@ function TabButton({
     );
   }
 
+  // Brand 3D PNG icon (lessons/soril/profile) — sits in the same chip as the
+  // vector tabs. PNGs are full-colour so they aren't tinted; the active chip
+  // background + slight magnify still signal focus. Inactive is dimmed a touch.
+  if (meta.png) {
+    return (
+      <Pressable style={styles.tab} onPress={onPress}>
+        <Animated.View style={[styles.chip, focused && styles.chipActive, animatedStyle]}>
+          <Image
+            source={meta.png}
+            style={[styles.pngIcon, !focused && styles.pngIconInactive]}
+            resizeMode="contain"
+          />
+        </Animated.View>
+        <Text style={[styles.label, { color: tint }, focused && styles.labelActive]} numberOfLines={1}>
+          {meta.label}
+        </Text>
+      </Pressable>
+    );
+  }
+
   return (
     <Pressable style={styles.tab} onPress={onPress}>
       {/* Active = purple glass chip; icon slightly magnified */}
       <Animated.View style={[styles.chip, focused && styles.chipActive, animatedStyle]}>
-        <Ionicons name={focused ? meta.icon! : meta.iconOutline!} size={focused ? 26 : 23} color={tint} />
+        <Ionicons name={focused ? meta.icon! : meta.iconOutline!} size={focused ? 30 : 27} color={tint} />
       </Animated.View>
       <Text style={[styles.label, { color: tint }, focused && styles.labelActive]} numberOfLines={1}>
         {meta.label}
@@ -188,11 +210,15 @@ const styles = StyleSheet.create({
   },
   fill: { borderRadius: GLASS_RADIUS, borderWidth: StyleSheet.hairlineWidth },
   tab: { flex: 1, alignItems: "center", gap: 2, paddingVertical: 2 },
+  // Brand 3D PNG tab icon — a touch larger than the vector glyphs since the 3D
+  // art carries transparent padding, so it reads smaller at the same box size.
+  pngIcon: { width: 40, height: 40 },
+  pngIconInactive: { opacity: 0.6 },
   // Icon holder — grows into a purple glass chip when active.
   chip: {
-    height: 34,
-    minWidth: 34,
-    borderRadius: 18,
+    height: 40,
+    minWidth: 40,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 6,

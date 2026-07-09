@@ -167,7 +167,7 @@ export default function SorilScreen() {
         >
           <View style={styles.heroBody}>
             <View style={styles.heroPill}>
-              <Ionicons name="flame" size={12} color={c.streak} />
+              <AppIcon name="streak" size={14} />
               <AppText variant="overline" color={c.white}>
                 {t("dailyChallenge")}
               </AppText>

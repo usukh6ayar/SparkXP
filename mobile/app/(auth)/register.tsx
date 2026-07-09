@@ -3,6 +3,7 @@ import { View, Image, Pressable, StyleSheet } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { AppIcon } from '../../src/components/AppIcon';
 import { useAuth } from '../../src/auth/AuthContext';
 import { ApiError } from '../../src/api/client';
 import { haptics } from '../../src/lib/haptics';
@@ -240,7 +241,7 @@ export default function RegisterScreen() {
 
           {referral ? (
             <View style={styles.referralChip}>
-              <Ionicons name="gift" size={16} color={colors.primary} />
+              <AppIcon name="gift" size={16} />
               <AppText variant="caption" color={colors.text} style={{ flex: 1 }}>
                 {t('invitedByCode')}: <AppText variant="label" color={colors.primary}>{referral}</AppText>
               </AppText>

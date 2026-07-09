@@ -3,6 +3,7 @@ import { View, StyleSheet, Dimensions, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { AppIcon } from '../src/components/AppIcon';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   interpolate,
@@ -267,7 +268,7 @@ export default function ReviewFlashcardsScreen() {
           {total > 0 && !done ? <AppText variant="h3">{Math.min(index + 1, total)} / {total}</AppText> : null}
         </View>
         <View style={styles.streakPill}>
-          <Ionicons name="flame" size={15} color={c.streak} />
+          <AppIcon name="streak" size={16} />
           <AppText variant="label">{streak}</AppText>
         </View>
       </View>

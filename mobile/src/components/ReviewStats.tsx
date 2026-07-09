@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { AppIcon } from './AppIcon';
 import { AppText } from './Text';
 import { Button } from './Button';
 import { t } from '../i18n';
@@ -39,13 +40,13 @@ export function ReviewStats({ known, review, xpEarned, streak, onContinue }: Pro
         style={styles.hero}
       >
         <View style={styles.trophy}>
-          <Ionicons name="trophy" size={40} color={colors.white} />
+          <AppIcon name="trophy" size={40} />
         </View>
         <AppText variant="h1" center color={colors.white} style={styles.title}>
           {t('reviewComplete')}
         </AppText>
         <View style={styles.streakPill}>
-          <Ionicons name="flame" size={16} color={colors.streak} />
+          <AppIcon name="streak" size={16} />
           <AppText variant="label" color={colors.white}>{streak} {t('streak')}</AppText>
         </View>
       </LinearGradient>
