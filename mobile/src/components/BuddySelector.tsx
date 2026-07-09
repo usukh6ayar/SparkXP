@@ -51,6 +51,12 @@ const CARD_BG_IDLE = ['#ECE6F9', '#F4F0FB'] as const;
 
 /** Placeholder unlock price until Usukhbayar's backend sends a real one. */
 const DEFAULT_UNLOCK_COST = 500;
+/**
+ * The real admin-managed default buddy — kept always unlocked so it can be
+ * tested end-to-end without spending Sparks (the unlock flow is still a
+ * client-only placeholder). Remove once the backend sends real `isLocked`.
+ */
+const POLICE_SLUG = 'police';
 /** Dark text on the gold Unlock button — white would have poor contrast on `colors.xp`. */
 const UNLOCK_TEXT_COLOR = '#402D00';
 
@@ -85,7 +91,7 @@ function withDefaults(buddy: Buddy, index: number, t: (key: TranslationKey) => s
     ...buddy,
     personalityTags: buddy.personalityTags ?? [t('traitFriendly'), t('traitPatient'), t('traitEncouraging')],
     motto: buddy.motto ?? t('defaultBuddyMotto'),
-    isLocked: buddy.isLocked ?? index > 0,
+    isLocked: buddy.isLocked ?? (index > 0 && buddy.slug !== POLICE_SLUG),
     unlockCostSparks: buddy.unlockCostSparks ?? DEFAULT_UNLOCK_COST,
   };
 }
