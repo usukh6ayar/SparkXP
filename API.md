@@ -323,11 +323,13 @@ Controller-level: admin, super_admin.
 
 | Method + Path | Auth | Зорилго | Params / Body |
 | --- | --- | --- | --- |
-| GET `/achievements` | JWT | Trophy catalog (100 badge, 10 тир, Cloudflare R2 зурагтай) + өөрийн авсан төлөв → `{ tiers[], total, earned, trophies: [{slug, tier, name, image, earned}] }` | — |
+| GET `/achievements` | JWT | Trophy catalog (100 badge, 10 тир) + өөрийн авсан төлөв. Дуудахад auto-award шалгуурыг lazy тооцоолж, шинээр авбал олгоно → `{ tiers[], total, earned, newlyAwarded[], trophies: [{slug, tier, name, image, thumb, earned}] }` | — |
 
-Catalog нь `src/achievements/catalog.ts` (R2-аас generate). `earned` = `User.trophies`
-(jsonb slug list) дотор байгаа эсэх. **Award логик тусдаа** (одоо зөвхөн харагдац).
-⚠️ Зураг тус бүр ~2MB — mobile-д resize (Cloudflare Image Transformations) хэрэгтэй.
+Catalog нь `src/achievements/catalog.ts` (R2-аас generate). `image` = бүрэн PNG,
+`thumb` = 256px WebP (~25KB, `src/scripts/resize-trophies.ts`-ээр үүсгэсэн). `earned`
+= `User.trophies` (jsonb slug list). **Auto-award** (`evaluateAndAward`): XpLog source
+count + `longestStreak`-аас first_word/quiz/voice, streak & volume milestone-уудыг
+олгоно (`newlyAwarded` = энэ дуудалтад олгосон). Бусад trophy-гийн criteria нэмэгдсээр.
 
 ---
 
