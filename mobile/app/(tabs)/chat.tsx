@@ -1,43 +1,24 @@
 import { useState, useRef, useMemo, useEffect, useCallback } from 'react';
-import {
-  View, StyleSheet, FlatList, TextInput,
-  Pressable, KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Modal,
-} from 'react-native';
+import { StyleSheet, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
-import { AppImage } from '../../src/components/AppImage';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { BuddySelector } from '../../src/components/BuddySelector';
 import { BuddyVoiceStage } from '../../src/components/BuddyVoiceStage';
+import { BuddyChatSheet, type ChatMessage } from '../../src/components/BuddyChatSheet';
+import { BuddyHistorySheet } from '../../src/components/BuddyHistorySheet';
 import { buildMockBuddies, FOX_SLUG } from '../../src/constants/mockBuddies';
-import { Ionicons } from '@expo/vector-icons';
-import { haptics } from '../../src/lib/haptics';
 import {
   useAudioPlayer, useAudioPlayerStatus, useAudioRecorder, RecordingPresets,
   requestRecordingPermissionsAsync, setAudioModeAsync,
 } from 'expo-audio';
 import { useAuth } from '../../src/auth/AuthContext';
 import * as aiApi from '../../src/api/ai';
-import type {
-  Buddy, Correction, BuddyUsageBlock, BuddyTextSession, BuddyTextSessionSummary,
-} from '../../src/api/ai';
+import type { Buddy, BuddyUsageBlock, BuddyTextSession, BuddyTextSessionSummary } from '../../src/api/ai';
 import { ApiError } from '../../src/api/client';
 import { TopBar } from '../../src/components/TopBar';
-import { AppText } from '../../src/components/Text';
-import { TappableText } from '../../src/components/DictionaryProvider';
 import { useColors, useSettings } from '../../src/settings/SettingsContext';
 import { t, tf } from '../../src/i18n';
-import { spacing, radius, type AppColors } from '../../src/theme/theme';
-
-interface LocalMessage {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  correction?: Correction | null;
-  followUp?: string;
-  audioUrl?: string | null;
-}
-
-const sparkImg = require('../../assets/buddy-menu.webp');
+import { type AppColors } from '../../src/theme/theme';
 
 export default function ChatScreen() {
   const { token } = useAuth();
@@ -47,8 +28,8 @@ export default function ChatScreen() {
   const { t, lang } = useSettings();
   const styles = useMemo(() => makeStyles(c), [c]);
 
-  // select → pick a buddy · voice → hold-to-talk stage · text → typed chat
-  const [mode, setMode] = useState<'select' | 'voice' | 'text'>('select');
+  // select → pick a buddy · voice → hold-to-talk stage (chat rises as a sheet)
+  const [mode, setMode] = useState<'select' | 'voice'>('select');
   const [buddies, setBuddies] = useState<Buddy[]>([]);
   const [buddiesLoading, setBuddiesLoading] = useState(true);
   const [buddiesError, setBuddiesError] = useState(false);
@@ -62,10 +43,9 @@ export default function ChatScreen() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   // Persistent typed-chat thread (ChatGPT-style history), separate from voice.
   const [textSessionId, setTextSessionId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<LocalMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   // The voice screen's latest spoken reply (kept apart from the text `messages`).
   const [voiceReply, setVoiceReply] = useState<string | null>(null);
-  const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [recording, setRecording] = useState(false);
   const [usage, setUsage] = useState<BuddyUsageBlock | null>(null);
@@ -74,20 +54,17 @@ export default function ChatScreen() {
   const [captions, setCaptions] = useState(true);
   // Slug the persistent text thread is bound to (real buddy or fallback).
   const [textSlug, setTextSlug] = useState<string | null>(null);
-  // ChatGPT-style history panel: past typed-chat threads for this buddy.
+  // Typed-chat bottom sheet (rises over the blurred voice stage).
+  const [chatOpen, setChatOpen] = useState(false);
+  // ChatGPT-style history sheet: past typed-chat threads for this buddy.
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historySessions, setHistorySessions] = useState<BuddyTextSessionSummary[]>([]);
 
-  const listRef = useRef<FlatList>(null);
   const holdRef = useRef(false); // synchronous "mic is held" flag (see startRecording)
   const player = useAudioPlayer();
   const playerStatus = useAudioPlayerStatus(player);
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
-
-  const scrollDown = useCallback(() => {
-    setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
-  }, []);
 
   /** Flatten a loaded text thread into the local message list + bind its id. */
   const applyTextSession = useCallback((ts: BuddyTextSession) => {
@@ -149,6 +126,8 @@ export default function ChatScreen() {
     setVoiceReply(null);
     setSessionId(null);
     setTextSessionId(null);
+    setChatOpen(false);
+    setHistoryOpen(false);
     setVoiceLimited(false);
     // A mock/placeholder buddy has no backend record — chat with a real buddy
     // instead so the session starts (persona is a stopgap until it's added).
@@ -181,7 +160,7 @@ export default function ChatScreen() {
     }
   }, [token, realSlugs, fallbackSlug, applyTextSession]);
 
-  /** Open the history panel and (re)load this buddy's past typed threads. */
+  /** Open the history sheet and (re)load this buddy's past typed threads. */
   const openHistory = useCallback(async () => {
     if (!token || !textSlug) return;
     setHistoryOpen(true);
@@ -197,10 +176,10 @@ export default function ChatScreen() {
     }
   }, [token, textSlug]);
 
-  /** Switch the typed chat to a specific past thread (or start a fresh one). */
+  /** Switch the typed chat to a specific past thread (or start a fresh one).
+   *  The history sheet dismisses itself (animated); we just load the thread. */
   const openThread = useCallback(async (opts: { sessionId?: string; fresh?: boolean }) => {
     if (!token || !textSlug) return;
-    setHistoryOpen(false);
     setLoading(true);
     try {
       const ts = await aiApi.resumeBuddyTextSession(textSlug, token, opts);
@@ -239,17 +218,13 @@ export default function ChatScreen() {
     ]);
   }
 
-  async function sendText() {
-    const text = input.trim();
-    if (!text || loading || !textSessionId) return;
-    haptics.tap();
-    setInput('');
+  /** Send a typed message (the chat sheet owns the draft input + clears it). */
+  async function sendMessage(text: string) {
+    if (loading || !textSessionId) return;
     setMessages((prev) => [...prev, { id: `${Date.now()}u`, role: 'user', content: text }]);
     setLoading(true);
-    scrollDown();
     try {
       const res = await aiApi.sendBuddyTextTurn(textSessionId, text, token!);
-      // renderTurn also appends the user bubble; we already added it, so append AI only.
       setMessages((prev) => [
         ...prev,
         {
@@ -264,7 +239,6 @@ export default function ChatScreen() {
       handleTurnError(err);
     } finally {
       setLoading(false);
-      scrollDown();
     }
   }
 
@@ -344,235 +318,58 @@ export default function ChatScreen() {
     );
   }
 
-  if (mode === 'voice') {
-    return (
-      <SafeAreaView style={styles.safe} edges={['top']}>
-        <TopBar
-          title={selected?.name ?? t('aiBuddyShort')}
-          subtitle={t('buddyOnline')}
-          streak={5}
-          back
-          onBack={() => setMode('select')}
-        />
-        <Animated.View key="voice" entering={FadeIn.duration(260)} style={styles.flex}>
-          <BuddyVoiceStage
-            buddy={selected}
-            greeting={voiceGreeting}
-            speaking={playerStatus.playing}
-            thinking={loading}
-            voiceLimited={voiceLimited}
-            usageLabel={usageLabel}
-            usageWarn={usage?.warn_level === 'warn95'}
-            captions={captions}
-            onToggleCaptions={() => setCaptions((v) => !v)}
-            onRecordStart={startRecording}
-            onRecordCommit={stopRecording}
-            onRecordCancel={cancelRecording}
-            onOpenText={() => setMode('text')}
-          />
-        </Animated.View>
-      </SafeAreaView>
-    );
-  }
-
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <TopBar
         title={selected?.name ?? t('aiBuddyShort')}
         subtitle={t('buddyOnline')}
-        showBadges={false}
+        streak={5}
         back
-        onBack={() => setMode('voice')}
-        onHistory={openHistory}
+        onBack={() => setMode('select')}
       />
-
-      <ChatHistoryPanel
-        visible={historyOpen}
-        loading={historyLoading}
-        sessions={historySessions}
-        activeId={textSessionId}
-        onClose={() => setHistoryOpen(false)}
-        onNewChat={() => openThread({ fresh: true })}
-        onPick={(id) => openThread({ sessionId: id })}
-      />
-
-      {/* Messages — text-only chat (voice minutes are not spent here). */}
-      <Animated.View key="text" entering={FadeIn.duration(260)} style={styles.flex}>
-        <FlatList
-          ref={listRef}
-          data={messages}
-          keyExtractor={(m) => m.id}
-          contentContainerStyle={styles.messageList}
-          ListEmptyComponent={<EmptyState buddy={selected} />}
-          onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: false })}
-          renderItem={({ item }) => <MessageBubble message={item} onReplay={playAudio} buddy={selected} />}
+      <Animated.View key="voice" entering={FadeIn.duration(260)} style={styles.flex}>
+        <BuddyVoiceStage
+          buddy={selected}
+          greeting={voiceGreeting}
+          speaking={playerStatus.playing}
+          thinking={loading}
+          voiceLimited={voiceLimited}
+          usageLabel={usageLabel}
+          usageWarn={usage?.warn_level === 'warn95'}
+          captions={captions}
+          onToggleCaptions={() => setCaptions((v) => !v)}
+          onRecordStart={startRecording}
+          onRecordCommit={stopRecording}
+          onRecordCancel={cancelRecording}
+          onOpenText={() => setChatOpen(true)}
         />
       </Animated.View>
 
-      {loading && (
-        <View style={styles.typingRow}>
-          <ActivityIndicator size="small" color={c.primary} />
-          <AppText variant="caption">{selected?.name ?? 'AI'} {t('typing')}</AppText>
-        </View>
+      {chatOpen && (
+        <BuddyChatSheet
+          open={chatOpen}
+          onClose={() => setChatOpen(false)}
+          buddy={selected}
+          messages={messages}
+          loading={loading}
+          onSend={sendMessage}
+          onReplay={playAudio}
+          onOpenHistory={openHistory}
+        />
       )}
 
-      {/* Input bar — typing only; speaking lives on the voice screen. */}
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={styles.inputBar}>
-          <TextInput
-            style={styles.input}
-            value={input}
-            onChangeText={setInput}
-            placeholder={t('typeMessage')}
-            placeholderTextColor={c.textMuted}
-            multiline
-            maxLength={1000}
-            onSubmitEditing={sendText}
-            returnKeyType="send"
-          />
-          <Pressable
-            style={[styles.sendBtn, (!input.trim() || loading) && styles.sendBtnDisabled]}
-            onPress={sendText}
-            disabled={!input.trim() || loading}
-            accessibilityRole="button"
-            accessibilityLabel={t('send')}
-          >
-            <Ionicons name="arrow-up" size={20} color={c.white} />
-          </Pressable>
-        </View>
-      </KeyboardAvoidingView>
+      {historyOpen && (
+        <BuddyHistorySheet
+          open={historyOpen}
+          loading={historyLoading}
+          sessions={historySessions}
+          activeId={textSessionId}
+          onClose={() => setHistoryOpen(false)}
+          onNewChat={() => openThread({ fresh: true })}
+          onPick={(id) => openThread({ sessionId: id })}
+        />
+      )}
     </SafeAreaView>
-  );
-}
-
-/**
- * ChatGPT-style history drawer: a left slide-over listing this buddy's past
- * typed threads (most recent first) plus a "New chat" button. Tapping a row
- * loads that thread into the chat; the active thread is highlighted.
- */
-function ChatHistoryPanel({
-  visible, loading, sessions, activeId, onClose, onNewChat, onPick,
-}: {
-  visible: boolean;
-  loading: boolean;
-  sessions: BuddyTextSessionSummary[];
-  activeId: string | null;
-  onClose: () => void;
-  onNewChat: () => void;
-  onPick: (sessionId: string) => void;
-}) {
-  const c = useColors();
-  const styles = useMemo(() => makeStyles(c), [c]);
-  return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.historyScrim} onPress={onClose}>
-        <Pressable style={styles.historyPanel} onPress={(e) => e.stopPropagation()}>
-          <View style={styles.historyHeader}>
-            <AppText variant="h2">{t('chatHistoryTitle')}</AppText>
-            <Pressable onPress={onClose} hitSlop={8}>
-              <Ionicons name="close" size={22} color={c.text} />
-            </Pressable>
-          </View>
-
-          <Pressable style={styles.newChatBtn} onPress={onNewChat}>
-            <Ionicons name="add" size={18} color={c.primary} />
-            <AppText variant="label" color={c.primary}>{t('chatNewChat')}</AppText>
-          </Pressable>
-
-          {loading ? (
-            <ActivityIndicator size="small" color={c.primary} style={styles.historyLoading} />
-          ) : sessions.length === 0 ? (
-            <AppText variant="caption" color={c.textSecondary} style={styles.historyEmpty}>
-              {t('chatHistoryEmpty')}
-            </AppText>
-          ) : (
-            <FlatList
-              data={sessions}
-              keyExtractor={(s) => s.sessionId}
-              contentContainerStyle={styles.historyList}
-              renderItem={({ item }) => (
-                <Pressable
-                  style={[styles.historyRow, item.sessionId === activeId && styles.historyRowActive]}
-                  onPress={() => onPick(item.sessionId)}
-                >
-                  <Ionicons name="chatbubble-ellipses-outline" size={16} color={c.textSecondary} />
-                  <AppText variant="body" numberOfLines={1} style={styles.historyRowText}>
-                    {item.title || t('chatUntitled')}
-                  </AppText>
-                </Pressable>
-              )}
-            />
-          )}
-        </Pressable>
-      </Pressable>
-    </Modal>
-  );
-}
-
-function MessageBubble({
-  message, onReplay, buddy,
-}: { message: LocalMessage; onReplay: (url?: string | null) => void; buddy: Buddy | null }) {
-  const c = useColors();
-  const styles = useMemo(() => makeStyles(c), [c]);
-  const isUser = message.role === 'user';
-  const thumb = buddy?.avatarThumbUrl ? { uri: buddy.avatarThumbUrl } : sparkImg;
-
-  return (
-    <Animated.View
-      entering={FadeInDown.duration(220)}
-      style={[styles.bubbleRow, isUser && styles.bubbleRowUser]}
-    >
-      {!isUser && <AppImage source={thumb} width={28} style={styles.avatarImg} contentFit="contain" />}
-      <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAi]}>
-        {isUser ? (
-          <AppText variant="body" color={c.white}>{message.content}</AppText>
-        ) : (
-          <>
-            {message.correction && (
-              <View style={styles.correctionCard}>
-                <AppText variant="caption" color={c.danger} style={styles.strike}>
-                  {message.correction.original}
-                </AppText>
-                <AppText variant="caption" color={c.success} style={styles.correctedText}>
-                  ✓ {message.correction.corrected}
-                </AppText>
-                <AppText variant="caption" color={c.textSecondary}>
-                  {message.correction.short_explanation}
-                </AppText>
-              </View>
-            )}
-            <TappableText variant="body" color={c.text}>{message.content}</TappableText>
-            {!!message.followUp && (
-              <TappableText variant="body" color={c.textSecondary} style={styles.followUp}>
-                {message.followUp}
-              </TappableText>
-            )}
-            {message.audioUrl !== undefined && (
-              <Pressable style={styles.replayBtn} onPress={() => onReplay(message.audioUrl)}>
-                <Ionicons name="volume-medium-outline" size={16} color={c.primary} />
-              </Pressable>
-            )}
-          </>
-        )}
-      </View>
-    </Animated.View>
-  );
-}
-
-function EmptyState({ buddy }: { buddy: Buddy | null }) {
-  const c = useColors();
-  const styles = useMemo(() => makeStyles(c), [c]);
-  const thumb = buddy?.avatarThumbUrl ? { uri: buddy.avatarThumbUrl } : sparkImg;
-  return (
-    <View style={styles.emptyState}>
-      <AppImage source={thumb} width={110} style={styles.emptyImg} contentFit="contain" />
-      <AppText variant="h2" center style={styles.emptyTitle}>
-        {tf('chatGreeting', { name: buddy?.name ?? t('defaultBuddyName') })}
-      </AppText>
-      <AppText variant="body" color={c.textSecondary} center>
-        {t('buddyChatIntro')}
-      </AppText>
-    </View>
   );
 }
 
@@ -587,56 +384,4 @@ function formatUsage(u: BuddyUsageBlock): string {
 const makeStyles = (colors: AppColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   flex: { flex: 1 },
-  messageList: { padding: spacing.md, gap: spacing.sm, flexGrow: 1 },
-  bubbleRow: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm, marginBottom: spacing.xs },
-  bubbleRowUser: { flexDirection: 'row-reverse' },
-  avatarImg: { width: 28, height: 28, borderRadius: 14 },
-  bubble: { maxWidth: '78%', borderRadius: radius.lg, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
-  bubbleAi: { backgroundColor: colors.surfaceAlt, borderBottomLeftRadius: 4 },
-  bubbleUser: { backgroundColor: colors.primary, borderBottomRightRadius: 4 },
-  correctionCard: {
-    backgroundColor: colors.background, borderRadius: radius.md, padding: spacing.sm,
-    marginBottom: spacing.xs, gap: 2, borderLeftWidth: 3, borderLeftColor: colors.success,
-  },
-  strike: { textDecorationLine: 'line-through' },
-  correctedText: { fontWeight: '700' },
-  followUp: { marginTop: spacing.xs, fontStyle: 'italic' },
-  replayBtn: { marginTop: spacing.xs, alignSelf: 'flex-start' },
-  typingRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
-  inputBar: {
-    flexDirection: 'row', alignItems: 'flex-end', padding: spacing.md, gap: spacing.sm,
-    borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.surface,
-  },
-  input: {
-    flex: 1, minHeight: 44, maxHeight: 120, backgroundColor: colors.surfaceAlt, borderRadius: radius.lg,
-    paddingHorizontal: spacing.md, paddingTop: 11, paddingBottom: 11, fontSize: 15, color: colors.text,
-  },
-  sendBtn: { width: 44, height: 44, borderRadius: radius.full, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' },
-  sendBtnDisabled: { backgroundColor: colors.borderStrong },
-  historyScrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
-  historyPanel: {
-    width: '80%', maxWidth: 340, height: '100%', backgroundColor: colors.surface,
-    paddingHorizontal: spacing.md, paddingTop: spacing.xxxl, paddingBottom: spacing.lg,
-  },
-  historyHeader: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    marginBottom: spacing.md, paddingHorizontal: spacing.xs,
-  },
-  newChatBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs,
-    paddingVertical: spacing.sm, borderRadius: radius.md, borderWidth: 1,
-    borderColor: colors.primary, marginBottom: spacing.md,
-  },
-  historyLoading: { marginTop: spacing.xl },
-  historyEmpty: { textAlign: 'center', marginTop: spacing.xl },
-  historyList: { gap: spacing.xs, paddingBottom: spacing.lg },
-  historyRow: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    paddingVertical: spacing.sm, paddingHorizontal: spacing.sm, borderRadius: radius.md,
-  },
-  historyRowActive: { backgroundColor: colors.surfaceAlt },
-  historyRowText: { flex: 1 },
-  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xl, paddingTop: spacing.xxxl },
-  emptyImg: { width: 110, height: 110, borderRadius: 55, marginBottom: spacing.md },
-  emptyTitle: { marginBottom: spacing.sm },
 });
