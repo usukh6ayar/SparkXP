@@ -15,10 +15,9 @@ interface StoreImageInput {
   /**
    * Where the media lands:
    *  - `model` (GLB/GLTF) → Cloudflare R2 (else local in dev)
-   *  - `audio` → R2 when configured, else Cloudinary
+   *  - `audio` / `video` → R2 raw when configured, else Cloudinary
    *  - `image` → R2 as a resized WebP when configured (R2 has no on-the-fly
    *    f_auto/q_auto, so we pre-optimize); else Cloudinary
-   *  - `video` → Cloudinary, else local
    */
   resourceType?: 'image' | 'video' | 'audio' | 'model';
 }
@@ -48,9 +47,10 @@ export class ImageStorageService {
       return this.storeLocal(input);
     }
 
-    // Audio → R2 when configured (zero-egress, no transforms needed); otherwise
-    // fall through to Cloudinary so nothing regresses until R2 is set up in prod.
-    if (input.resourceType === 'audio' && this.hasR2Config()) {
+    // Audio + video → R2 raw when configured (zero-egress; R2 serves the file
+    // directly, which expo-video/expo-audio play fine). Falls through to
+    // Cloudinary until R2 is set up in prod, so nothing regresses.
+    if ((input.resourceType === 'audio' || input.resourceType === 'video') && this.hasR2Config()) {
       return this.uploadToR2(input);
     }
 
