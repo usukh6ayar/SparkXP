@@ -53,6 +53,19 @@ const R2 = {
 let client: S3Client;
 const stats = { migrated: 0, skipped: 0, failed: 0 };
 
+// Process this many assets concurrently (each = fetch + upload + save). Tune via
+// BACKFILL_CONCURRENCY. ~16 turns a ~10h sequential run into ~30–45 min.
+const CONCURRENCY = Number(process.env.BACKFILL_CONCURRENCY ?? 16);
+
+/** Run `fn` over `items` with a fixed-size worker pool. */
+async function pool<T>(items: T[], n: number, fn: (item: T) => Promise<void>): Promise<void> {
+  let i = 0;
+  const worker = async () => {
+    while (i < items.length) await fn(items[i++]);
+  };
+  await Promise.all(Array.from({ length: Math.min(n, items.length) }, worker));
+}
+
 /** True if the URL still points at Cloudinary (i.e. needs migrating). */
 function isCloudinary(url: string | null | undefined): url is string {
   return !!url && url.includes('res.cloudinary.com');
@@ -96,6 +109,7 @@ async function migrate(url: string | null | undefined, kind: 'image' | 'audio', 
       Bucket: R2.bucket, Key: key, Body: buffer, ContentType: CT[ext] ?? 'application/octet-stream',
     }));
     stats.migrated++;
+    if (stats.migrated % 500 === 0) console.log(`  … ${stats.migrated} migrated`);
     return newUrl;
   } catch (e) {
     stats.failed++;
@@ -118,7 +132,7 @@ async function backfillTable<T extends { id: string }>(
   const where = cols.map((f) => ({ [f.col]: Not(IsNull()) }));
   const rows = await repo.find({ where: where as any, take: LIMIT || undefined });
   console.log(`\n▶ ${name}: ${rows.length} candidate rows`);
-  for (const row of rows) {
+  await pool(rows, CONCURRENCY, async (row) => {
     let changed = false;
     for (const f of cols) {
       const cur = row[f.col] as unknown as string | null;
@@ -126,7 +140,7 @@ async function backfillTable<T extends { id: string }>(
       if (next) { (row as any)[f.col] = next; changed = true; }
     }
     if (changed && EXECUTE) await repo.save(row);
-  }
+  });
 }
 
 /** Reading passages: coverImageUrl + per-sentence audioUrl inside the jsonb array. */
@@ -135,7 +149,7 @@ async function backfillReading(ds: DataSource): Promise<void> {
   const repo = ds.getRepository(ReadingPassage);
   const rows = await repo.find({ take: LIMIT || undefined });
   console.log(`\n▶ reading_passages: ${rows.length} rows`);
-  for (const p of rows) {
+  await pool(rows, CONCURRENCY, async (p) => {
     let changed = false;
     if (wants('image')) {
       const cover = await migrate(p.coverImageUrl, 'image', `reading-${p.id}-cover`);
@@ -148,7 +162,7 @@ async function backfillReading(ds: DataSource): Promise<void> {
       }
     }
     if (changed && EXECUTE) await repo.save(p);
-  }
+  });
 }
 
 async function main() {
