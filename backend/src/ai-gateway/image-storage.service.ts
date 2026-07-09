@@ -1,6 +1,7 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import sharp from 'sharp';
 import { createHash } from 'crypto';
 import { mkdir, writeFile } from 'fs/promises';
 import { join } from 'path';
@@ -14,9 +15,10 @@ interface StoreImageInput {
   /**
    * Where the media lands:
    *  - `model` (GLB/GLTF) → Cloudflare R2 (else local in dev)
-   *  - `audio` → R2 when configured, else Cloudinary (safe hybrid — no regression
-   *    until R2 env is set in prod)
-   *  - `image` / `video` → Cloudinary (image transforms), else local
+   *  - `audio` → R2 when configured, else Cloudinary
+   *  - `image` → R2 as a resized WebP when configured (R2 has no on-the-fly
+   *    f_auto/q_auto, so we pre-optimize); else Cloudinary
+   *  - `video` → Cloudinary, else local
    */
   resourceType?: 'image' | 'video' | 'audio' | 'model';
 }
@@ -50,6 +52,27 @@ export class ImageStorageService {
     // fall through to Cloudinary so nothing regresses until R2 is set up in prod.
     if (input.resourceType === 'audio' && this.hasR2Config()) {
       return this.uploadToR2(input);
+    }
+
+    // Image → R2 as a pre-resized WebP when R2 is configured (R2 has no on-the-fly
+    // f_auto/q_auto). Generated images are ~1MB 1024px PNGs → ~30KB 512px WebP.
+    // Falls through to Cloudinary when R2 isn't set up.
+    if (input.resourceType === 'image' && this.hasR2Config()) {
+      const width = Number(this.config.get<string>('IMG_WIDTH') ?? 512);
+      try {
+        const webp = await sharp(input.buffer)
+          .resize(width, width, { fit: 'inside', withoutEnlargement: true })
+          .webp({ quality: 80 })
+          .toBuffer();
+        return await this.uploadToR2({
+          ...input,
+          buffer: webp,
+          filename: input.filename.replace(/\.[^.]+$/, '.webp'),
+          mimeType: 'image/webp',
+        });
+      } catch {
+        // sharp/R2 failed → fall through to Cloudinary/local below.
+      }
     }
 
     if (this.hasCloudinaryConfig()) {
