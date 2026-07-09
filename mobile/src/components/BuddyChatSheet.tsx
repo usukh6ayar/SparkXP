@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { View, Pressable, StyleSheet, Keyboard } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   BottomSheetModal,
   BottomSheetFlatList,
@@ -11,7 +12,8 @@ import {
   type BottomSheetBackgroundProps,
 } from '@gorhom/bottom-sheet';
 import Animated, {
-  FadeInDown, interpolate, useAnimatedStyle, Extrapolation,
+  FadeIn, FadeInDown, interpolate, useAnimatedStyle, useSharedValue,
+  withRepeat, withTiming, withDelay, withSequence, Extrapolation,
 } from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,9 +24,14 @@ import { useColors, useSettings } from '../settings/SettingsContext';
 import { AppText } from './Text';
 import { AppImage } from './AppImage';
 import { TappableText } from './DictionaryProvider';
-import type { Buddy, Correction } from '../api/ai';
+import type { Correction } from '../api/ai';
 
-const sparkImg = require('../../assets/buddy-menu.webp');
+// The typed chat presents ONE unified assistant identity — "SparkXP" — no
+// matter which buddy persona (police, doctor, firefighter…) was picked. The
+// persona still shapes the replies, but the header/avatars stay brand-consistent
+// so it reads as chatting with the SparkXP AI, not a different character each time.
+const BRAND_NAME = 'SparkXP';
+const brandAvatar = require('../../assets/buddy-menu.webp');
 
 export interface ChatMessage {
   id: string;
@@ -43,11 +50,10 @@ export interface ChatMessage {
  * as a sheet footer. A history button in the header opens past threads.
  */
 export function BuddyChatSheet({
-  open, onClose, buddy, messages, loading, onSend, onReplay, onOpenHistory,
+  open, onClose, messages, loading, onSend, onReplay, onOpenHistory,
 }: {
   open: boolean;
   onClose: () => void;
-  buddy: Buddy | null;
   messages: ChatMessage[];
   loading: boolean;
   onSend: (text: string) => void;
@@ -57,11 +63,11 @@ export function BuddyChatSheet({
   const c = useColors();
   const { theme } = useSettings();
   const isLight = theme === 'light';
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(c, isLight), [c, isLight]);
   const ref = useRef<BottomSheetModal>(null);
   const listRef = useRef<any>(null);
   const snapPoints = useMemo(() => ['92%'], []);
-  const [input, setInput] = useState('');
 
   const springConfigs = useBottomSheetSpringConfigs({
     damping: 50, stiffness: 420, mass: 1, overshootClamping: false,
@@ -71,13 +77,14 @@ export function BuddyChatSheet({
   useEffect(() => { ref.current?.present(); }, []);
   const close = useCallback(() => ref.current?.dismiss(), []);
 
-  function send() {
-    const text = input.trim();
-    if (!text || loading) return;
-    haptics.tap();
-    setInput('');
-    onSend(text);
-  }
+  // Keep a live ref to onSend so the footer callback can stay STABLE across
+  // keystrokes. If the footer (or its TextInput) is recreated on every letter,
+  // the input remounts and the keyboard collapses — hence the input's own text
+  // state lives inside <ChatInputBar>, and this ref decouples it from onSend's
+  // changing identity. The parent already guards against sending while loading.
+  const sendRef = useRef(onSend);
+  sendRef.current = onSend;
+  const handleSend = useCallback((text: string) => sendRef.current(text), []);
 
   const renderBackdrop = useCallback(
     (props: BottomSheetBackdropProps) => <GlassBackdrop {...props} onPress={close} />,
@@ -86,37 +93,14 @@ export function BuddyChatSheet({
 
   const renderFooter = useCallback(
     (props: BottomSheetFooterProps) => (
-      <BottomSheetFooter {...props} bottomInset={0}>
-        <View style={styles.inputBar}>
-          <BottomSheetTextInput
-            style={styles.input}
-            value={input}
-            onChangeText={setInput}
-            placeholder={t('typeMessage')}
-            placeholderTextColor={c.textMuted}
-            multiline
-            maxLength={1000}
-            onSubmitEditing={send}
-            returnKeyType="send"
-          />
-          <Pressable
-            style={[styles.sendBtn, (!input.trim() || loading) && styles.sendBtnDisabled]}
-            onPress={send}
-            disabled={!input.trim() || loading}
-            accessibilityRole="button"
-            accessibilityLabel={t('send')}
-          >
-            <Ionicons name="arrow-up" size={20} color={c.white} />
-          </Pressable>
-        </View>
+      // bottomInset lifts the input off the home indicator when the keyboard is
+      // closed; gorhom drops it automatically while typing (no white gap).
+      <BottomSheetFooter {...props} bottomInset={insets.bottom}>
+        <ChatInputBar onSend={handleSend} styles={styles} c={c} />
       </BottomSheetFooter>
     ),
-    // send/input close over current state; recreating the callback is cheap and
-    // keeps the footer in sync without dropping TextInput focus.
-    [input, loading, styles, c],
+    [handleSend, styles, c, insets.bottom],
   );
-
-  const thumb = buddy?.avatarThumbUrl ? { uri: buddy.avatarThumbUrl } : sparkImg;
 
   return (
     <BottomSheetModal
@@ -131,22 +115,27 @@ export function BuddyChatSheet({
       backgroundComponent={GlassBackground}
       footerComponent={renderFooter}
       handleIndicatorStyle={styles.handleIndicator}
-      keyboardBehavior="interactive"
+      // 'extend' keeps the sheet at its (single) snap point when the keyboard
+      // opens instead of shoving the whole sheet up to the top of the screen —
+      // only the content shrinks and the footer rides above the keyboard.
+      keyboardBehavior="extend"
       keyboardBlurBehavior="restore"
       android_keyboardInputMode="adjustResize"
     >
-      {/* Header — buddy identity + history button. */}
+      {/* Header — unified SparkXP identity + history button. */}
       <View style={styles.header}>
-        <AppImage source={thumb} width={34} style={styles.headerAvatar} contentFit="contain" />
+        <AppImage source={brandAvatar} width={34} style={styles.headerAvatar} contentFit="contain" />
         <View style={styles.headerText}>
-          <AppText variant="bodyStrong" numberOfLines={1}>{buddy?.name ?? t('aiBuddyShort')}</AppText>
+          <AppText variant="bodyStrong" numberOfLines={1}>{BRAND_NAME}</AppText>
           <View style={styles.onlineRow}>
             <View style={[styles.onlineDot, { backgroundColor: c.success }]} />
             <AppText variant="caption" color={c.textSecondary}>{t('buddyOnline')}</AppText>
           </View>
         </View>
         <Pressable
-          onPress={onOpenHistory}
+          // Drop the keyboard before the history sheet rises, otherwise it
+          // lingers open over/behind the panel.
+          onPress={() => { Keyboard.dismiss(); onOpenHistory(); }}
           hitSlop={8}
           style={[styles.historyBtn, { backgroundColor: c.surfaceAlt }]}
           accessibilityRole="button"
@@ -161,35 +150,104 @@ export function BuddyChatSheet({
         data={messages}
         keyExtractor={(m) => m.id}
         contentContainerStyle={styles.list}
-        ListEmptyComponent={<EmptyState buddy={buddy} />}
+        ListEmptyComponent={<EmptyState />}
+        ListFooterComponent={loading ? <TypingBubble styles={styles} c={c} /> : null}
         onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
-        renderItem={({ item }) => <MessageBubble message={item} onReplay={onReplay} buddy={buddy} />}
+        renderItem={({ item }) => <MessageBubble message={item} onReplay={onReplay} />}
       />
-
-      {loading && (
-        <View style={styles.typingRow}>
-          <ActivityIndicator size="small" color={c.primary} />
-          <AppText variant="caption">{buddy?.name ?? 'AI'} {t('typing')}</AppText>
-        </View>
-      )}
     </BottomSheetModal>
   );
 }
 
+/**
+ * The chat input bar. Owns its own draft text so typing never re-renders the
+ * sheet (and never recreates the footer) — that is what keeps the keyboard from
+ * collapsing after a single character. Sends via a stable onSend and clears.
+ */
+const ChatInputBar = memo(function ChatInputBar({
+  onSend, styles, c,
+}: { onSend: (text: string) => void; styles: any; c: AppColors }) {
+  const [text, setText] = useState('');
+  const canSend = text.trim().length > 0;
+  function submit() {
+    const value = text.trim();
+    if (!value) return;
+    haptics.tap();
+    setText('');
+    onSend(value);
+  }
+  return (
+    <View style={styles.inputBar}>
+      <BottomSheetTextInput
+        style={styles.input}
+        value={text}
+        onChangeText={setText}
+        placeholder={t('typeMessage')}
+        placeholderTextColor={c.textMuted}
+        multiline
+        maxLength={1000}
+        returnKeyType="default"
+      />
+      <Pressable
+        style={[styles.sendBtn, !canSend && styles.sendBtnDisabled]}
+        onPress={submit}
+        disabled={!canSend}
+        accessibilityRole="button"
+        accessibilityLabel={t('send')}
+      >
+        <Ionicons name="arrow-up" size={20} color={c.white} />
+      </Pressable>
+    </View>
+  );
+});
+
+/** One bouncing dot in the "AI is typing…" bubble. */
+function TypingDot({ delay, color }: { delay: number; color: string }) {
+  const v = useSharedValue(0);
+  useEffect(() => {
+    v.value = withDelay(
+      delay,
+      withRepeat(withSequence(withTiming(1, { duration: 400 }), withTiming(0, { duration: 400 })), -1),
+    );
+  }, [v, delay]);
+  const style = useAnimatedStyle(() => ({
+    opacity: interpolate(v.value, [0, 1], [0.3, 1], Extrapolation.CLAMP),
+    transform: [{ translateY: interpolate(v.value, [0, 1], [2, -3], Extrapolation.CLAMP) }],
+  }));
+  return <Animated.View style={[{ width: 7, height: 7, borderRadius: 4, backgroundColor: color }, style]} />;
+}
+
+/**
+ * The buddy's "typing…" bubble — three bouncing dots in an assistant bubble,
+ * shown while the reply is in flight so the wait is obvious instead of the
+ * answer popping in with no warning.
+ */
+function TypingBubble({ styles, c }: { styles: any; c: AppColors }) {
+  return (
+    <Animated.View entering={FadeIn.duration(200)} style={styles.bubbleRow}>
+      <AppImage source={brandAvatar} width={28} style={styles.avatarImg} contentFit="contain" />
+      <View style={[styles.bubble, styles.bubbleAi, styles.typingBubble]}>
+        <TypingDot delay={0} color={c.textSecondary} />
+        <TypingDot delay={150} color={c.textSecondary} />
+        <TypingDot delay={300} color={c.textSecondary} />
+      </View>
+    </Animated.View>
+  );
+}
+
 function MessageBubble({
-  message, onReplay, buddy,
-}: { message: ChatMessage; onReplay: (url?: string | null) => void; buddy: Buddy | null }) {
+  message, onReplay,
+}: { message: ChatMessage; onReplay: (url?: string | null) => void }) {
   const c = useColors();
   const styles = useMemo(() => makeStyles(c, false), [c]);
   const isUser = message.role === 'user';
-  const thumb = buddy?.avatarThumbUrl ? { uri: buddy.avatarThumbUrl } : sparkImg;
 
   return (
     <Animated.View
       entering={FadeInDown.duration(220)}
       style={[styles.bubbleRow, isUser && styles.bubbleRowUser]}
     >
-      {!isUser && <AppImage source={thumb} width={28} style={styles.avatarImg} contentFit="contain" />}
+      {!isUser && <AppImage source={brandAvatar} width={28} style={styles.avatarImg} contentFit="contain" />}
       <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAi]}>
         {isUser ? (
           <AppText variant="body" color={c.white}>{message.content}</AppText>
@@ -226,15 +284,14 @@ function MessageBubble({
   );
 }
 
-function EmptyState({ buddy }: { buddy: Buddy | null }) {
+function EmptyState() {
   const c = useColors();
   const styles = useMemo(() => makeStyles(c, false), [c]);
-  const thumb = buddy?.avatarThumbUrl ? { uri: buddy.avatarThumbUrl } : sparkImg;
   return (
     <View style={styles.emptyState}>
-      <AppImage source={thumb} width={92} style={styles.emptyImg} contentFit="contain" />
+      <AppImage source={brandAvatar} width={92} style={styles.emptyImg} contentFit="contain" />
       <AppText variant="h2" center style={styles.emptyTitle}>
-        {tf('chatGreeting', { name: buddy?.name ?? t('defaultBuddyName') })}
+        {tf('chatGreeting', { name: BRAND_NAME })}
       </AppText>
       <AppText variant="body" color={c.textSecondary} center>
         {t('buddyChatIntro')}
@@ -329,10 +386,7 @@ const makeStyles = (c: AppColors, isLight: boolean) => StyleSheet.create({
   correctedText: { fontWeight: '700' },
   followUp: { marginTop: spacing.xs, fontStyle: 'italic' },
   replayBtn: { marginTop: spacing.xs, alignSelf: 'flex-start' },
-  typingRow: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    paddingHorizontal: spacing.lg, paddingBottom: spacing.sm, position: 'absolute', bottom: 74,
-  },
+  typingBubble: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: spacing.md, paddingHorizontal: spacing.md },
   inputBar: {
     flexDirection: 'row', alignItems: 'flex-end', padding: spacing.md, gap: spacing.sm,
     borderTopWidth: 1, borderTopColor: isLight ? c.border : c.glassBorder, backgroundColor: c.surface,

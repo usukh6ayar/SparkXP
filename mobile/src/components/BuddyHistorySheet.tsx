@@ -65,6 +65,11 @@ export function BuddyHistorySheet({
       snapPoints={snapPoints}
       enableDynamicSizing={false}
       enablePanDownToClose
+      // Stack ON TOP of the chat sheet instead of the default 'switch', which
+      // would minimise/dismiss the chat underneath — that dismissal is what
+      // dropped the user back to the voice stage on "New chat". With 'push' the
+      // chat sheet stays mounted, so history stays entirely inside the chat.
+      stackBehavior="push"
       onDismiss={onClose}
       animationConfigs={springConfigs}
       backdropComponent={renderBackdrop}

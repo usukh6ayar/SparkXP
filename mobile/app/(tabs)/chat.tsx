@@ -349,7 +349,6 @@ export default function ChatScreen() {
         <BuddyChatSheet
           open={chatOpen}
           onClose={() => setChatOpen(false)}
-          buddy={selected}
           messages={messages}
           loading={loading}
           onSend={sendMessage}
