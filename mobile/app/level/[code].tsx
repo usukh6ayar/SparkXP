@@ -7,6 +7,7 @@ import {
   Pressable,
   ActivityIndicator,
   ScrollView,
+  RefreshControl,
   useWindowDimensions,
 } from 'react-native';
 import Animated, { ZoomIn } from 'react-native-reanimated';
@@ -122,6 +123,7 @@ export default function LevelScreen() {
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [gam, setGam] = useState<Gamification | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   // Measured header height → the trail starts right below it (no overlap).
   const [headerH, setHeaderH] = useState(0);
   // The climb starts at the bottom (node 1), so jump there once on first render.
@@ -146,6 +148,13 @@ export default function LevelScreen() {
   useEffect(() => {
     setLoading(true);
     load().finally(() => setLoading(false));
+  }, [load]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    haptics.tap();
+    await load();
+    setRefreshing(false);
   }, [load]);
 
   // Real streak + this level's lesson-completion from the backend.
@@ -197,6 +206,9 @@ export default function LevelScreen() {
         style={StyleSheet.absoluteFill}
         contentContainerStyle={{ paddingTop: (headerH || insets.top + 260) + 28, paddingBottom: 24 }}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={islandMap.gold} progressViewOffset={headerH || insets.top + 260} />
+        }
         onContentSizeChange={(_w, h) => {
           if (!didInitialScroll.current && h > 0) {
             didInitialScroll.current = true;

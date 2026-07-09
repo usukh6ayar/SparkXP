@@ -172,12 +172,8 @@ export function BuddySelector({
 
   useEffect(() => () => { Speech.stop(); }, []);
 
-  // Plays once whenever a new buddy becomes centered (mount included).
-  useEffect(() => {
-    if (centerBuddy) speak(centerBuddy.motto);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [centerBuddy?.slug]);
-
+  // No auto-speak: the buddy stays quiet on entry / when swiping. The user hears
+  // the motto only by tapping the speaker button (or the motto bubble).
   function speak(text: string) {
     if (!centerBuddy) return;
     Speech.stop();
