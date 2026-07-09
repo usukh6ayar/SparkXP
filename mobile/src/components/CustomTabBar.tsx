@@ -1,10 +1,7 @@
-import { useEffect } from "react";
 import { View, Pressable, Image, StyleSheet } from "react-native";
-import Animated, { useAnimatedStyle, useSharedValue, withSequence, withSpring } from "react-native-reanimated";
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { BlurView } from "expo-blur";
-import { LinearGradient } from "expo-linear-gradient";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { colors, spacing, type AppColors } from "../theme/theme";
 import { useSettings } from "../settings/SettingsContext";
@@ -14,7 +11,6 @@ import { SPRING, useReduceMotion } from "../lib/motion";
 
 const buddy = require("../../assets/buddy-menu.webp");
 
-const GLASS_RADIUS = 32; // 28–34px rounded corners
 const PURPLE = colors.primary; // #6C3BFF SparkXP accent
 
 type IconName = keyof typeof Ionicons.glyphMap;
@@ -49,28 +45,14 @@ export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   const isDark = theme === "dark";
   const TAB_META = tabMeta(t);
 
-  // Glass material per theme — kept white-leaning for the "liquid glass" feel.
-  const glassFill = isDark ? "rgba(30,26,58,0.45)" : "rgba(255,255,255,0.42)";
-  const glassBorder = isDark ? "rgba(255,255,255,0.20)" : "rgba(255,255,255,0.65)";
-  const sheen = isDark
-    ? (["rgba(255,255,255,0.22)", "rgba(255,255,255,0.04)", "rgba(255,255,255,0)"] as const)
-    : (["rgba(255,255,255,0.75)", "rgba(255,255,255,0.18)", "rgba(255,255,255,0)"] as const);
   const inactive = isDark ? "rgba(233,229,255,0.62)" : "rgba(60,54,90,0.55)";
 
   return (
-    <View style={[styles.wrap, { backgroundColor: c.background, paddingBottom: insets.bottom ? insets.bottom - 4 : spacing.md }]}>
-      <View style={styles.shadow}>
-        <BlurView intensity={isDark ? 55 : 75} tint={isDark ? "dark" : "light"} style={styles.bar}>
-          {/* Frosted white glass fill + thin glass border */}
-          <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.fill, { backgroundColor: glassFill, borderColor: glassBorder }]} />
-          {/* Top light-reflection sheen (refraction highlight) */}
-          <LinearGradient
-            pointerEvents="none"
-            colors={sheen}
-            locations={[0, 0.5, 1]}
-            style={[StyleSheet.absoluteFill, styles.fill]}
-          />
-
+    <View style={[styles.wrap, { backgroundColor: c.background }]}>
+      {/* Solid bar — same background as the screen, with a top border. */}
+      <View
+        style={[styles.bar, { backgroundColor: c.background, paddingBottom: insets.bottom || spacing.sm, borderTopColor: c.border }]}
+      >
           {state.routes.map((route, index) => {
             const meta = TAB_META[route.name];
             if (!meta) return null; // hidden routes
@@ -99,7 +81,6 @@ export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
               />
             );
           })}
-        </BlurView>
       </View>
     </View>
   );
@@ -125,19 +106,12 @@ function TabButton({
   c: AppColors;
   tint: string;
 }) {
-  const scale = useSharedValue(focused ? 1.05 : 1);
+  const scale = useSharedValue(1);
   const reduce = useReduceMotion();
 
-  // Duolingo-style: focused icon rests a touch larger with a springy pop.
-  useEffect(() => {
-    if (reduce) {
-      scale.value = focused ? 1.05 : 1;
-      return;
-    }
-    scale.value = focused
-      ? withSequence(withSpring(1.16, SPRING), withSpring(1.05, SPRING))
-      : withSpring(1, SPRING);
-  }, [focused, reduce]);
+  // No size change on selection — only a small press-down shrink for feedback.
+  const onPressIn = () => { if (!reduce) scale.value = withSpring(0.9, SPRING); };
+  const onPressOut = () => { scale.value = withSpring(1, SPRING); };
 
   const iconStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
   const chipStyle = iconStyle;
@@ -152,7 +126,7 @@ function TabButton({
   // Center AI buddy = big fox avatar disc (raised, purple ring).
   if (meta.image) {
     return (
-      <Pressable style={styles.tab} onPress={onPress} {...a11y}>
+      <Pressable style={styles.tab} onPress={onPress} onPressIn={onPressIn} onPressOut={onPressOut} {...a11y}>
         <Animated.View
           style={[
             styles.foxBig,
@@ -170,7 +144,7 @@ function TabButton({
   // aren't tinted; the active glowing pill + magnify + lift signal focus.
   if (meta.png) {
     return (
-      <Pressable style={styles.tab} onPress={onPress} {...a11y}>
+      <Pressable style={styles.tab} onPress={onPress} onPressIn={onPressIn} onPressOut={onPressOut} {...a11y}>
         <Animated.View style={[styles.chip, focused && styles.chipActive, chipStyle]}>
           <Image
             source={meta.png}
@@ -183,35 +157,25 @@ function TabButton({
   }
 
   return (
-    <Pressable style={styles.tab} onPress={onPress} {...a11y}>
+    <Pressable style={styles.tab} onPress={onPress} onPressIn={onPressIn} onPressOut={onPressOut} {...a11y}>
       <Animated.View style={[styles.chip, focused && styles.chipActive, chipStyle]}>
-        <Ionicons name={focused ? meta.icon! : meta.iconOutline!} size={focused ? 30 : 27} color={tint} />
+        <Ionicons name={focused ? meta.icon! : meta.iconOutline!} size={28} color={tint} />
       </Animated.View>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  // Transparent outer wrapper — side margins so the capsule floats.
-  wrap: { paddingHorizontal: spacing.lg, backgroundColor: "transparent" },
-  // Soft drop shadow underneath (BlurView clips its own with overflow: hidden).
-  shadow: {
-    borderRadius: GLASS_RADIUS,
-    shadowColor: "#1A1030",
-    shadowOpacity: 0.22,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 14,
-  },
+  // Full-width flat bar (Duolingo-style) — no side margins, no float, no radius.
+  wrap: { backgroundColor: "transparent" },
   bar: {
     flexDirection: "row",
     alignItems: "center",
-    borderRadius: GLASS_RADIUS,
     overflow: "hidden",
-    paddingVertical: spacing.sm + 2, // a touch taller now that labels are gone
+    borderTopWidth: StyleSheet.hairlineWidth, // thin divider above the bar
+    paddingTop: spacing.sm + 2,
     paddingHorizontal: spacing.xs,
   },
-  fill: { borderRadius: GLASS_RADIUS, borderWidth: StyleSheet.hairlineWidth },
   tab: { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 2 },
   // Brand 3D PNG tab icon — a touch larger than the vector glyphs since the 3D
   // art carries transparent padding, so it reads smaller at the same box size.
