@@ -94,8 +94,8 @@ export class UploadController {
       filename,
       // GLB/GLTF: force the correct model MIME (multer reports octet-stream).
       mimeType: isModel ? modelMime(ext, file.mimetype) : file.mimetype,
-      // model → Cloudflare R2; image → Cloudinary image; audio/video → Cloudinary video.
-      resourceType: isModel ? 'model' : isImage ? 'image' : 'video',
+      // model/audio/video/image all go to R2 when configured (see ImageStorageService).
+      resourceType: isModel ? 'model' : isImage ? 'image' : isAudio ? 'audio' : 'video',
       localSubdir: isModel ? 'models' : 'media',
       folder: isModel ? 'englishxp/models' : 'englishxp/uploads',
     });
