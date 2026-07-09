@@ -18,6 +18,7 @@
     "seed:demo": "ts-node -r tsconfig-paths/register src/scripts/seed-demo.ts",
     "import-words": "ts-node -r tsconfig-paths/register src/scripts/import-words.ts",
     "backfill:media": "ts-node -r tsconfig-paths/register src/scripts/backfill-media-to-r2.ts",
+    "migrate:images": "ts-node -r tsconfig-paths/register src/scripts/migrate-images-to-r2.ts",
     "backfill-slugs": "ts-node -r tsconfig-paths/register src/scripts/backfill-slugs.ts",
     "lint": "eslint \"{src,test}/**/*.ts\" --fix",
     "format": "prettier --write \"src/**/*.ts\"",
