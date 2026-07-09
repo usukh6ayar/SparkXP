@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { View, Text, Pressable, Image, StyleSheet } from "react-native";
+import { View, Pressable, Image, StyleSheet } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withSequence, withSpring } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -106,9 +106,11 @@ export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
 }
 
 /**
- * One tab. Split into its own component so each tab can own reanimated hooks
- * (rules-of-hooks forbid calling them inside the `.map`). The active chip
- * springs with a small "pop" the moment it becomes focused.
+ * One tab (icon-only — no labels). Split into its own component so each tab can
+ * own reanimated hooks (rules-of-hooks forbid calling them inside the `.map`).
+ * When focused the chip pops, then settles slightly magnified and lifted, and
+ * lights up as a soft purple glowing pill. `meta.label` is kept only for the
+ * screen-reader accessibility label since there's no visible text.
  */
 function TabButton({
   meta,
@@ -123,67 +125,68 @@ function TabButton({
   c: AppColors;
   tint: string;
 }) {
-  const scale = useSharedValue(1);
+  const scale = useSharedValue(focused ? 1.05 : 1);
   const reduce = useReduceMotion();
 
-  // Pop the chip/avatar when this tab becomes the active one.
+  // Duolingo-style: focused icon rests a touch larger with a springy pop.
   useEffect(() => {
-    if (focused && !reduce) {
-      scale.value = withSequence(withSpring(1.14, SPRING), withSpring(1, SPRING));
+    if (reduce) {
+      scale.value = focused ? 1.05 : 1;
+      return;
     }
+    scale.value = focused
+      ? withSequence(withSpring(1.16, SPRING), withSpring(1.05, SPRING))
+      : withSpring(1, SPRING);
   }, [focused, reduce]);
 
-  const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  const iconStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  const chipStyle = iconStyle;
+  const foxStyle = iconStyle;
+
+  const a11y = {
+    accessibilityRole: "button" as const,
+    accessibilityLabel: meta.label,
+    accessibilityState: { selected: focused },
+  };
 
   // Center AI buddy = big fox avatar disc (raised, purple ring).
   if (meta.image) {
     return (
-      <Pressable style={styles.tab} onPress={onPress}>
+      <Pressable style={styles.tab} onPress={onPress} {...a11y}>
         <Animated.View
           style={[
             styles.foxBig,
-            animatedStyle,
+            foxStyle,
             { backgroundColor: c.surface, borderColor: focused ? colors.primary : "rgba(108,59,255,0.55)" },
           ]}
         >
           <Image source={meta.image} style={styles.foxBigImg} resizeMode="cover" />
         </Animated.View>
-        <Text style={[styles.label, { color: tint }, focused && styles.labelActive]} numberOfLines={1}>
-          {meta.label}
-        </Text>
       </Pressable>
     );
   }
 
-  // Brand 3D PNG icon (lessons/soril/profile) — sits in the same chip as the
-  // vector tabs. PNGs are full-colour so they aren't tinted; the active chip
-  // background + slight magnify still signal focus. Inactive is dimmed a touch.
+  // Brand 3D PNG icon (home/lessons/soril/profile). PNGs are full-colour so they
+  // aren't tinted; the active glowing pill + magnify + lift signal focus.
   if (meta.png) {
     return (
-      <Pressable style={styles.tab} onPress={onPress}>
-        <Animated.View style={[styles.chip, focused && styles.chipActive, animatedStyle]}>
+      <Pressable style={styles.tab} onPress={onPress} {...a11y}>
+        <Animated.View style={[styles.chip, focused && styles.chipActive, chipStyle]}>
           <Image
             source={meta.png}
             style={[styles.pngIcon, !focused && styles.pngIconInactive]}
             resizeMode="contain"
           />
         </Animated.View>
-        <Text style={[styles.label, { color: tint }, focused && styles.labelActive]} numberOfLines={1}>
-          {meta.label}
-        </Text>
       </Pressable>
     );
   }
 
   return (
-    <Pressable style={styles.tab} onPress={onPress}>
-      {/* Active = purple glass chip; icon slightly magnified */}
-      <Animated.View style={[styles.chip, focused && styles.chipActive, animatedStyle]}>
+    <Pressable style={styles.tab} onPress={onPress} {...a11y}>
+      <Animated.View style={[styles.chip, focused && styles.chipActive, chipStyle]}>
         <Ionicons name={focused ? meta.icon! : meta.iconOutline!} size={focused ? 30 : 27} color={tint} />
       </Animated.View>
-      <Text style={[styles.label, { color: tint }, focused && styles.labelActive]} numberOfLines={1}>
-        {meta.label}
-      </Text>
     </Pressable>
   );
 }
@@ -205,32 +208,32 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderRadius: GLASS_RADIUS,
     overflow: "hidden",
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.sm + 2, // a touch taller now that labels are gone
     paddingHorizontal: spacing.xs,
   },
   fill: { borderRadius: GLASS_RADIUS, borderWidth: StyleSheet.hairlineWidth },
-  tab: { flex: 1, alignItems: "center", gap: 2, paddingVertical: 2 },
+  tab: { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 2 },
   // Brand 3D PNG tab icon — a touch larger than the vector glyphs since the 3D
   // art carries transparent padding, so it reads smaller at the same box size.
   pngIcon: { width: 40, height: 40 },
   pngIconInactive: { opacity: 0.6 },
-  // Icon holder — grows into a purple glass chip when active.
+  // Icon holder — a rounded-square box (Duolingo-style). The 2px transparent
+  // border is reserved so the active border doesn't shift the layout.
   chip: {
-    height: 40,
-    minWidth: 40,
-    borderRadius: 20,
+    height: 48,
+    minWidth: 54,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: "transparent",
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 6,
+    paddingHorizontal: 10,
   },
+  // Active tab — Duolingo's selected box: a purple outline + light purple fill.
   chipActive: {
-    backgroundColor: "rgba(108,59,255,0.16)",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(108,59,255,0.35)",
-    paddingHorizontal: 16,
+    backgroundColor: "rgba(108,59,255,0.14)",
+    borderColor: PURPLE,
   },
-  label: { fontSize: 10, fontWeight: "600" },
-  labelActive: { fontWeight: "700" },
   // AI buddy fox — big raised avatar disc with a purple ring + soft glow.
   foxBig: {
     width: 46,

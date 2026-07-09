@@ -149,6 +149,10 @@ export default function HomeScreen() {
   const skySource = lightMode ? skyImgLight : skyImg;
   // RGB of the page background, used to build the fade-to-page gradient stops.
   const pageRgb = lightMode ? "244,242,252" : "25,16,64";
+  // Colour of the sky at the very top of the hero (sky image top + the dark top
+  // scrim). Fills the pull-to-refresh overscroll so it reads as more sky instead
+  // of a white gap — the hero looks "locked" while a spinner shows (Instagram-style).
+  const overscrollColor = lightMode ? "#294C98" : "#0C082D";
   const router = useRouter();
   const { openSearch } = useDictionary();
   const hasUnread = useUnreadNotifications();
@@ -261,10 +265,14 @@ export default function HomeScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor={c.primary}
+            tintColor={c.white}
           />
         }
       >
+        {/* Overscroll fill — sits just ABOVE the content so pulling down reveals
+            the hero's sky colour (not white). It never affects the body: it is
+            anchored above y=0 and only appears while bouncing. */}
+        <View pointerEvents="none" style={[styles.overscrollFill, { backgroundColor: overscrollColor }]} />
         {/* Top: fox scene as a full-bleed background — greeting + streak/gem/XP
             overlaid, fading into the page background (no boxed hero card). */}
         <View style={styles.top}>
@@ -496,6 +504,9 @@ export default function HomeScreen() {
 const makeStyles = (c: AppColors) => StyleSheet.create({
   root: { flex: 1, backgroundColor: c.background },
   container: { paddingTop: 0 },
+  // Colour band anchored just above the scroll content; only visible while
+  // pulling to refresh, so the top overscroll shows sky instead of white.
+  overscrollFill: { position: "absolute", top: -HERO_H, left: 0, right: 0, height: HERO_H },
 
   // Full-bleed top: the layered fox scene reads as the screen background.
   top: { height: HERO_H, width: "100%", overflow: "hidden" },
