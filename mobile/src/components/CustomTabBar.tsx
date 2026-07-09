@@ -14,7 +14,6 @@ import { SPRING, useReduceMotion } from "../lib/motion";
 
 const buddy = require("../../assets/buddy-menu.webp");
 
-const GLASS_RADIUS = 32; // 28–34px rounded corners
 const PURPLE = colors.primary; // #6C3BFF SparkXP accent
 
 type IconName = keyof typeof Ionicons.glyphMap;
@@ -58,18 +57,21 @@ export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   const inactive = isDark ? "rgba(233,229,255,0.62)" : "rgba(60,54,90,0.55)";
 
   return (
-    <View style={[styles.wrap, { backgroundColor: c.background, paddingBottom: insets.bottom ? insets.bottom - 4 : spacing.md }]}>
-      <View style={styles.shadow}>
-        <BlurView intensity={isDark ? 55 : 75} tint={isDark ? "dark" : "light"} style={styles.bar}>
-          {/* Frosted white glass fill + thin glass border */}
-          <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.fill, { backgroundColor: glassFill, borderColor: glassBorder }]} />
-          {/* Top light-reflection sheen (refraction highlight) */}
-          <LinearGradient
-            pointerEvents="none"
-            colors={sheen}
-            locations={[0, 0.5, 1]}
-            style={[StyleSheet.absoluteFill, styles.fill]}
-          />
+    <View style={[styles.wrap, { backgroundColor: c.background }]}>
+      <BlurView
+        intensity={isDark ? 55 : 75}
+        tint={isDark ? "dark" : "light"}
+        style={[styles.bar, { paddingBottom: insets.bottom || spacing.sm, borderTopColor: glassBorder }]}
+      >
+        {/* Frosted glass fill */}
+        <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: glassFill }]} />
+        {/* Top light-reflection sheen (refraction highlight) */}
+        <LinearGradient
+          pointerEvents="none"
+          colors={sheen}
+          locations={[0, 0.5, 1]}
+          style={StyleSheet.absoluteFill}
+        />
 
           {state.routes.map((route, index) => {
             const meta = TAB_META[route.name];
@@ -99,8 +101,7 @@ export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
               />
             );
           })}
-        </BlurView>
-      </View>
+      </BlurView>
     </View>
   );
 }
@@ -192,26 +193,16 @@ function TabButton({
 }
 
 const styles = StyleSheet.create({
-  // Transparent outer wrapper — side margins so the capsule floats.
-  wrap: { paddingHorizontal: spacing.lg, backgroundColor: "transparent" },
-  // Soft drop shadow underneath (BlurView clips its own with overflow: hidden).
-  shadow: {
-    borderRadius: GLASS_RADIUS,
-    shadowColor: "#1A1030",
-    shadowOpacity: 0.22,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 14,
-  },
+  // Full-width flat bar (Duolingo-style) — no side margins, no float, no radius.
+  wrap: { backgroundColor: "transparent" },
   bar: {
     flexDirection: "row",
     alignItems: "center",
-    borderRadius: GLASS_RADIUS,
     overflow: "hidden",
-    paddingVertical: spacing.sm + 2, // a touch taller now that labels are gone
+    borderTopWidth: StyleSheet.hairlineWidth, // thin divider above the bar
+    paddingTop: spacing.sm + 2,
     paddingHorizontal: spacing.xs,
   },
-  fill: { borderRadius: GLASS_RADIUS, borderWidth: StyleSheet.hairlineWidth },
   tab: { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 2 },
   // Brand 3D PNG tab icon — a touch larger than the vector glyphs since the 3D
   // art carries transparent padding, so it reads smaller at the same box size.
