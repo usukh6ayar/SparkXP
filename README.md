@@ -125,6 +125,7 @@ npm run ota:deploy    # after native build is installed on device
 | [`ROADMAP.md`](ROADMAP.md) | Tasks, launch, ownership |
 | [`API.md`](API.md) | All API endpoints |
 | [`docs/FUTURE_PLAN.md`](docs/FUTURE_PLAN.md) | Product + pricing + AI cost |
+| [`docs/LAUNCH_FROM_SCRATCH.md`](docs/LAUNCH_FROM_SCRATCH.md) | **Эхнээс launch** (Railway → EAS → OTA → 3D) |
 | [`docs/HOT_UPDATER.md`](docs/HOT_UPDATER.md) | OTA deploy guide |
 | [`docs/AI_BUDDY_PLAN.md`](docs/AI_BUDDY_PLAN.md) | AI Buddy pipeline |
 | [`docs/AI_BUDDY_AVATAR_MESHY.md`](docs/AI_BUDDY_AVATAR_MESHY.md) | 3D avatar (Meshy → GLB) |

@@ -5,23 +5,32 @@
     "scheme": "englishxp",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "icon": "./assets/logoSparkXP.webp",
+    "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.usukh6ayar.englishxp"
+      "bundleIdentifier": "com.usukh6ayar.englishxp",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Анги нэгдэх QR код уншихад камер ашиглана.",
+        "NSMicrophoneUsageDescription": "AI Buddy-тай дуут яриа хийхэд микрофон ашиглана.",
+        "UIBackgroundModes": ["audio"]
+      }
     },
     "android": {
+      "package": "com.usukh6ayar.englishxp",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "backgroundColor": "#191040",
+        "foregroundImage": "./assets/logoSparkXP.webp"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ]
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/logoSparkXP.webp"
     },
     "plugins": [
       "expo-router",
@@ -41,6 +50,12 @@
           "channel": "production"
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "REPLACE_WITH_EAS_INIT"
+      }
+    },
+    "owner": "usukh6ayar"
   }
 }
