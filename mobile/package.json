@@ -4,6 +4,7 @@
   "main": "expo-router/entry",
   "dependencies": {
     "@gorhom/bottom-sheet": "^5.2.14",
+    "@hot-updater/react-native": "^0.35.3",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-three/fiber": "^9.6.1",
     "base64-js": "^1.5.1",
@@ -41,15 +42,24 @@
     "upng-js": "^2.1.0"
   },
   "devDependencies": {
+    "@hot-updater/cloudflare": "^0.35.3",
+    "@hot-updater/expo": "^0.35.3",
     "@types/react": "~19.1.10",
     "@types/three": "^0.169.0",
-    "typescript": "~5.9.2"
+    "dotenv": "^17.4.2",
+    "hot-updater": "^0.35.3",
+    "typescript": "~5.9.2",
+    "wrangler": "^4.110.0"
   },
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "ota:deploy": "hot-updater deploy -t 1.0.0",
+    "ota:deploy:ios": "hot-updater deploy -p ios -t 1.0.0",
+    "ota:deploy:android": "hot-updater deploy -p android -t 1.0.0",
+    "ota:console": "hot-updater console"
   },
   "private": true
 }
