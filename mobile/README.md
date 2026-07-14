@@ -23,6 +23,17 @@ The backend must be running (`cd ../backend && npm run start:dev`).
 Seed sample data + an admin: `cd ../backend && npm run seed`
 (admin@englishxp.mn / admin123).
 
+## Hot Updater (OTA)
+
+JS/UI-г App Store review-гүйгээр түгээх. **Бүрэн заавар (Монгол):**  
+→ [`docs/HOT_UPDATER.md`](../docs/HOT_UPDATER.md)
+
+```bash
+# Native build (Expo Go биш) + .env / .env.hotupdater бөглөсний дараа:
+npm run ota:deploy          # iOS + Android, target 1.0.0
+npm run ota:console
+```
+
 ## Structure
 
 ```

@@ -33,6 +33,11 @@ yarn-error.*
 # local env files
 .env
 .env*.local
+.env.hotupdater
+
+# Hot Updater deploy artifacts
+.hot-updater/
+keys/
 
 # typescript
 *.tsbuildinfo
@@ -40,3 +45,5 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+# hot-updater
+.hot-updater/output

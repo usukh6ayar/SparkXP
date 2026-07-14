@@ -34,7 +34,13 @@
       ],
       "expo-audio",
       "expo-video",
-      "expo-asset"
+      "expo-asset",
+      [
+        "@hot-updater/react-native",
+        {
+          "channel": "production"
+        }
+      ]
     ]
   }
 }

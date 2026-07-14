@@ -1,10 +1,11 @@
-import { useEffect, useMemo } from "react";
-import { View, ActivityIndicator, StyleSheet } from "react-native";
+import { useEffect, useMemo, type ComponentType } from "react";
+import { View, ActivityIndicator, StyleSheet, Text } from "react-native";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 import { ThemeProvider, DarkTheme, DefaultTheme } from "@react-navigation/native";
+import Constants from "expo-constants";
 import { AuthProvider, useAuth } from "../src/auth/AuthContext";
 import { SettingsProvider, useColors, useSettings } from "../src/settings/SettingsContext";
 import { DictionaryProvider } from "../src/components/DictionaryProvider";
@@ -81,7 +82,7 @@ function ThemedNav() {
   );
 }
 
-export default function RootLayout() {
+function RootLayout() {
   return (
     <GestureHandlerRootView style={styles.flex}>
       <SafeAreaProvider>
@@ -100,11 +101,67 @@ export default function RootLayout() {
   );
 }
 
+/**
+ * Hot Updater OTA wrap — only on real native builds when a Worker URL is set.
+ * Expo Go has no HotUpdater native module; wrapping there would crash, so we
+ * skip it. Set EXPO_PUBLIC_HOT_UPDATER_URL after `npx hot-updater init`.
+ * See docs/HOT_UPDATER.md.
+ */
+function withHotUpdater(App: ComponentType): ComponentType {
+  const raw = process.env.EXPO_PUBLIC_HOT_UPDATER_URL?.trim();
+  const inExpoGo = Constants.appOwnership === "expo";
+  if (!raw || inExpoGo) return App;
+
+  // Lazy require so Expo Go never loads the native module.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { HotUpdater } = require("@hot-updater/react-native") as typeof import("@hot-updater/react-native");
+  const base = raw.replace(/\/$/, "");
+  const checkURL = base.endsWith("/api/check-update")
+    ? base
+    : `${base}/api/check-update`;
+
+  return HotUpdater.wrap({
+    baseURL: checkURL,
+    updateStrategy: "appVersion",
+    fallbackComponent: ({ progress, status }: { progress: number; status: string }) => (
+      <View style={styles.otaFallback}>
+        <Text style={styles.otaTitle}>
+          {status === "UPDATING" ? "Шинэчлэл суулгаж байна…" : "Шинэчлэл шалгаж байна…"}
+        </Text>
+        {progress > 0 ? (
+          <Text style={styles.otaProgress}>{Math.round(progress * 100)}%</Text>
+        ) : null}
+      </View>
+    ),
+  })(App);
+}
+
+export default withHotUpdater(RootLayout);
+
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   center: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+  },
+  otaFallback: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#191040",
+    padding: 24,
+  },
+  otaTitle: {
+    color: "#FFFFFF",
+    fontSize: 18,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  otaProgress: {
+    color: "#B9A9E6",
+    fontSize: 16,
+    fontWeight: "600",
+    marginTop: 12,
   },
 });
