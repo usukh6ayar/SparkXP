@@ -1,0 +1,46 @@
+# OS / editor
+.DS_Store
+**/.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+*~
+
+# Env / secrets (never commit)
+.env
+.env.*
+!.env.example
+!**/.env.example
+!**/.env.hotupdater.example
+
+# Dependencies & build
+node_modules/
+dist/
+web-build/
+.expo/
+*.tsbuildinfo
+
+# Logs & dumps
+*.log
+npm-debug.log*
+db_backup_*.sql
+prod_db_backup_*.sql
+
+# Backend local uploads (use R2/Cloudinary in prod)
+backend/uploads/
+backend/uploads/**
+
+# Large local 3D / tooling (host on R2/CDN)
+mobile/assets/model/
+**/*.glb
+.hot-updater/
+mobile/.hot-updater/
+
+# Native generated (Expo prebuild — optional commit policy)
+# mobile/ios/
+# mobile/android/
+
+# Wrangler / Cloudflare local
+.wrangler/
+.dev.vars
