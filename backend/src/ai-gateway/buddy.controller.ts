@@ -99,6 +99,15 @@ export class BuddyController {
     return this.buddy.listTextSessions(user.id, buddySlug);
   }
 
+  /** Delete a past typed-chat thread from history. */
+  @Delete('text-session/:id')
+  deleteTextSession(
+    @Param('id', ParseUUIDPipe) sessionId: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.buddy.deleteTextSession(user.id, sessionId);
+  }
+
   /** Current-month voice + STT usage for the usage meter. */
   @Get('usage')
   getUsage(@CurrentUser() user: User) {

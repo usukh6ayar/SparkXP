@@ -431,8 +431,10 @@ const makeStyles = (p: PremiumPalette, isDark: boolean) => {
     backgroundColor: p.card, ...cardEdge,
   },
   avatarOuter: { width: 108, height: 108, alignItems: 'center', justifyContent: 'center' },
+  // Centered halo: 116 in a 108 box → inset (108-116)/2 = -4 on each side, so
+  // the glow sits symmetrically behind the avatar (was -8, which skewed it).
   avatarGlow: {
-    position: 'absolute', top: -8, left: -8, width: 116, height: 116, borderRadius: 58,
+    position: 'absolute', top: -4, left: -4, width: 116, height: 116, borderRadius: 58,
     backgroundColor: 'rgba(124,77,255,0.35)',
   },
   avatarRing: {

@@ -193,6 +193,21 @@ export default function ChatScreen() {
     }
   }, [token, textSlug, applyTextSession, t]);
 
+  /** Delete a past thread from history. Optimistic: drop it from the list right
+   *  away; if it's the open thread, start a fresh one. Persists via
+   *  DELETE /ai/buddy/text-session/:id (a failure is logged, not surfaced). */
+  const deleteHistorySession = useCallback(async (id: string) => {
+    setHistorySessions((prev) => prev.filter((s) => s.sessionId !== id));
+    if (id === textSessionId) openThread({ fresh: true });
+    if (!token) return;
+    try {
+      await aiApi.deleteBuddyTextSession(id, token);
+    } catch (e) {
+      const d = e instanceof ApiError ? `${e.status} ${e.message}` : String(e);
+      console.warn('deleteBuddyTextSession unavailable:', d);
+    }
+  }, [token, textSessionId, openThread]);
+
   /**
    * A completed VOICE turn. The voice screen is speak-only and ephemeral — it
    * shows just the latest spoken reply (in the buddy's bubble) and never writes
@@ -307,7 +322,6 @@ export default function ChatScreen() {
         />
         <BuddySelector
           buddies={buddies}
-          appliedSlug={selected?.slug ?? null}
           onApply={(buddy) => { selectBuddy(buddy); setMode('voice'); }}
           loading={buddiesLoading}
           error={buddiesError}
@@ -366,6 +380,7 @@ export default function ChatScreen() {
           onClose={() => setHistoryOpen(false)}
           onNewChat={() => openThread({ fresh: true })}
           onPick={(id) => openThread({ sessionId: id })}
+          onDelete={deleteHistorySession}
         />
       )}
     </SafeAreaView>

@@ -6,7 +6,6 @@ import { haptics } from '../lib/haptics';
 import { useSettings } from '../settings/SettingsContext';
 import * as usersApi from '../api/users';
 import { MN_PROVINCES as PROVINCES, UB_DISTRICTS } from '../constants/locations';
-import { CEFR_LEVELS } from '../constants/levels';
 import { alertError } from '../lib/alerts';
 import { TopBar } from './TopBar';
 import { TextField } from './TextField';
@@ -17,15 +16,15 @@ import { spacing } from '../theme/theme';
 
 /**
  * Edit-profile sheet — the single source of truth for editing a profile, opened
- * from both the Profile hero and Settings. Edits every field the backend accepts
- * on PATCH /users/me: full name, English name, CEFR level, province & district.
+ * from both the Profile hero and Settings. Edits the profile-info fields on
+ * PATCH /users/me: full name, English name, province & district. CEFR level is
+ * NOT editable here — it's set by the placement test, not chosen by hand.
  */
 export function EditProfileModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const { user, token, updateUser } = useAuth();
   const { t } = useSettings();
   const [fullName, setFullName] = useState('');
   const [englishName, setEnglishName] = useState('');
-  const [level, setLevel] = useState('');
   const [province, setProvince] = useState('');
   const [district, setDistrict] = useState('');
   const [saving, setSaving] = useState(false);
@@ -39,16 +38,10 @@ export function EditProfileModal({ visible, onClose }: { visible: boolean; onClo
     haptics.tap();
     setFullName(user?.fullName ?? '');
     setEnglishName(user?.englishName ?? '');
-    setLevel(user?.level ?? '');
     setProvince('');
     setDistrict('');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
-
-  // CEFR level shown as "B1 · Дунд"; map the picked label back to its value.
-  const levelOptions = CEFR_LEVELS.map((l) => `${l.code} · ${t(l.labelKey)}`);
-  const found = CEFR_LEVELS.find((l) => l.value === level);
-  const levelLabel = found ? `${found.code} · ${t(found.labelKey)}` : '';
 
   async function save() {
     if (!fullName.trim()) { alertError(t('enterName')); return; }
@@ -58,7 +51,6 @@ export function EditProfileModal({ visible, onClose }: { visible: boolean; onClo
         {
           fullName: fullName.trim(),
           englishName: englishName.trim() || undefined,
-          level: level || undefined,
           province: province || undefined,
           district: isUB ? district || undefined : undefined,
         },
@@ -84,11 +76,6 @@ export function EditProfileModal({ visible, onClose }: { visible: boolean; onClo
         <TextField
           label={t('englishName')} value={englishName} onChangeText={setEnglishName}
           placeholder={t('optional')} autoCapitalize="words"
-        />
-        <SelectField
-          label={t('englishLevel')} value={levelLabel} options={levelOptions}
-          placeholder={t('selectOptional')}
-          onSelect={(lbl) => setLevel(CEFR_LEVELS[levelOptions.indexOf(lbl)]?.value ?? '')}
         />
         <SelectField
           label={t('province')} value={province} options={PROVINCES}

@@ -251,6 +251,20 @@ export class BuddyService {
       .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
   }
 
+  /**
+   * Delete a past TEXT chat thread (history panel → trash). Only the owner's own
+   * text session can be removed; its messages go with it.
+   */
+  async deleteTextSession(userId: string, sessionId: string): Promise<{ ok: true }> {
+    const session = await this.sessions.findOne({
+      where: { id: sessionId, userId, mode: BuddySessionMode.TEXT },
+    });
+    if (!session) throw new NotFoundException('Session олдсонгүй');
+    await this.messages.delete({ userId, sessionId });
+    await this.sessions.delete({ id: sessionId });
+    return { ok: true };
+  }
+
   async getUsage(userId: string): Promise<{
     voice: TurnResponse['usage'];
     stt: TurnResponse['usage'];

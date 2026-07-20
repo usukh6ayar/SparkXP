@@ -153,13 +153,23 @@ const mn = {
   save: 'Хадгалах',
   saving: 'Хадгалж байна...',
 
+  // Account hub
+  accountTitle: 'Бүртгэл',
+  accountManage: 'Профайл, имэйл, нууц үгээ энд удирдана.',
+  security: 'Нэвтрэлт ба нууцлал',
+  levelFromTest: 'Түвшинг эхний шалгалтаар тогтооно.',
+  tapToChangePhoto: 'Зураг солих',
+
   // Avatar
   avatarTitle: 'Профайл зураг',
   editAvatar: 'Зураг солих',
   chooseFromPhotos: 'Зургаа сонгох',
+  avatarHint: 'Зургаа солихын тулд доод товч эсвэл зурган дээрээ дар.',
   defaultAvatars: 'Бэлэн зургууд',
   uploading: 'Хуулж байна...',
-  photoPermission: 'Зураг сонгоход зөвшөөрөл хэрэгтэй.',
+  photoPermission: 'Зураг сонгоход зургийн санд хандах зөвшөөрөл хэрэгтэй. Тохиргоо руу орж зөвшөөрнө үү.',
+  photoPermissionTitle: 'Зургийн зөвшөөрөл',
+  openSettings: 'Тохиргоо нээх',
 
   // Assignments (student)
   myAssignments: 'Миний даалгаврууд',
@@ -245,6 +255,10 @@ const mn = {
   haptics: 'Чичиргээ',
   account: 'Бүртгэл',
   changePassword: 'Нууц үг солих',
+  changePasswordSubtitle: 'Таны имэйл рүү баталгаажуулах код илгээж, нууц үгээ шинэчилнэ.',
+  changeEmail: 'Имэйл солих',
+  noEmailOnAccount: 'Энэ бүртгэлд имэйл бүртгэгдээгүй байна.',
+  passwordChanged: 'Нууц үг амжилттай солигдлоо',
   privacy: 'Хувийн нууцлал',
   support: 'Тусламж',
   helpFaq: 'Тусламж ба түгээмэл асуулт',
@@ -272,6 +286,10 @@ const mn = {
   readingFinish: 'Уншиж дууслаа (+15 XP)',
   tapWordHint: '💡 Үг дээр 2 удаа дарвал монгол утга гарч ирнэ',
   textSize: 'Үсгийн хэмжээ',
+  doneCountLabel: '{done}/{total} дуусгасан',
+  doneTag: 'Дууссан',
+  readingProgressTitle: 'Таны ахиц',
+  readingProgressSub: '{done}/{total} материал уншсан',
 
   // Soril (games)
   sorilSubtitle: 'Мэдлэгээ шалгаж, амжилтаа ахиулаарай!',
@@ -326,6 +344,7 @@ const mn = {
   idiomsTitle: 'Хэлц үг',
   idiomsSubtitle: 'Англи хэлц үгсийг утгатай нь сур.',
   noIdioms: 'Хэлц байхгүй байна 🦊',
+  idiomsProgressSub: '{done}/{total} сурсан',
   idiomNotFound: 'Хэлц олдсонгүй 🦊',
   meaningLabel: 'Жинхэнэ утга',
   definitionLabel: 'Тайлбар',
@@ -433,7 +452,7 @@ const mn = {
   noWordsDue: 'Өнөөдөр давтах үг алга',
   startReview: 'Давтах эхлэх',
   assignmentsSubtitle: 'Багшийн оноосон хичээл, сорил',
-  todaysTasks: 'Өнөөдрийн даалгавар',
+  exercisesTitle: 'Дасгалууд',
   exerciseCount: '{n} дасгал',
   questionCount: '{n} асуулт',
 
@@ -472,6 +491,8 @@ const mn = {
   chatNewChat: 'Шинэ чат',
   chatHistoryEmpty: 'Түүх хоосон байна.',
   chatUntitled: 'Гарчиггүй чат',
+  chatDeleteThread: 'Яриаг устгах уу?',
+  chatDeleteThreadBody: 'Энэ чатын түүхийг бүрмөсөн устгана.',
 
   // AI Buddy selection
   buddySelectTitle: 'AI Найз',
@@ -606,6 +627,30 @@ const mn = {
   timeMinAgo: '{n} мин өмнө',
   timeHourAgo: '{n} цагийн өмнө',
   timeDayAgo: '{n} өдрийн өмнө',
+
+  // Notification center (Activity Center)
+  markAllRead: 'Бүгдийг уншсан',
+  notifFilterAll: 'Бүгд',
+  notifFilterLearning: 'Сургалт',
+  notifFilterRewards: 'Шагнал',
+  notifFilterAiBuddy: 'AI Найз',
+  notifFilterSocial: 'Нийгэм',
+  notifFilterSystem: 'Систем',
+  notifGroupToday: 'Өнөөдөр',
+  notifGroupYesterday: 'Өчигдөр',
+  notifGroupEarlier: 'Өмнөх',
+  notifCtaContinue: 'Үргэлжлүүлэх',
+  notifCtaStartChat: 'Чат эхлэх',
+  notifCtaView: 'Харах',
+  notifCaughtTitle: 'Бүгд уншигдсан!',
+  notifCaughtHint: 'Дуусгасан хичээл, амжилтууд энд харагдана.',
+  notifContinueLearning: 'Сургалт үргэлжлүүлэх',
+  notifCtxOpen: 'Нээх',
+  notifCtxMarkRead: 'Уншсан гэж тэмдэглэх',
+  notifCtxMute: 'Энэ төрлийг хаах',
+  notifCtxDelete: 'Устгах',
+  notifSwipeRead: 'Уншсан',
+  notifSwipeDelete: 'Устгах',
 
   // AI Buddy memory
   buddyMemory: 'AI Buddy санах ой',
@@ -764,12 +809,22 @@ const en: Record<TranslationKey, string> = {
   save: 'Save',
   saving: 'Saving...',
 
+  // Account hub
+  accountTitle: 'Account',
+  accountManage: 'Manage your profile, email and password here.',
+  security: 'Sign-in & security',
+  levelFromTest: 'Your level is set by the placement test.',
+  tapToChangePhoto: 'Change photo',
+
   avatarTitle: 'Profile picture',
   editAvatar: 'Change picture',
   chooseFromPhotos: 'Choose a photo',
+  avatarHint: 'Tap the button or your photo to change it.',
   defaultAvatars: 'Default pictures',
   uploading: 'Uploading...',
-  photoPermission: 'Permission is needed to choose a photo.',
+  photoPermission: 'Photo library access is needed to choose a photo. Please enable it in Settings.',
+  photoPermissionTitle: 'Photo permission',
+  openSettings: 'Open Settings',
 
   myAssignments: 'My assignments',
   noAssignmentsStudent: 'You have no assignments',
@@ -850,6 +905,10 @@ const en: Record<TranslationKey, string> = {
   haptics: 'Haptics',
   account: 'Account',
   changePassword: 'Change password',
+  changePasswordSubtitle: "We'll email you a verification code, then you can set a new password.",
+  changeEmail: 'Change email',
+  noEmailOnAccount: 'No email is registered on this account.',
+  passwordChanged: 'Password changed successfully',
   privacy: 'Privacy',
   support: 'Support',
   helpFaq: 'Help & FAQ',
@@ -875,6 +934,10 @@ const en: Record<TranslationKey, string> = {
   readingFinish: 'Finished reading (+15 XP)',
   tapWordHint: '💡 Double-tap a word to see its Mongolian meaning',
   textSize: 'Text size',
+  doneCountLabel: '{done}/{total} done',
+  doneTag: 'Done',
+  readingProgressTitle: 'Your progress',
+  readingProgressSub: '{done}/{total} passages read',
 
   sorilSubtitle: 'Test your knowledge and level up!',
   dailyChallenge: "TODAY'S CHALLENGE",
@@ -924,6 +987,7 @@ const en: Record<TranslationKey, string> = {
   idiomsTitle: 'Idioms',
   idiomsSubtitle: 'Learn English idioms with their meanings.',
   noIdioms: 'No idioms yet 🦊',
+  idiomsProgressSub: '{done}/{total} learned',
   idiomNotFound: 'Idiom not found 🦊',
   meaningLabel: 'Meaning',
   definitionLabel: 'Explanation',
@@ -1028,7 +1092,7 @@ const en: Record<TranslationKey, string> = {
   noWordsDue: 'No words to review today',
   startReview: 'Start review',
   assignmentsSubtitle: 'Lessons and quizzes from your teacher',
-  todaysTasks: "Today's tasks",
+  exercisesTitle: 'Exercises',
   exerciseCount: '{n} exercises',
   questionCount: '{n} questions',
 
@@ -1066,6 +1130,8 @@ const en: Record<TranslationKey, string> = {
   chatNewChat: 'New chat',
   chatHistoryEmpty: 'No history yet.',
   chatUntitled: 'Untitled chat',
+  chatDeleteThread: 'Delete chat?',
+  chatDeleteThreadBody: 'This will permanently remove this chat thread.',
   defaultBuddyName: 'Spark',
 
   // AI Buddy selection
@@ -1201,6 +1267,30 @@ const en: Record<TranslationKey, string> = {
   timeMinAgo: '{n} min ago',
   timeHourAgo: '{n} h ago',
   timeDayAgo: '{n} d ago',
+
+  // Notification center (Activity Center)
+  markAllRead: 'Mark all read',
+  notifFilterAll: 'All',
+  notifFilterLearning: 'Learning',
+  notifFilterRewards: 'Rewards',
+  notifFilterAiBuddy: 'AI Buddy',
+  notifFilterSocial: 'Social',
+  notifFilterSystem: 'System',
+  notifGroupToday: 'Today',
+  notifGroupYesterday: 'Yesterday',
+  notifGroupEarlier: 'Earlier',
+  notifCtaContinue: 'Continue',
+  notifCtaStartChat: 'Start chat',
+  notifCtaView: 'View',
+  notifCaughtTitle: "You're all caught up!",
+  notifCaughtHint: 'Completed lessons and achievements will appear here.',
+  notifContinueLearning: 'Continue learning',
+  notifCtxOpen: 'Open',
+  notifCtxMarkRead: 'Mark as read',
+  notifCtxMute: 'Mute this type',
+  notifCtxDelete: 'Delete',
+  notifSwipeRead: 'Read',
+  notifSwipeDelete: 'Delete',
 
   // AI Buddy memory
   buddyMemory: 'AI Buddy memory',

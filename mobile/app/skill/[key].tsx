@@ -2,10 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/auth/AuthContext';
 import { getExercises, type Quiz } from '../../src/api/quizzes';
+import { loadCompletedExercises } from '../../src/lib/exerciseProgress';
 import { TopBar } from '../../src/components/TopBar';
 import { AppText } from '../../src/components/Text';
 import { ProgressBar } from '../../src/components/ProgressBar';
@@ -26,14 +27,14 @@ type IconName = keyof typeof Ionicons.glyphMap;
  */
 const SKILLS: Record<
   string,
-  { catKey: TranslationKey; icon: IconName; grad: readonly [string, string]; percent: number }
+  { catKey: TranslationKey; icon: IconName; grad: readonly [string, string] }
 > = {
-  listening: { catKey: 'catListening', icon: 'headset', grad: skillGradients.listening, percent: 60 },
-  reading: { catKey: 'catReading', icon: 'book', grad: skillGradients.reading, percent: 75 },
-  speaking: { catKey: 'catSpeaking', icon: 'mic', grad: skillGradients.speaking, percent: 68 },
-  writing: { catKey: 'catWriting', icon: 'create', grad: skillGradients.writing, percent: 52 },
-  grammar: { catKey: 'catGrammar', icon: 'book', grad: skillGradients.grammar, percent: 50 },
-  fill: { catKey: 'catFill', icon: 'extension-puzzle', grad: skillGradients.fill, percent: 50 },
+  listening: { catKey: 'catListening', icon: 'headset', grad: skillGradients.listening },
+  reading: { catKey: 'catReading', icon: 'book', grad: skillGradients.reading },
+  speaking: { catKey: 'catSpeaking', icon: 'mic', grad: skillGradients.speaking },
+  writing: { catKey: 'catWriting', icon: 'create', grad: skillGradients.writing },
+  grammar: { catKey: 'catGrammar', icon: 'book', grad: skillGradients.grammar },
+  fill: { catKey: 'catFill', icon: 'extension-puzzle', grad: skillGradients.fill },
 };
 
 export default function SkillScreen() {
@@ -46,6 +47,7 @@ export default function SkillScreen() {
   const router = useRouter();
 
   const [items, setItems] = useState<Quiz[]>([]);
+  const [completed, setCompleted] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(false);
@@ -54,8 +56,9 @@ export default function SkillScreen() {
   const load = useCallback(async () => {
     if (!token) { setItems([]); return; }
     try {
-      const r = await getExercises(token, skillKey);
+      const [r, done] = await Promise.all([getExercises(token, skillKey), loadCompletedExercises()]);
       setItems(r.items);
+      setCompleted(done);
       setError(false);
     } catch (e) {
       console.warn('Exercises load failed:', (e as Error)?.message ?? e);
@@ -68,6 +71,15 @@ export default function SkillScreen() {
     setLoading(true);
     load().finally(() => setLoading(false));
   }, [load]);
+
+  // Refresh completion when returning from a quiz (checkmarks update live).
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      loadCompletedExercises().then((done) => { if (active) setCompleted(done); });
+      return () => { active = false; };
+    }, []),
+  );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -88,18 +100,24 @@ export default function SkillScreen() {
     [items],
   );
 
+  // Real progress: how many of this skill's exercises the user has passed.
+  const doneCount = useMemo(() => items.filter((q) => completed.has(q.id)).length, [items, completed]);
+  const percent = items.length ? Math.round((doneCount / items.length) * 100) : 0;
+
   const hero = (
     <LinearGradient colors={skill.grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
       <View style={styles.heroLeft}>
         <AppText variant="overline" color="rgba(255,255,255,0.85)">
-          {t('todayLabel')} · {t(skill.catKey).toUpperCase()}
+          {t(skill.catKey).toUpperCase()}
         </AppText>
         <AppText variant="display" color={c.white} style={styles.heroPercent}>
-          {skill.percent}%
+          {percent}%
         </AppText>
-        <AppText variant="caption" color="rgba(255,255,255,0.9)">{t('progressLabel')}</AppText>
+        <AppText variant="caption" color="rgba(255,255,255,0.9)">
+          {tf('doneCountLabel', { done: doneCount, total: items.length })}
+        </AppText>
         <ProgressBar
-          value={skill.percent / 100}
+          value={items.length ? doneCount / items.length : 0}
           color={c.white}
           track="rgba(255,255,255,0.28)"
           height={8}
@@ -135,6 +153,7 @@ export default function SkillScreen() {
         // Hero only on the сэдэв list (level 1), so level 2 is a clean list.
         hero={selectedCat === null ? hero : undefined}
         emptyText={t('noSkillExercises')}
+        completedIds={completed}
       />
     </SafeAreaView>
   );

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
-import { View, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Pressable, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import {
   BottomSheetModal,
   BottomSheetFlatList,
@@ -25,7 +25,7 @@ import type { BuddyTextSessionSummary } from '../api/ai';
  * dismiss. Presented above the chat sheet, so the chat blurs behind it.
  */
 export function BuddyHistorySheet({
-  open, loading, sessions, activeId, onClose, onNewChat, onPick,
+  open, loading, sessions, activeId, onClose, onNewChat, onPick, onDelete,
 }: {
   open: boolean;
   loading: boolean;
@@ -34,6 +34,8 @@ export function BuddyHistorySheet({
   onClose: () => void;
   onNewChat: () => void;
   onPick: (sessionId: string) => void;
+  /** Delete a past thread from history (with confirmation). */
+  onDelete: (sessionId: string) => void;
 }) {
   const c = useColors();
   const { theme } = useSettings();
@@ -52,6 +54,12 @@ export function BuddyHistorySheet({
   // Run the action, then let the sheet slide down (onDismiss tells the parent).
   const pick = useCallback((id: string) => { onPick(id); ref.current?.dismiss(); }, [onPick]);
   const newChat = useCallback(() => { onNewChat(); ref.current?.dismiss(); }, [onNewChat]);
+  const confirmDelete = useCallback((id: string) => {
+    Alert.alert(t('chatDeleteThread'), t('chatDeleteThreadBody'), [
+      { text: t('cancel'), style: 'cancel' },
+      { text: t('delete'), style: 'destructive', onPress: () => onDelete(id) },
+    ]);
+  }, [onDelete]);
 
   const renderBackdrop = useCallback(
     (props: BottomSheetBackdropProps) => <GlassBackdrop {...props} onPress={close} />,
@@ -108,6 +116,15 @@ export function BuddyHistorySheet({
               {item.sessionId === activeId && (
                 <Ionicons name="checkmark-circle" size={16} color={c.primary} />
               )}
+              <Pressable
+                onPress={() => confirmDelete(item.sessionId)}
+                hitSlop={10}
+                style={styles.deleteBtn}
+                accessibilityRole="button"
+                accessibilityLabel={t('delete')}
+              >
+                <Ionicons name="trash-outline" size={17} color={c.textMuted} />
+              </Pressable>
             </Pressable>
           )}
         />
@@ -190,4 +207,5 @@ const makeStyles = (c: AppColors, isLight: boolean) => StyleSheet.create({
     paddingVertical: spacing.sm, paddingHorizontal: spacing.sm, borderRadius: radius.md,
   },
   rowText: { flex: 1 },
+  deleteBtn: { padding: 4 },
 });
