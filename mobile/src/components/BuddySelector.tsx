@@ -98,7 +98,6 @@ function withDefaults(buddy: Buddy, index: number, t: (key: TranslationKey) => s
 
 export function BuddySelector({
   buddies,
-  appliedSlug,
   onApply,
   loading = false,
   error = false,
@@ -106,7 +105,6 @@ export function BuddySelector({
   onRetry,
 }: {
   buddies: Buddy[];
-  appliedSlug: string | null;
   onApply: (buddy: Buddy) => void;
   /** True while the buddy list is being fetched — shows a spinner instead of an empty carousel. */
   loading?: boolean;
@@ -333,8 +331,6 @@ export function BuddySelector({
             <AppText variant="h1" numberOfLines={1} style={styles.nameText} center>{centerBuddy.name}</AppText>
             {isLocked ? (
               <Pill label={t('buddyLocked')} icon="lock-closed" bg={tints.amber.bg} fg={tints.amber.fg} />
-            ) : appliedSlug === centerBuddy.slug ? (
-              <Pill label={t('buddySelected')} icon="checkmark-circle" bg={c.primarySoft} fg={c.primary} />
             ) : null}
             {/* Hide the play button while locked (nothing to preview yet); once
                 unlocked it fades cleanly back into the same spot. */}

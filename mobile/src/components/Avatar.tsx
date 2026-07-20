@@ -27,7 +27,9 @@ export function Avatar({
   const initial = (name ?? '').trim().charAt(0).toUpperCase() || '?';
   return (
     <View style={[circle, styles.fallback]}>
-      <AppText variant="bodyStrong" color={colors.primary} style={{ fontSize: size * 0.4 }}>
+      {/* Match lineHeight to the enlarged fontSize so the glyph stays centered
+          (the base variant's lineHeight would push it off-center). */}
+      <AppText variant="bodyStrong" color={colors.primary} style={{ fontSize: size * 0.4, lineHeight: size * 0.44 }}>
         {initial}
       </AppText>
     </View>

@@ -24,6 +24,7 @@ import { Card } from '../../src/components/Card';
 import { Skeleton } from '../../src/components/Skeleton';
 import { EmptyState } from '../../src/components/EmptyState';
 import { ReadingQuiz } from '../../src/components/ReadingQuiz';
+import { markReadingCompleted } from '../../src/lib/readingProgress';
 import { t } from '../../src/i18n';
 import { spacing, radius, levelColor, type AppColors } from '../../src/theme/theme';
 import { useColors } from '../../src/settings/SettingsContext';
@@ -70,6 +71,7 @@ export default function ReadingDetailScreen() {
     } catch {
       // ignore — still show as done locally
     } finally {
+      markReadingCompleted(id); // local mirror → checkmark on the list
       setDone(true);
     }
   }, [token, id, done]);

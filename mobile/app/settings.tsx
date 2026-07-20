@@ -10,7 +10,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../src/auth/AuthContext';
 import { useSettings } from '../src/settings/SettingsContext';
 import { AppText } from '../src/components/Text';
-import { EditProfileModal } from '../src/components/EditProfileModal';
 import { resolveAvatar } from '../src/lib/avatar';
 import { useLogoutConfirm, useComingSoon } from '../src/lib/useLogoutConfirm';
 import { ROLE_TKEY } from '../src/constants/roles';
@@ -96,7 +95,6 @@ export default function SettingsScreen() {
   const [notifications, setNotifications] = useState(true);
   const [sound, setSound] = useState(true);
   const [haptics, setHaptics] = useState(true);
-  const [editing, setEditing] = useState(false);
 
   // Restore switch prefs + keep the status bar readable for the active theme.
   useFocusEffect(
@@ -139,8 +137,8 @@ export default function SettingsScreen() {
         </View>
 
         <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-          {/* Account mini-card */}
-          <Pressable onPress={() => router.push('/avatar')}
+          {/* Account mini-card → full account hub */}
+          <Pressable onPress={() => router.push('/account')}
             style={({ pressed }) => [styles.account, { backgroundColor: p.card, borderColor: p.cardBorder }, pressed && styles.pressed]}>
             <AppImage source={resolveAvatar(user?.avatarUrl) ?? avatarImg} width={120} style={[styles.accountAvatar, { backgroundColor: p.track }]} contentFit="cover" />
             <View style={{ flex: 1 }}>
@@ -194,9 +192,7 @@ export default function SettingsScreen() {
           {/* Account */}
           <SectionLabel>{t('account').toUpperCase()}</SectionLabel>
           <Card p={p}>
-            <Row p={p} icon="person" tint={tints.blue} label={t('editProfile')} onPress={() => setEditing(true)} />
             <Row p={p} icon="sparkles" tint={tints.purple} label={t('buddyMemory')} onPress={() => router.push('/buddy-memory')} />
-            <Row p={p} icon="lock-closed" tint={tints.purple} label={t('changePassword')} onPress={soon} />
             <Row p={p} icon="shield-checkmark" tint={tints.green} label={t('privacy')} onPress={soon} />
           </Card>
 
@@ -230,8 +226,6 @@ export default function SettingsScreen() {
           </View>
         </ScrollView>
       </SafeAreaView>
-
-      <EditProfileModal visible={editing} onClose={() => setEditing(false)} />
     </View>
   );
 }

@@ -155,6 +155,17 @@ export function listBuddyTextSessions(
   );
 }
 
+/** Delete a past typed-chat thread from history. Backend: DELETE /ai/buddy/text-session/:id. */
+export function deleteBuddyTextSession(
+  sessionId: string,
+  token: string,
+): Promise<void> {
+  return apiRequest<void>(
+    `/ai/buddy/text-session/${encodeURIComponent(sessionId)}`,
+    { method: 'DELETE', token },
+  );
+}
+
 export function sendBuddyTextTurn(
   sessionId: string,
   text: string,

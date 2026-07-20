@@ -19,6 +19,7 @@ import { Confetti } from '../../src/components/Confetti';
 import { CountUp } from '../../src/components/CountUp';
 import { AppText } from '../../src/components/Text';
 import { haptics } from '../../src/lib/haptics';
+import { markExerciseCompleted } from '../../src/lib/exerciseProgress';
 import { showXpToast } from '../../src/lib/xpToast';
 import { alertError } from '../../src/lib/alerts';
 import { t, tf } from '../../src/i18n';
@@ -129,6 +130,7 @@ export default function QuizScreen() {
     setSubmitting(true);
     try {
       const res = await quizzesApi.submitQuiz(id!, finalAnswers, token!);
+      if (res.passed && id) markExerciseCompleted(id); // local mirror → checkmark on the list
       setResult(res);
       setPhase('result');
     } catch {

@@ -12,6 +12,7 @@ import * as Speech from 'expo-speech';
 import { useAuth } from '../../src/auth/AuthContext';
 import { ApiError } from '../../src/api/client';
 import { getIdiom, type Idiom } from '../../src/api/idioms';
+import { markIdiomLearned } from '../../src/lib/idiomProgress';
 import { TopBar } from '../../src/components/TopBar';
 import { AppText } from '../../src/components/Text';
 import { TappableText } from '../../src/components/DictionaryProvider';
@@ -40,6 +41,8 @@ export default function IdiomDetailScreen() {
       setIdiom(await getIdiom(id, token));
       setError(false);
       setNotFound(false);
+      markIdiomLearned(id); // local mirror → checkmark on the list
+
     } catch (e) {
       console.warn('Idiom load failed:', (e as Error)?.message ?? e);
       setIdiom(null);

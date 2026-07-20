@@ -35,6 +35,7 @@ import { AppText } from "../../src/components/Text";
 import { AppIcon } from "../../src/components/AppIcon";
 import { type AppIconName } from "../../src/constants/appIcons";
 import { IconButton } from "../../src/components/IconButton";
+import { Button } from "../../src/components/Button";
 import { Skeleton } from "../../src/components/Skeleton";
 import { useColors, useSettings } from "../../src/settings/SettingsContext";
 import { useReduceMotion } from "../../src/lib/motion";
@@ -399,30 +400,29 @@ export default function HomeScreen() {
 
           {/* Review reminder */}
           <View style={styles.reviewCard}>
-            <View style={styles.reviewIcon}>
-              <Ionicons name="alarm" size={26} color={tints.purple.fg} />
-            </View>
-            <View style={styles.reviewBody}>
-              <AppText variant="h3">{t("reviewWords")}</AppText>
-              <AppText variant="caption" style={styles.reviewSub}>
-                {due > 0 ? tf("wordsDueCount", { n: due }) : t("noWordsDue")}
-              </AppText>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.reviewBtn,
-                  pressed && styles.pressed,
-                ]}
-                onPress={() => router.push("/swipe")}
-              >
-                <AppText variant="bodyStrong" color={c.white}>
-                  {t("startReview")}
+            <View style={styles.reviewHead}>
+              <View style={styles.reviewIcon}>
+                <Ionicons name="alarm" size={26} color={tints.purple.fg} />
+              </View>
+              <View style={styles.reviewBody}>
+                <AppText variant="h3">{t("reviewWords")}</AppText>
+                <AppText variant="caption" color={c.textSecondary}>
+                  {due > 0 ? tf("wordsDueCount", { n: due }) : t("noWordsDue")}
                 </AppText>
-              </Pressable>
+              </View>
+              {due > 0 ? (
+                <View style={styles.reviewDueBadge}>
+                  <AppText variant="label" color={c.white} style={styles.reviewDueText}>
+                    {due}
+                  </AppText>
+                </View>
+              ) : null}
             </View>
-            <Ionicons
-              name="chevron-forward"
-              size={20}
-              color={c.borderStrong}
+            <Button
+              label={t("startReview")}
+              icon="play"
+              size="md"
+              onPress={() => router.push("/swipe")}
             />
           </View>
 
@@ -444,9 +444,9 @@ export default function HomeScreen() {
             </Pressable>
           ) : null}
 
-          {/* Today's tasks — each tile opens its skill screen of exercises */}
+          {/* Exercises — each tile opens its skill screen of exercises */}
           <View style={styles.sectionRow}>
-            <AppText variant="h2">{t("todaysTasks")}</AppText>
+            <AppText variant="h2">{t("exercisesTitle")}</AppText>
             <View style={styles.countPill}>
               <AppText variant="label" color={c.textSecondary}>
                 {tf("exerciseCount", { n: totalExercises })}
@@ -599,15 +599,16 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
 
   // Review reminder
   reviewCard: {
-    flexDirection: "row",
-    alignItems: "center",
     gap: spacing.md,
     backgroundColor: c.surface,
-    borderRadius: radius.lg,
-    padding: spacing.md,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: c.border,
+    padding: spacing.lg,
     marginTop: spacing.lg,
     ...(elevation.sm as object),
   },
+  reviewHead: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   // Shared premium icon chip — rounded square with a soft tint + matching
   // outline so every feature icon reads as one consistent, vivid set.
   reviewIcon: {
@@ -620,15 +621,17 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  reviewBody: { flex: 1, gap: 4 },
-  reviewSub: { marginBottom: spacing.sm },
-  reviewBtn: {
-    alignSelf: "flex-start",
+  reviewBody: { flex: 1, gap: 2 },
+  reviewDueBadge: {
+    minWidth: 30,
+    height: 30,
+    paddingHorizontal: 8,
+    borderRadius: radius.full,
     backgroundColor: c.primary,
-    borderRadius: radius.md,
-    paddingVertical: 9,
-    paddingHorizontal: spacing.lg,
+    alignItems: "center",
+    justifyContent: "center",
   },
+  reviewDueText: { fontWeight: "800" },
 
   // My assignments
   joinCard: {
@@ -650,7 +653,7 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
     justifyContent: "center",
   },
 
-  // Today's tasks
+  // Exercises
   sectionRow: {
     flexDirection: "row",
     alignItems: "center",

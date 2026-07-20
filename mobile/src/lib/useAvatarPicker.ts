@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { Alert, Linking } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../auth/AuthContext';
 import { uploadAvatar } from '../api/users';
@@ -18,7 +19,15 @@ export function useAvatarPicker() {
   const pickPhoto = useCallback(async () => {
     setError(null);
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) { setError(t('photoPermission')); return; }
+    if (!perm.granted) {
+      // Denied — if the OS won't prompt again, the only way to enable it is the
+      // system Settings, so offer to jump straight there.
+      Alert.alert(t('photoPermissionTitle'), t('photoPermission'), [
+        { text: t('cancel'), style: 'cancel' },
+        { text: t('openSettings'), onPress: () => Linking.openSettings() },
+      ]);
+      return;
+    }
 
     const res = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
