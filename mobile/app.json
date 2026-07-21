@@ -13,7 +13,9 @@
       "infoPlist": {
         "NSCameraUsageDescription": "Анги нэгдэх QR код уншихад камер ашиглана.",
         "NSMicrophoneUsageDescription": "AI Buddy-тай дуут яриа хийхэд микрофон ашиглана.",
-        "UIBackgroundModes": ["audio"]
+        "UIBackgroundModes": [
+          "audio"
+        ]
       }
     },
     "android": {
@@ -51,11 +53,12 @@
         }
       ]
     ],
+    "owner": "usukh6ayar",
     "extra": {
+      "router": {},
       "eas": {
-        "projectId": "REPLACE_WITH_EAS_INIT"
+        "projectId": "d5b190dd-0fb6-4684-8aff-4648fb0f0357"
       }
-    },
-    "owner": "usukh6ayar"
+    }
   }
 }

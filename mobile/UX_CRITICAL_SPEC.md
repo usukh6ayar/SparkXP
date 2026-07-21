@@ -1,5 +1,16 @@
 # SparkXP — Critical UX Fixes: Build Spec (C1–C4)
 
+> **⏱ Статус (2026-07-21, кодоос баталсан):**
+> - **C1 Home hero** 🔶 хагас — skeleton + continue card орсон; гэхдээ 4 skill tile
+>   primary хэвээр, `C1-BE` бодит progress endpoint алга.
+> - **C2 Quiz feedback** 🔶 хагас — үр дүнгийн баяр (Confetti+haptics+combo) ✅;
+>   гэхдээ **асуулт-бүрийн шууд feedback БАЙХГҮЙ** (`POST /quizzes/:id/check` C2-BE
+>   хэрэгжээгүй — backend-д зөвхөн `/submit`).
+> - **C3 Buddy** 🔶 хагас — таб **шошготой** боллоо ✅; starter prompt +
+>   voice-минут үлдэгдэл scaffold дутуу.
+> - **C4 Taste-task онбординг** ❌ эхлээгүй — guest mode + public sample endpoint алга.
+> Дэлгэрэнгүй launch төлөв → `ROADMAP.md §3`.
+
 > Turns the **Critical** items from [`UX_REVIEW.md`](./UX_REVIEW.md) into a
 > build-ready spec. Each item: owner · files · the change · copy · states ·
 > acceptance criteria · effort · dependencies. Respects the Choi/Boju ownership
