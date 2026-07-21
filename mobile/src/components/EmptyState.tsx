@@ -5,6 +5,7 @@ import { AppText } from './Text';
 import { Button } from './Button';
 import { useColors } from '../settings/SettingsContext';
 import { spacing, radius, elevation, type AppColors } from '../theme/theme';
+import { ms } from '../theme/responsive';
 
 const fox = require('../../assets/fox-home.webp');
 
@@ -54,8 +55,8 @@ export function EmptyState({
 
 const makeStyles = (c: AppColors) => StyleSheet.create({
   empty: { alignItems: 'center', paddingHorizontal: spacing.xl, marginTop: spacing.xxxl },
-  mascot: { width: 120, height: 120, alignItems: 'center', justifyContent: 'center' },
-  foxImg: { width: 120, height: 120 },
+  mascot: { width: ms(120), height: ms(120), alignItems: 'center', justifyContent: 'center' },
+  foxImg: { width: ms(120), height: ms(120) },
   badge: {
     position: 'absolute', right: 4, bottom: 4,
     width: 36, height: 36, borderRadius: radius.full, backgroundColor: c.primary,

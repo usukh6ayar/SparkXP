@@ -324,7 +324,8 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   desc: { marginTop: spacing.md },
 
   // Video
-  video: { height: 200, borderRadius: radius.xl, overflow: 'hidden', marginTop: spacing.lg, backgroundColor: c.navy },
+  // 16:9 video keeps its natural shape on every phone width (was fixed 200).
+  video: { aspectRatio: 16 / 9, borderRadius: radius.xl, overflow: 'hidden', marginTop: spacing.lg, backgroundColor: c.navy },
   videoImg: { width: '100%', height: '100%' },
   videoScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(20,16,48,0.35)' },
   noVideo: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', gap: 6 },

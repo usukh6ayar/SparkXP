@@ -13,6 +13,7 @@ import { peekPendingReferral, clearPendingReferral } from '../../src/lib/referra
 import type { AuthResult } from '../../src/api/auth';
 import { t } from '../../src/i18n';
 import { spacing, radius, type AppColors } from '../../src/theme/theme';
+import { ms } from '../../src/theme/responsive';
 import { useColors } from '../../src/settings/SettingsContext';
 import { MN_PROVINCES, UB_DISTRICTS } from '../../src/constants/locations';
 import { CEFR_LEVELS } from '../../src/constants/levels';
@@ -476,7 +477,7 @@ const makeStyles = (colors: AppColors) => StyleSheet.create({
   },
 
   // Location
-  mapFox: { width: 150, height: 150, alignSelf: 'center', marginVertical: spacing.md },
+  mapFox: { width: ms(150), height: ms(150), alignSelf: 'center', marginVertical: spacing.md },
   stepper: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -503,7 +504,7 @@ const makeStyles = (colors: AppColors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  successArt: { width: 220, height: 200, alignItems: 'center', justifyContent: 'center' },
-  successFox: { width: 180, height: 180 },
+  successArt: { width: ms(220), height: ms(200), alignItems: 'center', justifyContent: 'center' },
+  successFox: { width: ms(180), height: ms(180) },
   confetti: { position: 'absolute', width: 10, height: 10, borderRadius: 3 },
 });

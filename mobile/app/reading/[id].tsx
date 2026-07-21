@@ -315,7 +315,9 @@ const makeStyles = (colors: AppColors) => StyleSheet.create({
   progressFill: { height: 3, backgroundColor: colors.primary },
 
   cover: {
-    height: 180,
+    // Width-relative height so the banner keeps its shape on every phone width
+    // (fixed 180 letterboxed on wide devices and felt tall on narrow ones).
+    aspectRatio: 16 / 9,
     borderRadius: radius.xl,
     overflow: 'hidden',
     backgroundColor: colors.surfaceAlt,

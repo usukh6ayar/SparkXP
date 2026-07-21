@@ -173,7 +173,7 @@ function Section({ label, children, delay = 0 }: { label: string; children: Reac
 const makeStyles = (colors: AppColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   container: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg },
-  cover: { height: 160, borderRadius: radius.xl, overflow: 'hidden', backgroundColor: colors.surfaceAlt, marginBottom: spacing.lg },
+  cover: { aspectRatio: 16 / 9, borderRadius: radius.xl, overflow: 'hidden', backgroundColor: colors.surfaceAlt, marginBottom: spacing.lg },
   coverIcon: { position: 'absolute', right: 18, bottom: 14 },
   headRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   speaker: {

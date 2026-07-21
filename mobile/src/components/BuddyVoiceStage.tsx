@@ -13,6 +13,7 @@ import { PressableScale } from './PressableScale';
 import { haptics } from '../lib/haptics';
 import { useColors, useSettings } from '../settings/SettingsContext';
 import { spacing, radius, elevation, colors as staticColors, type AppColors } from '../theme/theme';
+import { ms } from '../theme/responsive';
 import type { Buddy } from '../api/ai';
 
 /** Drag left past this (px) while holding → release cancels instead of sends. */
@@ -316,8 +317,8 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   ccText: { letterSpacing: 0.5 },
   stage: { flex: 1, alignItems: 'center', justifyContent: 'center', width: '100%' },
   buddyWrap: { alignItems: 'center', justifyContent: 'center' },
-  buddyImg: { width: 230, height: 230 },
-  buddyEmoji: { fontSize: 156, lineHeight: 176 },
+  buddyImg: { width: ms(230), height: ms(230) },
+  buddyEmoji: { fontSize: ms(156), lineHeight: ms(176) },
   bubble: {
     maxWidth: '86%', backgroundColor: c.surface, borderRadius: radius.xl,
     paddingHorizontal: spacing.lg, paddingVertical: spacing.md, marginBottom: spacing.lg,

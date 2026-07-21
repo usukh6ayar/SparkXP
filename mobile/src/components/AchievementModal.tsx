@@ -18,6 +18,7 @@ import { haptics } from '../lib/haptics';
 import { useReduceMotion, SPRING } from '../lib/motion';
 import { t } from '../i18n';
 import { spacing, radius, elevation } from '../theme/theme';
+import { ms } from '../theme/responsive';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -118,8 +119,8 @@ const styles = StyleSheet.create({
     ...(elevation.float as object),
   },
   badge: {
-    width: 110,
-    height: 110,
+    width: ms(110),
+    height: ms(110),
     borderRadius: radius.full,
     borderWidth: 2,
     alignItems: 'center',

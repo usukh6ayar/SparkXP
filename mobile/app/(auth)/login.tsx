@@ -7,6 +7,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { t } from '../../src/i18n';
 import { spacing, radius, type AppColors } from '../../src/theme/theme';
+import { ms, vs } from '../../src/theme/responsive';
 import { useColors, useSettings } from '../../src/settings/SettingsContext';
 import { AppText } from '../../src/components/Text';
 import { SignInSheet } from '../../src/components/SignInSheet';
@@ -186,20 +187,20 @@ const makeStyles = (colors: AppColors) => StyleSheet.create({
   brand: { flex: 1, alignItems: 'center', paddingTop: spacing.sm },
   glowWrap: { position: 'absolute', top: 10, left: 0, right: 0, alignItems: 'center' },
   glow3: {
-    width: 320, height: 320, borderRadius: 160,
+    width: ms(320), height: ms(320), borderRadius: ms(160),
     backgroundColor: `${colors.glow}0F`, // ~6% alpha
     alignItems: 'center', justifyContent: 'center',
   },
   glow2: {
-    width: 210, height: 210, borderRadius: 105,
+    width: ms(210), height: ms(210), borderRadius: ms(105),
     backgroundColor: `${colors.glow}17`, // ~9% alpha
     alignItems: 'center', justifyContent: 'center',
   },
   glow1: {
-    width: 120, height: 120, borderRadius: 60,
+    width: ms(120), height: ms(120), borderRadius: ms(60),
     backgroundColor: 'rgba(124,59,255,0.16)',
   },
-  wordmark: { width: '100%', height: 200, marginTop: -30, transform: [{ scale: 1.1 }], pointerEvents: 'none' },
+  wordmark: { width: '100%', height: vs(200), marginTop: -30, transform: [{ scale: 1.1 }], pointerEvents: 'none' },
   hero: { flex: 1, width: '100%', marginTop: -30, transform: [{ scale: 1.1 }], pointerEvents: 'none' },
 
   actions: { gap: spacing.md, paddingHorizontal: spacing.xl },
