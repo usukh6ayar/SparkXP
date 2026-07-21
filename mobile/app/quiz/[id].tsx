@@ -336,7 +336,8 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   },
   questionImage: {
     width: '100%',
-    height: 200,
+    // Width-relative height → scales with the screen instead of a fixed 200.
+    aspectRatio: 16 / 9,
     borderRadius: radius.md,
     backgroundColor: c.surfaceAlt,
     marginBottom: spacing.lg,
