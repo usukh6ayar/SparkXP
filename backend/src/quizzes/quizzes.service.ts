@@ -149,9 +149,8 @@ export class QuizzesService {
         };
       }
 
-      // Cast needed: QuestionDto union is exhausted above, so TS narrows q to never.
-      // The cast lets us handle the open_response type that arrives from the wire.
-      if ((q as { type?: string }).type === 'open_response') {
+      // After the three branches above return, q narrows to OpenResponseQuestionDto.
+      if (q.type === 'open_response') {
         const or = q as Partial<OrQuestion>;
         if (
           typeof or.prompt !== 'string' ||

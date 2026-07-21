@@ -102,9 +102,7 @@ export class OpenResponseQuestionDto {
   @IsString()
   bandNote?: string;
 
-  @IsInt()
-  @Min(0)
-  points: number;
+  // No `points`: open_response is self-study; the service always stores points 0.
 }
 
 export type QuestionDto =

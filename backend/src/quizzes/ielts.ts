@@ -13,7 +13,7 @@ export const IELTS_CATEGORIES = {
 } as const;
 
 /** Categories whose submissions get an auto band (objective answers). */
-export const IELTS_OBJECTIVE_CATEGORIES: string[] = [
+export const IELTS_OBJECTIVE_CATEGORIES: readonly string[] = [
   IELTS_CATEGORIES.listening,
   IELTS_CATEGORIES.reading,
 ];
