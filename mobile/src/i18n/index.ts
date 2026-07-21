@@ -536,6 +536,11 @@ const mn = {
   matchPairsPrompt: 'Зөв хосыг нь холбоно уу',
   submitting: 'Илгээж байна...',
   scoreLine: '{score} / {total} оноо',
+  check: 'Шалгах',
+  retryAnswer: 'Дахин оролдох',
+  answerCorrect: 'Зөв! 🎉',
+  answerWrong: 'Буруу байна, дахин оролдоорой',
+  correctAnswerLabel: 'Зөв хариу: {answer}',
 
   // Tab bar
   tabLessons: 'Хичээл',
@@ -1176,6 +1181,11 @@ const en: Record<TranslationKey, string> = {
   matchPairsPrompt: 'Match the correct pairs',
   submitting: 'Submitting...',
   scoreLine: '{score} / {total} pts',
+  check: 'Check',
+  retryAnswer: 'Try again',
+  answerCorrect: 'Correct! 🎉',
+  answerWrong: 'Not quite — try again',
+  correctAnswerLabel: 'Correct answer: {answer}',
 
   // Tab bar
   tabLessons: 'Lessons',

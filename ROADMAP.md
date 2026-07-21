@@ -149,12 +149,13 @@
 - [ ] **C1** Home — 4 skill tile-ийг compact quick-row болгож, нэг primary "Continue/
       Start" hero гаргах (Choi). **C1-BE:** lesson-ийн бодит ахиц гаргах endpoint
       (Өсөхбаяр — одоо `/lessons/:id/complete` л байна, progress %-гүй).
-- [~] **C2** Quiz асуулт бүрийн шууд feedback (ногоон/улаан + зөв хариу).
-      **C2-BE ✅ (2026-07-21):** `POST /quizzes/:id/check` нэмэгдсэн — нэг хариу шалгаж
-      `{ correct, correctAnswer? }` буцаана (XP олгохгүй, бүх түлхүүр задлахгүй; буруу
-      үед л зөв хариу буцна). grading `gradeQuestion` дундын helper болов. API.md-д
-      баримтжуулсан. **Үлдсэн (Boju FE):** `quizzes.ts`-д `checkAnswer` client +
-      quiz дэлгэцэд Check→Continue урсгал.
+- [x] **C2 ✅ (2026-07-21)** Quiz асуулт бүрийн шууд feedback + **зөв хариулах хүртэл
+      явдаг** (retry-until-correct).
+      **C2-BE:** `POST /quizzes/:id/check` — нэг хариу шалгаж `{ correct, correctAnswer? }`
+      буцаана (XP олгохгүй, бүх түлхүүр задлахгүй; буруу үед л зөв хариу буцна). grading
+      `gradeQuestion` дундын helper. **C2-FE (`quiz/[id].tsx`):** Шалгах→(зөв)Үргэлжлүүлэх /
+      (буруу)Дахин оролдох; зөв хариу тодрон харагдана, зөв өгтөл дараагийнх руу орохгүй.
+      `api/quizzes.ts` `checkAnswer` client + i18n. API.md шинэчилсэн.
 - [ ] **C3** Buddy эхний-нээлт scaffold: 3–4 starter prompt + voice-минут үлдэгдэл
       харуулах, limit → текст рүү зөөлөн шилжих — Boju.
 - [ ] **C4** Taste-task онбординг (auth-аас өмнө +XP) + guest mode — Choi.
