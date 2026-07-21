@@ -48,6 +48,14 @@ export class Quiz extends BaseEntity {
   @Column({ type: 'varchar', nullable: true })
   topic: string | null;
 
+  /** IELTS Reading: the passage text shown above the questions. Null otherwise. */
+  @Column({ name: 'passage_text', type: 'text', nullable: true })
+  passageText: string | null;
+
+  /** IELTS Listening: the section audio (one recording per section). Null otherwise. */
+  @Column({ name: 'audio_url', type: 'varchar', nullable: true })
+  audioUrl: string | null;
+
   /** XP awarded for a passing attempt. */
   @Column({ name: 'xp_reward', type: 'int', default: 0 })
   xpReward: number;

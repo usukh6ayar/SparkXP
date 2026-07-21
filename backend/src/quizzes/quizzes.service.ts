@@ -18,6 +18,7 @@ interface McQuestion {
   options: string[];
   correct: number;
   points: number;
+  imageUrl?: string; // IELTS: picture / Writing-Task-1 chart (optional)
 }
 
 /** Shape we accept and store for a fill-in-the-blank question. */
@@ -35,7 +36,17 @@ interface WmQuestion {
   points: number;
 }
 
-type StoredQuestion = McQuestion | FbQuestion | WmQuestion;
+/** Open written/spoken response (IELTS Writing/Speaking) — self-study, not graded. */
+interface OrQuestion {
+  type: 'open_response';
+  prompt: string;
+  modelAnswer: string;
+  imageUrl?: string; // Writing Task 1 chart/graph
+  bandNote?: string; // band descriptor / guidance
+  points: 0;
+}
+
+type StoredQuestion = McQuestion | FbQuestion | WmQuestion | OrQuestion;
 
 export interface QuizResult {
   score: number;       // correct points earned
@@ -44,6 +55,8 @@ export interface QuizResult {
   passed: boolean;     // >= 50%
   xpEarned: number;
   breakdown: { questionIndex: number; correct: boolean; points: number }[];
+  /** Approximate IELTS band (0–9) — set only for ielts_listening/reading. */
+  band?: number;
 }
 
 /** Per-question instant feedback (C2). Reveals the correct answer ONLY when the
@@ -92,6 +105,7 @@ export class QuizzesService {
           options: mc.options as string[],
           correct: mc.correct,
           points: mc.points,
+          ...(typeof mc.imageUrl === 'string' ? { imageUrl: mc.imageUrl } : {}),
         };
       }
 
@@ -135,8 +149,30 @@ export class QuizzesService {
         };
       }
 
+      // After the three branches above return, q narrows to OpenResponseQuestionDto.
+      if (q.type === 'open_response') {
+        const or = q as Partial<OrQuestion>;
+        if (
+          typeof or.prompt !== 'string' ||
+          !or.prompt.trim() ||
+          typeof or.modelAnswer !== 'string'
+        ) {
+          throw new BadRequestException(
+            `questions[${i}]: open_response requires prompt and modelAnswer`,
+          );
+        }
+        return {
+          type: 'open_response' as const,
+          prompt: or.prompt,
+          modelAnswer: or.modelAnswer,
+          points: 0 as const,
+          ...(typeof or.imageUrl === 'string' ? { imageUrl: or.imageUrl } : {}),
+          ...(typeof or.bandNote === 'string' ? { bandNote: or.bandNote } : {}),
+        };
+      }
+
       throw new BadRequestException(
-        `questions[${i}]: unknown type "${String((q as { type?: unknown }).type)}" — use multiple_choice, fill_blank, or word_match`,
+        `questions[${i}]: unknown type "${String((q as { type?: unknown }).type)}" — use multiple_choice, fill_blank, word_match, or open_response`,
       );
     });
   }
@@ -259,6 +295,7 @@ export class QuizzesService {
         }
       } catch { return false; }
     }
+    // open_response (Writing/Speaking) is self-study only → never auto-correct.
     return false;
   }
 
@@ -267,7 +304,8 @@ export class QuizzesService {
   private correctAnswerOf(q: StoredQuestion): CheckAnswerResult['correctAnswer'] {
     if (q.type === 'multiple_choice') return q.correct;
     if (q.type === 'fill_blank') return q.answer;
-    return q.pairs; // word_match
+    if (q.type === 'word_match') return q.pairs;
+    return q.modelAnswer; // open_response — self-study; modelAnswer is a string
   }
 
   /**

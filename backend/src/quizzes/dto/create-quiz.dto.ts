@@ -35,6 +35,10 @@ export class MultipleChoiceQuestionDto {
   @IsInt()
   @Min(1)
   points: number;
+
+  @IsOptional()
+  @IsString()
+  imageUrl?: string;
 }
 
 /** Fill-in-the-blank question — user types the expected answer. */
@@ -79,10 +83,33 @@ export class WordMatchQuestionDto {
   points: number;
 }
 
+/** Open written/spoken response (IELTS Writing/Speaking) — self-study, points 0. */
+export class OpenResponseQuestionDto {
+  @IsIn(['open_response'])
+  type: 'open_response';
+
+  @IsString()
+  prompt: string;
+
+  @IsString()
+  modelAnswer: string;
+
+  @IsOptional()
+  @IsString()
+  imageUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  bandNote?: string;
+
+  // No `points`: open_response is self-study; the service always stores points 0.
+}
+
 export type QuestionDto =
   | MultipleChoiceQuestionDto
   | FillBlankQuestionDto
-  | WordMatchQuestionDto;
+  | WordMatchQuestionDto
+  | OpenResponseQuestionDto;
 
 export class CreateQuizDto {
   @IsString()
@@ -115,6 +142,16 @@ export class CreateQuizDto {
   @IsString()
   topic?: string;
 
+  /** IELTS Reading passage text. */
+  @IsOptional()
+  @IsString()
+  passageText?: string;
+
+  /** IELTS Listening section audio URL. */
+  @IsOptional()
+  @IsString()
+  audioUrl?: string;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => Object, {
@@ -124,6 +161,7 @@ export class CreateQuizDto {
         { value: MultipleChoiceQuestionDto, name: 'multiple_choice' },
         { value: FillBlankQuestionDto, name: 'fill_blank' },
         { value: WordMatchQuestionDto, name: 'word_match' },
+        { value: OpenResponseQuestionDto, name: 'open_response' },
       ],
     },
     keepDiscriminatorProperty: true,

@@ -121,6 +121,14 @@ Controller-level: JWT. Бичилт admin-баг. (Хичээлийн тест �
 | POST `/quizzes/:id/submit` | JWT | Хариу шалгаж XP олгох (≥1 зөв бол). XP нь **quiz тус бүрт нэг удаа** (`awardOnce`, farming-аас сэргийлнэ); дахин илгээвэл `xpEarned: 0` | `SubmitQuizDto` |
 | POST `/quizzes/:id/check` | JWT | **Нэг** хариу шалгах — C2 шуурхай feedback (XP олгохгүй, бүх түлхүүр задлахгүй). Буруу бол тухайн асуултын зөв хариу буцна → `{ correct, correctAnswer? }` (`correctAnswer`: mc→index · fill_blank→string · word_match→pairs) | `AnswerItemDto` (`questionIndex`, `answer`) |
 
+> **IELTS (Approach A):** IELTS content = quizzes with `category` in
+> `ielts_listening` / `ielts_reading` / `ielts_writing` / `ielts_speaking`.
+> Reading uses `passage_text`, Listening uses `audio_url`. Writing/Speaking use
+> the `open_response` question type (`prompt` + `modelAnswer` + optional
+> `imageUrl`/`bandNote`, `points:0`, self-study — no submit). Listening/Reading
+> `POST /quizzes/:id/submit` responses include an approximate **`band`** (0–9)
+> from the count of correct questions.
+
 ## 7. Reading — `/api/reading`
 Унших материал. GET уншилт JWT; бичилт/AI admin-баг.
 
