@@ -55,6 +55,8 @@ export interface QuizResult {
   passed: boolean;     // >= 50%
   xpEarned: number;
   breakdown: { questionIndex: number; correct: boolean; points: number }[];
+  /** Approximate IELTS band (0–9) — set only for ielts_listening/reading. */
+  band?: number;
 }
 
 /** Per-question instant feedback (C2). Reveals the correct answer ONLY when the

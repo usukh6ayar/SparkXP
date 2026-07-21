@@ -21,6 +21,7 @@ import { QuizzesService } from './quizzes.service';
 import { XpService } from '../xp/xp.service';
 import { XpSource } from '../common/enums';
 import { CreateQuizDto } from './dto/create-quiz.dto';
+import { IELTS_OBJECTIVE_CATEGORIES, ieltsBand } from './ielts';
 import { UpdateQuizDto } from './dto/update-quiz.dto';
 import { QueryQuizzesDto } from './dto/query-quizzes.dto';
 import { SubmitQuizDto, AnswerItemDto } from './dto/submit-quiz.dto';
@@ -87,6 +88,13 @@ export class QuizzesController {
   ) {
     const quiz = await this.quizzesService.findOne(id);
     const result = this.quizzesService.scoreSubmission(quiz, dto);
+
+    // IELTS objective modules (listening/reading): report an approximate band,
+    // computed from the number of correct QUESTIONS (not points).
+    if (quiz.category && IELTS_OBJECTIVE_CATEGORIES.includes(quiz.category)) {
+      const correctCount = result.breakdown.filter((b) => b.correct).length;
+      result.band = ieltsBand(correctCount, result.breakdown.length);
+    }
 
     if (result.xpEarned > 0) {
       const log = await this.xpService.awardOnce({
