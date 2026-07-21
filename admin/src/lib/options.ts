@@ -83,3 +83,30 @@ export function exerciseCategoryOptions(skill: string) {
     ...(EXERCISE_CATEGORIES[skill] ?? []).map((v) => ({ value: v, label: v })),
   ];
 }
+
+/**
+ * IELTS modules → Quiz `category` value. Objective modules (listening/reading)
+ * are auto-scored to a band; writing/speaking are self-study (open_response).
+ */
+export const IELTS_MODULES = [
+  { key: 'listening', label: 'Listening', category: 'ielts_listening', objective: true },
+  { key: 'reading', label: 'Reading', category: 'ielts_reading', objective: true },
+  { key: 'writing', label: 'Writing', category: 'ielts_writing', objective: false },
+  { key: 'speaking', label: 'Speaking', category: 'ielts_speaking', objective: false },
+] as const;
+
+/** Free-text сэдэв suggestions per IELTS module (stored value = label). */
+const IELTS_SUBTOPICS: Record<string, string[]> = {
+  listening: ['Section 1', 'Section 2', 'Section 3', 'Section 4', 'Сорил'],
+  reading: ['Academic', 'General Training', 'True/False/NG', 'Matching headings', 'Сорил'],
+  writing: ['Task 1 (Academic)', 'Task 1 (General)', 'Task 2 (Essay)'],
+  speaking: ['Part 1', 'Part 2 (Cue card)', 'Part 3'],
+};
+
+/** Сэдэв <select> options for one IELTS module's form (incl. empty option). */
+export function ieltsSubTopicOptions(moduleKey: string) {
+  return [
+    { value: '', label: 'Сэдэвгүй' },
+    ...(IELTS_SUBTOPICS[moduleKey] ?? []).map((v) => ({ value: v, label: v })),
+  ];
+}

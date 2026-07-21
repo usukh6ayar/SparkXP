@@ -8,6 +8,7 @@ import LessonsPage from './pages/lessons/LessonsPage';
 import IdiomsPage from './pages/idioms/IdiomsPage';
 import ExercisesPage from './pages/exercises/ExercisesPage';
 import QuizzesPage from './pages/quizzes/QuizzesPage';
+import IeltsPage from './pages/ielts/IeltsPage';
 import UsersPage from './pages/users/UsersPage';
 import MonitorPage from './pages/monitor/MonitorPage';
 import SettingsPage from './pages/settings/SettingsPage';
@@ -41,6 +42,7 @@ export default function App() {
             <Route path="/idioms"        element={<IdiomsPage />} />
             <Route path="/exercises"     element={<ExercisesPage />} />
             <Route path="/quizzes"       element={<QuizzesPage />} />
+            <Route path="/ielts"         element={<IeltsPage />} />
             <Route path="/users"         element={<UsersPage />} />
             <Route path="/classes"       element={<ClassesPage />} />
             <Route path="/organizations" element={<OrganizationsPage />} />

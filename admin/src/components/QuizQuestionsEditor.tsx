@@ -20,10 +20,17 @@ export interface WMQuestion {
   pairs: { left: string; right: string }[];
   points: number;
 }
-export type Question = MCQuestion | FBQuestion | WMQuestion;
+export interface ORQuestion {
+  type: 'open_response';
+  prompt: string;
+  modelAnswer: string;
+  imageUrl?: string;   // Writing Task 1 chart/graph (optional)
+  bandNote?: string;   // band descriptor / guidance (optional)
+}
+export type Question = MCQuestion | FBQuestion | WMQuestion | ORQuestion;
 
-/** The underlying graded question format. */
-export type QuestionType = 'multiple_choice' | 'fill_blank' | 'word_match';
+/** The underlying question format. */
+export type QuestionType = 'multiple_choice' | 'fill_blank' | 'word_match' | 'open_response';
 
 export function blankMC(): MCQuestion {
   return { type: 'multiple_choice', question: '', options: ['', '', '', ''], correct: 0, points: 10 };
@@ -34,9 +41,13 @@ export function blankFB(): FBQuestion {
 export function blankWM(): WMQuestion {
   return { type: 'word_match', pairs: [{ left: '', right: '' }, { left: '', right: '' }], points: 10 };
 }
+export function blankOR(): ORQuestion {
+  return { type: 'open_response', prompt: '', modelAnswer: '' };
+}
 export function blankQuestion(t: QuestionType): Question {
   if (t === 'fill_blank') return blankFB();
   if (t === 'word_match') return blankWM();
+  if (t === 'open_response') return blankOR();
   return blankMC();
 }
 
@@ -146,6 +157,44 @@ function WMEditor({ q, idx, onChange, onRemove }: {
   );
 }
 
+function OREditor({ q, idx, onChange, onRemove }: {
+  q: ORQuestion; idx: number; onChange: (q: ORQuestion) => void; onRemove: () => void;
+}) {
+  return (
+    <div className="rounded-xl border border-purple-100 bg-purple-50/40 p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <GripVertical className="h-4 w-4 text-gray-300 shrink-0" />
+        <span className="text-xs font-semibold text-purple-600 uppercase tracking-wide">#{idx + 1} · Нээлттэй хариулт</span>
+        <button onClick={onRemove} className="ml-auto text-gray-300 hover:text-red-400"><X className="h-4 w-4" /></button>
+      </div>
+      <textarea
+        className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-primary focus:outline-none"
+        rows={3} placeholder="Даалгавар / асуулт (prompt)..."
+        value={q.prompt}
+        onChange={(e) => onChange({ ...q, prompt: e.target.value })}
+      />
+      <input
+        className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-primary focus:outline-none"
+        placeholder="Зураг URL (Writing Task 1 график — заавал биш)"
+        value={q.imageUrl ?? ''}
+        onChange={(e) => onChange({ ...q, imageUrl: e.target.value })}
+      />
+      <textarea
+        className="w-full rounded-lg border border-purple-300 bg-purple-50 px-3 py-2 text-sm focus:outline-none"
+        rows={4} placeholder="Жишиг хариулт (model answer) — сурагч өөрөө харьцуулна"
+        value={q.modelAnswer}
+        onChange={(e) => onChange({ ...q, modelAnswer: e.target.value })}
+      />
+      <input
+        className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-primary focus:outline-none"
+        placeholder="Band тайлбар / зөвлөмж (заавал биш)"
+        value={q.bandNote ?? ''}
+        onChange={(e) => onChange({ ...q, bandNote: e.target.value })}
+      />
+    </div>
+  );
+}
+
 function PointsInput({ value, onChange }: { value: number; onChange: (v: number) => void }) {
   return (
     <div className="flex items-center gap-2">
@@ -187,8 +236,10 @@ export function QuizQuestionsEditor({ questionType, questions, onChange }: Props
           <MCEditor key={i} q={q} idx={i} onChange={(nq) => update(i, nq)} onRemove={() => remove(i)} />
         ) : q.type === 'fill_blank' ? (
           <FBEditor key={i} q={q} idx={i} onChange={(nq) => update(i, nq)} onRemove={() => remove(i)} />
-        ) : (
+        ) : q.type === 'word_match' ? (
           <WMEditor key={i} q={q} idx={i} onChange={(nq) => update(i, nq)} onRemove={() => remove(i)} />
+        ) : (
+          <OREditor key={i} q={q} idx={i} onChange={(nq) => update(i, nq)} onRemove={() => remove(i)} />
         ),
       )}
       <Button onClick={() => onChange([...questions, blankQuestion(questionType)])} />
