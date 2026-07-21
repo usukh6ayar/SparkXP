@@ -1,5 +1,11 @@
 # SparkXP — Comprehensive UX Review
 
+> **⏱ Статус шинэчлэл (2026-07-21, кодоос баталсан):** Delight давхарга, responsive,
+> skeleton, tab bar шошго, chat, quiz баяр — **хийгдсэн**. Critical fixes (`UX_CRITICAL_SPEC.md`)
+> төлөв: **C1** Home hero 🔶 хагас · **C2** quiz шууд-feedback 🔶 (баяр хийгдсэн,
+> `/quizzes/:id/check` дутуу) · **C3** buddy scaffold 🔶 (таб шошго ✅, starter prompt дутуу)
+> · **C4** taste-task онбординг ❌ эхлээгүй. Бүрэн launch төлөв → `ROADMAP.md §3`.
+
 > **Reviewer lens:** Senior Product Designer · UX Strategist · Product Manager · UX Researcher.
 > **Scope:** the SparkXP mobile app (Expo / React Native) — every primary screen,
 > the end-to-end user journey, information architecture, feature priority, visual

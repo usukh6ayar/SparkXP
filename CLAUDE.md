@@ -107,9 +107,19 @@ affect Bishrelt's admin (auth/classes/leaderboard/orgs) + new mobile deps are
 listed in `ROADMAP.md` → "Shared backend өөрчлөлт — Bishrelt АНХААР (2026-06-16)".**
 **Next (mobile):** product-brief alignment (Phase M6 — level/English-name/
 avatar/"Continue Learning"/student assignments). See `docs/FUTURE_PLAN.md` + `ROADMAP.md`.
-**Pending:** app icon files missing; fonts (Onest/Inter) not loaded; Lucide
-migration; real gamification data (streak/level/progress are placeholders); real
-video player. Full list: `docs/FUTURE_PLAN.md` (§3 launch checklist).
+**UI/UX polish — mostly DONE (2026-07-21, verified in code).** Responsive across
+phone sizes (`src/theme/responsive.ts`), delight layer (haptics/motion/glow/anim),
+skeleton loading, flat Duolingo tab bar with labelled buddy tab, frosted-glass
+multi-thread chat, quiz result celebration (Confetti+haptics+combo), notification
+center, WebP asset perf. Full done-list + the still-open **Critical UX C1–C4**
+(C1 Home hero 🔶, C2 quiz instant-feedback 🔶, C3 buddy scaffold 🔶, C4 taste-task
+onboarding ❌) → `ROADMAP.md §3`.
+**Still pending (launch blockers):** **app icon 1024 PNG** not wired (`app.json`
+still points to `logoSparkXP.webp`; no splash); **fonts (Onest/Inter) not loaded**
+(no `assets/fonts/`, no `useFonts`); **EAS not initialized** (`app.json`
+`extra.eas.projectId` = placeholder); eas.json submit creds empty; Lucide
+migration; real gamification data (streak/level/progress placeholders); real video
+player. Full list: `ROADMAP.md §3` + `docs/LAUNCH_FROM_SCRATCH.md`.
 
 **Vocabulary AI pipeline — shipped (2026-06-25).** Admin Words page now does
 end-to-end AI authoring:
