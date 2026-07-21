@@ -77,3 +77,24 @@ export function submitQuiz(
     token,
   });
 }
+
+/** Per-question instant feedback (C2). `correctAnswer` is returned only when the
+ *  answer was wrong (mc → option index, fill_blank → string, word_match → pairs). */
+export interface CheckResult {
+  correct: boolean;
+  correctAnswer?: number | string | { left: string; right: string }[];
+}
+
+/** POST /quizzes/:id/check — grade ONE answer without revealing the full key. */
+export function checkAnswer(
+  id: string,
+  questionIndex: number,
+  answer: number | string,
+  token: string,
+): Promise<CheckResult> {
+  return apiRequest<CheckResult>(`/quizzes/${id}/check`, {
+    method: 'POST',
+    body: { questionIndex, answer },
+    token,
+  });
+}

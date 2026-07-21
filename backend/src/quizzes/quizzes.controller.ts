@@ -23,7 +23,7 @@ import { XpSource } from '../common/enums';
 import { CreateQuizDto } from './dto/create-quiz.dto';
 import { UpdateQuizDto } from './dto/update-quiz.dto';
 import { QueryQuizzesDto } from './dto/query-quizzes.dto';
-import { SubmitQuizDto } from './dto/submit-quiz.dto';
+import { SubmitQuizDto, AnswerItemDto } from './dto/submit-quiz.dto';
 import { User } from '../entities/user.entity';
 
 @Controller('quizzes')
@@ -74,7 +74,10 @@ export class QuizzesController {
   /**
    * Student: submit answers for a quiz.
    * Scores the submission and awards XP proportional to correct answers.
-   * Anti-abuse: XP is only awarded if at least one answer is correct.
+   * Anti-abuse: XP is granted **once per quiz per user** (awardOnce) so a quiz
+   * can't be farmed by re-submitting — especially now that the mobile flow lets
+   * users retry until every answer is correct. A repeat attempt returns
+   * `xpEarned: 0`.
    */
   @Post(':id/submit')
   async submit(
@@ -86,15 +89,34 @@ export class QuizzesController {
     const result = this.quizzesService.scoreSubmission(quiz, dto);
 
     if (result.xpEarned > 0) {
-      await this.xpService.award({
+      const log = await this.xpService.awardOnce({
         userId: user.id,
         amount: result.xpEarned,
         source: XpSource.QUIZ,
         referenceId: quiz.id,
         metadata: { score: result.score, total: result.total, percentage: result.percentage },
       });
+      // Already earned XP for this quiz before → reflect 0 in the response so the
+      // result screen doesn't promise XP that wasn't granted.
+      if (!log) result.xpEarned = 0;
     }
 
     return result;
+  }
+
+  /**
+   * Student: check ONE answer for instant per-question feedback (C2).
+   * No XP and no answer-key leak — grading here is a preview; `/submit` stays
+   * authoritative for scoring. Returns `{ correct, correctAnswer? }` where
+   * `correctAnswer` is present only when the answer was wrong.
+   */
+  @Post(':id/check')
+  @HttpCode(HttpStatus.OK)
+  async check(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: AnswerItemDto,
+  ) {
+    const quiz = await this.quizzesService.findOne(id);
+    return this.quizzesService.checkAnswer(quiz, dto.questionIndex, dto.answer);
   }
 }
