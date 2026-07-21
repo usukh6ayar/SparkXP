@@ -461,6 +461,7 @@ const mn = {
   lessonsWorldSubtitle: 'Адал явдлаар дамжуулж англи хэлээ эзэмш!',
   xpPoints: 'XP оноо',
   unlockAtLevel: 'Түвшин {n}-д\nнээгдэнэ',
+  levelNoLessons: 'Энэ түвшинд хичээл удахгүй нэмэгдэнэ.',
 
   // Soril / games
   gameComingSoon: 'Энэ тоглоом удахгүй нэмэгдэнэ. 🦊',
@@ -1104,6 +1105,7 @@ const en: Record<TranslationKey, string> = {
   // Lessons world
   lessonsWorldTitle: 'Lesson world',
   lessonsWorldSubtitle: 'Master English through adventure!',
+  levelNoLessons: 'Lessons for this level are coming soon.',
   xpPoints: 'XP',
   unlockAtLevel: 'Unlocks at\nlevel {n}',
 

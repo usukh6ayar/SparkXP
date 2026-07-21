@@ -128,23 +128,23 @@ export const radius = {
  */
 export const typography = {
   /** Hero numbers / celebratory headline only. */
-  display: { fontSize: 30, lineHeight: 36, fontWeight: '800' as const, color: colors.text },
+  display: { fontSize: 30, lineHeight: 36, fontWeight: '800' as const, fontFamily: 'Onest_800ExtraBold', color: colors.text },
   /** Screen title. */
-  h1: { fontSize: 24, lineHeight: 30, fontWeight: '800' as const, color: colors.text },
+  h1: { fontSize: 24, lineHeight: 30, fontWeight: '800' as const, fontFamily: 'Onest_800ExtraBold', color: colors.text },
   /** Section header. */
-  h2: { fontSize: 19, lineHeight: 25, fontWeight: '700' as const, color: colors.text },
+  h2: { fontSize: 19, lineHeight: 25, fontWeight: '700' as const, fontFamily: 'Onest_700Bold', color: colors.text },
   /** Card title / list-row title. */
-  h3: { fontSize: 16, lineHeight: 22, fontWeight: '700' as const, color: colors.text },
+  h3: { fontSize: 16, lineHeight: 22, fontWeight: '700' as const, fontFamily: 'Onest_700Bold', color: colors.text },
   /** Default body copy. */
-  body: { fontSize: 15, lineHeight: 22, fontWeight: '400' as const, color: colors.text },
+  body: { fontSize: 15, lineHeight: 22, fontWeight: '400' as const, fontFamily: 'Inter_400Regular', color: colors.text },
   /** Emphasized body (button labels, key values inline). */
-  bodyStrong: { fontSize: 15, lineHeight: 22, fontWeight: '600' as const, color: colors.text },
+  bodyStrong: { fontSize: 15, lineHeight: 22, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold', color: colors.text },
   /** Field labels, chips, small UI text. */
-  label: { fontSize: 13, lineHeight: 18, fontWeight: '600' as const, color: colors.text },
+  label: { fontSize: 13, lineHeight: 18, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold', color: colors.text },
   /** Captions, hints, secondary metadata. */
-  caption: { fontSize: 12, lineHeight: 16, fontWeight: '500' as const, color: colors.textMuted },
+  caption: { fontSize: 12, lineHeight: 16, fontWeight: '500' as const, fontFamily: 'Inter_500Medium', color: colors.textMuted },
   /** UPPERCASE eyebrow / tag label. */
-  overline: { fontSize: 11, lineHeight: 14, fontWeight: '700' as const, letterSpacing: 0.5, color: colors.textMuted },
+  overline: { fontSize: 11, lineHeight: 14, fontWeight: '700' as const, fontFamily: 'Inter_700Bold', letterSpacing: 0.5, color: colors.textMuted },
 } satisfies Record<string, TextStyle>;
 
 /**
