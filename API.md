@@ -118,7 +118,7 @@ Controller-level: JWT. Бичилт admin-баг. (Хичээлийн тест �
 | POST `/quizzes` | admin-баг | Quiz үүсгэх | `CreateQuizDto` |
 | PATCH `/quizzes/:id` | admin-баг | Quiz засах | `UpdateQuizDto` |
 | DELETE `/quizzes/:id` | admin-баг | Quiz устгах | path `id` |
-| POST `/quizzes/:id/submit` | JWT | Хариу шалгаж XP олгох (≥1 зөв бол) | `SubmitQuizDto` |
+| POST `/quizzes/:id/submit` | JWT | Хариу шалгаж XP олгох (≥1 зөв бол). XP нь **quiz тус бүрт нэг удаа** (`awardOnce`, farming-аас сэргийлнэ); дахин илгээвэл `xpEarned: 0` | `SubmitQuizDto` |
 | POST `/quizzes/:id/check` | JWT | **Нэг** хариу шалгах — C2 шуурхай feedback (XP олгохгүй, бүх түлхүүр задлахгүй). Буруу бол тухайн асуултын зөв хариу буцна → `{ correct, correctAnswer? }` (`correctAnswer`: mc→index · fill_blank→string · word_match→pairs) | `AnswerItemDto` (`questionIndex`, `answer`) |
 
 ## 7. Reading — `/api/reading`
