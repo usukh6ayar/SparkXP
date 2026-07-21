@@ -43,6 +43,17 @@ export class LessonsController {
     return this.lessonsService.findAll(query);
   }
 
+  /**
+   * Student's "Continue learning" target — the next unfinished lesson + real
+   * progress through its level (C1). Declared before `:id` so "continue" isn't
+   * captured as a lesson id.
+   */
+  @Get('continue')
+  @UseGuards(JwtAuthGuard)
+  getContinue(@CurrentUser() user: User) {
+    return this.lessonsService.getContinue(user.id);
+  }
+
   @Get(':id')
   findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.lessonsService.findOne(id);

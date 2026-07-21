@@ -184,4 +184,17 @@ export class XpService {
       progressByLevel,
     };
   }
+
+  /** Distinct lesson ids this user has completed (lesson XP is logged once per
+   *  lesson, so a lesson's XpLog row = that lesson is done). */
+  async getCompletedLessonIds(userId: string): Promise<Set<string>> {
+    const rows = await this.xpLogs
+      .createQueryBuilder('x')
+      .select('DISTINCT x.reference_id', 'id')
+      .where('x.user_id = :userId', { userId })
+      .andWhere('x.source = :src', { src: XpSource.LESSON })
+      .andWhere('x.reference_id IS NOT NULL')
+      .getRawMany<{ id: string }>();
+    return new Set(rows.map((r) => r.id));
+  }
 }
