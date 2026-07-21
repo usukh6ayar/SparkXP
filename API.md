@@ -94,6 +94,7 @@ GET уншилт public. (Sparks endpoint-ууд мөн энэ base дээр —
 | Method + Path | Auth | Зорилго | Params / Body |
 | --- | --- | --- | --- |
 | GET `/lessons` | **Public** | Хичээлийн жагсаалт | `QueryLessonsDto` (isPublished, level, type) |
+| GET `/lessons/continue` | JWT | "Continue learning" (C1) — дараагийн дуусгаагүй top-level хичээл + тухайн level-ийн бодит ахиц → `{ lesson\|null, level, levelDone, levelTotal, allCompleted }` | — |
 | GET `/lessons/:id` | **Public** | Нэг хичээл | path `id` |
 | POST `/lessons` | admin-баг | Хичээл үүсгэх | `CreateLessonDto` |
 | PATCH `/lessons/:id` | admin-баг | Хичээл засах | `UpdateLessonDto` |
@@ -351,7 +352,7 @@ Catalog нь `src/achievements/catalog.ts` (R2-аас generate). `earned` = `Use
 | `auth.ts` | `register`→POST `/auth/register` · `verifyOtp`→POST `/auth/verify-otp` · `resendOtp`→POST `/auth/resend-otp` · `login`→POST `/auth/login` · `forgotPassword`→POST `/auth/forgot-password` · `resetPassword`→POST `/auth/reset-password` · `getMe`→GET `/auth/me` |
 | `users.ts` | `getStats`→GET `/users/me/stats` · `getMyPlan`→GET `/users/me/plan` · `updateProfile`→PATCH `/users/me` · `uploadAvatar`→POST `/users/me/avatar` |
 | `gamification.ts` | `getGamification`→GET `/gamification` |
-| `lessons.ts` | `getLessons`→GET `/lessons?isPublished=true` · `getLesson`→GET `/lessons/:id` · `checkAccess`→GET `/lessons/:id/access` · `unlockLesson`→POST `/lessons/:id/unlock` · `completeLesson`→POST `/lessons/:id/complete` |
+| `lessons.ts` | `getLessons`→GET `/lessons?isPublished=true` · `getLesson`→GET `/lessons/:id` · `checkAccess`→GET `/lessons/:id/access` · `unlockLesson`→POST `/lessons/:id/unlock` · `completeLesson`→POST `/lessons/:id/complete` · **`getContinue`→GET `/lessons/continue`** (C1 — Choi Home hero-д нэмнэ) |
 | `quizzes.ts` | `getQuiz`→GET `/quizzes/:id` · `getQuizzes`→GET `/quizzes?isPublished=true[&lessonId=]` · `getExercises`→GET `/quizzes?standalone=true&isPublished=true&category=` · `submitQuiz`→POST `/quizzes/:id/submit` · **`checkAnswer`→POST `/quizzes/:id/check`** (C2 — Boju нэмнэ) |
 | `quiz.ts` (vocab) | `getQuiz`→GET `/words/quiz?count=` · `submitQuiz`→POST `/words/quiz/submit` |
 | `reading.ts` | `getReadingList`→GET `/reading?limit=50` · `getReadingPassage`→GET `/reading/:id` · `completeReading`→POST `/reading/:id/complete` |

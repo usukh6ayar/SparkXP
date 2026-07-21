@@ -15,6 +15,15 @@ export interface PaginatedLessons {
   limit: number;
 }
 
+/** The next lesson to do + truthful progress through its level (C1). */
+export interface ContinueResult {
+  lesson: { id: string; title: string; thumbnailUrl: string | null; type: string; level: string } | null;
+  level: string | null;
+  levelDone: number;
+  levelTotal: number;
+  allCompleted: boolean;
+}
+
 /** XP awarded the first time a student completes a lesson. */
 const LESSON_XP = 15;
 
@@ -44,6 +53,37 @@ export class LessonsService {
       referenceId: lessonId,
     });
     return { lessonId, alreadyCompleted: log === null, xpAwarded: log ? LESSON_XP : 0 };
+  }
+
+  /**
+   * The "Continue learning" target: the first published, top-level lesson the
+   * student hasn't completed yet (ordered by CEFR level, then position), plus
+   * truthful progress through that lesson's level. All done → lesson null.
+   */
+  async getContinue(userId: string): Promise<ContinueResult> {
+    const published = await this.lessons.find({
+      where: { isPublished: true, parentLessonId: IsNull() },
+      order: { level: 'ASC', position: 'ASC' },
+      select: { id: true, title: true, thumbnailUrl: true, type: true, level: true },
+    });
+    const completed = await this.xp.getCompletedLessonIds(userId);
+    const next = published.find((l) => !completed.has(l.id)) ?? null;
+
+    // Progress is measured over the level of the next lesson (or the last level
+    // once everything is done), so the hero shows a real "done / total".
+    const level = next?.level ?? published[published.length - 1]?.level ?? null;
+    const inLevel = published.filter((l) => l.level === level);
+    const levelDone = inLevel.filter((l) => completed.has(l.id)).length;
+
+    return {
+      lesson: next
+        ? { id: next.id, title: next.title, thumbnailUrl: next.thumbnailUrl, type: next.type, level: next.level }
+        : null,
+      level,
+      levelDone,
+      levelTotal: inLevel.length,
+      allCompleted: next === null && published.length > 0,
+    };
   }
 
   create(dto: CreateLessonDto): Promise<Lesson> {
