@@ -33,7 +33,7 @@ Backend (NestJS) endpoint-үүдийн бүрэн лавлах. **Зам/мет�
 
 | Method + Path | Auth | Зорилго | Params / Body |
 | --- | --- | --- | --- |
-| POST `/auth/register` | Public | Баталгаажаагүй бүртгэл үүсгэж, имэйлээр OTP илгээх (token өгөхгүй). Optional `referralCode` (найзын код эсвэл username) — verify хийхэд хэрэглэгдэнэ | `RegisterDto` |
+| POST `/auth/register` | Public | Баталгаажаагүй бүртгэл үүсгэж, имэйлээр OTP илгээх (token өгөхгүй). Optional `referralCode` — verify хийхэд хэрэглэгдэнэ. Optional **`tasteCompleted`** (C4) — үнэн бол verify хийх үед **нэг удаагийн +10 XP** (onboarding) олгоно | `RegisterDto` |
 | POST `/auth/verify-otp` | Public | OTP-оор имэйл баталгаажуулж → token буцаана (нэвтэрнэ) | `{ email, code }` |
 | POST `/auth/resend-otp` | Public | Баталгаажуулах OTP дахин илгээх | `{ email }` |
 | POST `/auth/login` | Public | username/email + нууц үгээр нэвтрэх → token | `LoginDto` |
@@ -64,6 +64,7 @@ Controller-level: бүгд JWT. Заримд нэмэлт роль.
 | GET `/words/stats` | admin-баг | Контентын эрүүл мэндийн тоо | — |
 | GET `/words/analytics` | admin-баг | Сурлагын аналитик (мартсан/хадгалсан/мэдэх/хэцүү) | — |
 | GET `/words/quiz` | JWT | Нийтэлсэн үгсээс MCQ vocab quiz үүсгэх (question бүр `imageUrl` + `audioUrl`-тэй; Listen тоглоом аудиогүй үед TTS-ээр дуудна) | `{ count }` |
+| GET `/words/sample` | **Public** | Бүртгэлийн өмнөх taste-task (C4) — цөөн MCQ (**зөв хариу орсон**, апп локал шалгана). Auth шаардахгүй | `?count` (1–5, default 3) |
 | GET `/words/match` | JWT | "Холбож ял" тоглоомд үг↔утга хос буцаах (grading нь `quiz/submit`-ээр) | `{ count }` |
 | POST `/words/quiz/submit` | JWT | Quiz шалгаж, XP + Sparks олгох (Match тоглоом ч үүгээр) | `{ answers }` |
 | POST `/words` | admin-баг | Үг үүсгэх | `CreateWordDto` |
