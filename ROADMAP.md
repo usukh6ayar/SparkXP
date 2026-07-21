@@ -42,19 +42,22 @@
 > өнгөлгөөний ихэнх нь хийгдсэн (доор ✅), гэхдээ **store setup + хэдэн критик
 > зүйл дутуу** (fonts, app icon PNG, EAS init, taste-task onboarding).
 
-### 🧑‍🤝‍🧑 Launch ажлын хуваарь (2026-07-21)
-> **Choi → AI buddy бүхэлдээ.** Үлдсэнийг **Өсөхбаяр (backend/infra/store) ↔ Boju
-> (mobile UX)** хоёр хуваана.
+### 🧑‍🤝‍🧑 Launch ажлын хуваарь (шинэчилсэн 2026-07-21 — 3-талт тэнцүү)
+> Ажлыг **3-уулаа тэнцүү** хуваав. **3D AI buddy avatar-ыг хамгийн СҮҮЛД, 3-уулаа
+> хамт** хийнэ (доор). `C2` ✅ дууссан. Regression-ыг хүн бүр өөрийн хэсэгт хийнэ.
 
-| Хэсэг | Owner | Ажил |
-| --- | --- | --- |
-| **Store + infra** | **Өсөхбаяр** | Railway Hobby + prod migration бүх table; EAS `init` (projectId); **app icon 1024 PNG + splash** (`app.json`); eas.json submit creds; Apple($99)/Google($25) account; App Store material (screenshot/description/privacy/data-safety) |
-| **Backend endpoint** | **Өсөхбаяр** | `C1-BE` lesson progress %; `C2-BE` `POST /quizzes/:id/check`; `C4-BE` public sample endpoint + guest→user migration |
-| **Mobile UX** | **Boju** | `C1` Home нэг primary hero; `C2` quiz асуулт-бүрийн шууд feedback; `C4` taste-task онбординг + guest mode; **фонт (Onest/Inter) ачаалах** (`_layout.tsx` — shared, зарлаад PR); real gamification data (placeholder → бодит); regression pass (learning-core + games) |
-| **AI Buddy** | **Choi** | 3D avatar дуусгах (optimize GLB <5MB → R2 → admin `avatarAssetUrl`); `C3` buddy scaffold (starter prompt + voice-минут үлдэгдэл + limit→текст зөөлөн шилжих) |
+| Owner | Ажил (тэнцүү 3 багц) |
+| --- | --- |
+| **Өсөхбаяр** (backend/admin/infra) | Railway Hobby + **бүх prod migration** (reading/idioms/translations/ai-buddy-voice/**IELTS**); `C1-BE` lesson progress %; `C4-BE` public sample + guest→user migration; **IELTS Plan 2 — admin authoring**; Apple($99)/Google($25) account + EAS submit config |
+| **Choi** (mobile — learning + IELTS L/R) | `C1` Home нэг primary hero (FE); `C4` taste-task онбординг + guest mode (FE); **IELTS Plan 3a — `/ielts` hub + Listening/Reading runner** (band харуулах); **фонт (Onest/Inter) ачаалах** (`_layout.tsx` — shared, зарлаад PR) |
+| **Boju** (mobile — buddy/games + store) | `C3` buddy scaffold (starter prompt + voice-минут үлдэгдэл + limit→текст); real gamification data (placeholder → бодит); **IELTS Plan 3b — Writing/Speaking практик дэлгэц** (model-answer reveal); **app icon 1024 PNG (шинэ дизайн) + splash + App Store material** (screenshot/description/privacy/data-safety) |
 
-> ⚠️ `C1`/`C4` анх Choi-д байсан → одоо **Boju** авна (Choi buddy-д). `_layout.tsx`
-> (фонт) shared учир Boju эхлээд зарлаж, жижиг PR-аар оруулна.
+> **🟪 3D AI buddy — ХАМГИЙН СҮҮЛД, 3-уулаа хамт:** optimize rigged GLB (<5MB) → R2
+> upload → admin `avatarAssetUrl` → mobile wire + procedural lip-sync + утсан дээр тест.
+> (Код суурь орсон — `01d5312`. Store rebuild шаардлагагүй, OTA.)
+
+> ⚠️ Тэмдэглэл: `C1`/`C4` FE = Choi, IELTS mobile-ыг Choi(L/R) ↔ Boju(W/S) хуваасан.
+> Shared файл (`_layout.tsx`/`Home`/`theme.ts`) → эхлээд зарлаад жижиг PR.
 
 ### ✅ UI/UX өнгөлгөө — хийгдсэн (2026-07-21, кодоос баталсан)
 - [x] **Responsive** — бүх дэлгэц утасны хэмжээнд тохирно (`src/theme/responsive.ts`,
