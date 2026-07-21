@@ -149,9 +149,12 @@
 - [ ] **C1** Home — 4 skill tile-ийг compact quick-row болгож, нэг primary "Continue/
       Start" hero гаргах (Choi). **C1-BE:** lesson-ийн бодит ахиц гаргах endpoint
       (Өсөхбаяр — одоо `/lessons/:id/complete` л байна, progress %-гүй).
-- [ ] **C2** Quiz асуулт бүрийн шууд feedback (ногоон/улаан + зөв хариу) — Boju.
-      **C2-BE:** `POST /quizzes/:id/check` (нэг хариу шалгах, бүх хариу задлахгүй) —
-      Өсөхбаяр (одоо зөвхөн `/submit` байна).
+- [~] **C2** Quiz асуулт бүрийн шууд feedback (ногоон/улаан + зөв хариу).
+      **C2-BE ✅ (2026-07-21):** `POST /quizzes/:id/check` нэмэгдсэн — нэг хариу шалгаж
+      `{ correct, correctAnswer? }` буцаана (XP олгохгүй, бүх түлхүүр задлахгүй; буруу
+      үед л зөв хариу буцна). grading `gradeQuestion` дундын helper болов. API.md-д
+      баримтжуулсан. **Үлдсэн (Boju FE):** `quizzes.ts`-д `checkAnswer` client +
+      quiz дэлгэцэд Check→Continue урсгал.
 - [ ] **C3** Buddy эхний-нээлт scaffold: 3–4 starter prompt + voice-минут үлдэгдэл
       харуулах, limit → текст рүү зөөлөн шилжих — Boju.
 - [ ] **C4** Taste-task онбординг (auth-аас өмнө +XP) + guest mode — Choi.

@@ -23,7 +23,7 @@ import { XpSource } from '../common/enums';
 import { CreateQuizDto } from './dto/create-quiz.dto';
 import { UpdateQuizDto } from './dto/update-quiz.dto';
 import { QueryQuizzesDto } from './dto/query-quizzes.dto';
-import { SubmitQuizDto } from './dto/submit-quiz.dto';
+import { SubmitQuizDto, AnswerItemDto } from './dto/submit-quiz.dto';
 import { User } from '../entities/user.entity';
 
 @Controller('quizzes')
@@ -96,5 +96,21 @@ export class QuizzesController {
     }
 
     return result;
+  }
+
+  /**
+   * Student: check ONE answer for instant per-question feedback (C2).
+   * No XP and no answer-key leak — grading here is a preview; `/submit` stays
+   * authoritative for scoring. Returns `{ correct, correctAnswer? }` where
+   * `correctAnswer` is present only when the answer was wrong.
+   */
+  @Post(':id/check')
+  @HttpCode(HttpStatus.OK)
+  async check(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: AnswerItemDto,
+  ) {
+    const quiz = await this.quizzesService.findOne(id);
+    return this.quizzesService.checkAnswer(quiz, dto.questionIndex, dto.answer);
   }
 }

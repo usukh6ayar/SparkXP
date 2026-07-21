@@ -119,6 +119,7 @@ Controller-level: JWT. Бичилт admin-баг. (Хичээлийн тест �
 | PATCH `/quizzes/:id` | admin-баг | Quiz засах | `UpdateQuizDto` |
 | DELETE `/quizzes/:id` | admin-баг | Quiz устгах | path `id` |
 | POST `/quizzes/:id/submit` | JWT | Хариу шалгаж XP олгох (≥1 зөв бол) | `SubmitQuizDto` |
+| POST `/quizzes/:id/check` | JWT | **Нэг** хариу шалгах — C2 шуурхай feedback (XP олгохгүй, бүх түлхүүр задлахгүй). Буруу бол тухайн асуултын зөв хариу буцна → `{ correct, correctAnswer? }` (`correctAnswer`: mc→index · fill_blank→string · word_match→pairs) | `AnswerItemDto` (`questionIndex`, `answer`) |
 
 ## 7. Reading — `/api/reading`
 Унших материал. GET уншилт JWT; бичилт/AI admin-баг.
@@ -343,7 +344,7 @@ Catalog нь `src/achievements/catalog.ts` (R2-аас generate). `earned` = `Use
 | `users.ts` | `getStats`→GET `/users/me/stats` · `getMyPlan`→GET `/users/me/plan` · `updateProfile`→PATCH `/users/me` · `uploadAvatar`→POST `/users/me/avatar` |
 | `gamification.ts` | `getGamification`→GET `/gamification` |
 | `lessons.ts` | `getLessons`→GET `/lessons?isPublished=true` · `getLesson`→GET `/lessons/:id` · `checkAccess`→GET `/lessons/:id/access` · `unlockLesson`→POST `/lessons/:id/unlock` · `completeLesson`→POST `/lessons/:id/complete` |
-| `quizzes.ts` | `getQuiz`→GET `/quizzes/:id` · `getQuizzes`→GET `/quizzes?isPublished=true[&lessonId=]` · `getExercises`→GET `/quizzes?standalone=true&isPublished=true&category=` · `submitQuiz`→POST `/quizzes/:id/submit` |
+| `quizzes.ts` | `getQuiz`→GET `/quizzes/:id` · `getQuizzes`→GET `/quizzes?isPublished=true[&lessonId=]` · `getExercises`→GET `/quizzes?standalone=true&isPublished=true&category=` · `submitQuiz`→POST `/quizzes/:id/submit` · **`checkAnswer`→POST `/quizzes/:id/check`** (C2 — Boju нэмнэ) |
 | `quiz.ts` (vocab) | `getQuiz`→GET `/words/quiz?count=` · `submitQuiz`→POST `/words/quiz/submit` |
 | `reading.ts` | `getReadingList`→GET `/reading?limit=50` · `getReadingPassage`→GET `/reading/:id` · `completeReading`→POST `/reading/:id/complete` |
 | `reviews.ts` | `getDue`→GET `/reviews/due` · `submitReview`→POST `/reviews/:wordId` · `getLearnQueue`→GET `/reviews/learn` · `toggleSave`→POST `/reviews/:wordId/save` · `getSaved`→GET `/reviews/saved` · `getReviewStats`→GET `/reviews/stats` |

@@ -46,6 +46,13 @@ export interface QuizResult {
   breakdown: { questionIndex: number; correct: boolean; points: number }[];
 }
 
+/** Per-question instant feedback (C2). Reveals the correct answer ONLY when the
+ *  user was wrong, and only for that single question — never the whole quiz. */
+export interface CheckAnswerResult {
+  correct: boolean;
+  correctAnswer?: number | string | { left: string; right: string }[];
+}
+
 export interface PaginatedQuizzes {
   items: Quiz[];
   total: number;
@@ -208,30 +215,7 @@ export class QuizzesService {
 
     let earned = 0;
     const breakdown = questions.map((q, i) => {
-      const userAnswer = answerMap.get(i);
-      let correct = false;
-
-      if (q.type === 'multiple_choice') {
-        correct = userAnswer === q.correct;
-      } else if (q.type === 'fill_blank') {
-        correct =
-          typeof userAnswer === 'string' &&
-          userAnswer.trim().toLowerCase() === q.answer.trim().toLowerCase();
-      } else if (q.type === 'word_match') {
-        // Mobile sends matched pairs as JSON string; full match = correct
-        try {
-          const submitted = typeof userAnswer === 'string' ? JSON.parse(userAnswer) : userAnswer;
-          if (Array.isArray(submitted)) {
-            const allMatch = (q as WmQuestion).pairs.every((pair) =>
-              submitted.some((s: { left: string; right: string }) =>
-                s.left === pair.left && s.right === pair.right,
-              ),
-            );
-            correct = allMatch;
-          }
-        } catch { correct = false; }
-      }
-
+      const correct = this.gradeQuestion(q, answerMap.get(i));
       if (correct) earned += q.points;
       return { questionIndex: i, correct, points: correct ? q.points : 0 };
     });
@@ -242,5 +226,68 @@ export class QuizzesService {
     const xpEarned = earned > 0 ? Math.floor(quiz.xpReward * (earned / totalPoints)) : 0;
 
     return { score: earned, total: totalPoints, percentage, passed, xpEarned, breakdown };
+  }
+
+  /**
+   * Grade ONE answered question against its stored correct answer.
+   * Single source of truth for correctness — used by both scoreSubmission
+   * (whole quiz) and checkAnswer (per-question instant feedback).
+   */
+  private gradeQuestion(
+    q: StoredQuestion,
+    userAnswer: number | string | undefined,
+  ): boolean {
+    if (q.type === 'multiple_choice') {
+      return userAnswer === q.correct;
+    }
+    if (q.type === 'fill_blank') {
+      return (
+        typeof userAnswer === 'string' &&
+        userAnswer.trim().toLowerCase() === q.answer.trim().toLowerCase()
+      );
+    }
+    if (q.type === 'word_match') {
+      // Mobile sends matched pairs as JSON string; full match = correct.
+      try {
+        const submitted = typeof userAnswer === 'string' ? JSON.parse(userAnswer) : userAnswer;
+        if (Array.isArray(submitted)) {
+          return q.pairs.every((pair) =>
+            submitted.some((s: { left: string; right: string }) =>
+              s.left === pair.left && s.right === pair.right,
+            ),
+          );
+        }
+      } catch { return false; }
+    }
+    return false;
+  }
+
+  /** The correct answer to reveal for a single question (mc → index,
+   *  fill_blank → string, word_match → pairs). */
+  private correctAnswerOf(q: StoredQuestion): CheckAnswerResult['correctAnswer'] {
+    if (q.type === 'multiple_choice') return q.correct;
+    if (q.type === 'fill_blank') return q.answer;
+    return q.pairs; // word_match
+  }
+
+  /**
+   * C2: check a single answer for instant feedback (no XP, no scoring).
+   * Reveals the correct answer only when the user was wrong, and only for
+   * that one question — the full answer key is never sent up front.
+   */
+  checkAnswer(
+    quiz: Quiz,
+    questionIndex: number,
+    answer: number | string,
+  ): CheckAnswerResult {
+    const questions = quiz.questions as StoredQuestion[];
+    const q = questions[questionIndex];
+    if (!q) {
+      throw new BadRequestException(`questionIndex ${questionIndex} нь quiz-д байхгүй`);
+    }
+    const correct = this.gradeQuestion(q, answer);
+    return correct
+      ? { correct: true }
+      : { correct: false, correctAnswer: this.correctAnswerOf(q) };
   }
 }
