@@ -9,6 +9,8 @@ import { getQuizzes } from '../src/api/quizzes';
 import { TopBar } from '../src/components/TopBar';
 import { Card } from '../src/components/Card';
 import { AssignmentRow } from '../src/components/AssignmentRow';
+import { StatusBadge } from '../src/components/StatusBadge';
+import { AppText } from '../src/components/Text';
 import { SkeletonRows } from '../src/components/SkeletonRows';
 import { EmptyState } from '../src/components/EmptyState';
 import { t } from '../src/i18n';
@@ -108,6 +110,14 @@ export default function AssignmentsScreen() {
                   overdue={a.dueAt ? new Date(a.dueAt).getTime() < Date.now() : false}
                   onPress={() => open(a)}
                 />
+                {(a.status || a.scorePct != null) && (
+                  <View style={styles.metaRow}>
+                    {a.status ? <StatusBadge status={a.status} /> : null}
+                    {a.scorePct != null ? (
+                      <AppText variant="label" color={c.textSecondary}>{a.scorePct}%</AppText>
+                    ) : null}
+                  </View>
+                )}
               </Card>
             ))
           )}
@@ -122,4 +132,5 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: c.background },
   list: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, gap: spacing.sm },
   skeleton: { marginHorizontal: spacing.lg, marginTop: spacing.sm },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.sm },
 });
