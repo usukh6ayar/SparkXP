@@ -25,6 +25,7 @@ import {
   View,
   Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   ActivityIndicator,
   TextInput,
@@ -337,36 +338,50 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
               {error}
             </AppText>
           ) : result ? (
-            <>
-              <AppText
-                variant={isPhrase ? 'body' : 'h3'}
-                color={colors.text}
-                style={styles.translation}
-              >
-                {result.translation}
-              </AppText>
-              <Pressable onPress={speak} hitSlop={8} style={styles.iconBtn}>
-                {audioBusy ? (
-                  <ActivityIndicator size="small" color={colors.primary} />
-                ) : (
-                  <Ionicons name="volume-high" size={22} color={colors.primary} />
-                )}
-              </Pressable>
-              {/* Save is word-only — sentences aren't added to vocabulary. */}
-              {!isPhrase ? (
-                <Pressable onPress={save} hitSlop={8} style={styles.iconBtn}>
-                  {saveBusy ? (
+            <View style={styles.popoverBody}>
+              <View style={styles.popoverRow}>
+                <AppText
+                  variant={isPhrase ? 'body' : 'h3'}
+                  color={colors.text}
+                  style={styles.translation}
+                >
+                  {result.translation}
+                </AppText>
+                <Pressable onPress={speak} hitSlop={8} style={styles.iconBtn}>
+                  {audioBusy ? (
                     <ActivityIndicator size="small" color={colors.primary} />
                   ) : (
-                    <Ionicons
-                      name={saved ? 'bookmark' : 'bookmark-outline'}
-                      size={22}
-                      color={saved ? colors.success : colors.primary}
-                    />
+                    <Ionicons name="volume-high" size={22} color={colors.primary} />
                   )}
                 </Pressable>
+                {/* Save is word-only — sentences aren't added to vocabulary. */}
+                {!isPhrase ? (
+                  <Pressable onPress={save} hitSlop={8} style={styles.iconBtn}>
+                    {saveBusy ? (
+                      <ActivityIndicator size="small" color={colors.primary} />
+                    ) : (
+                      <Ionicons
+                        name={saved ? 'bookmark' : 'bookmark-outline'}
+                        size={22}
+                        color={saved ? colors.success : colors.primary}
+                      />
+                    )}
+                  </Pressable>
+                ) : null}
+              </View>
+
+              {/* Richer 4-part explanation, when the backend provides it (doc §2). */}
+              {result.sections && result.sections.length > 0 ? (
+                <ScrollView style={styles.sections} showsVerticalScrollIndicator={false}>
+                  {result.sections.map((s, i) => (
+                    <View key={i} style={styles.section}>
+                      <AppText variant="label" color={colors.primary}>{s.title}</AppText>
+                      <AppText variant="caption" color={colors.textSecondary}>{s.body}</AppText>
+                    </View>
+                  ))}
+                </ScrollView>
               ) : null}
-            </>
+            </View>
           ) : null}
         </Animated.View>
       </Modal>
@@ -481,9 +496,6 @@ const makeStyles = (colors: AppColors) => StyleSheet.create({
   popover: {
     position: 'absolute',
     maxWidth: 320,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
     paddingVertical: spacing.md,
@@ -492,6 +504,10 @@ const makeStyles = (colors: AppColors) => StyleSheet.create({
     borderColor: colors.border,
     ...elevation.float,
   },
+  popoverBody: { gap: spacing.sm },
+  popoverRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  sections: { maxHeight: 220 },
+  section: { marginTop: spacing.sm, gap: 2 },
   translation: { flexShrink: 1, marginRight: spacing.xs },
   iconBtn: {
     width: 40,

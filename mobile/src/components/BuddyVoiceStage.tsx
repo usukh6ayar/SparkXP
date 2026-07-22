@@ -37,7 +37,7 @@ type Phase = 'idle' | 'recording' | 'locked';
  *   onRecordCancel – released in the cancel zone → discard
  */
 export function BuddyVoiceStage({
-  buddy, greeting, speaking, thinking, voiceLimited, usageLabel, usageWarn,
+  buddy, greeting, speaking, thinking, voiceLimited, usageLabel, usageLevel,
   captions, onToggleCaptions, onRecordStart, onRecordCommit, onRecordCancel, onOpenText,
 }: {
   buddy: Buddy | null;
@@ -47,7 +47,8 @@ export function BuddyVoiceStage({
   voiceLimited?: boolean;
   /** "3.5 / 25 мин" — voice minutes are only spent (and shown) on this screen. */
   usageLabel?: string;
-  usageWarn?: boolean;
+  /** Voice-cap warning tier (doc guardrail): amber at 80%, red at 95%. */
+  usageLevel?: 'none' | 'warn80' | 'warn95';
   /** Closed captions: when off, the buddy's spoken text is hidden. */
   captions: boolean;
   onToggleCaptions: () => void;
@@ -179,12 +180,17 @@ export function BuddyVoiceStage({
     <View style={styles.wrap}>
       {/* Top row: voice-minutes meter (left) + CC caption toggle (right). */}
       <View style={styles.topRow}>
-        {usageLabel ? (
-          <View style={[styles.usagePill, { backgroundColor: c.surfaceAlt }]}>
-            <Ionicons name="mic-outline" size={13} color={usageWarn ? c.danger : c.textSecondary} />
-            <AppText variant="caption" color={usageWarn ? c.danger : c.textSecondary}>{usageLabel}</AppText>
-          </View>
-        ) : <View />}
+        {usageLabel ? (() => {
+          // Two-tier voice-cap warning (doc guardrail): 95% → red, 80% → amber.
+          const usageColor =
+            usageLevel === 'warn95' ? c.danger : usageLevel === 'warn80' ? c.warning : c.textSecondary;
+          return (
+            <View style={[styles.usagePill, { backgroundColor: c.surfaceAlt }]}>
+              <Ionicons name="mic-outline" size={13} color={usageColor} />
+              <AppText variant="caption" color={usageColor}>{usageLabel}</AppText>
+            </View>
+          );
+        })() : <View />}
 
         <PressableScale
           onPress={onToggleCaptions}

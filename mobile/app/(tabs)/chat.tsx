@@ -349,7 +349,7 @@ export default function ChatScreen() {
           thinking={loading}
           voiceLimited={voiceLimited}
           usageLabel={usageLabel}
-          usageWarn={usage?.warn_level === 'warn95'}
+          usageLevel={usage?.warn_level}
           captions={captions}
           onToggleCaptions={() => setCaptions((v) => !v)}
           onRecordStart={startRecording}
