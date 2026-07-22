@@ -704,6 +704,26 @@ const mn = {
   memPreference: 'Дуртай зүйл',
   memLevel: 'Түвшин',
 
+  // Teacher panel (Phase 1)
+  skill_listening: 'Сонсгол',
+  skill_reading: 'Унших',
+  skill_writing: 'Бичих',
+  skill_fill: 'Нөхөх',
+  skill_vocab: 'Үгсийн сан',
+  submissionStatus_assigned: 'Хийгээгүй',
+  submissionStatus_completed: 'Хийсэн',
+  submissionStatus_late: 'Хоцорсон',
+  weakestSkill: 'Хамгийн сул',
+  activeStudents: 'Идэвхтэй',
+  pendingTasks: 'Хүлээгдэж буй',
+  overdueTasks: 'Хоцорсон',
+  avgProgress: 'Дундаж ахиц',
+  studentProgress: 'Сурагчийн ахиц',
+  assignTo: 'Хэнд оноох',
+  wholeClass: 'Бүх анги',
+  selectStudents: 'Сурагч сонгох',
+  taskNote: 'Тэмдэглэл',
+
   // Network / generic
   errorFallback: 'Алдаа гарлаа',
 };
@@ -1378,6 +1398,26 @@ const en: Record<TranslationKey, string> = {
   memMistake: 'Common mistake',
   memPreference: 'Preference',
   memLevel: 'Level',
+
+  // Teacher panel (Phase 1)
+  skill_listening: 'Listening',
+  skill_reading: 'Reading',
+  skill_writing: 'Writing',
+  skill_fill: 'Fill-in',
+  skill_vocab: 'Vocabulary',
+  submissionStatus_assigned: 'Not done',
+  submissionStatus_completed: 'Done',
+  submissionStatus_late: 'Late',
+  weakestSkill: 'Weakest',
+  activeStudents: 'Active',
+  pendingTasks: 'Pending',
+  overdueTasks: 'Overdue',
+  avgProgress: 'Avg progress',
+  studentProgress: 'Student progress',
+  assignTo: 'Assign to',
+  wholeClass: 'Whole class',
+  selectStudents: 'Select students',
+  taskNote: 'Note',
 
   // Network / generic
   errorFallback: 'Something went wrong',
