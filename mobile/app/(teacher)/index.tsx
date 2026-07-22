@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/auth/AuthContext';
 import * as classesApi from '../../src/api/classes';
 import type { ClassSummary } from '../../src/api/classes';
+import { getTeacherDashboard, type TeacherDashboard } from '../../src/api/teacher';
 import { getOrganizations, type Organization } from '../../src/api/organizations';
 import { t } from '../../src/i18n';
 import { AppText } from '../../src/components/Text';
@@ -23,6 +24,7 @@ export default function TeacherClassesScreen() {
   const { token, user } = useAuth();
   const router = useRouter();
   const [classes, setClasses] = useState<ClassSummary[]>([]);
+  const [dash, setDash] = useState<TeacherDashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [orgs, setOrgs] = useState<Organization[]>([]);
@@ -37,6 +39,8 @@ export default function TeacherClassesScreen() {
     try {
       const mine = await classesApi.getMyClasses(token);
       setClasses(mine.teaching);
+      // Dashboard is a nice-to-have strip — don't let its failure blank the list.
+      getTeacherDashboard(token).then(setDash).catch(() => {});
     } catch {
       // keep last
     } finally {
@@ -91,6 +95,14 @@ export default function TeacherClassesScreen() {
           </Pressable>
         </LinearGradient>
 
+        {dash && (
+          <View style={styles.statStrip}>
+            <StatCell value={dash.studentCount} label={t('students')} colors={colors} />
+            <StatCell value={dash.activeStudents} label={t('activeStudents')} colors={colors} />
+            <StatCell value={dash.pending} label={t('pendingTasks')} colors={colors} />
+          </View>
+        )}
+
         {loading ? (
           <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.xxl }} />
         ) : classes.length === 0 ? (
@@ -120,9 +132,27 @@ export default function TeacherClassesScreen() {
   );
 }
 
+function StatCell({ value, label, colors }: { value: number; label: string; colors: AppColors }) {
+  return (
+    <View style={{ flex: 1, alignItems: 'center' }}>
+      <AppText variant="h2" color={colors.text}>{value}</AppText>
+      <AppText variant="caption" color={colors.textMuted}>{label}</AppText>
+    </View>
+  );
+}
+
 const makeStyles = (colors: AppColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   scroll: { paddingBottom: spacing.lg },
+  statStrip: {
+    flexDirection: 'row',
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+    paddingVertical: spacing.md,
+    borderRadius: radius.xl,
+    backgroundColor: colors.surface,
+    ...(elevation.sm as object),
+  },
   hero: {
     margin: spacing.lg,
     borderRadius: radius.xl,
