@@ -40,4 +40,12 @@ export class Assignment extends BaseEntity {
 
   @Column({ name: 'due_at', type: 'timestamptz', nullable: true })
   dueAt: Date | null;
+
+  /** Optional teacher note shown with the task. */
+  @Column({ type: 'varchar', nullable: true })
+  note: string | null;
+
+  /** Target a subset of the class. NULL = the whole class. */
+  @Column({ name: 'student_ids', type: 'jsonb', nullable: true })
+  studentIds: string[] | null;
 }

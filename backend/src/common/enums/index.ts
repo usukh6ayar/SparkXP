@@ -103,6 +103,13 @@ export enum AssignmentType {
   QUIZ = "quiz",
 }
 
+/** Lifecycle of one student's assignment submission. */
+export enum SubmissionStatus {
+  ASSIGNED = 'assigned',
+  COMPLETED = 'completed',
+  LATE = 'late',
+}
+
 /** Where an XP award came from — used for analytics and anti-abuse audits. */
 export enum XpSource {
   WORD_REVIEW = "word_review",
