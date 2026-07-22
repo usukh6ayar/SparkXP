@@ -70,7 +70,8 @@ describe('resolveSkill', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd backend && npx jest --config jest.config.ts src/teacher/skill.spec.ts`
+Run: `cd backend && npx jest --config jest.config.ts --testRegex '.*\.spec\.ts$' src/teacher/skill.spec.ts`
+(Note: the repo's `jest.config.ts` `testRegex` only matches `*.e2e-spec.ts`; the `--testRegex '.*\.spec\.ts$'` override makes it pick up these unit specs.)
 Expected: FAIL — "Cannot find module './skill'".
 
 - [ ] **Step 3: Write minimal implementation**
@@ -106,7 +107,8 @@ export function resolveSkill(
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd backend && npx jest --config jest.config.ts src/teacher/skill.spec.ts`
+Run: `cd backend && npx jest --config jest.config.ts --testRegex '.*\.spec\.ts$' src/teacher/skill.spec.ts`
+(Note: the repo's `jest.config.ts` `testRegex` only matches `*.e2e-spec.ts`; the `--testRegex '.*\.spec\.ts$'` override makes it pick up these unit specs.)
 Expected: PASS (3 tests).
 
 - [ ] **Step 5: Commit**
@@ -691,7 +693,7 @@ describe('averageBySkill', () => {
 
 - [ ] **Step 2: Run to verify it fails**
 
-Run: `cd backend && npx jest --config jest.config.ts src/teacher/progress.spec.ts`
+Run: `cd backend && npx jest --config jest.config.ts --testRegex '.*\.spec\.ts$' src/teacher/progress.spec.ts`
 Expected: FAIL — `averageBySkill` not exported.
 
 - [ ] **Step 3: Implement the pure helper + wire repos**
@@ -752,7 +754,7 @@ studentSkillRows(userId: string): Promise<{ skill: string; scorePct: number }[]>
 
 - [ ] **Step 6: Run the test**
 
-Run: `cd backend && npx jest --config jest.config.ts src/teacher/progress.spec.ts`
+Run: `cd backend && npx jest --config jest.config.ts --testRegex '.*\.spec\.ts$' src/teacher/progress.spec.ts`
 Expected: PASS (2 tests).
 
 - [ ] **Step 7: Commit**
