@@ -1,4 +1,4 @@
-import { IsArray, ValidateNested, IsInt, Min, Allow } from 'class-validator';
+import { IsArray, ValidateNested, IsInt, Min, Allow, IsOptional, IsUUID } from 'class-validator';
 import { Type } from 'class-transformer';
 
 /** One answer for a single question (identified by zero-based index). */
@@ -26,4 +26,9 @@ export class SubmitQuizDto {
   @ValidateNested({ each: true })
   @Type(() => AnswerItemDto)
   answers: AnswerItemDto[];
+
+  /** When the student is fulfilling an assignment, its id (links the attempt). */
+  @IsOptional()
+  @IsUUID()
+  assignmentId?: string;
 }

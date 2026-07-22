@@ -28,6 +28,7 @@ import { ReadingModule } from './reading/reading.module';
 import { IdiomsModule } from './idioms/idioms.module';
 import { ReferralsModule } from './referrals/referrals.module';
 import { AchievementsModule } from './achievements/achievements.module';
+import { TeacherModule } from './teacher/teacher.module';
 
 @Module({
   imports: [
@@ -63,6 +64,7 @@ import { AchievementsModule } from './achievements/achievements.module';
     IdiomsModule,
     ReferralsModule,
     AchievementsModule,
+    TeacherModule,
   ],
 })
 export class AppModule {}
