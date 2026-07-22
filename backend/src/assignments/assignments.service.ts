@@ -134,9 +134,14 @@ export class AssignmentsService {
   ): Promise<void> {
     const assignment = await this.assignments.findOne({
       where: { id: assignmentId },
-      select: { id: true, dueAt: true },
+      select: { id: true, dueAt: true, studentIds: true },
     });
     if (!assignment) throw new NotFoundException('Даалгавар олдсонгүй');
+    // A subset assignment can only be submitted by a targeted student — stops a
+    // stray submission row that would skew class/dashboard completion counts.
+    if (assignment.studentIds && !assignment.studentIds.includes(studentId)) {
+      throw new ForbiddenException('Энэ даалгавар танд оноогдоогүй');
+    }
     const status =
       assignment.dueAt && new Date() > assignment.dueAt
         ? SubmissionStatus.LATE
@@ -175,15 +180,39 @@ export class AssignmentsService {
     }
   }
 
-  /** All assignments across the classes the current user is enrolled in. */
-  async findForStudent(user: User): Promise<Assignment[]> {
+  /**
+   * A student's assignments across their enrolled classes, each enriched with
+   * that student's own submission `status` / `scorePct`. Subset assignments
+   * (`studentIds` set) are only returned to a targeted student.
+   */
+  async findForStudent(
+    user: User,
+  ): Promise<(Assignment & { status: SubmissionStatus; scorePct: number | null })[]> {
     const { enrolled } = await this.classesService.findForUser(user);
     const classIds = enrolled.map((c) => c.id);
     if (classIds.length === 0) return [];
 
-    return this.assignments.find({
+    const all = await this.assignments.find({
       where: { classId: In(classIds) },
       order: { dueAt: 'ASC', createdAt: 'DESC' },
+    });
+    // Whole-class (studentIds null) → visible to all; subset → only if targeted.
+    const visible = all.filter(
+      (a) => !a.studentIds || a.studentIds.includes(user.id),
+    );
+    if (visible.length === 0) return [];
+
+    // Attach this student's own submission state per assignment.
+    const subs = await this.completions.find({
+      where: { assignmentId: In(visible.map((a) => a.id)), studentId: user.id },
+    });
+    const subMap = new Map(subs.map((s) => [s.assignmentId, s]));
+    return visible.map((a) => {
+      const sub = subMap.get(a.id);
+      return Object.assign(a, {
+        status: sub?.status ?? SubmissionStatus.ASSIGNED,
+        scorePct: sub?.scorePct ?? null,
+      });
     });
   }
 

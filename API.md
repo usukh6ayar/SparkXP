@@ -282,7 +282,7 @@ Controller-level: JWT.
 | Method + Path | Auth | Зорилго | Params / Body |
 | --- | --- | --- | --- |
 | POST `/assignments` | teacher, admin, super_admin | Хичээл/quiz-ийг ангид оноох. `note` + `studentIds` (сонгосон сурагчид, хоосон = бүх анги) дэмжинэ; оноох үед target сурагч бүрд `assigned` submission урьдчилж үүснэ | `CreateAssignmentDto` (`note?`, `studentIds?`) |
-| GET `/assignments/mine` | JWT | Элссэн ангиудын даалгаврууд | — |
+| GET `/assignments/mine` | JWT | Элссэн ангиудын даалгаврууд — сурагчид оноогдсонг л (subset target хүндэтгэнэ) + өөрийн `status`/`scorePct`-той | — |
 | GET `/assignments` | JWT (гишүүнчлэл шалгана) | Ангийн даалгаврууд | `classId` (required) |
 | GET `/assignments/:id/submissions` | teacher, admin, super_admin | Даалгаврын submission-ууд (сурагч бүрийн status/оноо/оролдлого) | path `id` |
 | POST `/assignments/:id/complete` | JWT | Сурагч даалгавар дуусгах (idempotent; `late`/`completed` тэмдэглэнэ) | path `id` |
