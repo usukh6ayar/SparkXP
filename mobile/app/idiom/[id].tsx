@@ -22,6 +22,7 @@ import { EmptyState } from '../../src/components/EmptyState';
 import { t } from '../../src/i18n';
 import { spacing, radius, type AppColors } from '../../src/theme/theme';
 import { useColors } from '../../src/settings/SettingsContext';
+import { bounded } from '../../src/theme/responsive';
 
 /** Idiom detail: phrase, Mongolian, meaning, definition, example, audio. */
 export default function IdiomDetailScreen() {
@@ -106,7 +107,7 @@ export default function IdiomDetailScreen() {
           style={styles.empty}
         />
       ) : (
-        <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={[styles.container, bounded]} showsVerticalScrollIndicator={false}>
           {/* Cover */}
           <View style={styles.cover}>
             {idiom.imageUrl ? (

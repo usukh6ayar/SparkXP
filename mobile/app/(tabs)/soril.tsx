@@ -29,6 +29,7 @@ import {
   elevation,
   type AppColors,
 } from "../../src/theme/theme";
+import { bounded } from '../../src/theme/responsive';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 const banner = require("../../assets/soril-banner.webp");
@@ -137,7 +138,7 @@ export default function SorilScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <ScrollView
-        contentContainerStyle={styles.container}
+        contentContainerStyle={[styles.container, bounded]}
         showsVerticalScrollIndicator={false}
       >
         {/* Header */}

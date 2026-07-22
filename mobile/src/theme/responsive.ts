@@ -19,10 +19,23 @@
  * which reads live dimensions; the module-level helpers snapshot at launch,
  * which is correct for phone-size differences (the common case).
  */
-import { Dimensions, useWindowDimensions } from 'react-native';
+import { Dimensions, useWindowDimensions, type ViewStyle } from 'react-native';
 
 const BASE_WIDTH = 375; // iPhone 11 / X logical width
 const BASE_HEIGHT = 812; // iPhone 11 / X logical height
+
+/** Tablet / large screen: short side ≥ 600pt (Galaxy Tab A9, iPad, split view). */
+const TABLET_MIN_SHORT = 600;
+/** Cap a single-column layout so it doesn't stretch edge-to-edge on a tablet. */
+const CONTENT_MAX_WIDTH = 640;
+
+/** Build the bounded content style for a given viewport (null on phones). */
+function boundedFor(width: number, height: number): ViewStyle | null {
+  const tablet = Math.min(width, height) >= TABLET_MIN_SHORT;
+  return tablet
+    ? { width: '100%', maxWidth: CONTENT_MAX_WIDTH, alignSelf: 'center' }
+    : null;
+}
 
 const clamp = (v: number, min: number, max: number) => Math.min(Math.max(v, min), max);
 
@@ -37,6 +50,17 @@ function factors(width: number, height: number) {
 
 const win = Dimensions.get('window');
 const base = factors(win.width, win.height);
+
+/** True on tablets / large screens (short side ≥ 600pt). Snapshot at launch. */
+export const isTablet = Math.min(win.width, win.height) >= TABLET_MIN_SHORT;
+
+/**
+ * Style to drop into a screen's scroll `contentContainerStyle` (or a main
+ * container) so single-column content caps its width and centers on tablets,
+ * while staying full-width on phones. `null` on phones (spread is a no-op).
+ * Usage: `contentContainerStyle={[styles.content, bounded]}`.
+ */
+export const bounded: ViewStyle | null = boundedFor(win.width, win.height);
 
 /** Scale a size by the (clamped) screen-width factor. Rounds to a whole point. */
 export const s = (size: number) => Math.round(size * base.w);
@@ -61,5 +85,7 @@ export function useResponsive() {
     ms: (size: number, factor = 0.5) => Math.round(size + (Math.round(size * f.w) - size) * factor),
     wp: (pct: number) => Math.round((width * pct) / 100),
     hp: (pct: number) => Math.round((height * pct) / 100),
+    isTablet: Math.min(width, height) >= TABLET_MIN_SHORT,
+    bounded: boundedFor(width, height),
   };
 }

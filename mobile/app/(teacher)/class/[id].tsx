@@ -1,5 +1,5 @@
 import { useCallback, useState, useMemo } from 'react';
-import { View, ScrollView, Pressable, StyleSheet, ActivityIndicator, Alert, RefreshControl, Modal } from 'react-native';
+import { View, ScrollView, Pressable, StyleSheet, Alert, RefreshControl, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,10 +23,12 @@ import { AssignmentRow } from '../../../src/components/AssignmentRow';
 import { Button } from '../../../src/components/Button';
 import { Card } from '../../../src/components/Card';
 import { EmptyState } from '../../../src/components/EmptyState';
+import { SkeletonRows } from '../../../src/components/SkeletonRows';
 import { haptics } from '../../../src/lib/haptics';
 import { alertError } from '../../../src/lib/alerts';
 import { spacing, radius, type AppColors } from '../../../src/theme/theme';
 import { useColors } from '../../../src/settings/SettingsContext';
+import { bounded } from '../../../src/theme/responsive';
 
 /** Section title with an optional count badge. */
 function SectionTitle({ title, count, tint }: { title: string; count?: number; tint?: string }) {
@@ -154,11 +156,11 @@ export default function ClassDetailScreen() {
     ]);
   }
 
-  // First load — spinner. Only while we have nothing to show yet.
+  // First load — skeleton. Only while we have nothing to show yet.
   if (loading && !detail) {
     return (
-      <SafeAreaView style={[styles.safe, styles.center]} edges={['top']}>
-        <ActivityIndicator color={colors.primary} />
+      <SafeAreaView style={styles.safe} edges={['top']}>
+        <SkeletonRows count={6} style={{ padding: spacing.lg }} />
       </SafeAreaView>
     );
   }
@@ -191,7 +193,7 @@ export default function ClassDetailScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, bounded]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />

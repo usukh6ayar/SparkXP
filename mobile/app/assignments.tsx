@@ -16,6 +16,7 @@ import { EmptyState } from '../src/components/EmptyState';
 import { t } from '../src/i18n';
 import { useColors } from '../src/settings/SettingsContext';
 import { spacing, type AppColors } from '../src/theme/theme';
+import { bounded } from '../src/theme/responsive';
 
 export default function AssignmentsScreen() {
   const { token } = useAuth();
@@ -79,7 +80,7 @@ export default function AssignmentsScreen() {
         <SkeletonRows count={4} style={styles.skeleton} />
       ) : (
         <ScrollView
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, bounded]}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.primary} />

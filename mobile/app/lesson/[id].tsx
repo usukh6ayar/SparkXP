@@ -25,6 +25,7 @@ import { useReduceMotion } from '../../src/lib/motion';
 import { t, tf } from '../../src/i18n';
 import { useColors } from '../../src/settings/SettingsContext';
 import { spacing, radius, levelColor, type AppColors } from '../../src/theme/theme';
+import { bounded } from '../../src/theme/responsive';
 
 const banner = require('../../assets/home-banner.webp');
 
@@ -193,7 +194,7 @@ export default function LessonDetailScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <TopBar back />
-      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.container, bounded]} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.head}>
           <View style={[styles.numBadge, { backgroundColor: skill.tint.bg }]}>

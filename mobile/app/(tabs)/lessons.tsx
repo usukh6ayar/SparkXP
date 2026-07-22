@@ -22,6 +22,7 @@ import { AppText } from '../../src/components/Text';
 import { AppIcon } from '../../src/components/AppIcon';
 import { type AppIconName } from '../../src/constants/appIcons';
 import { islandMap } from '../../src/theme/theme';
+import { bounded } from '../../src/theme/responsive';
 
 /**
  * "Хичээлийн ертөнц" — the Lessons tab as an adventure map of floating islands.
@@ -231,7 +232,7 @@ export default function LessonsScreen() {
         {/* Only the world map scrolls — the header above stays pinned. */}
         <ScrollView
           ref={scrollRef}
-          contentContainerStyle={styles.scroll}
+          contentContainerStyle={[styles.scroll, bounded]}
           showsVerticalScrollIndicator={false}
           onContentSizeChange={(_w, h) => {
             // Start at the bottom island (A1) the first time the map lays out.

@@ -17,6 +17,7 @@ import { PERIODS } from '../src/constants/leaderboard';
 import { t } from '../src/i18n';
 import { colors, spacing, radius } from '../src/theme/theme';
 import { useColors } from '../src/settings/SettingsContext';
+import { bounded } from '../src/theme/responsive';
 
 function scopes(): { key: Scope; label: string }[] {
   return [
@@ -82,7 +83,7 @@ export default function LeaderboardScreen() {
         <SkeletonRows count={6} style={styles.skeleton} />
       ) : (
         <ScrollView
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, bounded]}
           showsVerticalScrollIndicator={false}
           scrollEventThrottle={16}
           onScroll={(e) => setShowSelfBar(e.nativeEvent.contentOffset.y > 220)}

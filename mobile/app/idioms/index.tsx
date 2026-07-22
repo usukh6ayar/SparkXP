@@ -16,6 +16,7 @@ import { EmptyState } from '../../src/components/EmptyState';
 import { t, tf } from '../../src/i18n';
 import { spacing, radius, elevation, tints, type AppColors } from '../../src/theme/theme';
 import { useColors } from '../../src/settings/SettingsContext';
+import { bounded } from '../../src/theme/responsive';
 
 /** Idioms list — tap a card to open the detail. Learned ones get a checkmark. */
 export default function IdiomsScreen() {
@@ -69,7 +70,7 @@ export default function IdiomsScreen() {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <TopBar title={t('idiomsTitle')} back showBadges={false} />
       <ScrollView
-        contentContainerStyle={styles.container}
+        contentContainerStyle={[styles.container, bounded]}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
       >

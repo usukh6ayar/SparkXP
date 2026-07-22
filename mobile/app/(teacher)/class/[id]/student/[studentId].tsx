@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { View, ScrollView, Pressable, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, ScrollView, Pressable, StyleSheet, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,8 +12,10 @@ import { Card } from '../../../../../src/components/Card';
 import { EmptyState } from '../../../../../src/components/EmptyState';
 import { SkillBars, type SkillKey } from '../../../../../src/components/SkillBars';
 import { StatusBadge } from '../../../../../src/components/StatusBadge';
+import { SkeletonRows } from '../../../../../src/components/SkeletonRows';
 import { spacing, radius, type AppColors } from '../../../../../src/theme/theme';
 import { useColors } from '../../../../../src/settings/SettingsContext';
+import { bounded } from '../../../../../src/theme/responsive';
 
 const SKILL_ORDER: SkillKey[] = ['listening', 'reading', 'writing', 'fill', 'vocab'];
 
@@ -52,8 +54,8 @@ export default function StudentProgressScreen() {
 
   if (loading && !data) {
     return (
-      <SafeAreaView style={[styles.safe, styles.center]} edges={['top']}>
-        <ActivityIndicator color={colors.primary} />
+      <SafeAreaView style={styles.safe} edges={['top']}>
+        <SkeletonRows count={6} style={{ padding: spacing.lg }} />
       </SafeAreaView>
     );
   }
@@ -82,7 +84,7 @@ export default function StudentProgressScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, bounded]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, useMemo } from 'react';
-import { View, ScrollView, Pressable, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, ScrollView, Pressable, StyleSheet, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -16,6 +16,8 @@ import { ClassCard } from '../../src/components/ClassCard';
 import { SectionHeader } from '../../src/components/SectionHeader';
 import { EmptyState } from '../../src/components/EmptyState';
 import { spacing, radius, elevation, type AppColors } from '../../src/theme/theme';
+import { bounded } from '../../src/theme/responsive';
+import { SkeletonRows } from '../../src/components/SkeletonRows';
 import { useColors } from '../../src/settings/SettingsContext';
 
 export default function TeacherClassesScreen() {
@@ -65,7 +67,7 @@ export default function TeacherClassesScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView
-        contentContainerStyle={styles.scroll}
+        contentContainerStyle={[styles.scroll, bounded]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />
@@ -104,7 +106,7 @@ export default function TeacherClassesScreen() {
         )}
 
         {loading ? (
-          <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.xxl }} />
+          <SkeletonRows count={4} style={{ marginTop: spacing.lg }} />
         ) : classes.length === 0 ? (
           <EmptyState
             icon="school-outline"

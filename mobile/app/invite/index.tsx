@@ -11,6 +11,7 @@ import { TopBar } from '../../src/components/TopBar';
 import { t, tf } from '../../src/i18n';
 import { colors, spacing, radius, elevation, type AppColors } from '../../src/theme/theme';
 import { useColors } from '../../src/settings/SettingsContext';
+import { bounded } from '../../src/theme/responsive';
 
 /**
  * "Invite friends" screen — the user's referral code as a QR + share link, plus
@@ -57,7 +58,7 @@ export default function InviteScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <TopBar title={t('inviteFriends')} back showBadges={false} />
-      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.container, bounded]} showsVerticalScrollIndicator={false}>
         <AppText variant="body" center color={screenColors.textSecondary} style={styles.subtitle}>
           {t('inviteSubtitle')}
         </AppText>

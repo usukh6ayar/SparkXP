@@ -22,6 +22,7 @@ import { SelectField } from '../../../src/components/SelectField';
 import { Button } from '../../../src/components/Button';
 import { spacing, type AppColors } from '../../../src/theme/theme';
 import { useColors } from '../../../src/settings/SettingsContext';
+import { bounded } from '../../../src/theme/responsive';
 
 /**
  * Create-class screen. A standalone route (not a modal) so the school dropdown
@@ -78,7 +79,7 @@ export default function NewClassScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
-          contentContainerStyle={styles.body}
+          contentContainerStyle={[styles.body, bounded]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >

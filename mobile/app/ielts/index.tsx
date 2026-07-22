@@ -14,6 +14,7 @@ import { IELTS_MODULES } from '../../src/constants/ielts';
 import { t, tf } from '../../src/i18n';
 import { useColors } from '../../src/settings/SettingsContext';
 import { spacing, radius, type AppColors } from '../../src/theme/theme';
+import { bounded } from '../../src/theme/responsive';
 
 /**
  * IELTS hub — the entry to the exam-prep vertical (Plan 3a).
@@ -49,7 +50,7 @@ export default function IeltsHubScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <TopBar title={t('ieltsTitle')} back showBadges={false} />
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView contentContainerStyle={[styles.container, bounded]}>
         <AppText variant="body" color={c.textSecondary}>{t('ieltsSubtitle')}</AppText>
 
         {IELTS_MODULES.map((m) => {
