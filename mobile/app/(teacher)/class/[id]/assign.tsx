@@ -6,6 +6,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../../src/auth/AuthContext';
 import * as assignmentsApi from '../../../../src/api/assignments';
 import type { AssignmentType } from '../../../../src/api/assignments';
+import * as classesApi from '../../../../src/api/classes';
+import type { ClassStudent } from '../../../../src/api/classes';
 import { getLessons } from '../../../../src/api/lessons';
 import { getQuizzes } from '../../../../src/api/quizzes';
 import { ApiError } from '../../../../src/api/client';
@@ -13,6 +15,7 @@ import { haptics } from '../../../../src/lib/haptics';
 import { t, type TranslationKey } from '../../../../src/i18n';
 import { AppText } from '../../../../src/components/Text';
 import { SelectField } from '../../../../src/components/SelectField';
+import { TextField } from '../../../../src/components/TextField';
 import { Button } from '../../../../src/components/Button';
 import { spacing, radius, type AppColors } from '../../../../src/theme/theme';
 import { useColors } from '../../../../src/settings/SettingsContext';
@@ -42,23 +45,38 @@ export default function AssignScreen() {
   const [selectedTitle, setSelectedTitle] = useState<string | undefined>();
   const [dueIdx, setDueIdx] = useState(0);
   const dueLabels = DUE_PRESETS.map((p) => t(p.labelKey));
+  const [note, setNote] = useState('');
+  const [targetMode, setTargetMode] = useState<'all' | 'select'>('all');
+  const [students, setStudents] = useState<ClassStudent[]>([]);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!token) return;
+    if (!token || !id) return;
     (async () => {
       try {
-        const [lessons, quizzes] = await Promise.all([getLessons(token), getQuizzes(token)]);
+        const [lessons, quizzes, roster] = await Promise.all([
+          getLessons(token),
+          getQuizzes(token),
+          classesApi.getClassStudents(id, token),
+        ]);
         setItems({
           lesson: lessons.items.map((l) => ({ id: l.id, title: l.title })),
           quiz: quizzes.items.map((q) => ({ id: q.id, title: q.title })),
         });
+        setStudents(roster);
       } finally {
         setLoading(false);
       }
     })();
-  }, [token]);
+  }, [token, id]);
+
+  function toggleStudent(sid: string) {
+    setSelectedIds((prev) =>
+      prev.includes(sid) ? prev.filter((x) => x !== sid) : [...prev, sid],
+    );
+  }
 
   const list = items[type];
   const selected = list.find((i) => i.title === selectedTitle);
@@ -82,7 +100,14 @@ export default function AssignScreen() {
     setBusy(true);
     try {
       await assignmentsApi.createAssignment(
-        { classId: id, type, targetId: selected.id, dueAt: computeDueAt() },
+        {
+          classId: id,
+          type,
+          targetId: selected.id,
+          dueAt: computeDueAt(),
+          note: note.trim() || undefined,
+          studentIds: targetMode === 'select' ? selectedIds : undefined,
+        },
         token,
       );
       haptics.success();
@@ -147,6 +172,52 @@ export default function AssignScreen() {
               options={dueLabels}
               onSelect={(label) => setDueIdx(Math.max(0, dueLabels.indexOf(label)))}
             />
+
+            <TextField
+              label={t('taskNote')}
+              placeholder={t('taskNote')}
+              value={note}
+              onChangeText={setNote}
+              multiline
+            />
+
+            {/* Assign to: whole class or a chosen subset */}
+            <AppText variant="label" style={styles.label}>{t('assignTo')}</AppText>
+            <View style={styles.toggle}>
+              {(['all', 'select'] as const).map((m) => {
+                const active = targetMode === m;
+                return (
+                  <Pressable
+                    key={m}
+                    style={[styles.toggleBtn, active && styles.toggleOn]}
+                    onPress={() => setTargetMode(m)}
+                  >
+                    <AppText variant="bodyStrong" color={active ? colors.white : colors.textSecondary}>
+                      {m === 'all' ? t('wholeClass') : t('selectStudents')}
+                    </AppText>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {targetMode === 'select' ? (
+              <View style={styles.roster}>
+                {students.map((s) => {
+                  const on = selectedIds.includes(s.id);
+                  return (
+                    <Pressable key={s.id} style={styles.rosterRow} onPress={() => toggleStudent(s.id)}>
+                      <Ionicons
+                        name={on ? 'checkbox' : 'square-outline'}
+                        size={22}
+                        color={on ? colors.primary : colors.textMuted}
+                      />
+                      <AppText variant="body">{s.fullName}</AppText>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ) : null}
+
             {error ? (
               <AppText variant="caption" color={colors.danger} style={{ marginBottom: spacing.sm }}>
                 {error}
@@ -157,7 +228,7 @@ export default function AssignScreen() {
               iconRight="arrow-forward"
               onPress={onAssign}
               loading={busy}
-              disabled={!selected}
+              disabled={!selected || (targetMode === 'select' && selectedIds.length === 0)}
             />
           </>
         )}
@@ -192,4 +263,6 @@ const makeStyles = (colors: AppColors) => StyleSheet.create({
     borderRadius: radius.sm,
   },
   toggleOn: { backgroundColor: colors.primary },
+  roster: { marginBottom: spacing.lg, gap: spacing.xs },
+  rosterRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xs },
 });
