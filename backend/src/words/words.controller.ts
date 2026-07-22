@@ -324,6 +324,16 @@ export class WordsController {
   }
 
   /**
+   * Public taste-task sample for the pre-signup onboarding (C4). No auth — a few
+   * vocab MCQs (answer included) the app grades locally before the user signs up.
+   * Declared before `:id` so "sample" isn't parsed as a UUID.
+   */
+  @Get('sample')
+  getSample(@Query('count') count?: string) {
+    return this.wordsService.generateSample(count ? Number(count) : 3);
+  }
+
+  /**
    * Word↔meaning pairs for the "Холбож ял" (match) game. Reuses quiz/submit for
    * grading. Declared before `:id` so "match" isn't parsed as a UUID.
    */

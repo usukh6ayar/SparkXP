@@ -1205,6 +1205,31 @@ export class WordsService {
   }
 
   /**
+   * A tiny self-gradable vocab sample for the pre-signup taste-task (C4). Unlike
+   * generateQuiz this INCLUDES the correct answer so the app can grade locally
+   * without auth — throwaway onboarding content, never scored server-side.
+   */
+  async generateSample(count = 3): Promise<{ english: string; answer: string; options: string[] }[]> {
+    const n = Math.min(Math.max(count, 1), 5);
+    const pool = await this.words
+      .createQueryBuilder('w')
+      .where('w.status = :status', { status: WordStatus.PUBLISHED })
+      .andWhere("w.mongolian <> ''")
+      .orderBy('RANDOM()')
+      .limit(Math.max(n * 4, 20))
+      .getMany();
+
+    const uniqueMeanings = Array.from(new Set(pool.map((w) => w.mongolian)));
+    if (uniqueMeanings.length < 4) {
+      throw new BadRequestException('Дээж үүсгэхэд хангалттай нийтлэгдсэн үг алга байна');
+    }
+    return pool.slice(0, n).map((word) => {
+      const distractors = shuffle(uniqueMeanings.filter((m) => m !== word.mongolian)).slice(0, 3);
+      return { english: word.english, answer: word.mongolian, options: shuffle([word.mongolian, ...distractors]) };
+    });
+  }
+
+  /**
    * Word↔meaning pairs for the "Холбож ял" (match) game. Unlike the MCQ quiz,
    * the correct meaning IS returned (all pairs are on screen — that's the game);
    * grading still happens server-side via gradeQuiz (choice === mongolian).

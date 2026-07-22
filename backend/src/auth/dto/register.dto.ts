@@ -3,6 +3,7 @@ import {
   IsString,
   IsOptional,
   IsIn,
+  IsBoolean,
   MinLength,
   MaxLength,
   Matches,
@@ -67,4 +68,10 @@ export class RegisterDto {
   @IsString()
   @MaxLength(40)
   referralCode?: string;
+
+  /** True if the user finished the pre-signup taste-task (C4) → a one-time XP
+   *  bonus is granted when the email is verified. Amount is server-fixed. */
+  @IsOptional()
+  @IsBoolean()
+  tasteCompleted?: boolean;
 }

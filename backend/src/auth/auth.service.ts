@@ -12,6 +12,8 @@ import * as bcrypt from 'bcrypt';
 import { UsersService } from '../users/users.service';
 import { MailService } from '../mail/mail.service';
 import { ReferralsService } from '../referrals/referrals.service';
+import { XpService } from '../xp/xp.service';
+import { XpSource } from '../common/enums';
 import { REDIS_CLIENT } from '../redis/redis.module';
 import { User } from '../entities/user.entity';
 import { RegisterDto } from './dto/register.dto';
@@ -24,6 +26,10 @@ const BCRYPT_ROUNDS = 10;
 const OTP_TTL_SECONDS = 600;
 /** A pending referral code is held until the user verifies (24h grace). */
 const REFERRAL_PENDING_TTL = 24 * 60 * 60;
+/** A pending taste-task completion is held until the user verifies (same 24h). */
+const TASTE_PENDING_TTL = 24 * 60 * 60;
+/** Fixed XP for finishing the pre-signup taste-task (server-controlled, C4). */
+const ONBOARDING_XP = 10;
 
 /** What the API returns on successful login / verify. */
 export interface AuthResult {
@@ -55,6 +61,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly mail: MailService,
     private readonly referrals: ReferralsService,
+    private readonly xp: XpService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
 
@@ -94,6 +101,11 @@ export class AuthService {
       );
     }
 
+    // Hold a taste-task completion → onboarding XP is granted on first verify.
+    if (dto.tasteCompleted) {
+      await this.redis.set(this.tasteKey(user.email), '1', 'EX', TASTE_PENDING_TTL);
+    }
+
     await this.sendOtp('verify', user.email);
     return { pendingVerification: true, email: user.email };
   }
@@ -122,6 +134,24 @@ export class AuthService {
         }
       } catch (err) {
         this.logger.warn(`Referral apply failed for ${email}: ${String(err)}`);
+      }
+    }
+
+    // Grant the one-time pre-signup taste-task (onboarding) bonus, once.
+    if (firstVerification) {
+      try {
+        const key = this.tasteKey(email);
+        if (await this.redis.get(key)) {
+          await this.redis.del(key);
+          await this.xp.awardOnce({
+            userId: user.id,
+            amount: ONBOARDING_XP,
+            source: XpSource.ONBOARDING,
+            referenceId: user.id,
+          });
+        }
+      } catch (err) {
+        this.logger.warn(`Onboarding bonus failed for ${email}: ${String(err)}`);
       }
     }
 
@@ -175,6 +205,10 @@ export class AuthService {
   /** Redis key holding the referral code a user registered with, until verify. */
   private referralKey(email: string): string {
     return `referral:pending:${email.toLowerCase()}`;
+  }
+
+  private tasteKey(email: string): string {
+    return `taste:pending:${email.toLowerCase()}`;
   }
 
   /** Generate, store (Redis TTL) and email a 6-digit code. */

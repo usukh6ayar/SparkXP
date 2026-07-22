@@ -113,6 +113,7 @@ export enum XpSource {
   AI_BUDDY = "ai_buddy",
   READING = "reading",
   REFERRAL = "referral", // signup bonus for inviter + invited friend
+  ONBOARDING = "onboarding", // pre-signup taste-task bonus, granted on first verify
 }
 
 /** Which AI capability consumed budget — the AI Gateway logs this per call. */
