@@ -45,6 +45,7 @@ const TROPHY_DEFS: Record<string, { label: string; emoji: string }> = {
 export default function UsersPage() {
   const { user: me } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [search, setSearch] = useState('');
@@ -53,9 +54,14 @@ export default function UsersPage() {
   const load = useCallback(async () => {
     let url = `/users?page=${page}&limit=${LIMIT}`;
     if (search.trim()) url += `&search=${encodeURIComponent(search.trim())}`;
-    const data = await api.get<{ items: User[]; total: number }>(url);
-    setUsers(data.items ?? []);
-    setTotal(data.total ?? 0);
+    setLoading(true);
+    try {
+      const data = await api.get<{ items: User[]; total: number }>(url);
+      setUsers(data.items ?? []);
+      setTotal(data.total ?? 0);
+    } finally {
+      setLoading(false);
+    }
   }, [page, search]);
 
   // Debounce so typing in the search box doesn't fire a request per keystroke.
@@ -147,7 +153,7 @@ export default function UsersPage() {
           onChange={(e) => { setSearch(e.target.value); setPage(1); }}
         />
       </div>
-      <Table columns={columns} rows={users} keyFn={(u) => u.id} empty="Хэрэглэгч олдсонгүй" />
+      <Table columns={columns} rows={users} keyFn={(u) => u.id} empty="Хэрэглэгч олдсонгүй" loading={loading} />
       <Pagination page={page} total={total} limit={LIMIT} onPage={setPage} />
 
       {/* Trophy modal */}

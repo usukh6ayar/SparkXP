@@ -309,6 +309,7 @@ function questionTypeOf(quizType: string): string {
 
 export default function QuizzesPage() {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
+  const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [typeFilter, setTypeFilter] = useState<string>('all'); // pill tab
   const [modal, setModal] = useState<null | 'create' | 'edit'>(null);
@@ -332,9 +333,14 @@ export default function QuizzesPage() {
   // Load all quizzes once; filter by type + paginate on the client (works
   // regardless of whether the backend supports a quizType query param).
   const load = useCallback(async () => {
-    const data = await api.get<{ items: Quiz[] }>(`/quizzes?limit=200`);
-    setQuizzes(data.items ?? []);
-    setSelected(new Set());
+    setLoading(true);
+    try {
+      const data = await api.get<{ items: Quiz[] }>(`/quizzes?limit=200`);
+      setQuizzes(data.items ?? []);
+      setSelected(new Set());
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -590,7 +596,7 @@ export default function QuizzesPage() {
         </div>
       )}
 
-      <Table columns={columns} rows={paged} keyFn={(q) => q.id} empty="Quiz байхгүй" />
+      <Table columns={columns} rows={paged} keyFn={(q) => q.id} empty="Quiz байхгүй" loading={loading} />
       <Pagination page={page} total={total} limit={LIMIT} onPage={setPage} />
 
       {modal && (

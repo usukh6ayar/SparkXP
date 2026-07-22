@@ -90,6 +90,7 @@ const emptyForm: LessonForm = {
 
 export default function LessonsPage() {
   const [lessons, setLessons] = useState<Lesson[]>([]);
+  const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [modal, setModal] = useState<null | 'create' | 'edit' | 'preview'>(null);
@@ -100,9 +101,14 @@ export default function LessonsPage() {
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
-    const data = await api.get<{ items: Lesson[]; total: number }>(`/lessons?page=${page}&limit=${LIMIT}`);
-    setLessons(data.items ?? []);
-    setTotal(data.total ?? 0);
+    setLoading(true);
+    try {
+      const data = await api.get<{ items: Lesson[]; total: number }>(`/lessons?page=${page}&limit=${LIMIT}`);
+      setLessons(data.items ?? []);
+      setTotal(data.total ?? 0);
+    } finally {
+      setLoading(false);
+    }
   }, [page]);
 
   useEffect(() => { load(); }, [load]);
@@ -190,7 +196,7 @@ export default function LessonsPage() {
         description={`Нийт: ${lessons.length}`}
         action={<Button onClick={openCreate}><Plus className="h-4 w-4" /> Хичээл нэмэх</Button>}
       />
-      <Table columns={columns} rows={lessons} keyFn={(l) => l.id} empty="Хичээл байхгүй" />
+      <Table columns={columns} rows={lessons} keyFn={(l) => l.id} empty="Хичээл байхгүй" loading={loading} />
       <Pagination page={page} total={total} limit={LIMIT} onPage={setPage} />
 
       {/* Create / Edit modal */}
