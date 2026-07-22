@@ -1,4 +1,5 @@
 import { apiRequest } from './client';
+import type { SubmissionStatus } from './teacher';
 
 export type AssignmentType = 'lesson' | 'quiz';
 
@@ -11,6 +12,9 @@ export interface Assignment {
   assignedById: string;
   dueAt: string | null;
   createdAt: string;
+  /** Present on GET /assignments/mine rows (the student's own submission state). */
+  status?: SubmissionStatus;
+  scorePct?: number | null;
 }
 
 export interface CreateAssignmentInput {
@@ -18,6 +22,8 @@ export interface CreateAssignmentInput {
   type: AssignmentType;
   targetId: string;
   dueAt?: string; // ISO date
+  note?: string;
+  studentIds?: string[]; // omit = whole class
 }
 
 /** POST /assignments — teacher assigns a lesson/quiz to a class. */
