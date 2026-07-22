@@ -187,6 +187,27 @@ export class AssignmentsService {
     });
   }
 
+  /** Teacher view: every targeted student's submission for one assignment. */
+  async submissionsFor(assignmentId: string, user: User) {
+    const assignment = await this.assignments.findOne({ where: { id: assignmentId } });
+    if (!assignment) throw new NotFoundException('Даалгавар олдсонгүй');
+    // Reuse class access control (throws 403 if not the class teacher/admin).
+    await this.classesService.getStudents(assignment.classId, user);
+    const rows = await this.completions.find({
+      where: { assignmentId },
+      relations: ['student'],
+      order: { status: 'ASC', submittedAt: 'DESC' },
+    });
+    return rows.map((r) => ({
+      studentId: r.studentId,
+      fullName: r.student?.fullName ?? null,
+      status: r.status,
+      scorePct: r.scorePct,
+      submittedAt: r.submittedAt,
+      attemptCount: r.attemptCount,
+    }));
+  }
+
   /** Delete an assignment. Only the class's teacher (or an admin) may do this. */
   async remove(id: string, user: User): Promise<void> {
     const assignment = await this.assignments.findOne({ where: { id } });
