@@ -353,12 +353,12 @@ Catalog нь `src/achievements/catalog.ts` (R2-аас generate). `earned` = `Use
 | `auth.ts` | `register`→POST `/auth/register` · `verifyOtp`→POST `/auth/verify-otp` · `resendOtp`→POST `/auth/resend-otp` · `login`→POST `/auth/login` · `forgotPassword`→POST `/auth/forgot-password` · `resetPassword`→POST `/auth/reset-password` · `getMe`→GET `/auth/me` |
 | `users.ts` | `getStats`→GET `/users/me/stats` · `getMyPlan`→GET `/users/me/plan` · `updateProfile`→PATCH `/users/me` · `uploadAvatar`→POST `/users/me/avatar` |
 | `gamification.ts` | `getGamification`→GET `/gamification` |
-| `lessons.ts` | `getLessons`→GET `/lessons?isPublished=true` · `getLesson`→GET `/lessons/:id` · `checkAccess`→GET `/lessons/:id/access` · `unlockLesson`→POST `/lessons/:id/unlock` · `completeLesson`→POST `/lessons/:id/complete` · **`getContinue`→GET `/lessons/continue`** (C1 — Choi Home hero-д нэмнэ) |
-| `quizzes.ts` | `getQuiz`→GET `/quizzes/:id` · `getQuizzes`→GET `/quizzes?isPublished=true[&lessonId=]` · `getExercises`→GET `/quizzes?standalone=true&isPublished=true&category=` · `submitQuiz`→POST `/quizzes/:id/submit` · **`checkAnswer`→POST `/quizzes/:id/check`** (C2 — Boju нэмнэ) |
+| `lessons.ts` | `getLessons`→GET `/lessons?isPublished=true` · `getLesson`→GET `/lessons/:id` · `checkAccess`→GET `/lessons/:id/access` · `unlockLesson`→POST `/lessons/:id/unlock` · `completeLesson`→POST `/lessons/:id/complete` · **`getContinue`→GET `/lessons/continue`** (C1 ✅ Home hero — Choi, 2026-07-22) |
+| `quizzes.ts` | `getQuiz`→GET `/quizzes/:id` · `getQuizzes`→GET `/quizzes?isPublished=true[&lessonId=]` · `getExercises`→GET `/quizzes?standalone=true&isPublished=true&category=` · `submitQuiz`→POST `/quizzes/:id/submit` · **`checkAnswer`→POST `/quizzes/:id/check`** (C2 — Boju нэмнэ). **IELTS 3a ✅** (Choi, 2026-07-22): `getExercises`-ийг `category=ielts_listening\|ielts_reading`-аар дуудаж `/ielts` hub + `/skill/ielts_*` жагсаалт; runner нь `passageText`/`audioUrl`-ыг үзүүлж, `submit`-ийн `band`-ыг үр дүнд харуулна |
 | `quiz.ts` (vocab) | `getQuiz`→GET `/words/quiz?count=` · `submitQuiz`→POST `/words/quiz/submit` |
 | `reading.ts` | `getReadingList`→GET `/reading?limit=50` · `getReadingPassage`→GET `/reading/:id` · `completeReading`→POST `/reading/:id/complete` |
 | `reviews.ts` | `getDue`→GET `/reviews/due` · `submitReview`→POST `/reviews/:wordId` · `getLearnQueue`→GET `/reviews/learn` · `toggleSave`→POST `/reviews/:wordId/save` · `getSaved`→GET `/reviews/saved` · `getReviewStats`→GET `/reviews/stats` |
-| `words.ts` | `getWords`→GET `/words` |
+| `words.ts` | `getWords`→GET `/words` · **`getSampleQuestions`→GET `/words/sample?count=`** (C4 ✅ бүртгэлийн өмнөх taste-task, token-гүй — Choi, 2026-07-22) |
 | `dictionary.ts` | `lookupWord`→GET `/dictionary/:word` · `translateSentence`→POST `/dictionary/translate` · `getWordAudio`→GET `/dictionary/:word/audio` · `saveWord`→POST `/dictionary/:word/save` |
 | `idioms.ts` | `getIdiomList`→GET `/idioms?limit=100` · `getIdiom`→GET `/idioms/:id` |
 | `leaderboard.ts` | `getLeaderboard`→GET `/leaderboard?period=&scope=` |
