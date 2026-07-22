@@ -1,4 +1,4 @@
-import { IsUUID, IsEnum, IsOptional, IsDateString } from 'class-validator';
+import { IsUUID, IsEnum, IsOptional, IsDateString, IsString, IsArray, MaxLength } from 'class-validator';
 import { AssignmentType } from '../../common/enums';
 
 /**
@@ -20,4 +20,16 @@ export class CreateAssignmentDto {
   @IsOptional()
   @IsDateString()
   dueAt?: string;
+
+  /** Optional teacher note. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  note?: string;
+
+  /** Target specific students (must be in the class). Omit = whole class. */
+  @IsOptional()
+  @IsArray()
+  @IsUUID('all', { each: true })
+  studentIds?: string[];
 }

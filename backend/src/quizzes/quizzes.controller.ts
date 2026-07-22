@@ -27,6 +27,7 @@ import { QueryQuizzesDto } from './dto/query-quizzes.dto';
 import { SubmitQuizDto, AnswerItemDto } from './dto/submit-quiz.dto';
 import { User } from '../entities/user.entity';
 import { ProgressService } from '../teacher/progress.service';
+import { AssignmentsService } from '../assignments/assignments.service';
 
 @Controller('quizzes')
 @UseGuards(JwtAuthGuard)
@@ -35,6 +36,7 @@ export class QuizzesController {
     private readonly quizzesService: QuizzesService,
     private readonly xpService: XpService,
     private readonly progress: ProgressService,
+    private readonly assignments: AssignmentsService,
   ) {}
 
   /** Admin: create a new quiz. */
@@ -119,6 +121,10 @@ export class QuizzesController {
       scorePct: result.percentage,
       assignmentId: dto.assignmentId ?? null,
     });
+
+    if (dto.assignmentId) {
+      await this.assignments.recordSubmission(dto.assignmentId, user.id, result.percentage);
+    }
 
     return result;
   }

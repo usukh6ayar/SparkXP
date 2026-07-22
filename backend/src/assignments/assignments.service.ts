@@ -11,7 +11,7 @@ import { AssignmentCompletion } from '../entities/assignment-completion.entity';
 import { Lesson } from '../entities/lesson.entity';
 import { Quiz } from '../entities/quiz.entity';
 import { User } from '../entities/user.entity';
-import { AssignmentType, UserRole } from '../common/enums';
+import { AssignmentType, UserRole, SubmissionStatus } from '../common/enums';
 import { ClassesService } from '../classes/classes.service';
 import { CreateAssignmentDto } from './dto/create-assignment.dto';
 
@@ -43,14 +43,48 @@ export class AssignmentsService {
 
     await this.assertTargetExists(dto.type, dto.targetId);
 
-    const assignment = this.assignments.create({
-      classId: dto.classId,
-      type: dto.type,
-      targetId: dto.targetId,
-      assignedById: user.id,
-      dueAt: dto.dueAt ? new Date(dto.dueAt) : null,
-    });
-    return this.assignments.save(assignment);
+    // Resolve the target roster: explicit studentIds (validated against the class)
+    // or the whole class. getStudents enforces teacher/admin access already.
+    const roster = await this.classesService.getStudents(dto.classId, user);
+    const rosterIds = new Set(roster.map((s) => s.id));
+    let targetIds = roster.map((s) => s.id);
+    if (dto.studentIds?.length) {
+      const invalid = dto.studentIds.filter((id) => !rosterIds.has(id));
+      if (invalid.length) {
+        throw new BadRequestException('Сонгосон сурагч энэ ангид алга');
+      }
+      targetIds = dto.studentIds;
+    }
+
+    const assignment = await this.assignments.save(
+      this.assignments.create({
+        classId: dto.classId,
+        type: dto.type,
+        targetId: dto.targetId,
+        assignedById: user.id,
+        dueAt: dto.dueAt ? new Date(dto.dueAt) : null,
+        note: dto.note ?? null,
+        studentIds: dto.studentIds?.length ? dto.studentIds : null,
+      }),
+    );
+
+    // Pre-create one submission row per target so "pending / overdue" is queryable.
+    if (targetIds.length) {
+      await this.completions
+        .createQueryBuilder()
+        .insert()
+        .into(AssignmentCompletion)
+        .values(
+          targetIds.map((studentId) => ({
+            assignmentId: assignment.id,
+            studentId,
+            status: SubmissionStatus.ASSIGNED,
+          })),
+        )
+        .orIgnore()
+        .execute();
+    }
+    return assignment;
   }
 
   /**
@@ -79,18 +113,62 @@ export class AssignmentsService {
   }
 
   /**
-   * Student marks an assignment as done (idempotent — duplicate calls are silently ignored).
+   * Student marks an assignment as done (idempotent — delegates to recordSubmission).
    */
   async complete(assignmentId: string, userId: string): Promise<void> {
-    const assignment = await this.assignments.findOne({ where: { id: assignmentId }, select: { id: true } });
+    await this.recordSubmission(assignmentId, userId, null);
+  }
+
+  /**
+   * Mark a student's submission for an assignment: updates the pre-created row,
+   * or inserts one if the student joined after the assign. `late` when past due.
+   */
+  async recordSubmission(
+    assignmentId: string,
+    studentId: string,
+    scorePct: number | null,
+  ): Promise<void> {
+    const assignment = await this.assignments.findOne({
+      where: { id: assignmentId },
+      select: { id: true, dueAt: true },
+    });
     if (!assignment) throw new NotFoundException('Даалгавар олдсонгүй');
-    await this.completions
+    const status =
+      assignment.dueAt && new Date() > assignment.dueAt
+        ? SubmissionStatus.LATE
+        : SubmissionStatus.COMPLETED;
+
+    const res = await this.completions
       .createQueryBuilder()
-      .insert()
-      .into(AssignmentCompletion)
-      .values({ assignmentId, studentId: userId })
-      .orIgnore()
+      .update(AssignmentCompletion)
+      .set({
+        status,
+        scorePct: scorePct ?? undefined,
+        submittedAt: () => 'now()',
+        attemptCount: () => 'attempt_count + 1',
+      })
+      .where('assignment_id = :assignmentId AND student_id = :studentId', {
+        assignmentId,
+        studentId,
+      })
       .execute();
+
+    if (!res.affected) {
+      await this.completions
+        .createQueryBuilder()
+        .insert()
+        .into(AssignmentCompletion)
+        .values({
+          assignmentId,
+          studentId,
+          status,
+          scorePct: scorePct ?? null,
+          submittedAt: new Date(),
+          attemptCount: 1,
+        })
+        .orIgnore()
+        .execute();
+    }
   }
 
   /** All assignments across the classes the current user is enrolled in. */
