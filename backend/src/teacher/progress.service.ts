@@ -1,10 +1,13 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { MoreThanOrEqual, Repository } from 'typeorm';
 import { QuizAttempt } from '../entities/quiz-attempt.entity';
 import { Lesson } from '../entities/lesson.entity';
 import { Quiz } from '../entities/quiz.entity';
 import { WordReview } from '../entities/word-review.entity';
+import { AssignmentCompletion } from '../entities/assignment-completion.entity';
+import { User } from '../entities/user.entity';
+import { ClassesService } from '../classes/classes.service';
 import { resolveSkill } from './skill';
 
 // ── Pure aggregation helpers (module-level, testable without DI) ──────────────
@@ -40,6 +43,9 @@ export class ProgressService {
     private readonly lessons: Repository<Lesson>,
     @InjectRepository(WordReview)
     private readonly reviews: Repository<WordReview>,
+    @InjectRepository(AssignmentCompletion)
+    private readonly submissionRepo: Repository<AssignmentCompletion>,
+    private readonly classes: ClassesService,
   ) {}
 
   /**
@@ -93,5 +99,40 @@ export class ProgressService {
       where: { userId },
       select: { skill: true, scorePct: true },
     }) as Promise<{ skill: string; scorePct: number }[]>;
+  }
+
+  /**
+   * One student's progress for the teacher panel: skill breakdown (+ vocab),
+   * recent assignment submissions with scores/status, and activity counters.
+   * getStudents enforces teacher/admin access (throws 403/404).
+   */
+  async studentProgress(classId: string, studentId: string, teacher: User) {
+    const roster = await this.classes.getStudents(classId, teacher);
+    const student = roster.find((s) => s.id === studentId);
+    if (!student) {
+      throw new NotFoundException('Сурагч энэ ангид алга');
+    }
+    const skills = averageBySkill(await this.studentSkillRows(studentId));
+    const vocab = await this.vocabMastery(studentId);
+    const submissions = await this.submissionRepo.find({
+      where: { studentId },
+      relations: ['assignment'],
+      order: { submittedAt: 'DESC' },
+      take: 50,
+    });
+    return {
+      studentId,
+      fullName: student.fullName,
+      xp: student.xp,
+      currentStreak: student.currentStreak,
+      skills: { ...skills, vocab },
+      assignments: submissions.map((s) => ({
+        assignmentId: s.assignmentId,
+        type: s.assignment?.type ?? null,
+        status: s.status,
+        scorePct: s.scorePct,
+        submittedAt: s.submittedAt,
+      })),
+    };
   }
 }
