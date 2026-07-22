@@ -173,10 +173,14 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   // How many published exercises each skill category has (keyed by TASKS.key).
   const [taskCounts, setTaskCounts] = useState<Record<string, number>>({});
+  // The primary data load failed (network/server) — show a retry cue since the
+  // dashboard otherwise degrades silently to cached/zero values.
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const load = useCallback(async () => {
     if (!token) return;
     try {
+      setLoadFailed(false);
       const [stats, dueList, gamification, myClasses] = await Promise.all([
         getStats(token),
         getDue(token),
@@ -189,7 +193,7 @@ export default function HomeScreen() {
       if (gamification) setGam(gamification);
       setEnrolled((myClasses?.enrolled?.length ?? 0) > 0);
     } catch {
-      // keep last values
+      setLoadFailed(true); // keep last values, but surface a retry cue
     }
     // Exercise counts per skill — independent of the stats above, so a failure
     // here never blocks the rest of the home screen.
@@ -359,6 +363,20 @@ export default function HomeScreen() {
 
         {/* Body content (padded; the hero above is full-bleed) */}
         <View style={styles.body}>
+          {/* First-load failure → inline retry (dashboard otherwise shows stale/zero). */}
+          {loadFailed && !loading ? (
+            <Pressable style={styles.retryBanner} onPress={() => { haptics.tap(); load(); }}>
+              <Ionicons name="cloud-offline-outline" size={18} color={c.danger} />
+              <AppText variant="caption" color={c.textSecondary} style={{ flex: 1 }}>
+                {t("errorGeneric")}
+              </AppText>
+              <View style={styles.retryBtn}>
+                <Ionicons name="refresh" size={13} color={c.primary} />
+                <AppText variant="label" color={c.primary}>{t("retry")}</AppText>
+              </View>
+            </Pressable>
+          ) : null}
+
           {/* Continue learning */}
           {cont ? (
             <Pressable
@@ -456,7 +474,7 @@ export default function HomeScreen() {
           <View style={styles.grid}>
             {loading
               ? TASKS.map((task) => (
-                  <Skeleton key={task.key} width="48%" height={120} radius={radius.lg} />
+                  <Skeleton key={task.key} width="23%" height={92} radius={radius.md} />
                 ))
               : TASKS.map((task, i) => {
                   const count = taskCounts[task.key] ?? 0;
@@ -474,16 +492,16 @@ export default function HomeScreen() {
                       >
                         <View style={[styles.taskIcon, { backgroundColor: task.tint.bg, borderColor: task.tint.fg }]}>
                           {task.appIcon ? (
-                            <AppIcon name={task.appIcon} size={42} />
+                            <AppIcon name={task.appIcon} size={30} />
                           ) : (
-                            <Ionicons name={task.icon} size={32} color={task.tint.fg} />
+                            <Ionicons name={task.icon} size={22} color={task.tint.fg} />
                           )}
                         </View>
-                        <AppText variant="label" numberOfLines={1}>
+                        <AppText variant="caption" color={c.text} numberOfLines={1} style={styles.taskLabel}>
                           {t(task.labelKey)}
                         </AppText>
                         <View style={styles.taskCount}>
-                          <Ionicons name="ribbon" size={11} color={c.xp} />
+                          <Ionicons name="ribbon" size={10} color={c.xp} />
                           <AppText variant="caption" numberOfLines={1}>
                             {count}
                           </AppText>
@@ -532,6 +550,19 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
     marginTop: -BODY_OVERLAP,
     zIndex: 1,
   },
+  retryBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: c.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: c.border,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  retryBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
 
   header: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm },
   headerText: { flex: 1, paddingTop: 2 },
@@ -673,27 +704,30 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
     justifyContent: "space-between",
     rowGap: spacing.md,
   },
-  // 4 tiles in a single row. The wrapper holds the width so the entrance
-  // animation is stable; 23% × 4 + space-between leaves even gaps.
+  // Compact secondary "quick-row": 4 flat tiles in a single row, lighter than
+  // the primary Continue hero above so there is one clear primary action (C1).
+  // 23% × 4 + space-between leaves even gaps.
   taskWrap: { width: "23%" },
   task: {
     width: "100%",
-    borderRadius: radius.lg,
-    paddingVertical: spacing.md,
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
     paddingHorizontal: 4,
     alignItems: "center",
-    gap: spacing.xs,
-    backgroundColor: c.surface, // dark tile so the colored icon chip pops
-    ...(elevation.sm as object),
+    gap: 5,
+    backgroundColor: c.surface,
+    borderWidth: 1,
+    borderColor: c.border, // flat outline instead of a shadow → reads as secondary
   },
   taskIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: radius.md,
+    width: 40,
+    height: 40,
+    borderRadius: radius.sm,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
   },
+  taskLabel: { fontWeight: "600" },
   taskCount: {
     flexDirection: "row",
     alignItems: "center",
