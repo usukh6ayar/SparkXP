@@ -30,4 +30,9 @@ export class TeacherController {
   ) {
     return this.progress.classOverview(id, user);
   }
+
+  @Get('teacher/dashboard')
+  dashboard(@CurrentUser() user: User) {
+    return this.progress.dashboard(user);
+  }
 }

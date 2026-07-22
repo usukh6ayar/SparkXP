@@ -6,6 +6,7 @@ import { Lesson } from '../entities/lesson.entity';
 import { Quiz } from '../entities/quiz.entity';
 import { WordReview } from '../entities/word-review.entity';
 import { AssignmentCompletion } from '../entities/assignment-completion.entity';
+import { Assignment } from '../entities/assignment.entity';
 import { User } from '../entities/user.entity';
 import { SubmissionStatus } from '../common/enums';
 import { ClassesService } from '../classes/classes.service';
@@ -46,6 +47,8 @@ export class ProgressService {
     private readonly reviews: Repository<WordReview>,
     @InjectRepository(AssignmentCompletion)
     private readonly submissionRepo: Repository<AssignmentCompletion>,
+    @InjectRepository(Assignment)
+    private readonly assignmentRepo: Repository<Assignment>,
     private readonly classes: ClassesService,
   ) {}
 
@@ -175,5 +178,49 @@ export class ProgressService {
     });
 
     return { studentCount: roster.length, skills, weakestSkill, students };
+  }
+
+  /**
+   * Teacher dashboard: totals across the teacher's own classes — distinct
+   * students, students active in the last 7 days (any quiz attempt), and
+   * pending / overdue submission counts.
+   */
+  async dashboard(teacher: User) {
+    const { teaching } = await this.classes.findForUser(teacher);
+    const classIds = teaching.map((c) => c.id);
+    if (classIds.length === 0) {
+      return { classCount: 0, studentCount: 0, activeStudents: 0, pending: 0, overdue: 0, classes: [] };
+    }
+
+    const students = await this.classes.getStudentsForClasses(classIds);
+    const studentIds = [...new Set(students.map((s) => s.id))];
+    const sevenDaysAgo = new Date(Date.now() - 7 * 864e5);
+    const activeStudents = studentIds.length
+      ? await this.attempts
+          .createQueryBuilder('a')
+          .select('COUNT(DISTINCT a.user_id)', 'n')
+          .where('a.user_id IN (:...ids)', { ids: studentIds })
+          .andWhere('a.created_at >= :since', { since: sevenDaysAgo })
+          .getRawOne<{ n: string }>()
+          .then((r) => Number(r?.n ?? 0))
+      : 0;
+
+    const assignmentIds = (
+      await this.assignmentRepo.find({ where: { classId: In(classIds) }, select: { id: true } })
+    ).map((a) => a.id);
+    const subs = assignmentIds.length
+      ? await this.submissionRepo.find({ where: { assignmentId: In(assignmentIds) } })
+      : [];
+    const pending = subs.filter((s) => s.status === SubmissionStatus.ASSIGNED).length;
+    const overdue = subs.filter((s) => s.status === SubmissionStatus.LATE).length;
+
+    return {
+      classCount: teaching.length,
+      studentCount: studentIds.length,
+      activeStudents,
+      pending,
+      overdue,
+      classes: teaching.map((c) => ({ id: c.id, name: c.name })),
+    };
   }
 }
