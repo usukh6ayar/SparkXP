@@ -120,7 +120,7 @@ Controller-level: JWT. Бичилт admin-баг. (Хичээлийн тест �
 | POST `/quizzes` | admin-баг | Quiz үүсгэх | `CreateQuizDto` |
 | PATCH `/quizzes/:id` | admin-баг | Quiz засах | `UpdateQuizDto` |
 | DELETE `/quizzes/:id` | admin-баг | Quiz устгах | path `id` |
-| POST `/quizzes/:id/submit` | JWT | Хариу шалгаж XP олгох (≥1 зөв бол). XP нь **quiz тус бүрт нэг удаа** (`awardOnce`, farming-аас сэргийлнэ); дахин илгээвэл `xpEarned: 0` | `SubmitQuizDto` |
+| POST `/quizzes/:id/submit` | JWT | Хариу шалгаж XP олгох (≥1 зөв бол). XP нь **quiz тус бүрт нэг удаа** (`awardOnce`, farming-аас сэргийлнэ); дахин илгээвэл `xpEarned: 0`. Бүр submit `quiz_attempt` (skill+score) хадгална; `assignmentId` өгвөл даалгаврын submission-ыг оноотой бүртгэнэ | `SubmitQuizDto` (`answers`, `assignmentId?`) |
 | POST `/quizzes/:id/check` | JWT | **Нэг** хариу шалгах — C2 шуурхай feedback (XP олгохгүй, бүх түлхүүр задлахгүй). Буруу бол тухайн асуултын зөв хариу буцна → `{ correct, correctAnswer? }` (`correctAnswer`: mc→index · fill_blank→string · word_match→pairs) | `AnswerItemDto` (`questionIndex`, `answer`) |
 
 > **IELTS (Approach A):** IELTS content = quizzes with `category` in
@@ -281,11 +281,25 @@ Controller-level: JWT.
 
 | Method + Path | Auth | Зорилго | Params / Body |
 | --- | --- | --- | --- |
-| POST `/assignments` | teacher, admin, super_admin | Хичээл/quiz-ийг ангид оноох | `CreateAssignmentDto` |
+| POST `/assignments` | teacher, admin, super_admin | Хичээл/quiz-ийг ангид оноох. `note` + `studentIds` (сонгосон сурагчид, хоосон = бүх анги) дэмжинэ; оноох үед target сурагч бүрд `assigned` submission урьдчилж үүснэ | `CreateAssignmentDto` (`note?`, `studentIds?`) |
 | GET `/assignments/mine` | JWT | Элссэн ангиудын даалгаврууд | — |
 | GET `/assignments` | JWT (гишүүнчлэл шалгана) | Ангийн даалгаврууд | `classId` (required) |
-| POST `/assignments/:id/complete` | JWT | Сурагч даалгавар дуусгах (idempotent) | path `id` |
+| GET `/assignments/:id/submissions` | teacher, admin, super_admin | Даалгаврын submission-ууд (сурагч бүрийн status/оноо/оролдлого) | path `id` |
+| POST `/assignments/:id/complete` | JWT | Сурагч даалгавар дуусгах (idempotent; `late`/`completed` тэмдэглэнэ) | path `id` |
 | DELETE `/assignments/:id` | teacher, admin, super_admin | Даалгавар устгах | path `id` |
+
+> **Teacher Panel Phase 1:** `POST /quizzes/:id/submit` нь `SubmitQuizDto`-д
+> сонголтоор `assignmentId` авна — өгвөл тухайн даалгаврын submission-ыг оноотой
+> нь бүртгэнэ. Бүх quiz submit нэг `quiz_attempt` (skill + score) хадгална
+> (skill breakdown-ийн эх сурвалж). Дараах teacher read views нь эдгээр дата дээр
+> тулгуурлана (mobile багшийн панел ашиглана).
+
+## 16a. Teacher (багшийн панел read views) — `/api`
+| Method + Path | Auth | Зорилго | Params / Body |
+| --- | --- | --- | --- |
+| GET `/teacher/dashboard` | teacher, admin, super_admin | Багшийн ангиудын нийт/идэвхтэй(7 хон.) сурагч, дундаж, pending/overdue | — |
+| GET `/classes/:id/overview` | teacher, admin, super_admin | Ангийн skill breakdown + хамгийн сул skill + сурагч бүрийн completion % | path `id` |
+| GET `/classes/:id/students/:studentId/progress` | teacher, admin, super_admin | Нэг сурагчийн skill breakdown (+vocab), даалгаврын түүх+оноо, XP/streak | path `id`, `studentId` |
 
 ## 17. Payments — `/api/payments`
 Guard per-method. (QPay QR stub — §PRODUCT: Update 1.)

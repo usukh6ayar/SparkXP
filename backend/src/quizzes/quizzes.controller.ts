@@ -26,6 +26,8 @@ import { UpdateQuizDto } from './dto/update-quiz.dto';
 import { QueryQuizzesDto } from './dto/query-quizzes.dto';
 import { SubmitQuizDto, AnswerItemDto } from './dto/submit-quiz.dto';
 import { User } from '../entities/user.entity';
+import { ProgressService } from '../teacher/progress.service';
+import { AssignmentsService } from '../assignments/assignments.service';
 
 @Controller('quizzes')
 @UseGuards(JwtAuthGuard)
@@ -33,6 +35,8 @@ export class QuizzesController {
   constructor(
     private readonly quizzesService: QuizzesService,
     private readonly xpService: XpService,
+    private readonly progress: ProgressService,
+    private readonly assignments: AssignmentsService,
   ) {}
 
   /** Admin: create a new quiz. */
@@ -107,6 +111,19 @@ export class QuizzesController {
       // Already earned XP for this quiz before → reflect 0 in the response so the
       // result screen doesn't promise XP that wasn't granted.
       if (!log) result.xpEarned = 0;
+    }
+
+    await this.progress.recordAttempt({
+      userId: user.id,
+      quiz,
+      correctCount: result.breakdown.filter((b) => b.correct).length,
+      totalCount: result.breakdown.length,
+      scorePct: result.percentage,
+      assignmentId: dto.assignmentId ?? null,
+    });
+
+    if (dto.assignmentId) {
+      await this.assignments.recordSubmission(dto.assignmentId, user.id, result.percentage);
     }
 
     return result;

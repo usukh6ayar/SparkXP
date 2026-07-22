@@ -25,6 +25,7 @@ import { BuddySession } from './buddy-session.entity';
 import { BuddyMemory } from './buddy-memory.entity';
 import { BuddyVoiceCache } from './buddy-voice-cache.entity';
 import { SafetyEvent } from './safety-event.entity';
+import { QuizAttempt } from './quiz-attempt.entity';
 
 export {
   Organization,
@@ -53,6 +54,7 @@ export {
   BuddyMemory,
   BuddyVoiceCache,
   SafetyEvent,
+  QuizAttempt,
 };
 
 /** Single list to feed TypeORM's `entities` option. */
@@ -83,4 +85,5 @@ export const entities = [
   BuddyMemory,
   BuddyVoiceCache,
   SafetyEvent,
+  QuizAttempt,
 ];

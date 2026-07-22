@@ -5,7 +5,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { ClassEntity } from '../entities/class.entity';
 import { User } from '../entities/user.entity';
 import { ClassJoinRequest } from '../entities/class-join-request.entity';
@@ -198,6 +198,21 @@ export class ClassesService {
       throw new ForbiddenException('Зөвхөн багш сурагчдын жагсаалтыг харна');
     }
     return detail.students;
+  }
+
+  /**
+   * Distinct students across several classes. No per-class access check — the
+   * caller (teacher dashboard) has already filtered to its own classes.
+   */
+  async getStudentsForClasses(classIds: string[]): Promise<SafeUser[]> {
+    if (!classIds.length) return [];
+    const classes = await this.classes.find({
+      where: { id: In(classIds) },
+      relations: ['students'],
+    });
+    const map = new Map<string, User>();
+    for (const c of classes) for (const s of c.students ?? []) map.set(s.id, s);
+    return [...map.values()].map((u) => sanitizeUser(u));
   }
 
   /** Admin: all classes with teacher info and student count. */

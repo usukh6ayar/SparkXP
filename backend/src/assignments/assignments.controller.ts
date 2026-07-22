@@ -58,6 +58,14 @@ export class AssignmentsController {
     return this.assignmentsService.complete(id, user.id);
   }
 
+  /** Teacher (or admin): every student's submission row for one assignment. */
+  @Get(':id/submissions')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.TEACHER, UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  submissions(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string) {
+    return this.assignmentsService.submissionsFor(id, user);
+  }
+
   /** Teacher (or admin) removes an assignment. */
   @Delete(':id')
   @HttpCode(204)

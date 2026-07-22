@@ -1,5 +1,6 @@
 import { Entity, Column, ManyToOne, JoinColumn, Unique } from 'typeorm';
 import { BaseEntity } from '../common/entities/base.entity';
+import { SubmissionStatus } from '../common/enums';
 import { Assignment } from './assignment.entity';
 import { User } from './user.entity';
 
@@ -24,4 +25,16 @@ export class AssignmentCompletion extends BaseEntity {
 
   @Column({ name: 'student_id', type: 'uuid' })
   studentId: string;
+
+  @Column({ type: 'enum', enum: SubmissionStatus, default: SubmissionStatus.COMPLETED })
+  status: SubmissionStatus;
+
+  @Column({ name: 'score_pct', type: 'int', nullable: true })
+  scorePct: number | null;
+
+  @Column({ name: 'submitted_at', type: 'timestamptz', nullable: true })
+  submittedAt: Date | null;
+
+  @Column({ name: 'attempt_count', type: 'int', default: 0 })
+  attemptCount: number;
 }
