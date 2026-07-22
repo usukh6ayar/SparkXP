@@ -11,9 +11,11 @@ import { getLessons } from '../../../src/api/lessons';
 import { getQuizzes } from '../../../src/api/quizzes';
 import type { ClassDetail, ClassStudent } from '../../../src/api/classes';
 import type { Assignment } from '../../../src/api/assignments';
+import { getClassOverview, type ClassOverview } from '../../../src/api/teacher';
 import { t } from '../../../src/i18n';
 import { AppText } from '../../../src/components/Text';
 import { Avatar } from '../../../src/components/Avatar';
+import { SkillBars } from '../../../src/components/SkillBars';
 import { JoinCodeCard } from '../../../src/components/JoinCodeCard';
 import { StudentRow } from '../../../src/components/StudentRow';
 import { RequestRow } from '../../../src/components/RequestRow';
@@ -49,6 +51,7 @@ export default function ClassDetailScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const [detail, setDetail] = useState<ClassDetail | null>(null);
+  const [overview, setOverview] = useState<ClassOverview | null>(null);
   const [requests, setRequests] = useState<ClassStudent[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [titles, setTitles] = useState<Record<string, string>>({});
@@ -74,6 +77,9 @@ export default function ClassDetailScreen() {
       lessons.items.forEach((l) => (map[l.id] = l.title));
       quizzes.items.forEach((q) => (map[q.id] = q.title));
       setTitles(map);
+      // Analytics overview is a nice-to-have — fetch separately so its failure
+      // never blanks the roster/assignments below.
+      getClassOverview(id, token).then(setOverview).catch(() => {});
     } catch {
       // detail stays null → the error screen below offers a retry
     } finally {
@@ -193,6 +199,29 @@ export default function ClassDetailScreen() {
       >
         <JoinCodeCard code={detail.joinCode} className={detail.name} />
 
+        {/* Class skill breakdown (from real quiz attempts) */}
+        {overview && (
+          <>
+            <SectionTitle title={t('avgProgress')} />
+            <Card variant="raised" padding="md" style={{ gap: spacing.sm }}>
+              <SkillBars
+                rows={(['listening', 'reading', 'writing', 'fill'] as const).map((k) => ({
+                  key: k,
+                  value: overview.skills[k],
+                }))}
+              />
+              {overview.weakestSkill ? (
+                <View style={styles.weakChip}>
+                  <Ionicons name="trending-down" size={14} color={colors.streak} />
+                  <AppText variant="label" color={colors.streak}>
+                    {t('weakestSkill')}: {t(`skill_${overview.weakestSkill}` as 'skill_listening')}
+                  </AppText>
+                </View>
+              ) : null}
+            </Card>
+          </>
+        )}
+
         {/* Pending join requests (highlighted) */}
         {requests.length > 0 ? (
           <>
@@ -305,10 +334,20 @@ export default function ClassDetailScreen() {
                   </View>
                 </View>
                 <Button
+                  label={t('studentProgress')}
+                  icon="stats-chart"
+                  onPress={() => {
+                    const sid = selectedStudent.id;
+                    setSelectedStudent(null);
+                    router.push(`/(teacher)/class/${id}/student/${sid}`);
+                  }}
+                  style={{ marginTop: spacing.lg }}
+                />
+                <Button
                   label={t('close')}
                   variant="secondary"
                   onPress={() => setSelectedStudent(null)}
-                  style={{ marginTop: spacing.lg }}
+                  style={{ marginTop: spacing.sm }}
                 />
               </>
             ) : null}
@@ -341,6 +380,7 @@ const makeStyles = (colors: AppColors) => StyleSheet.create({
     backgroundColor: colors.surfaceAlt, alignItems: 'center', justifyContent: 'center',
   },
   requestCard: { borderWidth: 1, borderColor: colors.streak },
+  weakChip: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start' },
   backdrop: { flex: 1, backgroundColor: 'rgba(15,10,40,0.45)', justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: colors.surface,
