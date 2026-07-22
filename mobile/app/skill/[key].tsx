@@ -11,6 +11,7 @@ import { TopBar } from '../../src/components/TopBar';
 import { AppText } from '../../src/components/Text';
 import { ProgressBar } from '../../src/components/ProgressBar';
 import { CategoryBrowser, type BrowserItem } from '../../src/components/CategoryBrowser';
+import { IELTS_MODULES } from '../../src/constants/ielts';
 import { t, tf, type TranslationKey } from '../../src/i18n';
 import { useColors } from '../../src/settings/SettingsContext';
 import { haptics } from '../../src/lib/haptics';
@@ -35,6 +36,15 @@ const SKILLS: Record<
   writing: { catKey: 'catWriting', icon: 'create', grad: skillGradients.writing },
   grammar: { catKey: 'catGrammar', icon: 'book', grad: skillGradients.grammar },
   fill: { catKey: 'catFill', icon: 'extension-puzzle', grad: skillGradients.fill },
+  // IELTS Listening/Reading practice sets are quizzes too (category
+  // `ielts_<module>`), so they browse through this very screen — the runner then
+  // adds the passage/audio and reports a band.
+  ...Object.fromEntries(
+    IELTS_MODULES.filter((m) => m.auto).map((m) => [
+      m.category,
+      { catKey: m.labelKey, icon: m.icon, grad: m.grad },
+    ]),
+  ),
 };
 
 export default function SkillScreen() {

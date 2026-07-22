@@ -51,7 +51,8 @@
         {
           "channel": "production"
         }
-      ]
+      ],
+      "expo-font"
     ],
     "owner": "usukh6ayar",
     "extra": {

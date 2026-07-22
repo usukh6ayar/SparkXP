@@ -31,6 +31,8 @@ export interface RegisterPayload {
   district?: string;
   /** Referral code (or username) of the friend who invited this user. */
   referralCode?: string;
+  /** Guest finished the pre-signup taste-task (C4) → one-time XP bonus on verify. */
+  tasteCompleted?: boolean;
 }
 
 /** POST /api/auth/register — creates an unverified account + emails an OTP. */

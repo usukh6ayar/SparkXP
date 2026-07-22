@@ -24,7 +24,7 @@ import { useAuth } from "../../src/auth/AuthContext";
 import { getStats } from "../../src/api/users";
 import { getGamification, type Gamification } from "../../src/api/gamification";
 import { getDue } from "../../src/api/reviews";
-import { getLessons } from "../../src/api/lessons";
+import { getContinue } from "../../src/api/lessons";
 import { getExercises } from "../../src/api/quizzes";
 import { getReadingList } from "../../src/api/reading";
 import { getMyClasses } from "../../src/api/classes";
@@ -32,11 +32,13 @@ import { getLastLesson, type LastLesson } from "../../src/lib/lastLesson";
 import { useUnreadNotifications } from "../../src/lib/useUnreadNotifications";
 import { useDictionary } from "../../src/components/DictionaryProvider";
 import { AppText } from "../../src/components/Text";
+import { AppImage } from "../../src/components/AppImage";
 import { AppIcon } from "../../src/components/AppIcon";
 import { type AppIconName } from "../../src/constants/appIcons";
 import { IconButton } from "../../src/components/IconButton";
 import { Button } from "../../src/components/Button";
 import { Skeleton } from "../../src/components/Skeleton";
+import { ProgressBar } from "../../src/components/ProgressBar";
 import { useColors, useSettings } from "../../src/settings/SettingsContext";
 import { useReduceMotion } from "../../src/lib/motion";
 import { haptics } from "../../src/lib/haptics";
@@ -163,7 +165,14 @@ export default function HomeScreen() {
   const [xp, setXp] = useState(user?.xp ?? 0);
   const [sparks, setSparks] = useState(user?.sparks ?? 0);
   const [due, setDue] = useState(0);
-  const [cont, setCont] = useState<{ lesson: LastLesson; resume: boolean } | null>(null);
+  const [cont, setCont] = useState<{
+    lesson: LastLesson;
+    resume: boolean;
+    /** Level of the target lesson + how many of its lessons are done (C1). */
+    level: string | null;
+    done: number;
+    total: number;
+  } | null>(null);
   const [gam, setGam] = useState<Gamification | null>(null);
   // Whether the student has joined a class — assignments come from a teacher's
   // class, so the "My assignments" card only shows for enrolled students.
@@ -173,10 +182,14 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   // How many published exercises each skill category has (keyed by TASKS.key).
   const [taskCounts, setTaskCounts] = useState<Record<string, number>>({});
+  // The primary data load failed (network/server) — show a retry cue since the
+  // dashboard otherwise degrades silently to cached/zero values.
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const load = useCallback(async () => {
     if (!token) return;
     try {
+      setLoadFailed(false);
       const [stats, dueList, gamification, myClasses] = await Promise.all([
         getStats(token),
         getDue(token),
@@ -189,7 +202,7 @@ export default function HomeScreen() {
       if (gamification) setGam(gamification);
       setEnrolled((myClasses?.enrolled?.length ?? 0) > 0);
     } catch {
-      // keep last values
+      setLoadFailed(true); // keep last values, but surface a retry cue
     }
     // Exercise counts per skill — independent of the stats above, so a failure
     // here never blocks the rest of the home screen.
@@ -217,24 +230,29 @@ export default function HomeScreen() {
     load();
   }, [load]);
 
-  // "Continue learning": the last opened lesson, else the first lesson.
+  // "Continue learning": the server picks the next unfinished lesson and reports
+  // real progress through its level (C1). If everything is done we fall back to
+  // the last opened lesson so the hero still has somewhere to go. On a failed
+  // request we show that same local lesson without progress (offline-safe).
   const loadContinue = useCallback(async () => {
     if (!token) return;
     const last = await getLastLesson();
-    if (last) {
-      setCont({ lesson: last, resume: true });
-      return;
-    }
     try {
-      const r = await getLessons(token);
-      const f = r.items[0];
+      const r = await getContinue(token);
+      const lesson = r.lesson ?? last;
       setCont(
-        f
-          ? { lesson: { id: f.id, title: f.title, thumbnailUrl: f.thumbnailUrl, type: f.type, level: f.level }, resume: false }
+        lesson
+          ? {
+              lesson,
+              resume: lesson.id === last?.id,
+              level: r.level,
+              done: r.levelDone,
+              total: r.levelTotal,
+            }
           : null,
       );
     } catch {
-      // ignore
+      setCont(last ? { lesson: last, resume: true, level: null, done: 0, total: 0 } : null);
     }
   }, [token]);
 
@@ -359,6 +377,20 @@ export default function HomeScreen() {
 
         {/* Body content (padded; the hero above is full-bleed) */}
         <View style={styles.body}>
+          {/* First-load failure → inline retry (dashboard otherwise shows stale/zero). */}
+          {loadFailed && !loading ? (
+            <Pressable style={styles.retryBanner} onPress={() => { haptics.tap(); load(); }}>
+              <Ionicons name="cloud-offline-outline" size={18} color={c.danger} />
+              <AppText variant="caption" color={c.textSecondary} style={{ flex: 1 }}>
+                {t("errorGeneric")}
+              </AppText>
+              <View style={styles.retryBtn}>
+                <Ionicons name="refresh" size={13} color={c.primary} />
+                <AppText variant="label" color={c.primary}>{t("retry")}</AppText>
+              </View>
+            </Pressable>
+          ) : null}
+
           {/* Continue learning */}
           {cont ? (
             <Pressable
@@ -378,6 +410,21 @@ export default function HomeScreen() {
                 <AppText variant="h2" color={c.white} numberOfLines={2}>
                   {cont.lesson.title}
                 </AppText>
+                {/* Real level progress from the server — no placeholder. */}
+                {cont.total > 0 ? (
+                  <View style={styles.continueProgress}>
+                    <ProgressBar
+                      value={cont.done / cont.total}
+                      color={c.white}
+                      track={c.glassBorder}
+                      height={6}
+                    />
+                    <AppText variant="caption" color={c.textOnDarkMuted}>
+                      {cont.level ? `${cont.level} · ` : ""}
+                      {tf("lessonProgressCount", { done: cont.done, total: cont.total })}
+                    </AppText>
+                  </View>
+                ) : null}
                 <View style={styles.continueBtn}>
                   <AppText variant="bodyStrong" color={c.primary}>
                     {t("continue")} →
@@ -386,10 +433,12 @@ export default function HomeScreen() {
               </View>
               <View style={styles.continueIcon}>
                 {cont.lesson.thumbnailUrl ? (
-                  <Image
+                  // AppImage = expo-image: disk cache + a thumbnail-sized download.
+                  <AppImage
                     source={{ uri: cont.lesson.thumbnailUrl }}
+                    width={160}
                     style={styles.continueThumb}
-                    resizeMode="cover"
+                    contentFit="cover"
                   />
                 ) : (
                   <Ionicons name="play" size={28} color={c.white} />
@@ -444,6 +493,21 @@ export default function HomeScreen() {
             </Pressable>
           ) : null}
 
+          {/* IELTS prep — exam vertical, its own hub (no extra tab: the bar is full) */}
+          <Pressable
+            style={({ pressed }) => [styles.joinCard, pressed && styles.pressed]}
+            onPress={() => router.push("/ielts")}
+          >
+            <View style={[styles.joinIcon, { backgroundColor: tints.amber.bg, borderColor: tints.amber.fg }]}>
+              <Ionicons name="school" size={24} color={tints.amber.fg} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <AppText variant="h3">{t("ieltsHomeCard")}</AppText>
+              <AppText variant="caption">{t("ieltsHomeHint")}</AppText>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={c.borderStrong} />
+          </Pressable>
+
           {/* Exercises — each tile opens its skill screen of exercises */}
           <View style={styles.sectionRow}>
             <AppText variant="h2">{t("exercisesTitle")}</AppText>
@@ -456,7 +520,7 @@ export default function HomeScreen() {
           <View style={styles.grid}>
             {loading
               ? TASKS.map((task) => (
-                  <Skeleton key={task.key} width="48%" height={120} radius={radius.lg} />
+                  <Skeleton key={task.key} width="23%" height={92} radius={radius.md} />
                 ))
               : TASKS.map((task, i) => {
                   const count = taskCounts[task.key] ?? 0;
@@ -474,16 +538,16 @@ export default function HomeScreen() {
                       >
                         <View style={[styles.taskIcon, { backgroundColor: task.tint.bg, borderColor: task.tint.fg }]}>
                           {task.appIcon ? (
-                            <AppIcon name={task.appIcon} size={42} />
+                            <AppIcon name={task.appIcon} size={30} />
                           ) : (
-                            <Ionicons name={task.icon} size={32} color={task.tint.fg} />
+                            <Ionicons name={task.icon} size={22} color={task.tint.fg} />
                           )}
                         </View>
-                        <AppText variant="label" numberOfLines={1}>
+                        <AppText variant="caption" color={c.text} numberOfLines={1} style={styles.taskLabel}>
                           {t(task.labelKey)}
                         </AppText>
                         <View style={styles.taskCount}>
-                          <Ionicons name="ribbon" size={11} color={c.xp} />
+                          <Ionicons name="ribbon" size={10} color={c.xp} />
                           <AppText variant="caption" numberOfLines={1}>
                             {count}
                           </AppText>
@@ -532,6 +596,19 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
     marginTop: -BODY_OVERLAP,
     zIndex: 1,
   },
+  retryBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: c.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: c.border,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  retryBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
 
   header: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm },
   headerText: { flex: 1, paddingTop: 2 },
@@ -578,6 +655,7 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
     ...(elevation.md as object),
   },
   continueBody: { flex: 1, gap: 6 },
+  continueProgress: { gap: 4, marginTop: 2 },
   continueBtn: {
     alignSelf: "flex-start",
     backgroundColor: c.white,
@@ -673,27 +751,30 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
     justifyContent: "space-between",
     rowGap: spacing.md,
   },
-  // 4 tiles in a single row. The wrapper holds the width so the entrance
-  // animation is stable; 23% × 4 + space-between leaves even gaps.
+  // Compact secondary "quick-row": 4 flat tiles in a single row, lighter than
+  // the primary Continue hero above so there is one clear primary action (C1).
+  // 23% × 4 + space-between leaves even gaps.
   taskWrap: { width: "23%" },
   task: {
     width: "100%",
-    borderRadius: radius.lg,
-    paddingVertical: spacing.md,
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
     paddingHorizontal: 4,
     alignItems: "center",
-    gap: spacing.xs,
-    backgroundColor: c.surface, // dark tile so the colored icon chip pops
-    ...(elevation.sm as object),
+    gap: 5,
+    backgroundColor: c.surface,
+    borderWidth: 1,
+    borderColor: c.border, // flat outline instead of a shadow → reads as secondary
   },
   taskIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: radius.md,
+    width: 40,
+    height: 40,
+    borderRadius: radius.sm,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
   },
+  taskLabel: { fontWeight: "600" },
   taskCount: {
     flexDirection: "row",
     alignItems: "center",

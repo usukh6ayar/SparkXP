@@ -110,7 +110,7 @@ export default function LevelScreen() {
   const levelCode = (code ?? 'a1').toLowerCase();
   const meta = LEVEL[levelCode] ?? { name: 'Level', color: islandMap.purple, emoji: '✨', tier: '', desc: '' };
   const { token, user } = useAuth();
-  const { theme } = useSettings();
+  const { theme, t } = useSettings();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -376,6 +376,14 @@ export default function LevelScreen() {
             </AppText>
           </View>
         </View>
+
+        {/* Empty: this level has no lessons yet (successful load, zero lessons). */}
+        {!loading && lessons.length === 0 ? (
+          <View style={styles.emptyHint}>
+            <Ionicons name="information-circle-outline" size={16} color={C.textDim} />
+            <AppText variant="caption" color={C.textDim} style={{ flex: 1 }}>{t('levelNoLessons')}</AppText>
+          </View>
+        ) : null}
       </View>
 
       {loading && <ActivityIndicator size="large" color={C.text} style={StyleSheet.absoluteFill} />}
@@ -414,6 +422,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(255,255,255,0.18)',
+  },
+  emptyHint: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    marginTop: 12, paddingHorizontal: 4, maxWidth: '80%',
   },
   titleBlock: { marginTop: 14 },
   bigTitle: { fontSize: 34, lineHeight: 40, fontWeight: '800' },

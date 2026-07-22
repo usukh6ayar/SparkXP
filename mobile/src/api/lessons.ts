@@ -46,6 +46,20 @@ export function unlockLesson(id: string, token: string): Promise<LessonUnlock> {
   });
 }
 
+/** Home "Continue learning" target + real progress through its level (C1). */
+export interface ContinueLearning {
+  /** Next unfinished lesson, or `null` when every lesson is done. */
+  lesson: Pick<Lesson, 'id' | 'title' | 'thumbnailUrl' | 'type' | 'level'> | null;
+  level: string | null;
+  levelDone: number;
+  levelTotal: number;
+  allCompleted: boolean;
+}
+
+export function getContinue(token: string): Promise<ContinueLearning> {
+  return apiRequest<ContinueLearning>('/lessons/continue', { token });
+}
+
 /** Mark a lesson complete → awards XP once. Idempotent on the server. */
 export function completeLesson(
   id: string,

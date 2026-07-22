@@ -49,7 +49,7 @@
 | Owner | Ажил (тэнцүү 3 багц) |
 | --- | --- |
 | **Өсөхбаяр** (backend/admin/infra) | Railway Hobby + **бүх prod migration** (reading/idioms/translations/ai-buddy-voice/**IELTS**); `C1-BE` lesson progress %; `C4-BE` public sample + guest→user migration; **IELTS Plan 2 — admin authoring**; Apple($99)/Google($25) account + EAS submit config |
-| **Choi** (mobile — learning + IELTS L/R) | `C1` Home нэг primary hero (FE); `C4` taste-task онбординг + guest mode (FE); **IELTS Plan 3a — `/ielts` hub + Listening/Reading runner** (band харуулах); **фонт (Onest/Inter) ачаалах** (`_layout.tsx` — shared, зарлаад PR) |
+| **Choi** (mobile — learning + IELTS L/R) | ✅ бүгд дууссан (2026-07-22): `C1` Home hero (FE) · `C4` taste-task онбординг (FE) · **IELTS Plan 3a — `/ielts` hub + L/R runner (band)** · фонт (Onest/Inter). Үлдсэн: бодит утсан дээрх regression тест |
 | **Boju** (mobile — buddy/games + store) | `C3` buddy scaffold (starter prompt + voice-минут үлдэгдэл + limit→текст); real gamification data (placeholder → бодит); **IELTS Plan 3b — Writing/Speaking практик дэлгэц** (model-answer reveal); **app icon 1024 PNG (шинэ дизайн) + splash + App Store material** (screenshot/description/privacy/data-safety) |
 
 > **🟪 3D AI buddy — ХАМГИЙН СҮҮЛД, 3-уулаа хамт:** optimize rigged GLB (<5MB) → R2
@@ -80,10 +80,10 @@
 ### ⚠️ Critical UX (C1–C4) — `mobile/UX_CRITICAL_SPEC.md` төлөв
 | # | Item | Төлөв | Дутуу |
 | --- | --- | --- | --- |
-| C1 | Home нэг primary hero | 🔶 хагас | 4 skill tile primary хэвээр; real progress (C1-BE) алга |
+| C1 | Home нэг primary hero | ✅ дууссан | skill tile → compact quick-row (`dd7bc3a`); hero нь `GET /lessons/continue`-ийн **бодит** level ахицыг харуулна |
 | C2 | Quiz асуулт-бүрийн шууд feedback | 🔶 хагас | баяр ✅, гэхдээ `POST /quizzes/:id/check` (C2-BE) байхгүй |
 | C3 | Buddy tab уншигдахуйц + scaffold | 🔶 хагас | таб шошго ✅, starter prompt + voice-min remaining алга |
-| C4 | Auth-аас өмнө үнэ цэн (taste-task) | 🔶 хагас | **C4-BE ✅ merged (PR #143)** — public sample endpoint + guest→user XP verify дээр; FE guest mode (Choi) дутуу |
+| C4 | Auth-аас өмнө үнэ цэн (taste-task) | ✅ дууссан | BE ✅ (PR #143) + FE ✅ (2026-07-22): онбординг → `/(auth)/taste` 3 асуулт (public `/words/sample`, локал шалгалт) → register `tasteCompleted` → verify дээр +10 XP |
 
 ### Өсөхбаяр (Backend + Admin)
 - [ ] **Прод migration бүрэн гүйцэх** (`DB_SYNCHRONIZE=false` дээр гараар):
@@ -104,12 +104,25 @@
 
 ### Choi (Mobile — learning core)
 - [ ] Auth → Home → Lesson → Quiz → Review бүх урсгалыг **гараар турших**, алдаа засах.
+      (⚠️ Зөвхөн бодит утсан дээр хийнэ — код талаас бэлэн.)
 - [ ] Placement / level сонголтын урсгал (A1–B1) шалгах.
 - [ ] Reading tap-to-translate + audio prod дээр ажиллаж буйг шалгах.
-- [ ] Loading / empty / error state-үүд бүх дэлгэц дээр байх.
-- [ ] Жагсаалт + зураг performance (FlatList, image cache).
+- [x] Loading / empty / error state-үүд бүх дэлгэц дээр (аудит `dd7bc3a`; шинэ
+      дэлгэцүүд (`taste`, `/ielts`) skeleton/fallback-тай).
+- [x] Жагсаалт + зураг performance — урт жагсаалтууд аль хэдийн `FlatList`
+      (notifications/saved); `CategoryBrowser` level-2 нь сэдэв тус бүрээр богино
+      тул ScrollView хангалттай. Алсын зураг бүр **expo-image (`AppImage`)** дээр:
+      Home continue thumb + quiz асуултын зураг шилжүүлсэн (disk cache + Cloudinary
+      хэмжээ тааруулалт).
 
 ### Boju (Mobile — games & social)
+- ⚠️ **Choi `app/quiz/[id].tsx`-д IELTS-ийн жижиг нэмэлт хийсэн (2026-07-22)** —
+      merge хийхээсээ өмнө pull хий: (1) `audioUrl` байвал сонсголын play/pause мөр,
+      (2) `passageText` байвал уншлагын эх (нээх/хаах), (3) үр дүнд `result.band`
+      харуулах, (4) асуултын зураг `Image`→`AppImage`. Бусад quiz логик хөндөгдөөгүй.
+      IELTS Writing/Speaking (`open_response`) практик дэлгэц = **Plan 3b, Boju**;
+      `/ielts` hub дээр тэр 2 модуль "тун удахгүй" гэж харагдаж байна — дэлгэц бэлэн
+      болмогц `src/constants/ielts.ts`-ийн `auto`/route-г солиход л хангалттай.
 - [ ] Quiz/Soril, Idioms, Leaderboard, Profile, Teacher, Join урсгалыг турших, алдаа засах.
 - [ ] AI chat prod endpoint-той холбогдож буйг шалгах (limit warning харагдана).
 - ⚠️ **AI Buddy mobile UI-г Choi аль хэдийн барьсан (branch `choi` / PR) — ДАВХАР ХИЙХГҮЙ.**
@@ -149,9 +162,11 @@
 - [ ] Regression pass: гол урсгалуудыг бодит утсан дээр турших.
 
 ### ➕ Нэмэлт ажил — Critical UX-ийн дутууг дуусгах (§3 дээрх C1–C4)
-- [ ] **C1** Home — 4 skill tile-ийг compact quick-row болгож, нэг primary "Continue/
-      Start" hero гаргах (Choi). **C1-BE:** lesson-ийн бодит ахиц гаргах endpoint
-      (Өсөхбаяр — одоо `/lessons/:id/complete` л байна, progress %-гүй).
+- [x] **C1 ✅ (2026-07-22)** Home — 4 skill tile → compact quick-row, нэг primary
+      "Continue/Start" hero (`dd7bc3a`). **C1-BE ✅** `GET /lessons/continue` (PR #142).
+      **C1-FE:** `api/lessons.ts` `getContinue` + Home hero нь сервэрийн сонгосон
+      дараагийн дуусгаагүй хичээл + тухайн level-ийн **бодит** ахиц (ProgressBar +
+      `{done}/{total}`) харуулна; сүлжээгүй үед локал сүүлийн хичээл рүү уначихна.
 - [x] **C2 ✅ (2026-07-21)** Quiz асуулт бүрийн шууд feedback + **зөв хариулах хүртэл
       явдаг** (retry-until-correct).
       **C2-BE:** `POST /quizzes/:id/check` — нэг хариу шалгаж `{ correct, correctAnswer? }`
@@ -161,8 +176,14 @@
       `api/quizzes.ts` `checkAnswer` client + i18n. API.md шинэчилсэн.
 - [ ] **C3** Buddy эхний-нээлт scaffold: 3–4 starter prompt + voice-минут үлдэгдэл
       харуулах, limit → текст рүү зөөлөн шилжих — Boju.
-- [ ] **C4** Taste-task онбординг (auth-аас өмнө +XP) + guest mode — Choi.
+- [x] **C4 ✅ (2026-07-22)** Taste-task онбординг (auth-аас өмнө +XP) — Choi.
       **C4-BE ✅** JWT-гүй public sample endpoint + guest→user XP verify дээр — Өсөхбаяр (PR #143, merged 2026-07-22).
+      **C4-FE:** `app/(auth)/taste.tsx` (онбордингийн сүүлийн slide → 3 асуулт,
+      `api/words.ts` `getSampleQuestions`, локал шалгалт + confetti), `lib/tasteTask.ts`
+      (төлвийг төхөөрөмж дээр хадгална), register нь `tasteCompleted` илгээж, амжилттай
+      бол flag-аа цэвэрлэнэ. Sample ачаалагдахгүй бол шууд бүртгэл рүү (хэзээ ч блоклохгүй).
+      ⚠️ **Full guest mode (данcгүйгээр апп үзэх) хийгээгүй** — backend дэмжлэг алга;
+      "auth-аас өмнө үнэ цэн" зорилгыг taste-task биелүүлж байна.
 
 ---
 

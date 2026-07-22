@@ -6,6 +6,13 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 import { ThemeProvider, DarkTheme, DefaultTheme } from "@react-navigation/native";
 import Constants from "expo-constants";
+import {
+  useFonts,
+  Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold,
+} from "@expo-google-fonts/inter";
+import {
+  Onest_400Regular, Onest_500Medium, Onest_600SemiBold, Onest_700Bold, Onest_800ExtraBold,
+} from "@expo-google-fonts/onest";
 import { AuthProvider, useAuth } from "../src/auth/AuthContext";
 import { SettingsProvider, useColors, useSettings } from "../src/settings/SettingsContext";
 import { DictionaryProvider } from "../src/components/DictionaryProvider";
@@ -83,6 +90,21 @@ function ThemedNav() {
 }
 
 function RootLayout() {
+  // Load the brand fonts (Onest = display/headings, Inter = body/UI; both have
+  // full Cyrillic). Gate the app on load so text never flashes the system font,
+  // but proceed on a font error so a load failure can never brick the app.
+  const [fontsLoaded, fontError] = useFonts({
+    Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold,
+    Onest_400Regular, Onest_500Medium, Onest_600SemiBold, Onest_700Bold, Onest_800ExtraBold,
+  });
+  if (!fontsLoaded && !fontError) {
+    return (
+      <View style={[styles.center, { backgroundColor: "#191040" }]}>
+        <ActivityIndicator size="large" color="#6C3BFF" />
+      </View>
+    );
+  }
+
   return (
     <GestureHandlerRootView style={styles.flex}>
       <SafeAreaProvider>

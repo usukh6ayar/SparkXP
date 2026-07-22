@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput,
-  Pressable, Image,
+  Pressable,
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { useAuth } from '../../src/auth/AuthContext';
 import * as quizzesApi from '../../src/api/quizzes';
 import type { Quiz, AnswerItem, QuizResult } from '../../src/api/quizzes';
@@ -13,6 +15,7 @@ import { Button } from '../../src/components/Button';
 import { Skeleton } from '../../src/components/Skeleton';
 import { EmptyState } from '../../src/components/EmptyState';
 import { PressableScale } from '../../src/components/PressableScale';
+import { AppImage } from '../../src/components/AppImage';
 import { WordMatchBoard } from '../../src/components/WordMatchBoard';
 import { ProgressBar } from '../../src/components/ProgressBar';
 import { Confetti } from '../../src/components/Confetti';
@@ -23,6 +26,7 @@ import { markExerciseCompleted } from '../../src/lib/exerciseProgress';
 import { showXpToast } from '../../src/lib/xpToast';
 import { alertError } from '../../src/lib/alerts';
 import { t, tf } from '../../src/i18n';
+import { formatBand } from '../../src/constants/ielts';
 import { useColors } from '../../src/settings/SettingsContext';
 import { spacing, radius, fontSize, type AppColors } from '../../src/theme/theme';
 
@@ -61,6 +65,17 @@ export default function QuizScreen() {
   const [checking, setChecking] = useState(false);
   // The correct answer to reveal when wrong (mc → option index, fill_blank → text).
   const [revealCorrect, setRevealCorrect] = useState<number | string | null>(null);
+  // IELTS Reading passage panel + Listening playback.
+  const [passageOpen, setPassageOpen] = useState(true);
+  const audio = useAudioPlayer();
+  const playing = useAudioPlayerStatus(audio).playing;
+
+  /** Play / pause the IELTS Listening recording (pause keeps the position, so a
+   *  student can stop mid-section and resume instead of restarting). */
+  function toggleAudio() {
+    if (playing) audio.pause();
+    else audio.play();
+  }
 
   const load = useCallback(() => {
     setPhase('loading');
@@ -71,10 +86,17 @@ export default function QuizScreen() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Load the IELTS Listening recording once the quiz arrives (nothing to do for
+  // ordinary quizzes, which have no audioUrl).
+  useEffect(() => {
+    if (quiz?.audioUrl) audio.replace({ uri: quiz.audioUrl });
+  }, [quiz?.audioUrl]);
+
   // Celebrate (or commiserate) the moment results land. On a pass with XP the
   // "+XP" toast already carries a success haptic, so we don't double it up.
   useEffect(() => {
     if (phase !== 'result' || !result) return;
+    if (quiz?.audioUrl) audio.pause(); // the IELTS recording shouldn't outlive the test
     if (result.passed) {
       if (result.xpEarned > 0) showXpToast(result.xpEarned);
       else haptics.success();
@@ -230,6 +252,14 @@ export default function QuizScreen() {
             <AppText variant="caption" center>
               {tf('scoreLine', { score: result.score, total: result.total })}
             </AppText>
+            {/* IELTS Listening/Reading — the server's approximate band (0–9). */}
+            {result.band !== undefined ? (
+              <View style={styles.bandBox}>
+                <AppText variant="overline" color={c.textSecondary}>{t('ieltsBandLabel')}</AppText>
+                <AppText variant="display" color={c.xp}>{formatBand(result.band)}</AppText>
+                <AppText variant="caption" center color={c.textMuted}>{t('ieltsBandHint')}</AppText>
+              </View>
+            ) : null}
           </Animated.View>
 
           <View style={styles.badgeRow}>
@@ -290,12 +320,41 @@ export default function QuizScreen() {
 
       <ScrollView contentContainerStyle={styles.container}>
         <AppText variant="caption" style={styles.quizTitle}>{quiz!.title}</AppText>
+
+        {/* IELTS Listening — the section recording, replayable at any time. */}
+        {quiz!.audioUrl ? (
+          <PressableScale haptic={false} onPress={toggleAudio} style={styles.audioBar}>
+            <Ionicons name={playing ? 'pause' : 'play'} size={22} color={c.primary} />
+            <AppText variant="bodyStrong" color={c.primary}>
+              {playing ? t('ieltsAudioPause') : t('ieltsAudioPlay')}
+            </AppText>
+          </PressableScale>
+        ) : null}
+
+        {/* IELTS Reading — the passage, open by default and collapsible so the
+            questions stay reachable on a phone screen. */}
+        {quiz!.passageText ? (
+          <View style={styles.passageBox}>
+            <Pressable onPress={() => setPassageOpen((v) => !v)} hitSlop={6} style={styles.passageHead}>
+              <AppText variant="bodyStrong">{t('ieltsPassage')}</AppText>
+              <Ionicons name={passageOpen ? 'chevron-up' : 'chevron-down'} size={18} color={c.textMuted} />
+            </Pressable>
+            {passageOpen ? (
+              <AppText variant="body" style={styles.passageText}>{quiz!.passageText}</AppText>
+            ) : null}
+          </View>
+        ) : null}
         <AppText variant="h2" style={styles.questionText}>
           {currentQ!.question ?? (currentQ!.type === 'word_match' ? t('matchPairsPrompt') : '')}
         </AppText>
 
         {currentQ!.type === 'multiple_choice' && currentQ!.imageUrl ? (
-          <Image source={{ uri: currentQ!.imageUrl }} style={styles.questionImage} resizeMode="cover" />
+          <AppImage
+            source={{ uri: currentQ!.imageUrl }}
+            width={800}
+            style={styles.questionImage}
+            contentFit="cover"
+          />
         ) : null}
 
         {currentQ!.type === 'multiple_choice' && (
@@ -412,6 +471,29 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   progress: { color: c.textMuted, fontSize: fontSize.sm },
   container: { padding: spacing.lg, paddingTop: spacing.md },
   quizTitle: { fontSize: fontSize.sm, color: c.textMuted, marginBottom: spacing.sm },
+
+  // IELTS: Listening player bar, Reading passage panel, result band.
+  audioBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    borderWidth: 2,
+    borderColor: c.primary,
+    borderRadius: radius.md,
+    paddingVertical: spacing.md,
+    marginBottom: spacing.md,
+  },
+  passageBox: {
+    backgroundColor: c.surfaceAlt,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+    gap: spacing.sm,
+  },
+  passageHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  passageText: { lineHeight: 24 },
+  bandBox: { alignItems: 'center', marginTop: spacing.md, gap: 2 },
   questionText: {
     fontSize: fontSize.lg,
     fontWeight: '700',
