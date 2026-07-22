@@ -99,12 +99,16 @@ export class AssignmentsService {
     });
     if (list.length === 0) return [];
 
-    // Batch-load completion counts for all assignments in one query
+    // Batch-load completion counts for all assignments in one query.
+    // Submissions are now pre-created with status ASSIGNED at assign time, so
+    // completedCount must count only rows that were actually submitted
+    // (completed/late) — excluding the still-pending ASSIGNED rows.
     const counts = await this.completions
       .createQueryBuilder('ac')
       .select('ac.assignment_id', 'assignmentId')
       .addSelect('COUNT(ac.id)', 'count')
       .where('ac.assignment_id IN (:...ids)', { ids: list.map((a) => a.id) })
+      .andWhere('ac.status != :assigned', { assigned: SubmissionStatus.ASSIGNED })
       .groupBy('ac.assignment_id')
       .getRawMany<{ assignmentId: string; count: string }>();
 
