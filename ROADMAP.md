@@ -83,7 +83,7 @@
 | C1 | Home нэг primary hero | 🔶 хагас | 4 skill tile primary хэвээр; real progress (C1-BE) алга |
 | C2 | Quiz асуулт-бүрийн шууд feedback | 🔶 хагас | баяр ✅, гэхдээ `POST /quizzes/:id/check` (C2-BE) байхгүй |
 | C3 | Buddy tab уншигдахуйц + scaffold | 🔶 хагас | таб шошго ✅, starter prompt + voice-min remaining алга |
-| C4 | Auth-аас өмнө үнэ цэн (taste-task) | ❌ эхлээгүй | guest mode + public sample endpoint (C4-BE) хэрэгтэй |
+| C4 | Auth-аас өмнө үнэ цэн (taste-task) | 🔶 хагас | **C4-BE ✅ merged (PR #143)** — public sample endpoint + guest→user XP verify дээр; FE guest mode (Choi) дутуу |
 
 ### Өсөхбаяр (Backend + Admin)
 - [ ] **Прод migration бүрэн гүйцэх** (`DB_SYNCHRONIZE=false` дээр гараар):
@@ -162,7 +162,7 @@
 - [ ] **C3** Buddy эхний-нээлт scaffold: 3–4 starter prompt + voice-минут үлдэгдэл
       харуулах, limit → текст рүү зөөлөн шилжих — Boju.
 - [ ] **C4** Taste-task онбординг (auth-аас өмнө +XP) + guest mode — Choi.
-      **C4-BE:** JWT-гүй public sample endpoint + guest→user progress migration — Өсөхбаяр.
+      **C4-BE ✅** JWT-гүй public sample endpoint + guest→user XP verify дээр — Өсөхбаяр (PR #143, merged 2026-07-22).
 
 ---
 
