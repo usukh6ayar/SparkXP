@@ -364,8 +364,8 @@ export default function ProfileScreen() {
             ))
           )}
 
-          {/* Premium banner — gradient feature card */}
-          <Pressable onPress={soon} style={({ pressed }) => pressed && styles.pressed}>
+          {/* Premium banner — gradient feature card → plan & usage screen */}
+          <Pressable onPress={() => router.push('/plan')} style={({ pressed }) => pressed && styles.pressed}>
             <LinearGradient colors={[colors.primaryGradient[0], colors.primaryGradient[2]]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.premium}>
               <View style={styles.premGlow} pointerEvents="none" />
               <View style={{ flex: 1 }}>

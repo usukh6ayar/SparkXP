@@ -1,5 +1,16 @@
 import { apiRequest } from './client';
 
+/**
+ * One block of the richer AI dictionary explanation (Premium plan doc §2):
+ * most-common meaning, common/secondary, special case, phrase/expression.
+ */
+export interface DictionarySection {
+  /** Section heading, e.g. "Most common", "Phrase / expression". */
+  title: string;
+  /** Mongolian explanation for this section. */
+  body: string;
+}
+
 export interface WordLookup {
   /** The looked-up word, normalised to lowercase by the backend. */
   word: string;
@@ -9,6 +20,12 @@ export interface WordLookup {
   audioUrl: string | null;
   /** True when served from the Words DB / cache (free), false when from AI. */
   cached: boolean;
+  /**
+   * Optional 4-part detailed explanation. The backend only returns the short
+   * `translation` today; when Өсөхбаяр ships the fuller Gemini explanation the
+   * popover renders these sections automatically (see DictionaryProvider).
+   */
+  sections?: DictionarySection[];
 }
 
 /**

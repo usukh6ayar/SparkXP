@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { View, StyleSheet, ScrollView, Pressable, Alert, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, ScrollView, Pressable, Alert, ActivityIndicator, Share } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { setStatusBarStyle } from 'expo-status-bar';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -58,6 +58,25 @@ export default function BuddyMemoryScreen() {
     }, [load, theme]),
   );
 
+  /** Export (share) the buddy's memory as plain text — data-portability (doc §8). */
+  const exportMemory = async () => {
+    if (items.length === 0) {
+      Alert.alert(t('exportMemory'), t('memoryEmptyExport'));
+      return;
+    }
+    const body = items
+      .map((m) => {
+        const label = TYPE_META[m.memoryType] ? t(TYPE_META[m.memoryType].key) : m.memoryType;
+        return `• ${m.value} (${label})`;
+      })
+      .join('\n');
+    try {
+      await Share.share({ title: t('buddyMemory'), message: `${t('buddyMemory')}\n\n${body}` });
+    } catch {
+      /* user dismissed the share sheet — nothing to do */
+    }
+  };
+
   const confirmClear = () => {
     Alert.alert(t('clearMemoryConfirm'), t('clearMemoryConfirmBody'), [
       { text: t('cancel') },
@@ -90,7 +109,9 @@ export default function BuddyMemoryScreen() {
             <Ionicons name="chevron-back" size={24} color={p.text} />
           </Pressable>
           <AppText variant="h2" color={p.text}>{t('buddyMemory')}</AppText>
-          <View style={styles.backBtn} />
+          <Pressable onPress={exportMemory} hitSlop={8} style={styles.backBtn} accessibilityLabel={t('exportMemory')}>
+            <Ionicons name="share-outline" size={22} color={p.text} />
+          </Pressable>
         </View>
 
         <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
@@ -143,6 +164,12 @@ export default function BuddyMemoryScreen() {
               </Pressable>
             </>
           )}
+
+          {/* Data-privacy / consent note (doc §8) */}
+          <View style={styles.privacyNote}>
+            <Ionicons name="shield-checkmark-outline" size={16} color={p.textMuted} />
+            <AppText variant="caption" color={p.textMuted} style={{ flex: 1 }}>{t('memoryPrivacyNote')}</AppText>
+          </View>
         </ScrollView>
       </SafeAreaView>
     </View>
@@ -191,6 +218,11 @@ const styles = StyleSheet.create({
   clearBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm,
     marginTop: spacing.xl, paddingVertical: spacing.md, borderRadius: radius.lg, borderWidth: 1,
+  },
+
+  privacyNote: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm,
+    marginTop: spacing.xl, paddingHorizontal: spacing.xs,
   },
 
   empty: { alignItems: 'center', marginTop: spacing.xxl, paddingHorizontal: spacing.lg, gap: spacing.xs },
