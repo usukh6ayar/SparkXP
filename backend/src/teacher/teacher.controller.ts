@@ -22,4 +22,12 @@ export class TeacherController {
   ) {
     return this.progress.studentProgress(id, studentId, user);
   }
+
+  @Get('classes/:id/overview')
+  classOverview(
+    @CurrentUser() user: User,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.progress.classOverview(id, user);
+  }
 }

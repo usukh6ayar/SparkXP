@@ -1,12 +1,13 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { MoreThanOrEqual, Repository } from 'typeorm';
+import { In, MoreThanOrEqual, Repository } from 'typeorm';
 import { QuizAttempt } from '../entities/quiz-attempt.entity';
 import { Lesson } from '../entities/lesson.entity';
 import { Quiz } from '../entities/quiz.entity';
 import { WordReview } from '../entities/word-review.entity';
 import { AssignmentCompletion } from '../entities/assignment-completion.entity';
 import { User } from '../entities/user.entity';
+import { SubmissionStatus } from '../common/enums';
 import { ClassesService } from '../classes/classes.service';
 import { resolveSkill } from './skill';
 
@@ -134,5 +135,45 @@ export class ProgressService {
         submittedAt: s.submittedAt,
       })),
     };
+  }
+
+  /**
+   * Class analytics for the teacher panel: class-wide skill breakdown, the
+   * weakest scored skill, and each student's completion %. getStudents enforces
+   * teacher/admin access (throws 403/404).
+   */
+  async classOverview(classId: string, teacher: User) {
+    const roster = await this.classes.getStudents(classId, teacher);
+    const studentIds = roster.map((s) => s.id);
+
+    // Class skill breakdown = average over all students' attempts.
+    const rows = studentIds.length
+      ? ((await this.attempts.find({
+          where: { userId: In(studentIds) },
+          select: { skill: true, scorePct: true },
+        })) as { skill: string; scorePct: number }[])
+      : [];
+    const skills = averageBySkill(rows);
+    const scored = SKILL_DIMENSIONS.filter((s) => skills[s] !== null);
+    const weakestSkill =
+      scored.length === 0
+        ? null
+        : scored.reduce((a, b) => (skills[a]! <= skills[b]! ? a : b));
+
+    // Per-student completion % across their pre-created submissions.
+    const subs = studentIds.length
+      ? await this.submissionRepo.find({ where: { studentId: In(studentIds) } })
+      : [];
+    const students = roster.map((s) => {
+      const mine = subs.filter((x) => x.studentId === s.id);
+      const done = mine.filter((x) => x.status !== SubmissionStatus.ASSIGNED).length;
+      return {
+        studentId: s.id,
+        fullName: s.fullName,
+        completionPct: mine.length ? Math.round((done / mine.length) * 100) : null,
+      };
+    });
+
+    return { studentCount: roster.length, skills, weakestSkill, students };
   }
 }
