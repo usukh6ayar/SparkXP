@@ -2,11 +2,12 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { QuizAttempt } from '../entities/quiz-attempt.entity';
 import { Lesson } from '../entities/lesson.entity';
+import { WordReview } from '../entities/word-review.entity';
 import { ProgressService } from './progress.service';
 
 /** Teacher-facing progress: persist quiz attempts + (later) read views. */
 @Module({
-  imports: [TypeOrmModule.forFeature([QuizAttempt, Lesson])],
+  imports: [TypeOrmModule.forFeature([QuizAttempt, Lesson, WordReview])],
   providers: [ProgressService],
   exports: [ProgressService],
 })
