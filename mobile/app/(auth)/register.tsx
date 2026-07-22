@@ -10,6 +10,7 @@ import { haptics } from '../../src/lib/haptics';
 import { shake, useReduceMotion } from '../../src/lib/motion';
 import * as authApi from '../../src/api/auth';
 import { peekPendingReferral, clearPendingReferral } from '../../src/lib/referralLink';
+import { peekTasteCompleted, clearTasteCompleted } from '../../src/lib/tasteTask';
 import type { AuthResult } from '../../src/api/auth';
 import { t } from '../../src/i18n';
 import { spacing, radius, type AppColors } from '../../src/theme/theme';
@@ -92,6 +93,8 @@ export default function RegisterScreen() {
   const [englishName, setEnglishName] = useState('');
   const [code, setCode] = useState('');
   const [referral, setReferral] = useState<string | null>(null);
+  // Guest finished the pre-signup taste-task → claim its one-time XP bonus (C4).
+  const [tasteDone, setTasteDone] = useState(false);
   const [result, setResult] = useState<AuthResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -110,6 +113,7 @@ export default function RegisterScreen() {
   // (stashed while the user was logged out). Applied when the account is created.
   useEffect(() => {
     peekPendingReferral().then(setReferral);
+    peekTasteCompleted().then(setTasteDone);
   }, []);
 
   const isUB = province === 'Улаанбаатар';
@@ -144,10 +148,12 @@ export default function RegisterScreen() {
         province,
         district: isUB ? district : undefined,
         referralCode: referral ?? undefined,
+        tasteCompleted: tasteDone || undefined,
       });
       // Account created — the referral code has been handed to the backend, so
       // clear the stash to avoid re-applying it to a later sign-up on this device.
       if (referral) clearPendingReferral();
+      if (tasteDone) clearTasteCompleted();
       setStep('otp');
     } catch (e) {
       fail(e instanceof ApiError ? e.message : t('errorGeneric'));
