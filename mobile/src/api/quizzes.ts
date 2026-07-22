@@ -1,11 +1,15 @@
 import { apiRequest } from './client';
 
 export interface QuizQuestion {
-  type: 'multiple_choice' | 'fill_blank' | 'word_match';
+  type: 'multiple_choice' | 'fill_blank' | 'word_match' | 'open_response';
   question?: string;
   options?: string[];   // multiple_choice only
-  imageUrl?: string | null; // picture-guess multiple_choice
+  imageUrl?: string | null; // picture-guess multiple_choice / IELTS Writing chart
   pairs?: { left: string; right: string }[]; // word_match only
+  // open_response (IELTS Writing/Speaking): self-study prompt, never auto-graded.
+  prompt?: string;
+  modelAnswer?: string;
+  bandNote?: string;
   points: number;
   // correct & answer are NOT returned to the client (server-side only)
 }
@@ -21,6 +25,10 @@ export interface Quiz {
   category: string | null;
   /** Sub-category (сэдэв) within the skill — used to group exercises on mobile. */
   topic: string | null;
+  /** IELTS Reading: passage shown above the questions (null for other quizzes). */
+  passageText: string | null;
+  /** IELTS Listening: the section's recording (null for other quizzes). */
+  audioUrl: string | null;
   questions: QuizQuestion[];
 }
 
@@ -36,6 +44,8 @@ export interface QuizResult {
   passed: boolean;
   xpEarned: number;
   breakdown: { questionIndex: number; correct: boolean; points: number }[];
+  /** Approximate IELTS band (0–9) — only for ielts_listening / ielts_reading. */
+  band?: number;
 }
 
 export function getQuiz(id: string, token: string): Promise<Quiz> {

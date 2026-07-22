@@ -40,13 +40,15 @@ export default function OnboardingScreen() {
   const [index, setIndex] = useState(0);
   const last = index === SLIDES.length - 1;
 
-  async function finish() {
+  // The slides end in the taste-task (C4) so a guest feels the app's value —
+  // and earns XP — before signing up. Skipping goes straight to login.
+  async function finish(dest: string) {
     await completeOnboarding();
-    router.replace('/(auth)/login');
+    router.replace(dest);
   }
 
   function onNext() {
-    if (last) return finish();
+    if (last) return finish('/(auth)/taste');
     scroller.current?.scrollTo({ x: width * (index + 1), animated: true });
   }
 
@@ -70,7 +72,11 @@ export default function OnboardingScreen() {
       </ScrollView>
 
       {/* Skip — top-right, frosted glass. */}
-      <Pressable style={[styles.skip, { top: insets.top + spacing.sm }]} onPress={finish} hitSlop={8}>
+      <Pressable
+        style={[styles.skip, { top: insets.top + spacing.sm }]}
+        onPress={() => finish('/(auth)/login')}
+        hitSlop={8}
+      >
         <BlurView intensity={30} tint="light" experimentalBlurMethod="dimezisBlurView" style={StyleSheet.absoluteFill} />
         <View style={[StyleSheet.absoluteFill, styles.skipTint]} />
         <AppText variant="bodyStrong" color={c.primary}>{t('skip')}</AppText>

@@ -24,7 +24,7 @@ import { useAuth } from "../../src/auth/AuthContext";
 import { getStats } from "../../src/api/users";
 import { getGamification, type Gamification } from "../../src/api/gamification";
 import { getDue } from "../../src/api/reviews";
-import { getLessons } from "../../src/api/lessons";
+import { getContinue } from "../../src/api/lessons";
 import { getExercises } from "../../src/api/quizzes";
 import { getReadingList } from "../../src/api/reading";
 import { getMyClasses } from "../../src/api/classes";
@@ -32,11 +32,13 @@ import { getLastLesson, type LastLesson } from "../../src/lib/lastLesson";
 import { useUnreadNotifications } from "../../src/lib/useUnreadNotifications";
 import { useDictionary } from "../../src/components/DictionaryProvider";
 import { AppText } from "../../src/components/Text";
+import { AppImage } from "../../src/components/AppImage";
 import { AppIcon } from "../../src/components/AppIcon";
 import { type AppIconName } from "../../src/constants/appIcons";
 import { IconButton } from "../../src/components/IconButton";
 import { Button } from "../../src/components/Button";
 import { Skeleton } from "../../src/components/Skeleton";
+import { ProgressBar } from "../../src/components/ProgressBar";
 import { useColors, useSettings } from "../../src/settings/SettingsContext";
 import { useReduceMotion } from "../../src/lib/motion";
 import { haptics } from "../../src/lib/haptics";
@@ -163,7 +165,14 @@ export default function HomeScreen() {
   const [xp, setXp] = useState(user?.xp ?? 0);
   const [sparks, setSparks] = useState(user?.sparks ?? 0);
   const [due, setDue] = useState(0);
-  const [cont, setCont] = useState<{ lesson: LastLesson; resume: boolean } | null>(null);
+  const [cont, setCont] = useState<{
+    lesson: LastLesson;
+    resume: boolean;
+    /** Level of the target lesson + how many of its lessons are done (C1). */
+    level: string | null;
+    done: number;
+    total: number;
+  } | null>(null);
   const [gam, setGam] = useState<Gamification | null>(null);
   // Whether the student has joined a class — assignments come from a teacher's
   // class, so the "My assignments" card only shows for enrolled students.
@@ -221,24 +230,29 @@ export default function HomeScreen() {
     load();
   }, [load]);
 
-  // "Continue learning": the last opened lesson, else the first lesson.
+  // "Continue learning": the server picks the next unfinished lesson and reports
+  // real progress through its level (C1). If everything is done we fall back to
+  // the last opened lesson so the hero still has somewhere to go. On a failed
+  // request we show that same local lesson without progress (offline-safe).
   const loadContinue = useCallback(async () => {
     if (!token) return;
     const last = await getLastLesson();
-    if (last) {
-      setCont({ lesson: last, resume: true });
-      return;
-    }
     try {
-      const r = await getLessons(token);
-      const f = r.items[0];
+      const r = await getContinue(token);
+      const lesson = r.lesson ?? last;
       setCont(
-        f
-          ? { lesson: { id: f.id, title: f.title, thumbnailUrl: f.thumbnailUrl, type: f.type, level: f.level }, resume: false }
+        lesson
+          ? {
+              lesson,
+              resume: lesson.id === last?.id,
+              level: r.level,
+              done: r.levelDone,
+              total: r.levelTotal,
+            }
           : null,
       );
     } catch {
-      // ignore
+      setCont(last ? { lesson: last, resume: true, level: null, done: 0, total: 0 } : null);
     }
   }, [token]);
 
@@ -396,6 +410,21 @@ export default function HomeScreen() {
                 <AppText variant="h2" color={c.white} numberOfLines={2}>
                   {cont.lesson.title}
                 </AppText>
+                {/* Real level progress from the server — no placeholder. */}
+                {cont.total > 0 ? (
+                  <View style={styles.continueProgress}>
+                    <ProgressBar
+                      value={cont.done / cont.total}
+                      color={c.white}
+                      track={c.glassBorder}
+                      height={6}
+                    />
+                    <AppText variant="caption" color={c.textOnDarkMuted}>
+                      {cont.level ? `${cont.level} · ` : ""}
+                      {tf("lessonProgressCount", { done: cont.done, total: cont.total })}
+                    </AppText>
+                  </View>
+                ) : null}
                 <View style={styles.continueBtn}>
                   <AppText variant="bodyStrong" color={c.primary}>
                     {t("continue")} →
@@ -404,10 +433,12 @@ export default function HomeScreen() {
               </View>
               <View style={styles.continueIcon}>
                 {cont.lesson.thumbnailUrl ? (
-                  <Image
+                  // AppImage = expo-image: disk cache + a thumbnail-sized download.
+                  <AppImage
                     source={{ uri: cont.lesson.thumbnailUrl }}
+                    width={160}
                     style={styles.continueThumb}
-                    resizeMode="cover"
+                    contentFit="cover"
                   />
                 ) : (
                   <Ionicons name="play" size={28} color={c.white} />
@@ -461,6 +492,21 @@ export default function HomeScreen() {
               <Ionicons name="chevron-forward" size={20} color={c.borderStrong} />
             </Pressable>
           ) : null}
+
+          {/* IELTS prep — exam vertical, its own hub (no extra tab: the bar is full) */}
+          <Pressable
+            style={({ pressed }) => [styles.joinCard, pressed && styles.pressed]}
+            onPress={() => router.push("/ielts")}
+          >
+            <View style={[styles.joinIcon, { backgroundColor: tints.amber.bg, borderColor: tints.amber.fg }]}>
+              <Ionicons name="school" size={24} color={tints.amber.fg} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <AppText variant="h3">{t("ieltsHomeCard")}</AppText>
+              <AppText variant="caption">{t("ieltsHomeHint")}</AppText>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={c.borderStrong} />
+          </Pressable>
 
           {/* Exercises — each tile opens its skill screen of exercises */}
           <View style={styles.sectionRow}>
@@ -609,6 +655,7 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
     ...(elevation.md as object),
   },
   continueBody: { flex: 1, gap: 6 },
+  continueProgress: { gap: 4, marginTop: 2 },
   continueBtn: {
     alignSelf: "flex-start",
     backgroundColor: c.white,

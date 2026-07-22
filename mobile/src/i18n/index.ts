@@ -39,6 +39,18 @@ const mn = {
   onb3Body:
     'AI найз Spark таны яриа, бичиг, дуудлагаар англи хэлийг сайжруулахад тусална.',
 
+  // Taste-task (бүртгэлийн өмнөх туршилт)
+  tasteTitle: 'Эхлээд туршиж үзье',
+  tasteSubtitle: 'Богинохон 3 асуулт — бүртгүүлэхээс өмнө XP цуглуулаарай.',
+  tasteQuestion: 'Энэ үгийн утга аль нь вэ?',
+  tasteProgress: '{n}/{total} асуулт',
+  tasteCorrect: 'Зөв! 🎉',
+  tasteWrong: 'Дараагийн удаа болно 💪',
+  tasteDoneTitle: 'Гайхалтай эхлэл! 🔥',
+  tasteDoneBody: '{correct}/{total} зөв. Бүртгүүлэхэд {xp} XP таны данс руу орно.',
+  tasteRegisterCta: 'Бүртгүүлж XP-ээ авах',
+  tasteXpBadge: '+{xp} XP хүлээж байна',
+
   // Login
   welcomeBack: 'Тавтай морил! 👋',
   loginSubtitle: 'Бүртгэлтэй хэрэглэгч бол нэвтэрч орно уу.',
@@ -381,6 +393,24 @@ const mn = {
   catFill: 'Нөхөх',
   catGrammar: 'Дүрэм',
 
+  // IELTS
+  ieltsTitle: 'IELTS бэлтгэл',
+  ieltsSubtitle: 'Модуль сонгоод дадлага хийж, band оноогоо хараарай.',
+  ieltsHomeCard: 'IELTS бэлтгэл',
+  ieltsHomeHint: 'Listening · Reading — band оноотой',
+  ieltsListening: 'IELTS Сонсгол',
+  ieltsReading: 'IELTS Унших',
+  ieltsWriting: 'IELTS Бичих',
+  ieltsSpeaking: 'IELTS Ярих',
+  ieltsAutoBand: 'Хариултыг шалгаж band оноо гаргана',
+  ieltsSelfStudy: 'Жишиг хариулттай дадлага (оноогүй)',
+  ieltsSetCount: '{n} дасгал',
+  ieltsPassage: 'Уншлагын эх',
+  ieltsAudioPlay: 'Бичлэг сонсох',
+  ieltsAudioPause: 'Түр зогсоох',
+  ieltsBandLabel: 'IELTS BAND',
+  ieltsBandHint: 'Дасгалын урт богино тул ойролцоо band.',
+
   // Shared: CategoryBrowser / ReadingQuiz
   selectTopic: 'Сэдэв сонгох',
   noContent: 'Агуулга алга 🦊',
@@ -448,6 +478,7 @@ const mn = {
   homeSubtitle: 'Өнөөдөр шинэ зүйл сурч, өөрийгөө ахиулцгаая! ✨',
   keepGoing: 'Урагшлаарай!',
   resumeLearning: 'Үргэлжлүүлж сурах',
+  lessonProgressCount: '{done}/{total} хичээл',
   wordsDueCount: '{n} үг давтах хугацаатай байна',
   noWordsDue: 'Өнөөдөр давтах үг алга',
   startReview: 'Давтах эхлэх',
@@ -710,6 +741,17 @@ const en: Record<TranslationKey, string> = {
   onb3Title: 'Practice with\nyour AI buddy',
   onb3Body:
     'Your AI buddy Spark helps you improve English through speaking, writing and pronunciation.',
+
+  tasteTitle: 'Try it first',
+  tasteSubtitle: 'Three quick questions — collect XP before you sign up.',
+  tasteQuestion: 'What does this word mean?',
+  tasteProgress: 'Question {n}/{total}',
+  tasteCorrect: 'Correct! 🎉',
+  tasteWrong: 'Next time 💪',
+  tasteDoneTitle: 'Great start! 🔥',
+  tasteDoneBody: '{correct}/{total} correct. Sign up and {xp} XP lands in your account.',
+  tasteRegisterCta: 'Sign up and claim XP',
+  tasteXpBadge: '+{xp} XP waiting',
 
   welcomeBack: 'Welcome back! 👋',
   loginSubtitle: 'Log in if you already have an account.',
@@ -1029,6 +1071,23 @@ const en: Record<TranslationKey, string> = {
   catFill: 'Fill-in',
   catGrammar: 'Grammar',
 
+  ieltsTitle: 'IELTS prep',
+  ieltsSubtitle: 'Pick a module, practise, and see your band score.',
+  ieltsHomeCard: 'IELTS prep',
+  ieltsHomeHint: 'Listening · Reading — with band score',
+  ieltsListening: 'IELTS Listening',
+  ieltsReading: 'IELTS Reading',
+  ieltsWriting: 'IELTS Writing',
+  ieltsSpeaking: 'IELTS Speaking',
+  ieltsAutoBand: 'Auto-scored into a band',
+  ieltsSelfStudy: 'Practice with a model answer (no score)',
+  ieltsSetCount: '{n} practice sets',
+  ieltsPassage: 'Reading passage',
+  ieltsAudioPlay: 'Play recording',
+  ieltsAudioPause: 'Pause',
+  ieltsBandLabel: 'IELTS BAND',
+  ieltsBandHint: 'Approximate — practice sets are shorter than a real test.',
+
   selectTopic: 'Select a topic',
   noContent: 'No content yet 🦊',
   questionsHeading: 'Questions',
@@ -1094,6 +1153,7 @@ const en: Record<TranslationKey, string> = {
   homeSubtitle: 'Learn something new today and level up! ✨',
   keepGoing: 'Keep going!',
   resumeLearning: 'Resume learning',
+  lessonProgressCount: '{done}/{total} lessons',
   wordsDueCount: '{n} words due for review',
   noWordsDue: 'No words to review today',
   startReview: 'Start review',
