@@ -70,6 +70,29 @@ QPay payments (`payments.service.ts` TODO), Expo Push (`notifications.service.ts
 TODO), Mail SMTP stub (`mail.module.ts`), AI Buddy `mockBuddies.ts` roster.
 Left untouched; noted for later.
 
+## Deployment / hand-off (how the migration reaches prod)
+
+The app runs pending migrations **on boot** when `DB_MIGRATIONS_RUN=true`
+(`typeorm.config.ts` → `migrationsRun`; Dockerfile `CMD node dist/main.js`;
+runtime glob `dist/migrations/*.js`). So `BootstrapPlansAdmin`:
+
+- **Existing prod:** Plans already exist → the upsert is a no-op. Safe. Deleting
+  the seed script changes nothing operationally.
+- **Fresh env / to force it now:** ensure `DB_MIGRATIONS_RUN=true`, or run
+  `npm run migration:run` manually. Set `ADMIN_EMAIL` + `ADMIN_PASSWORD` first
+  if you also want the super-admin bootstrapped (otherwise only Plans are).
+- **Caveat:** the historical migration chain is incomplete (dev has leaned on
+  `DB_SYNCHRONIZE=true`), so `migration:run` is **not** guaranteed to rebuild an
+  empty schema from zero. This migration is additive/idempotent and does not
+  depend on that; it just can't promise a from-scratch bootstrap on its own.
+
+## Known limitation (not fixed here)
+
+Profile fields can't be **cleared** via the edit sheet: `province || undefined`
+JSON-drops, so `Object.assign` never nulls a field. A UB user who moves to a
+non-UB province keeps a stale `district` (which feeds local leaderboards).
+Acceptable for now; fix later with explicit null handling if needed.
+
 ## Safety
 
 - No delete/update is run against prod by this work.
