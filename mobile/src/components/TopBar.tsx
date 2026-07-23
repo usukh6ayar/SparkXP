@@ -4,20 +4,22 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../auth/AuthContext';
 import { AppText } from './Text';
 import { AppIcon } from './AppIcon';
+import { useStreak } from '../lib/useStreak';
 import { spacing, radius } from '../theme/theme';
 import { useColors } from '../settings/SettingsContext';
 
 /**
  * Shared screen header: optional back button + title on the left, streak and
- * Sparks badges on the right. Streak is a placeholder until the backend tracks
- * it; Sparks is the real balance.
+ * Sparks badges on the right. Both are real: streak comes from GET /gamification
+ * (via useStreak), Sparks is the user's live balance. Pass `streak` only to
+ * override with a screen-local value.
  */
 export function TopBar({
   title,
   subtitle,
   back = false,
   onBack,
-  streak = 0,
+  streak,
   showBadges = true,
   onAddSparks,
   onHistory,
@@ -28,6 +30,7 @@ export function TopBar({
   back?: boolean;
   /** Custom back handler (e.g. step back one level in-screen). Defaults to router.back(). */
   onBack?: () => void;
+  /** Override the real streak (defaults to GET /gamification via useStreak). */
   streak?: number;
   showBadges?: boolean;
   /** Shows a small "+" button next to the Sparks badge (e.g. open the Sparks store). */
@@ -38,6 +41,8 @@ export function TopBar({
   const router = useRouter();
   const { user } = useAuth();
   const c = useColors();
+  const realStreak = useStreak();
+  const shownStreak = streak ?? realStreak;
 
   return (
     <View style={styles.row}>
@@ -75,7 +80,7 @@ export function TopBar({
           <>
           <View style={[styles.badge, { backgroundColor: c.surfaceAlt }]}>
             <AppIcon name="streak" size={22} />
-            <AppText variant="label" color={c.text}>{streak}</AppText>
+            <AppText variant="label" color={c.text}>{shownStreak}</AppText>
           </View>
           <View style={[styles.badge, { backgroundColor: c.surfaceAlt }]}>
             <AppIcon name="sparks" size={21} />

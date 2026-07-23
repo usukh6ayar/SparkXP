@@ -50,6 +50,8 @@ export interface PublicUser {
   avatarUrl: string | null;
   level: string | null;
   englishName: string | null;
+  province: string | null;
+  district: string | null;
 }
 
 @Injectable()
@@ -261,6 +263,8 @@ export class AuthService {
       avatarUrl: user.avatarUrl,
       level: user.level,
       englishName: user.englishName,
+      province: user.province,
+      district: user.district,
     };
   }
 }

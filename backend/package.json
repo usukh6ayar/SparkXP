@@ -14,8 +14,6 @@
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
-    "seed": "ts-node -r tsconfig-paths/register src/scripts/seed.ts",
-    "seed:demo": "ts-node -r tsconfig-paths/register src/scripts/seed-demo.ts",
     "import-words": "ts-node -r tsconfig-paths/register src/scripts/import-words.ts",
     "backfill:media": "ts-node -r tsconfig-paths/register src/scripts/backfill-media-to-r2.ts",
     "migrate:images": "ts-node -r tsconfig-paths/register src/scripts/migrate-images-to-r2.ts",
