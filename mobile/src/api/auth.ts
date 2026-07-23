@@ -13,6 +13,8 @@ export interface AuthUser {
   avatarUrl: string | null;
   level: string | null;
   englishName: string | null;
+  province: string | null;
+  district: string | null;
 }
 
 export interface AuthResult {
