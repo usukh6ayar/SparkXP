@@ -317,7 +317,6 @@ export default function ChatScreen() {
       <SafeAreaView style={styles.safe} edges={['top']}>
         <TopBar
           title={t('buddySelectTitle')}
-          streak={5}
           onAddSparks={() => Alert.alert(t('buddyUnlockComingSoon'))}
         />
         <BuddySelector
@@ -337,7 +336,6 @@ export default function ChatScreen() {
       <TopBar
         title={selected?.name ?? t('aiBuddyShort')}
         subtitle={t('buddyOnline')}
-        streak={5}
         back
         onBack={() => setMode('select')}
       />
