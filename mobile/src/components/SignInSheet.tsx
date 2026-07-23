@@ -64,7 +64,9 @@ export function SignInSheet({ onClose }: { onClose: () => void }) {
   const { login } = useAuth();
   const router = useRouter();
   const ref = useRef<BottomSheetModal>(null);
-  const snapPoints = useMemo(() => ['45%', '70%', '92%'], []);
+  // Open tall enough that the whole form + social buttons + footer are visible
+  // without scrolling. 45% cut the Google/Apple/Facebook row off the bottom.
+  const snapPoints = useMemo(() => ['70%', '95%'], []);
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
