@@ -52,7 +52,13 @@
           "channel": "production"
         }
       ],
-      "expo-font"
+      "expo-font",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Face ID ашиглан хурдан бөгөөд аюулгүй нэвтрэх."
+        }
+      ]
     ],
     "owner": "usukh6ayar",
     "extra": {
