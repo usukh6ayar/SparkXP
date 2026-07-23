@@ -35,36 +35,80 @@ interface RequestOptions {
   token?: string | null;
 }
 
+// ── Request dedup + stale-while-revalidate cache (GET only) ──────────────────
+// Screens refetch on every focus (useFocusEffect). `inflight` collapses
+// concurrent identical GETs into one network call; `cache` keeps the last
+// successful GET so useSWR can paint instantly then revalidate. Mutations and
+// logout wipe the cache so gamification data (XP/streak) never goes stale.
+const inflight = new Map<string, Promise<unknown>>();
+const cache = new Map<string, { t: number; v: unknown }>();
+
+const keyOf = (method: string, path: string) => `${method} ${path}`;
+
+/** Last cached value for a GET path — used by useSWR for the instant paint. */
+export function getCached<T>(path: string): T | undefined {
+  return cache.get(keyOf('GET', path))?.v as T | undefined;
+}
+
+/** Wipe the GET cache. Call on logout (avoid leaking the previous user's data). */
+export function clearApiCache(): void {
+  cache.clear();
+}
+
 export async function apiRequest<T>(
   path: string,
   { method = 'GET', body, token }: RequestOptions = {},
 ): Promise<T> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
+  const isGet = method === 'GET';
+  const key = keyOf(method, path);
+
+  // Dedup: a concurrent identical GET reuses the in-flight promise.
+  if (isGet && inflight.has(key)) return inflight.get(key) as Promise<T>;
+
+  const run = (async (): Promise<T> => {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    const res = await fetch(`${BASE_URL}${path}`, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+
+    // 204 No Content (e.g. DELETE) has no body to parse.
+    const data =
+      res.status === 204 ? null : await res.json().catch(() => null);
+
+    if (!res.ok) {
+      // Backend error shape: { message: string | string[], code? }
+      const err = data as { message?: string | string[]; code?: string } | null;
+      const raw = err?.message;
+      const message = Array.isArray(raw) ? raw.join(', ') : raw ?? t('errorFallback');
+      throw new ApiError(res.status, message, err?.code);
+    }
+
+    return data as T;
+  })();
+
+  if (isGet) {
+    inflight.set(key, run);
+    // Side-effects on a detached chain so the caller still gets clean error
+    // propagation (and we don't create an unhandled rejection here).
+    void run.then(
+      (v) => cache.set(key, { t: Date.now(), v }),
+      () => {},
+    ).finally(() => inflight.delete(key));
+  } else {
+    // A successful write can change any read (XP, streak, lists) → drop the
+    // GET cache so the next reads are fresh.
+    void run.then(() => clearApiCache(), () => {});
   }
 
-  const res = await fetch(`${BASE_URL}${path}`, {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-  });
-
-  // 204 No Content (e.g. DELETE) has no body to parse.
-  const data =
-    res.status === 204 ? null : await res.json().catch(() => null);
-
-  if (!res.ok) {
-    // Backend error shape: { message: string | string[], code? }
-    const err = data as { message?: string | string[]; code?: string } | null;
-    const raw = err?.message;
-    const message = Array.isArray(raw) ? raw.join(', ') : raw ?? t('errorFallback');
-    throw new ApiError(res.status, message, err?.code);
-  }
-
-  return data as T;
+  return run;
 }
 
 /**
@@ -93,5 +137,7 @@ export async function apiUpload<T>(
     const message = Array.isArray(raw) ? raw.join(', ') : raw ?? t('errorFallback');
     throw new ApiError(res.status, message, err?.code);
   }
+  // Upload is a mutation (e.g. new avatar) → drop cached reads.
+  clearApiCache();
   return data as T;
 }

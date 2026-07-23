@@ -6,7 +6,7 @@ import {
   type ReactNode,
 } from 'react';
 import * as SecureStore from 'expo-secure-store';
-import { ApiError } from '../api/client';
+import { ApiError, clearApiCache } from '../api/client';
 import * as authApi from '../api/auth';
 import type { AuthResult, AuthUser } from '../api/auth';
 
@@ -86,6 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function clearSession() {
     await SecureStore.deleteItemAsync(TOKEN_KEY);
     await SecureStore.deleteItemAsync(USER_KEY);
+    clearApiCache(); // don't leak this user's cached reads into the next session
     setToken(null);
     setUser(null);
   }
