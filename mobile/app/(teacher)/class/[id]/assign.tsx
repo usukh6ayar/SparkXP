@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { View, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Pressable, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -130,7 +130,11 @@ export default function AssignScreen() {
         <View style={{ width: 26 }} />
       </View>
 
-      <View style={[styles.body, bounded]}>
+      <ScrollView
+        contentContainerStyle={[styles.body, bounded]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         {/* Type toggle */}
         <AppText variant="label" style={styles.label}>{t('assignType')}</AppText>
         <View style={styles.toggle}>
@@ -233,7 +237,7 @@ export default function AssignScreen() {
             />
           </>
         )}
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -248,7 +252,7 @@ const makeStyles = (colors: AppColors) => StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   topTitle: { flex: 1, textAlign: 'center' },
-  body: { paddingHorizontal: spacing.lg, paddingTop: spacing.md },
+  body: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.xxl },
   label: { marginBottom: spacing.xs },
   toggle: {
     flexDirection: 'row',

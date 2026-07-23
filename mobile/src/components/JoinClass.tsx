@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
-import { View, Pressable, StyleSheet } from 'react-native';
+import { View, Pressable, StyleSheet, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -124,7 +124,11 @@ export function JoinClass({ initialCode }: { initialCode?: string }) {
 
   // ── Manual code entry ───────────────────────────────────────────────────
   return (
-    <View style={[styles.body, bounded]}>
+    <ScrollView
+      contentContainerStyle={[styles.body, bounded]}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+    >
       <AppText variant="body" color={colors.textSecondary} style={styles.subtitle}>
         {t('joinClassSubtitle')}
       </AppText>
@@ -149,12 +153,12 @@ export function JoinClass({ initialCode }: { initialCode?: string }) {
         <View style={styles.line} />
       </View>
       <Button label={t('scanQr')} variant="secondary" icon="qr-code-outline" onPress={openScanner} />
-    </View>
+    </ScrollView>
   );
 }
 
 const makeStyles = (colors: AppColors) => StyleSheet.create({
-  body: { flex: 1, paddingHorizontal: spacing.lg, paddingTop: spacing.md },
+  body: { flexGrow: 1, paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.xxl },
   subtitle: { marginBottom: spacing.lg },
   error: { marginBottom: spacing.sm },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xl },

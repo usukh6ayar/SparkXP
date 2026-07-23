@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -63,7 +63,11 @@ export default function ChangePasswordScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <TopBar title={t('changePassword')} back showBadges={false} />
-      <View style={[styles.container, bounded]}>
+      <ScrollView
+        contentContainerStyle={[styles.container, bounded]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         {step === 'done' ? (
           <View style={styles.doneWrap}>
             <Ionicons name="checkmark-circle" size={72} color={colors.success} />
@@ -121,14 +125,14 @@ export default function ChangePasswordScreen() {
             )}
           </>
         )}
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const makeStyles = (colors: AppColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
-  container: { flex: 1, paddingHorizontal: spacing.lg, paddingTop: spacing.lg },
+  container: { flexGrow: 1, paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.xxl },
   iconWrap: {
     width: 56, height: 56, borderRadius: radius.md, alignSelf: 'center',
     backgroundColor: tints.purple.bg, alignItems: 'center', justifyContent: 'center',
