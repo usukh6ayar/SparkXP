@@ -509,6 +509,21 @@ export default function HomeScreen() {
             <Ionicons name="chevron-forward" size={20} color={c.borderStrong} />
           </Pressable>
 
+          {/* Idioms (Хэлц үг) — self-contained vocabulary feature, its own hub */}
+          <Pressable
+            style={({ pressed }) => [styles.joinCard, pressed && styles.pressed]}
+            onPress={() => router.push("/idioms")}
+          >
+            <View style={[styles.joinIcon, { backgroundColor: tints.purple.bg, borderColor: tints.purple.fg }]}>
+              <Ionicons name="chatbubbles" size={24} color={tints.purple.fg} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <AppText variant="h3">{t("idiomsTitle")}</AppText>
+              <AppText variant="caption">{t("idiomsSubtitle")}</AppText>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={c.borderStrong} />
+          </Pressable>
+
           {/* Exercises — each tile opens its skill screen of exercises */}
           <View style={styles.sectionRow}>
             <AppText variant="h2">{t("exercisesTitle")}</AppText>
