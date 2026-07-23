@@ -9,6 +9,7 @@ import * as classesApi from '../../../src/api/classes';
 import * as assignmentsApi from '../../../src/api/assignments';
 import { getLessons } from '../../../src/api/lessons';
 import { getQuizzes } from '../../../src/api/quizzes';
+import { useSWR } from '../../../src/api/useSWR';
 import type { ClassDetail, ClassStudent } from '../../../src/api/classes';
 import type { Assignment } from '../../../src/api/assignments';
 import { getClassOverview, type ClassOverview } from '../../../src/api/teacher';
@@ -52,54 +53,55 @@ export default function ClassDetailScreen() {
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
-  const [detail, setDetail] = useState<ClassDetail | null>(null);
+  const enabled = !!token && !!id;
+
+  // Each per-class paint resource is stale-while-revalidate: on return the
+  // cached value paints instantly (no skeleton/empty-state flash) then
+  // revalidates in the background. `client.ts` dedups + clears on mutation.
+  const { data: detail, loading, refetch: refetchDetail } = useSWR<ClassDetail>(
+    `/classes/${id}`,
+    () => classesApi.getClass(id!, token!),
+    { enabled },
+  );
+  const { data: requests = [], refetch: refetchRequests } = useSWR<ClassStudent[]>(
+    `/classes/${id}/requests`,
+    () => classesApi.getJoinRequests(id!, token!),
+    { enabled },
+  );
+  const { data: assignments = [], refetch: refetchAssignments } = useSWR<Assignment[]>(
+    `/assignments?classId=${id}`,
+    () => assignmentsApi.getClassAssignments(id!, token!),
+    { enabled },
+  );
+  const { data: lessons } = useSWR('/lessons?isPublished=true', () => getLessons(token!), { enabled });
+  const { data: quizzes } = useSWR('/quizzes?isPublished=true', () => getQuizzes(token!), { enabled });
+
+  // Map assignment targetId → human title, derived from the SWR'd lists.
+  const titles = useMemo(() => {
+    const map: Record<string, string> = {};
+    lessons?.items.forEach((l) => (map[l.id] = l.title));
+    quizzes?.items.forEach((q) => (map[q.id] = q.title));
+    return map;
+  }, [lessons, quizzes]);
+
+  // Analytics overview is fire-and-forget behind the `overview &&` guard, so its
+  // failure never blanks the roster/assignments.
   const [overview, setOverview] = useState<ClassOverview | null>(null);
-  const [requests, setRequests] = useState<ClassStudent[]>([]);
-  const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [titles, setTitles] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(true);
+  useFocusEffect(
+    useCallback(() => {
+      if (token && id) getClassOverview(id, token).then(setOverview).catch(() => {});
+    }, [token, id]),
+  );
+
   const [refreshing, setRefreshing] = useState(false);
   const [actingId, setActingId] = useState<string | null>(null);
   const [selectedStudent, setSelectedStudent] = useState<ClassStudent | null>(null);
 
-  const load = useCallback(async () => {
-    if (!token || !id) return;
-    try {
-      const [d, reqs, a, lessons, quizzes] = await Promise.all([
-        classesApi.getClass(id, token),
-        classesApi.getJoinRequests(id, token),
-        assignmentsApi.getClassAssignments(id, token),
-        getLessons(token),
-        getQuizzes(token),
-      ]);
-      setDetail(d);
-      setRequests(reqs);
-      setAssignments(a);
-      const map: Record<string, string> = {};
-      lessons.items.forEach((l) => (map[l.id] = l.title));
-      quizzes.items.forEach((q) => (map[q.id] = q.title));
-      setTitles(map);
-      // Analytics overview is a nice-to-have — fetch separately so its failure
-      // never blanks the roster/assignments below.
-      getClassOverview(id, token).then(setOverview).catch(() => {});
-    } catch {
-      // detail stays null → the error screen below offers a retry
-    } finally {
-      setLoading(false);
-    }
-  }, [token, id]);
-
-  useFocusEffect(
-    useCallback(() => {
-      load();
-    }, [load]),
-  );
-
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await load();
+    await Promise.all([refetchDetail(), refetchRequests(), refetchAssignments()]);
     setRefreshing(false);
-  }, [load]);
+  }, [refetchDetail, refetchRequests, refetchAssignments]);
 
   async function onApprove(studentId: string) {
     if (!token || !id) return;
@@ -107,7 +109,8 @@ export default function ClassDetailScreen() {
     try {
       await classesApi.approveRequest(id, studentId, token);
       haptics.success();
-      await load();
+      // Roster gains a student, requests loses one.
+      await Promise.all([refetchDetail(), refetchRequests()]);
     } catch {
       alertError(t('errorGeneric'));
     } finally {
@@ -126,7 +129,7 @@ export default function ClassDetailScreen() {
           setActingId(studentId);
           try {
             await classesApi.rejectRequest(id, studentId, token);
-            await load();
+            await refetchRequests();
           } catch {
             alertError(t('errorGeneric'));
           } finally {
@@ -147,7 +150,7 @@ export default function ClassDetailScreen() {
           if (!token) return;
           try {
             await assignmentsApi.deleteAssignment(assignmentId, token);
-            load();
+            refetchAssignments();
           } catch {
             alertError(t('errorGeneric'));
           }
@@ -173,7 +176,7 @@ export default function ClassDetailScreen() {
           icon="alert-circle-outline"
           title={t('error')}
           hint={t('errorGeneric')}
-          action={{ label: t('retry'), onPress: () => { setLoading(true); load(); } }}
+          action={{ label: t('retry'), onPress: () => { refetchDetail(); refetchRequests(); refetchAssignments(); } }}
         />
       </SafeAreaView>
     );

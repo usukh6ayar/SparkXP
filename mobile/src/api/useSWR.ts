@@ -35,6 +35,9 @@ export function useSWR<T>(
     if (getCached<T>(path) === undefined) setLoading(true);
     try {
       setData(await fetcherRef.current());
+    } catch {
+      // Keep the last-good `data` on failure (no unhandled rejection). Callers
+      // detect the error via `data === undefined` and render their own retry.
     } finally {
       setLoading(false);
     }
