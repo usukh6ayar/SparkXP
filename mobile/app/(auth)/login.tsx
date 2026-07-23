@@ -12,6 +12,7 @@ import { useColors, useSettings } from '../../src/settings/SettingsContext';
 import { AppText } from '../../src/components/Text';
 import { SignInSheet } from '../../src/components/SignInSheet';
 import { AuthFooter } from '../../src/components/AuthFooter';
+import { loadCredentials, type SavedCredentials } from '../../src/lib/savedCredentials';
 
 const wordmark = require('../../assets/logoSparkXP.webp');
 const hero = require('../../assets/logo.webp');
@@ -33,6 +34,13 @@ export default function WelcomeScreen() {
   const { signin } = useLocalSearchParams<{ signin?: string }>();
   const [notice, setNotice] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  // Load saved "remember me" creds here (before the sheet mounts) so the sheet
+  // can seed its inputs synchronously — avoids an uncontrolled-input prefill race.
+  const [creds, setCreds] = useState<SavedCredentials | null>(null);
+
+  useEffect(() => {
+    loadCredentials().then(setCreds);
+  }, []);
 
   // Auto-open the sheet when arriving with ?signin=1 (from register/forgot).
   useEffect(() => {
@@ -90,7 +98,7 @@ export default function WelcomeScreen() {
         <Ionicons name={isLight ? 'moon' : 'sunny'} size={20} color={colors.text} />
       </Pressable>
 
-      {sheetOpen ? <SignInSheet onClose={() => setSheetOpen(false)} /> : null}
+      {sheetOpen ? <SignInSheet initial={creds} onClose={() => setSheetOpen(false)} /> : null}
     </SafeAreaView>
   );
 }

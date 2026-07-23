@@ -22,6 +22,8 @@ import { useAuth } from '../auth/AuthContext';
 import { ApiError } from '../api/client';
 import { haptics } from '../lib/haptics';
 import { shake, useReduceMotion } from '../lib/motion';
+import { saveCredentials, clearCredentials, type SavedCredentials } from '../lib/savedCredentials';
+import { isBiometricAvailable, authenticateBiometric } from '../lib/biometric';
 import { t } from '../i18n';
 import { spacing, radius, type AppColors } from '../theme/theme';
 import { useColors, useSettings } from '../settings/SettingsContext';
@@ -57,7 +59,14 @@ function GlassBackground({ style }: BottomSheetBackgroundProps) {
  * The fox + logo stay fixed behind; the backdrop blurs & dims (fading with the
  * sheet position). Opened in place from the welcome screen — no screen jump.
  */
-export function SignInSheet({ onClose }: { onClose: () => void }) {
+export function SignInSheet({
+  onClose,
+  initial,
+}: {
+  onClose: () => void;
+  /** Saved "remember me" credentials, loaded by the parent before mount. */
+  initial?: SavedCredentials | null;
+}) {
   const colors = useColors();
   const { theme } = useSettings();
   const styles = useMemo(() => makeStyles(colors, theme === 'light'), [colors, theme]);
@@ -68,11 +77,16 @@ export function SignInSheet({ onClose }: { onClose: () => void }) {
   // without scrolling. 45% cut the Google/Apple/Facebook row off the bottom.
   const snapPoints = useMemo(() => ['70%', '95%'], []);
 
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  // Inputs are UNCONTROLLED (defaultValue + onChangeText, no `value`): a
+  // controlled `value` on @gorhom's BottomSheetTextInput duplicates characters
+  // on Android. State still tracks the text for submit; seeded from `initial`.
+  const [username, setUsername] = useState(initial?.username ?? '');
+  const [password, setPassword] = useState(initial?.password ?? '');
   const [remember, setRemember] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Biometric unlock is offered only when creds are saved AND a face/finger is enrolled.
+  const [bioAvailable, setBioAvailable] = useState(false);
   const reduce = useReduceMotion();
 
   // Shake + error haptic when sign-in fails.
@@ -98,6 +112,11 @@ export function SignInSheet({ onClose }: { onClose: () => void }) {
     ref.current?.present();
   }, []);
 
+  // Offer biometric unlock only if we have saved creds to unlock with.
+  useEffect(() => {
+    if (initial) isBiometricAvailable().then(setBioAvailable);
+  }, [initial]);
+
   const close = useCallback(() => ref.current?.dismiss(), []);
 
   // Backdrop: real blur + dim that fades in as the sheet rises, tap to close.
@@ -111,6 +130,32 @@ export function SignInSheet({ onClose }: { onClose: () => void }) {
     setBusy(true);
     try {
       await login(username.trim(), password); // auth gate redirects on success
+      // Persist / forget for next time (fire-and-forget: the gate is redirecting).
+      const persist = remember
+        ? saveCredentials(username.trim(), password)
+        : clearCredentials();
+      persist.catch(() => {});
+    } catch (e) {
+      fail(e instanceof ApiError ? e.message : t('errorGeneric'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Face ID / fingerprint → unlock the saved creds and sign in.
+  async function onBiometric() {
+    if (!initial) return;
+    setError(null);
+    let ok = false;
+    try {
+      ok = await authenticateBiometric();
+    } catch {
+      return; // hardware error → silently fall back to typing
+    }
+    if (!ok) return; // user cancelled or scan failed
+    setBusy(true);
+    try {
+      await login(initial.username, initial.password);
     } catch (e) {
       fail(e instanceof ApiError ? e.message : t('errorGeneric'));
     } finally {
@@ -159,7 +204,7 @@ export function SignInSheet({ onClose }: { onClose: () => void }) {
             placeholder={t('usernameOrEmail')}
             autoCapitalize="none"
             autoCorrect={false}
-            value={username}
+            defaultValue={initial?.username}
             onChangeText={setUsername}
           />
           <TextField
@@ -167,7 +212,7 @@ export function SignInSheet({ onClose }: { onClose: () => void }) {
             leftIcon="lock-closed-outline"
             placeholder={t('password')}
             secureToggle
-            value={password}
+            defaultValue={initial?.password}
             onChangeText={setPassword}
           />
         </Animated.View>
@@ -203,6 +248,14 @@ export function SignInSheet({ onClose }: { onClose: () => void }) {
             )}
           </LinearGradient>
         </Pressable>
+
+        {/* Biometric unlock — only when creds are saved and a face/finger is enrolled. */}
+        {bioAvailable ? (
+          <Pressable onPress={onBiometric} disabled={busy} style={({ pressed }) => [styles.bioBtn, pressed && styles.pressed]}>
+            <Ionicons name="finger-print" size={22} color={colors.primary} />
+            <AppText variant="bodyStrong" color={colors.primary}>{t('biometricLogin')}</AppText>
+          </Pressable>
+        ) : null}
 
         <View style={styles.divider}>
           <View style={styles.line} />
@@ -291,6 +344,17 @@ const makeStyles = (colors: AppColors, isLight: boolean) => StyleSheet.create({
   ctaContent: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   ctaLabel: { fontWeight: '700' },
   pressed: { opacity: 0.9, transform: [{ scale: 0.99 }] },
+  bioBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    height: 52,
+    borderRadius: radius.xl,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    marginTop: spacing.md,
+  },
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
