@@ -5,11 +5,12 @@
     "scheme": "englishxp",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/logoSparkXP.webp",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.usukh6ayar.englishxp",
+      "icon": "./assets/icon-ios.png",
       "infoPlist": {
         "NSCameraUsageDescription": "Анги нэгдэх QR код уншихад камер ашиглана.",
         "NSMicrophoneUsageDescription": "AI Buddy-тай дуут яриа хийхэд микрофон ашиглана.",
@@ -22,7 +23,7 @@
       "package": "com.usukh6ayar.englishxp",
       "adaptiveIcon": {
         "backgroundColor": "#191040",
-        "foregroundImage": "./assets/logoSparkXP.webp"
+        "foregroundImage": "./assets/icon.png"
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [
@@ -32,7 +33,7 @@
       ]
     },
     "web": {
-      "favicon": "./assets/logoSparkXP.webp"
+      "favicon": "./assets/icon.png"
     },
     "plugins": [
       "expo-router",
