@@ -114,6 +114,11 @@
       тул ScrollView хангалттай. Алсын зураг бүр **expo-image (`AppImage`)** дээр:
       Home continue thumb + quiz асуултын зураг шилжүүлсэн (disk cache + Cloudinary
       хэмжээ тааруулалт).
+- [x] **Багшийн Settings entry нэмсэн (2026-07-23, PR #155).** Багшийн `profile`
+      header-т тохиргооны араа → shared `/settings` (хэл MN/EN · харагдац light/dark ·
+      аккаунт → имэйл/нууц үг). ⚠️ Багшийн хэсэг = **Boju**-гийн эзэмшил тул shared-UI
+      → давхардуулахгүй; `/settings` `/account` `/change-password` дэлгэцүүдийг дахин
+      ашигласан (шинэ дэлгэц бичээгүй).
 
 ### Boju (Mobile — games & social)
 - ⚠️ **Choi `app/quiz/[id].tsx`-д IELTS-ийн жижиг нэмэлт хийсэн (2026-07-22)** —
