@@ -12,8 +12,24 @@
  * Non-Cloudinary URLs (or missing ones) pass through unchanged, so it is safe
  * to wrap every remote image.
  */
+import Constants from 'expo-constants';
+
+// On a physical device, backend URLs that point at `localhost` (e.g. avatars /
+// uploaded images stored locally in dev) are unreachable — `localhost` is the
+// phone itself. Rewrite them to the same LAN host Expo is served from (the dev
+// PC), matching how the API client resolves its base URL.
+const devHost = Constants.expoConfig?.hostUri?.split(':')[0];
+function rewriteDevHost(url: string): string {
+  if (!devHost) return url;
+  return url.replace(
+    /^(https?:\/\/)(localhost|127\.0\.0\.1)(?=[:/])/,
+    `$1${devHost}`,
+  );
+}
+
 export function cldUrl(url: string | null | undefined, width?: number): string | undefined {
   if (!url) return undefined;
+  url = rewriteDevHost(url);
   const marker = '/upload/';
   const i = url.indexOf(marker);
   // Not a Cloudinary /upload/ URL, or already transformed → leave as-is.

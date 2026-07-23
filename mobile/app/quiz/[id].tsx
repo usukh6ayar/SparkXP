@@ -304,9 +304,18 @@ export default function QuizScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={8}>
-          <Text style={styles.backBtn}>← {t('back')}</Text>
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={8}
+          style={styles.backBtn}
+          accessibilityRole="button"
+          accessibilityLabel={t('back')}
+        >
+          <Ionicons name="chevron-back" size={22} color={c.text} />
         </Pressable>
+        <AppText variant="h3" numberOfLines={1} style={styles.headerTitle}>
+          {quiz!.title}
+        </AppText>
         <Text style={styles.progress}>
           {currentIndex + 1} / {quiz!.questions.length}
         </Text>
@@ -320,7 +329,6 @@ export default function QuizScreen() {
       />
 
       <ScrollView contentContainerStyle={[styles.container, bounded]}>
-        <AppText variant="caption" style={styles.quizTitle}>{quiz!.title}</AppText>
 
         {/* IELTS Listening — the section recording, replayable at any time. */}
         {quiz!.audioUrl ? (
@@ -468,10 +476,13 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
     paddingTop: spacing.md,
     paddingBottom: spacing.sm,
   },
-  backBtn: { color: c.primary, fontWeight: '600', fontSize: fontSize.md },
+  backBtn: {
+    width: 36, height: 36, borderRadius: radius.md,
+    backgroundColor: c.surfaceAlt, alignItems: 'center', justifyContent: 'center',
+  },
+  headerTitle: { flex: 1, textAlign: 'center', marginHorizontal: spacing.sm },
   progress: { color: c.textMuted, fontSize: fontSize.sm },
   container: { padding: spacing.lg, paddingTop: spacing.md },
-  quizTitle: { fontSize: fontSize.sm, color: c.textMuted, marginBottom: spacing.sm },
 
   // IELTS: Listening player bar, Reading passage panel, result band.
   audioBar: {

@@ -11,6 +11,7 @@ import type { AssignmentType } from '../api/assignments';
 export function AssignmentRow({
   type,
   title,
+  note,
   dueAt,
   onDelete,
   onPress,
@@ -18,6 +19,8 @@ export function AssignmentRow({
 }: {
   type: AssignmentType;
   title: string;
+  /** Optional teacher note shown under the title. */
+  note?: string | null;
   dueAt: string | null;
   onDelete?: () => void;
   onPress?: () => void;
@@ -44,6 +47,11 @@ export function AssignmentRow({
         <AppText variant="bodyStrong" numberOfLines={1}>
           {title}
         </AppText>
+        {note ? (
+          <AppText variant="caption" color={c.textSecondary} numberOfLines={2}>
+            {note}
+          </AppText>
+        ) : null}
         <View style={styles.meta}>
           <AppText variant="caption" color={tint.fg}>{isLesson ? t('assignLesson') : t('assignQuiz')}</AppText>
           <AppText variant="caption" color={c.textMuted}>·</AppText>

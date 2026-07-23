@@ -2,7 +2,6 @@ import { memo, useEffect, useState, useCallback, useMemo } from 'react';
 import { View, StyleSheet, FlatList, Pressable, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppImage } from '../src/components/AppImage';
-import { Ionicons } from '@expo/vector-icons';
 import { useAudioPlayer } from 'expo-audio';
 import * as Speech from 'expo-speech';
 import { useAuth } from '../src/auth/AuthContext';
@@ -12,7 +11,9 @@ import { AppText } from '../src/components/Text';
 import { SkeletonRows } from '../src/components/SkeletonRows';
 import { EmptyState } from '../src/components/EmptyState';
 import { IconButton } from '../src/components/IconButton';
+import { Button } from '../src/components/Button';
 import { Card } from '../src/components/Card';
+import { SavedFlashcards } from '../src/components/SavedFlashcards';
 import { t } from '../src/i18n';
 import { useColors } from '../src/settings/SettingsContext';
 import { haptics } from '../src/lib/haptics';
@@ -31,6 +32,7 @@ export default function SavedScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(false);
+  const [practicing, setPracticing] = useState(false);
   const player = useAudioPlayer();
 
   const load = useCallback(async () => {
@@ -109,6 +111,22 @@ export default function SavedScreen() {
         maxToRenderPerBatch={10}
         windowSize={9}
         removeClippedSubviews
+        ListHeaderComponent={
+          words.length > 0 ? (
+            <View style={styles.practiceBar}>
+              <AppText variant="caption" color={c.textSecondary}>
+                {words.length} {t('unitWords')}
+              </AppText>
+              <Button
+                label={t('startReview')}
+                icon="school-outline"
+                size="md"
+                fullWidth={false}
+                onPress={() => { haptics.tap(); setPracticing(true); }}
+              />
+            </View>
+          ) : null
+        }
         ListEmptyComponent={
           <View style={styles.empty}>
             <AppText style={styles.emptyEmoji}>⭐</AppText>
@@ -119,6 +137,13 @@ export default function SavedScreen() {
           </View>
         }
         renderItem={renderItem}
+      />
+
+      <SavedFlashcards
+        visible={practicing}
+        words={words}
+        onClose={() => setPracticing(false)}
+        onPlay={play}
       />
     </SafeAreaView>
   );
@@ -141,7 +166,11 @@ const SavedRow = memo(function SavedRow({
         {item.imageUrl ? (
           <AppImage source={{ uri: item.imageUrl }} width={120} style={styles.thumbImg} recyclingKey={item.id} />
         ) : (
-          <Ionicons name="image-outline" size={20} color={c.textMuted} />
+          // Words saved from the tap-to-translate dictionary have no picture —
+          // show a clean letter tile instead of a broken-image icon.
+          <AppText variant="h3" color={c.primary}>
+            {(item.english?.trim().charAt(0) || '?').toUpperCase()}
+          </AppText>
         )}
       </View>
       <View style={styles.info}>
@@ -157,12 +186,16 @@ const SavedRow = memo(function SavedRow({
 const makeStyles = (c: AppColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: c.background },
   list: { padding: spacing.lg, gap: spacing.sm },
+  practiceBar: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginBottom: spacing.md,
+  },
   skeleton: { margin: spacing.lg },
   emptyWrap: { flexGrow: 1 },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   thumb: {
     width: 48, height: 48, borderRadius: radius.md,
-    backgroundColor: c.surfaceAlt, alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+    backgroundColor: c.primarySoft, alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
   },
   thumbImg: { width: '100%', height: '100%' },
   info: { flex: 1 },

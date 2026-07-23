@@ -482,7 +482,6 @@ const makeStyles = (p: PremiumPalette, isDark: boolean) => {
   joinEmpty: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
     backgroundColor: alpha(colors.primary, 0.14), borderRadius: radius.lg, padding: spacing.md,
-    ...cardEdge,
   },
   classRow: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
@@ -532,7 +531,12 @@ const makeStyles = (p: PremiumPalette, isDark: boolean) => {
   premiumBtn: { alignSelf: 'flex-start', backgroundColor: colors.white, borderRadius: radius.md, paddingVertical: 10, paddingHorizontal: spacing.lg },
   treasure: { fontSize: 52 },
 
-  logout: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: spacing.xxl },
+  logout: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    marginTop: spacing.xxl, paddingVertical: spacing.md,
+    borderRadius: radius.lg, borderWidth: 1, borderColor: colors.danger,
+    backgroundColor: alpha(colors.danger, 0.08),
+  },
 
   pressed: { opacity: 0.92, transform: [{ scale: 0.99 }] },
   });

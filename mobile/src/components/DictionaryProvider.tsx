@@ -96,7 +96,6 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
   const [audioBusy, setAudioBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveBusy, setSaveBusy] = useState(false);
-  const [size, setSize] = useState({ w: 0, h: 0 });
 
   // In-place search overlay state.
   const [searchOpen, setSearchOpen] = useState(false);
@@ -116,7 +115,6 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
       setResult(null);
       setError(null);
       setSaved(false);
-      setSize({ w: 0, h: 0 });
       setLoading(true);
       haptics.select(); // tactile tick as the meaning popover reveals
       try {
@@ -143,7 +141,6 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
       setResult(null);
       setError(null);
       setSaved(false);
-      setSize({ w: 0, h: 0 });
       setLoading(true);
       haptics.select(); // tactile tick as the translation popover reveals
       try {
@@ -251,20 +248,31 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
     }
   }, [word, token, saved, saveBusy]);
 
-  // Position the popover above the tapped word, clamped to the screen.
+  // Position the popover next to the tapped word, clamped to the screen.
+  // Both dimensions are anchored by a FIXED edge so that when the content grows
+  // (loading spinner → full result) the box expands *away* from the word instead
+  // of re-centering — which used to make the popover visibly jump/shake.
   const screen = Dimensions.get('window');
   const GAP = 10;
-  const left = clamp(anchor.x - size.w / 2, spacing.sm, screen.width - size.w - spacing.sm);
-  const above = anchor.y - size.h - GAP;
-  const top = above < 60 ? anchor.y + 22 : above; // flip below if no room above
+  // Fixed width → no horizontal shift when the text length changes.
+  const POP_W = isPhrase ? Math.min(320, screen.width - spacing.lg * 2) : 260;
+  const left = clamp(anchor.x - POP_W / 2, spacing.sm, screen.width - POP_W - spacing.sm);
+  // Enough room above? pin the popover's BOTTOM just above the word (grows up);
+  // otherwise pin its TOP just below the word (grows down). Either way the
+  // anchored edge stays put as the height changes.
+  const placeAbove = anchor.y > 150;
+  const vpos = placeAbove
+    ? { bottom: screen.height - anchor.y + GAP }
+    : { top: anchor.y + 22 };
 
-  // Reveal: fade + slide the popover up once it has been measured (size known),
-  // so it "presents" instead of snapping in. Respects Reduce Motion.
+  // Reveal: fade + slide the popover up when it opens, so it "presents" instead
+  // of snapping in. Respects Reduce Motion. Position no longer depends on a
+  // measured size, so this only runs once per open (no re-measure flicker).
   const reveal = useSharedValue(0);
   const reduce = useReduceMotion();
   useEffect(() => {
-    reveal.value = word && size.w ? (reduce ? 1 : withTiming(1, { duration: DURATION.fast })) : 0;
-  }, [word, size.w, reduce]);
+    reveal.value = word ? (reduce ? 1 : withTiming(1, { duration: DURATION.fast })) : 0;
+  }, [word, reduce]);
   const popoverStyle = useAnimatedStyle(() => ({
     opacity: reveal.value,
     transform: [{ translateY: (1 - reveal.value) * 8 }],
@@ -343,10 +351,7 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
       <Modal visible={word !== null} transparent animationType="fade" onRequestClose={close}>
         <Pressable style={StyleSheet.absoluteFill} onPress={close} />
         <Animated.View
-          onLayout={(e) =>
-            setSize({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })
-          }
-          style={[styles.popover, { left, top }, popoverStyle]}
+          style={[styles.popover, { left, width: POP_W, ...vpos }, popoverStyle]}
         >
           {loading ? (
             <ActivityIndicator color={colors.primary} />

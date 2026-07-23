@@ -27,6 +27,9 @@ export default function PlanScreen() {
   const [usage, setUsage] = useState<{ voice: BuddyUsageBlock; stt: BuddyUsageBlock } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  // Which plan the user has tapped (premium is pre-selected as the recommended
+  // option). Payment is still a stub, so this only drives the visual selection.
+  const [selectedPlan, setSelectedPlan] = useState<'standard' | 'premium'>('premium');
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -85,11 +88,13 @@ export default function PlanScreen() {
           <PlanCard
             p={p} name={t('planStandardName')} price={t('planStandardPrice')}
             features={['planStdVoice', 'planStdDict', 'planStdMemory']} t={t}
+            selected={selectedPlan === 'standard'} onPress={() => setSelectedPlan('standard')}
           />
 
           <PlanCard
             p={p} name={t('planPremiumName')} price={t('planPremiumPrice')} recommended={t('planRecommended')}
             features={['planPremVoice', 'planPremDict', 'planPremMemory', 'planPremBuddies', 'planPremSparks']} t={t}
+            selected={selectedPlan === 'premium'} onPress={() => setSelectedPlan('premium')}
           />
 
           <Pressable
@@ -141,17 +146,32 @@ function UsageRow({
   );
 }
 
-/** A static plan card: name, price, feature bullets, optional "recommended" tag. */
+/** A selectable plan card: name, price, feature bullets, optional "recommended"
+ *  tag. Tapping selects it (radio dot + primary border show the choice). */
 function PlanCard({
-  p, name, price, features, recommended, t,
+  p, name, price, features, recommended, selected, onPress, t,
 }: {
   p: PremiumPalette; name: string; price: string; features: TranslationKey[];
-  recommended?: string; t: (k: TranslationKey) => string;
+  recommended?: string; selected?: boolean; onPress?: () => void; t: (k: TranslationKey) => string;
 }) {
   return (
-    <View style={[styles.planCard, { backgroundColor: p.card, borderColor: recommended ? p.primary : p.cardBorder }]}>
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.planCard,
+        { backgroundColor: p.card, borderColor: selected ? p.primary : p.cardBorder, borderWidth: selected ? 2 : 1 },
+        pressed && styles.pressed,
+      ]}
+    >
       <View style={styles.planHead}>
-        <AppText variant="h3" color={p.text}>{name}</AppText>
+        <View style={styles.planNameRow}>
+          <Ionicons
+            name={selected ? 'radio-button-on' : 'radio-button-off'}
+            size={20}
+            color={selected ? p.primary : p.textMuted}
+          />
+          <AppText variant="h3" color={p.text}>{name}</AppText>
+        </View>
         {recommended ? (
           <View style={[styles.tag, { backgroundColor: p.primary }]}>
             <AppText variant="label" color={colors.white}>{recommended}</AppText>
@@ -165,7 +185,7 @@ function PlanCard({
           <AppText variant="body" color={p.textSecondary} style={{ flex: 1 }}>{t(f)}</AppText>
         </View>
       ))}
-    </View>
+    </Pressable>
   );
 }
 
@@ -195,6 +215,7 @@ const styles = StyleSheet.create({
 
   planCard: { borderRadius: radius.lg, borderWidth: 1, padding: spacing.lg, marginBottom: spacing.md, gap: spacing.xs },
   planHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  planNameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   tag: { paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radius.full },
   price: { marginBottom: spacing.sm },
   feature: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: 4 },

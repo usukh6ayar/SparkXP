@@ -394,9 +394,8 @@ const makeStyles = (colors: AppColors) =>
       paddingVertical: spacing.lg,
       paddingHorizontal: spacing.xl,
       alignItems: "center",
-      ...(elevation.sm as object),
     },
-    optionSelected: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+    optionSelected: { borderColor: colors.primary, borderWidth: 2, backgroundColor: colors.primarySoft },
     rewards: { flexDirection: "row", gap: spacing.md, marginTop: spacing.lg },
     rewardPill: {
       flexDirection: "row",

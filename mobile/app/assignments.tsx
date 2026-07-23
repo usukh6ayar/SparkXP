@@ -107,6 +107,7 @@ export default function AssignmentsScreen() {
                 <AssignmentRow
                   type={a.type}
                   title={titles[a.targetId] ?? '—'}
+                  note={a.note}
                   dueAt={a.dueAt}
                   overdue={a.dueAt ? new Date(a.dueAt).getTime() < Date.now() : false}
                   onPress={() => open(a)}
