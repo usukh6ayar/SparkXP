@@ -32,14 +32,13 @@ export function EditProfileModal({ visible, onClose }: { visible: boolean; onClo
 
   // Pre-fill from the current profile each time the sheet opens (only on the
   // open transition, so a background user refresh doesn't wipe unsaved edits).
-  // Province/district aren't returned by the API, so they start blank.
   useEffect(() => {
     if (!visible) return;
     haptics.tap();
     setFullName(user?.fullName ?? '');
     setEnglishName(user?.englishName ?? '');
-    setProvince('');
-    setDistrict('');
+    setProvince(user?.province ?? '');
+    setDistrict(user?.district ?? '');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 

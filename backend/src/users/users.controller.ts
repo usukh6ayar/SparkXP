@@ -18,10 +18,9 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { join, extname } from 'path';
+import { memoryStorage } from 'multer';
+import { extname } from 'path';
 import { randomUUID } from 'crypto';
-import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -29,21 +28,19 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { UserRole } from '../common/enums';
 import { User } from '../entities/user.entity';
 import { UsersService } from './users.service';
+import { ImageStorageService } from '../ai-gateway/image-storage.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 
 const AVATAR_EXT = ['.jpg', '.jpeg', '.png', '.webp'];
 const AVATAR_MAX = 5 * 1024 * 1024; // 5 MB
 
-const avatarStorage = diskStorage({
-  destination: join(process.cwd(), 'uploads'),
-  filename: (_req, file, cb) =>
-    cb(null, `${randomUUID()}${extname(file.originalname).toLowerCase()}`),
-});
-
 @Controller('users')
 @UseGuards(JwtAuthGuard)
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly storage: ImageStorageService,
+  ) {}
 
   /** Current user: update their own profile. */
   @Patch('me')
@@ -63,22 +60,33 @@ export class UsersController {
     return this.usersService.getPlanInfo(user);
   }
 
-  /** Current user: upload a custom avatar image (jpg/png/webp, ≤5 MB). */
+  /**
+   * Current user: upload a custom avatar image (jpg/png/webp, ≤5 MB). Stored via
+   * ImageStorageService (Cloudflare R2 / Cloudinary when configured, local only
+   * in dev) so the URL survives redeploys — the container filesystem on Railway
+   * is ephemeral, so disk-stored avatars used to vanish on every deploy.
+   */
   @Post('me/avatar')
   @UseInterceptors(
-    FileInterceptor('file', { storage: avatarStorage, limits: { fileSize: AVATAR_MAX } }),
+    FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: AVATAR_MAX } }),
   )
-  uploadAvatar(
+  async uploadAvatar(
     @CurrentUser() user: User,
     @UploadedFile() file: Express.Multer.File,
-    @Req() req: Request,
   ) {
     if (!file) throw new BadRequestException('Зураг илгээгдээгүй байна');
-    if (!AVATAR_EXT.includes(extname(file.filename).toLowerCase())) {
+    const ext = extname(file.originalname).toLowerCase();
+    if (!AVATAR_EXT.includes(ext)) {
       throw new BadRequestException('Зөвхөн зураг (jpg/png/webp) оруулна уу');
     }
-    const host = req.get('host') ?? 'localhost:3000';
-    const url = `${req.protocol}://${host}/uploads/${file.filename}`;
+    const url = await this.storage.storeMedia({
+      buffer: file.buffer,
+      filename: `${randomUUID()}${ext}`,
+      mimeType: file.mimetype,
+      resourceType: 'image',
+      localSubdir: 'avatars',
+      folder: 'englishxp/avatars',
+    });
     return this.usersService.setAvatar(user.id, url);
   }
 

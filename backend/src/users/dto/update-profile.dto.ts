@@ -1,5 +1,5 @@
 import { IsOptional, IsString, MaxLength, IsIn } from 'class-validator';
-import { MN_PROVINCES, UB_DISTRICTS } from '../../common/enums';
+import { MN_PROVINCES } from '../../common/enums';
 
 export class UpdateProfileDto {
   @IsOptional()
@@ -12,9 +12,12 @@ export class UpdateProfileDto {
   @IsIn([...MN_PROVINCES])
   province?: string;
 
+  // Free-form (matches register.dto): districts only exist for Ulaanbaatar, so
+  // constraining every district to UB_DISTRICTS would 400 the WHOLE payload for
+  // a non-UB user and silently drop their province too.
   @IsOptional()
   @IsString()
-  @IsIn([...UB_DISTRICTS])
+  @MaxLength(100)
   district?: string;
 
   /** Image URL or a `default:avN` key (set when picking a default avatar). */
