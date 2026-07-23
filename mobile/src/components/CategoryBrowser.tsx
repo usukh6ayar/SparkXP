@@ -8,6 +8,7 @@ import { ProgressRing } from './ProgressRing';
 import { t, tf } from '../i18n';
 import { useColors } from '../settings/SettingsContext';
 import { spacing, radius, tints, type AppColors } from '../theme/theme';
+import { bounded } from '../theme/responsive';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 type TintName = keyof typeof tints;
@@ -90,7 +91,7 @@ export function CategoryBrowser({
 
   return (
     <ScrollView
-      contentContainerStyle={styles.container}
+      contentContainerStyle={[styles.container, bounded]}
       showsVerticalScrollIndicator={false}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.primary} />}
     >

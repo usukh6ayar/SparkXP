@@ -10,6 +10,7 @@ import { Avatar } from '../src/components/Avatar';
 import { Button } from '../src/components/Button';
 import { TopBar } from '../src/components/TopBar';
 import { spacing, radius, elevation, type AppColors } from '../src/theme/theme';
+import { bounded } from '../src/theme/responsive';
 import { useColors } from '../src/settings/SettingsContext';
 
 /** Change your profile photo. Just the photo picker — no default-avatar grid. */
@@ -52,7 +53,7 @@ export default function AvatarScreen() {
         ) : null}
       </View>
 
-      <View style={styles.actions}>
+      <View style={[styles.actions, bounded]}>
         <Button
           label={t('chooseFromPhotos')}
           icon="image-outline"

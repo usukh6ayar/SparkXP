@@ -18,6 +18,7 @@ import { t } from '../../src/i18n';
 import { AppText } from '../../src/components/Text';
 import { useColors } from '../../src/settings/SettingsContext';
 import { spacing, radius, type AppColors } from '../../src/theme/theme';
+import { bounded } from '../../src/theme/responsive';
 
 const BG = '#F4F2FC';
 
@@ -91,7 +92,7 @@ export default function OnboardingScreen() {
         </View>
         <Pressable
           onPress={onNext}
-          style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}
+          style={({ pressed }) => [styles.cta, bounded, pressed && styles.ctaPressed]}
           accessibilityRole="button"
           accessibilityLabel={last ? t('onbStart') : t('onbNext')}
         >

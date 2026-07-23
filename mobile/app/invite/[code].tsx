@@ -10,6 +10,7 @@ import { Button } from '../../src/components/Button';
 import { TopBar } from '../../src/components/TopBar';
 import { t } from '../../src/i18n';
 import { spacing, type AppColors } from '../../src/theme/theme';
+import { bounded } from '../../src/theme/responsive';
 import { useColors } from '../../src/settings/SettingsContext';
 
 /**
@@ -42,7 +43,7 @@ export default function InviteWithCodeScreen() {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
         <TopBar title={t('inviteFriends')} back showBadges={false} />
-        <View style={styles.center}>
+        <View style={[styles.center, bounded]}>
           <Ionicons name="people-circle-outline" size={72} color={colors.primary} />
           <AppText variant="h2" center style={styles.title}>{t('inviteAlreadyTitle')}</AppText>
           <AppText variant="body" center color={colors.textSecondary}>{t('inviteAlreadyBody')}</AppText>

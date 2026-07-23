@@ -31,6 +31,7 @@ import { IconButton } from '../src/components/IconButton';
 import { t } from '../src/i18n';
 import { useColors } from '../src/settings/SettingsContext';
 import { spacing, radius, elevation, type AppColors } from '../src/theme/theme';
+import { bounded } from '../src/theme/responsive';
 
 const SCREEN_W = Dimensions.get('window').width;
 const SCREEN_H = Dimensions.get('window').height;
@@ -236,7 +237,7 @@ export default function ReviewFlashcardsScreen() {
     return (
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <View style={styles.deck}>
-          <View style={styles.stack}>
+          <View style={[styles.stack, bounded]}>
             <Skeleton height={CARD_H} radius={radius.xl} />
           </View>
           <Skeleton width="60%" height={16} style={{ marginTop: spacing.lg }} />
@@ -288,7 +289,7 @@ export default function ReviewFlashcardsScreen() {
         <ReviewStats known={known} review={review} xpEarned={xpEarned} streak={streak} onContinue={() => router.back()} />
       ) : (
         <View style={styles.deck}>
-          <View style={styles.stack}>
+          <View style={[styles.stack, bounded]}>
             {/* Behind (next) card */}
             {next ? (
               <Animated.View style={[StyleSheet.absoluteFill, behindStyle]} pointerEvents="none">

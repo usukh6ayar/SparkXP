@@ -27,7 +27,7 @@ const BASE_HEIGHT = 812; // iPhone 11 / X logical height
 /** Tablet / large screen: short side ≥ 600pt (Galaxy Tab A9, iPad, split view). */
 const TABLET_MIN_SHORT = 600;
 /** Cap a single-column layout so it doesn't stretch edge-to-edge on a tablet. */
-const CONTENT_MAX_WIDTH = 640;
+export const CONTENT_MAX_WIDTH = 640;
 
 /** Build the bounded content style for a given viewport (null on phones). */
 function boundedFor(width: number, height: number): ViewStyle | null {

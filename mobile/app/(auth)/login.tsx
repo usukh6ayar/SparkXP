@@ -7,7 +7,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { t } from '../../src/i18n';
 import { spacing, radius, type AppColors } from '../../src/theme/theme';
-import { ms, vs } from '../../src/theme/responsive';
+import { ms, vs, bounded } from '../../src/theme/responsive';
 import { useColors, useSettings } from '../../src/settings/SettingsContext';
 import { AppText } from '../../src/components/Text';
 import { SignInSheet } from '../../src/components/SignInSheet';
@@ -43,7 +43,7 @@ export default function WelcomeScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      <View style={styles.container}>
+      <View style={[styles.container, bounded]}>
         {/* Brand — wordmark on top, hero fills the space above the actions. */}
         <View style={styles.brand}>
           {/* Soft radial glow behind the logo (concentric discs → gentle falloff). */}

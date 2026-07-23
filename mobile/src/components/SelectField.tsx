@@ -34,7 +34,7 @@ export function SelectField({
     <View style={styles.wrap}>
       <Text style={styles.label}>{label}</Text>
       <Pressable style={styles.field} onPress={() => setOpen(true)}>
-        <Text style={[styles.value, !value && styles.placeholder]}>
+        <Text style={[styles.value, !value && styles.placeholder]} numberOfLines={1}>
           {value || placeholder}
         </Text>
         <Text style={styles.chevron}>▾</Text>
@@ -97,7 +97,7 @@ const makeStyles = (colors: AppColors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  value: { fontSize: fontSize.md, color: colors.text },
+  value: { fontSize: fontSize.md, color: colors.text, flex: 1, marginRight: spacing.sm },
   placeholder: { color: colors.textMuted },
   chevron: { color: colors.textMuted, fontSize: fontSize.md },
   backdrop: {

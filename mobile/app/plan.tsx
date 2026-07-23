@@ -10,6 +10,7 @@ import { useSettings } from '../src/settings/SettingsContext';
 import { AppText } from '../src/components/Text';
 import { getBuddyUsage, type BuddyUsageBlock } from '../src/api/ai';
 import { colors, spacing, radius, type PremiumPalette } from '../src/theme/theme';
+import { bounded } from '../src/theme/responsive';
 import type { TranslationKey } from '../src/i18n';
 
 /**
@@ -59,7 +60,7 @@ export default function PlanScreen() {
           <View style={styles.backBtn} />
         </View>
 
-        <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={[styles.container, bounded]} showsVerticalScrollIndicator={false}>
           <AppText variant="caption" color={p.textMuted} style={styles.sub}>{t('planSubtitle')}</AppText>
 
           {/* This month's usage */}

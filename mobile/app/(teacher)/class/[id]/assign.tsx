@@ -18,6 +18,7 @@ import { SelectField } from '../../../../src/components/SelectField';
 import { TextField } from '../../../../src/components/TextField';
 import { Button } from '../../../../src/components/Button';
 import { spacing, radius, type AppColors } from '../../../../src/theme/theme';
+import { bounded } from '../../../../src/theme/responsive';
 import { useColors } from '../../../../src/settings/SettingsContext';
 
 // Due-date presets (no native date-picker dependency for the MVP). Labels are
@@ -129,7 +130,7 @@ export default function AssignScreen() {
         <View style={{ width: 26 }} />
       </View>
 
-      <View style={styles.body}>
+      <View style={[styles.body, bounded]}>
         {/* Type toggle */}
         <AppText variant="label" style={styles.label}>{t('assignType')}</AppText>
         <View style={styles.toggle}>
