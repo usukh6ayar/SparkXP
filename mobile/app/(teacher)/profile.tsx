@@ -45,6 +45,15 @@ export default function TeacherProfileScreen() {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
         <AppText variant="h1">{t('profile')}</AppText>
+        <Pressable
+          onPress={() => router.push('/settings')}
+          hitSlop={8}
+          style={({ pressed }) => [styles.settingsBtn, pressed && styles.pressed]}
+          accessibilityRole="button"
+          accessibilityLabel={t('settings')}
+        >
+          <Ionicons name="settings-outline" size={22} color={colors.text} />
+        </Pressable>
       </View>
 
       <ScrollView contentContainerStyle={[styles.scroll, bounded]} showsVerticalScrollIndicator={false}>
@@ -115,7 +124,12 @@ export default function TeacherProfileScreen() {
 
 const makeStyles = (colors: AppColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
-  header: { paddingHorizontal: spacing.lg, paddingTop: spacing.xs, paddingBottom: spacing.sm },
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: spacing.lg, paddingTop: spacing.xs, paddingBottom: spacing.sm,
+  },
+  settingsBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  pressed: { opacity: 0.6 },
   scroll: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl },
   hero: {
     borderRadius: radius.xl,
