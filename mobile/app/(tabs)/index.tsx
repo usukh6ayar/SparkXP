@@ -50,6 +50,7 @@ import {
   elevation,
   type AppColors,
 } from "../../src/theme/theme";
+import { bounded } from '../../src/theme/responsive';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -278,7 +279,7 @@ export default function HomeScreen() {
       {/* Solid page background (#191040). The hero below dissolves into this
           exact color, so there is no seam between the fox scene and the page. */}
       <ScrollView
-        contentContainerStyle={styles.container}
+        contentContainerStyle={[styles.container, bounded]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl

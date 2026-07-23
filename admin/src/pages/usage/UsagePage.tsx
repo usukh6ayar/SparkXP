@@ -42,16 +42,22 @@ const roleColors: Record<string, 'blue' | 'green' | 'yellow' | 'gray'> = {
 
 export default function UsagePage() {
   const [users, setUsers] = useState<UserUsage[]>([]);
+  const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const limit = 50;
 
   const load = useCallback(async () => {
-    const data = await api.get<{ items: UserUsage[]; total: number }>(
-      `/users?page=${page}&limit=${limit}`,
-    );
-    setUsers(data.items ?? []);
-    setTotal(data.total ?? 0);
+    setLoading(true);
+    try {
+      const data = await api.get<{ items: UserUsage[]; total: number }>(
+        `/users?page=${page}&limit=${limit}`,
+      );
+      setUsers(data.items ?? []);
+      setTotal(data.total ?? 0);
+    } finally {
+      setLoading(false);
+    }
   }, [page]);
 
   useEffect(() => { load(); }, [load]);
@@ -150,7 +156,7 @@ export default function UsagePage() {
         </div>
       )}
 
-      <Table columns={columns} rows={users} keyFn={(u) => u.id} empty="Хэрэглэгч байхгүй" />
+      <Table columns={columns} rows={users} keyFn={(u) => u.id} empty="Хэрэглэгч байхгүй" loading={loading} />
 
       {total > limit && (
         <div className="flex items-center justify-between mt-4">

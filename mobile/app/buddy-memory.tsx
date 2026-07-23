@@ -11,6 +11,7 @@ import { AppText } from '../src/components/Text';
 import { getBuddyMemory, clearBuddyMemory, type BuddyMemory } from '../src/api/ai';
 import { colors, spacing, radius, tints } from '../src/theme/theme';
 import type { TranslationKey } from '../src/i18n';
+import { bounded } from '../src/theme/responsive';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 type Tint = { bg: string; fg: string };
@@ -114,7 +115,7 @@ export default function BuddyMemoryScreen() {
           </Pressable>
         </View>
 
-        <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={[styles.container, bounded]} showsVerticalScrollIndicator={false}>
           <AppText variant="caption" color={p.textMuted} style={styles.sub}>{t('buddyMemorySub')}</AppText>
 
           {loading ? (

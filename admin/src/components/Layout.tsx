@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { Outlet, Navigate, useLocation } from 'react-router-dom';
 import { Menu } from 'lucide-react';
 import { Sidebar } from './Sidebar';
@@ -16,6 +16,15 @@ function RequireAccess({ children }: { children: React.ReactNode }) {
     return <Navigate to={defaultPath(user?.role)} replace />;
   }
   return <>{children}</>;
+}
+
+/** Content-area spinner shown while a lazy route chunk loads. */
+function PageFallback() {
+  return (
+    <div className="flex items-center justify-center py-24">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-200 border-t-primary" />
+    </div>
+  );
 }
 
 export function Layout() {
@@ -40,7 +49,11 @@ export function Layout() {
 
         <div className="p-4 sm:p-6 lg:p-8">
           <RequireAccess>
-            <Outlet />
+            {/* Route pages are lazy-loaded (code-split) — show a spinner in the
+                content area while a page chunk loads; the sidebar stays put. */}
+            <Suspense fallback={<PageFallback />}>
+              <Outlet />
+            </Suspense>
           </RequireAccess>
         </div>
       </main>

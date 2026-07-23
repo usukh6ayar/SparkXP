@@ -22,6 +22,7 @@ import {
 import { t, tf } from '../src/i18n';
 import { spacing, radius, tints, elevation, type AppColors } from '../src/theme/theme';
 import { useColors } from '../src/settings/SettingsContext';
+import { bounded } from '../src/theme/responsive';
 
 /** Compact "x ago" label from an ISO timestamp; falls back to a date. */
 function timeAgo(iso: string): string {
@@ -381,7 +382,7 @@ export default function NotificationsScreen() {
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.chipRow}
+      contentContainerStyle={[styles.chipRow, bounded]}
     >
       {CHIPS.map((chip) => {
         const selected = filter === chip.key;
@@ -460,7 +461,7 @@ export default function NotificationsScreen() {
         />
       ) : rows.length === 0 ? (
         <ScrollView
-          contentContainerStyle={styles.emptyScroll}
+          contentContainerStyle={[styles.emptyScroll, bounded]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
         >
           {filter === 'all' ? null : chips}
@@ -485,7 +486,7 @@ export default function NotificationsScreen() {
           renderItem={renderItem}
           ListHeaderComponent={chips}
           itemLayoutAnimation={reduce ? undefined : LinearTransition.duration(220)}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, bounded]}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
           removeClippedSubviews

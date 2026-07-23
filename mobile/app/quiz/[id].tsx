@@ -29,6 +29,7 @@ import { t, tf } from '../../src/i18n';
 import { formatBand } from '../../src/constants/ielts';
 import { useColors } from '../../src/settings/SettingsContext';
 import { spacing, radius, fontSize, type AppColors } from '../../src/theme/theme';
+import { bounded } from '../../src/theme/responsive';
 
 type Phase = 'loading' | 'quiz' | 'result' | 'error';
 
@@ -241,7 +242,7 @@ export default function QuizScreen() {
     return (
       <SafeAreaView style={styles.safe}>
         {result.passed && <Confetti />}
-        <ScrollView contentContainerStyle={styles.container}>
+        <ScrollView contentContainerStyle={[styles.container, bounded]}>
           <Animated.View entering={FadeInDown.springify().damping(14)} style={styles.resultHead}>
             <Text style={styles.resultEmoji}>{result.passed ? '🎉' : '😅'}</Text>
             <AppText variant="h1" center>
@@ -318,7 +319,7 @@ export default function QuizScreen() {
         style={{ marginHorizontal: spacing.lg }}
       />
 
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView contentContainerStyle={[styles.container, bounded]}>
         <AppText variant="caption" style={styles.quizTitle}>{quiz!.title}</AppText>
 
         {/* IELTS Listening — the section recording, replayable at any time. */}

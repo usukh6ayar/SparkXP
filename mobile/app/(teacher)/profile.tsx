@@ -12,6 +12,7 @@ import { Avatar } from '../../src/components/Avatar';
 import { Button } from '../../src/components/Button';
 import { spacing, radius, elevation, type AppColors } from '../../src/theme/theme';
 import { useColors } from '../../src/settings/SettingsContext';
+import { bounded } from '../../src/theme/responsive';
 
 export default function TeacherProfileScreen() {
   const { user, token, logout } = useAuth();
@@ -46,7 +47,7 @@ export default function TeacherProfileScreen() {
         <AppText variant="h1">{t('profile')}</AppText>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.scroll, bounded]} showsVerticalScrollIndicator={false}>
         {/* Gradient hero */}
         <LinearGradient
           colors={colors.primaryGradient}

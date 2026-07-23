@@ -14,6 +14,7 @@ import { Avatar } from '../src/components/Avatar';
 import { EditProfileModal } from '../src/components/EditProfileModal';
 import { spacing, radius, elevation, tints, type AppColors } from '../src/theme/theme';
 import { useColors } from '../src/settings/SettingsContext';
+import { bounded } from '../src/theme/responsive';
 
 /** One tappable / info row inside an account card. */
 function Row({
@@ -64,7 +65,7 @@ export default function AccountScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <TopBar title={t('accountTitle')} back showBadges={false} />
-      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.container, bounded]} showsVerticalScrollIndicator={false}>
         {/* Avatar + identity */}
         <View style={styles.hero}>
           <Pressable style={styles.avatarWrap} onPress={pickPhoto} disabled={busy} accessibilityRole="button" accessibilityLabel={t('editAvatar')}>

@@ -28,6 +28,7 @@ import { markReadingCompleted } from '../../src/lib/readingProgress';
 import { t } from '../../src/i18n';
 import { spacing, radius, levelColor, type AppColors } from '../../src/theme/theme';
 import { useColors } from '../../src/settings/SettingsContext';
+import { bounded } from '../../src/theme/responsive';
 
 function fmtTime(sec: number): string {
   if (!sec) return '';
@@ -151,7 +152,7 @@ export default function ReadingDetailScreen() {
           <Animated.View style={[styles.progressFill, progressStyle]} />
         </View>
         <Animated.ScrollView
-          contentContainerStyle={styles.container}
+          contentContainerStyle={[styles.container, bounded]}
           showsVerticalScrollIndicator={false}
           onScroll={scrollHandler}
           scrollEventThrottle={16}

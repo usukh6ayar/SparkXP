@@ -1,5 +1,5 @@
 import { useCallback, useState, useMemo } from 'react';
-import { View, ScrollView, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, ScrollView, StyleSheet, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,10 +8,12 @@ import { getLeaderboard, type Period, type LeaderboardResult } from '../../src/a
 import { AppText } from '../../src/components/Text';
 import { PeriodTabs } from '../../src/components/PeriodTabs';
 import { LeaderboardRow } from '../../src/components/LeaderboardRow';
+import { SkeletonRows } from '../../src/components/SkeletonRows';
 import { PERIODS } from '../../src/constants/leaderboard';
 import { t } from '../../src/i18n';
 import { spacing, type AppColors } from '../../src/theme/theme';
 import { useColors } from '../../src/settings/SettingsContext';
+import { bounded } from '../../src/theme/responsive';
 
 export default function TeacherLeaderboardScreen() {
   const { token } = useAuth();
@@ -56,7 +58,7 @@ export default function TeacherLeaderboardScreen() {
       <PeriodTabs value={period} options={PERIODS} onChange={setPeriod} style={styles.tabs} />
 
       {loading ? (
-        <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.xxl }} />
+        <SkeletonRows count={6} style={{ paddingHorizontal: spacing.lg, marginTop: spacing.md }} />
       ) : !data || data.entries.length === 0 ? (
         <View style={styles.empty}>
           <Ionicons name="trophy-outline" size={56} color={colors.textMuted} />
@@ -66,7 +68,7 @@ export default function TeacherLeaderboardScreen() {
         </View>
       ) : (
         <ScrollView
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, bounded]}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />

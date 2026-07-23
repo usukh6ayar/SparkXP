@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { memo, useEffect, useState, useCallback, useMemo } from 'react';
 import { View, StyleSheet, FlatList, Pressable, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppImage } from '../src/components/AppImage';
@@ -52,18 +52,26 @@ export default function SavedScreen() {
     setRefreshing(false);
   }
 
-  function play(w: LearnWord) {
+  // Stable callbacks so memoized rows don't re-render when the screen re-renders.
+  const play = useCallback((w: LearnWord) => {
     if (w.audioUrl) {
       try { player.replace({ uri: w.audioUrl }); player.play(); return; } catch { /* fall through */ }
     }
     Speech.stop();
     Speech.speak(w.english, { language: 'en-US', rate: 0.9 });
-  }
+  }, [player]);
 
-  function unsave(w: LearnWord) {
+  const unsave = useCallback((w: LearnWord) => {
     setWords((list) => list.filter((x) => x.id !== w.id)); // optimistic
     if (token) toggleSave(token, w.id).catch(() => {});
-  }
+  }, [token]);
+
+  const renderItem = useCallback(
+    ({ item }: { item: LearnWord }) => (
+      <SavedRow item={item} styles={styles} c={c} onPlay={play} onUnsave={unsave} />
+    ),
+    [styles, c, play, unsave],
+  );
 
   if (loading) {
     return (
@@ -96,6 +104,10 @@ export default function SavedScreen() {
         keyExtractor={(w) => w.id}
         contentContainerStyle={words.length === 0 ? styles.emptyWrap : styles.list}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.primary} />}
+        initialNumToRender={10}
+        maxToRenderPerBatch={10}
+        windowSize={9}
+        removeClippedSubviews
         ListEmptyComponent={
           <View style={styles.empty}>
             <AppText style={styles.emptyEmoji}>⭐</AppText>
@@ -105,27 +117,41 @@ export default function SavedScreen() {
             </AppText>
           </View>
         }
-        renderItem={({ item }) => (
-          <Card variant="raised" padding="md" style={styles.row}>
-            <View style={styles.thumb}>
-              {item.imageUrl ? (
-                <AppImage source={{ uri: item.imageUrl }} width={120} style={styles.thumbImg} />
-              ) : (
-                <Ionicons name="image-outline" size={20} color={c.textMuted} />
-              )}
-            </View>
-            <View style={styles.info}>
-              <AppText variant="h3" color={c.navy} numberOfLines={1}>{item.english}</AppText>
-              <AppText variant="caption" color={c.primary} numberOfLines={1}>{item.mongolian}</AppText>
-            </View>
-            <IconButton icon="volume-high" size={38} variant="filled" iconColor={c.primary} onPress={() => play(item)} />
-            <IconButton icon="star" size={38} variant="filled" iconColor={c.xp} onPress={() => unsave(item)} />
-          </Card>
-        )}
+        renderItem={renderItem}
       />
     </SafeAreaView>
   );
 }
+
+/** One saved-word row. Memoized so scrolling / unsaving one row doesn't
+ *  re-render every other row (props are stable: item + stable callbacks). */
+const SavedRow = memo(function SavedRow({
+  item, styles, c, onPlay, onUnsave,
+}: {
+  item: LearnWord;
+  styles: ReturnType<typeof makeStyles>;
+  c: AppColors;
+  onPlay: (w: LearnWord) => void;
+  onUnsave: (w: LearnWord) => void;
+}) {
+  return (
+    <Card variant="raised" padding="md" style={styles.row}>
+      <View style={styles.thumb}>
+        {item.imageUrl ? (
+          <AppImage source={{ uri: item.imageUrl }} width={120} style={styles.thumbImg} recyclingKey={item.id} />
+        ) : (
+          <Ionicons name="image-outline" size={20} color={c.textMuted} />
+        )}
+      </View>
+      <View style={styles.info}>
+        <AppText variant="h3" color={c.navy} numberOfLines={1}>{item.english}</AppText>
+        <AppText variant="caption" color={c.primary} numberOfLines={1}>{item.mongolian}</AppText>
+      </View>
+      <IconButton icon="volume-high" size={38} variant="filled" iconColor={c.primary} onPress={() => onPlay(item)} />
+      <IconButton icon="star" size={38} variant="filled" iconColor={c.xp} onPress={() => onUnsave(item)} />
+    </Card>
+  );
+});
 
 const makeStyles = (c: AppColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: c.background },

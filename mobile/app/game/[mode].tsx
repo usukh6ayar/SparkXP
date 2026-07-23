@@ -25,6 +25,7 @@ import { ProgressBar } from "../../src/components/ProgressBar";
 import { t, type TranslationKey } from "../../src/i18n";
 import { spacing, radius, elevation, type AppColors } from "../../src/theme/theme";
 import { useColors } from "../../src/settings/SettingsContext";
+import { bounded } from '../../src/theme/responsive';
 
 const QUESTION_COUNT = 10;
 const SPEED_SECONDS = 8; // per-question countdown for the "Хурдан бууд" mode
@@ -297,7 +298,7 @@ function VocabGame({ mode }: { mode: McMode }) {
         </View>
       ) : null}
 
-      <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.body, bounded]} showsVerticalScrollIndicator={false}>
         <View style={styles.prompt}>
           <AppText variant="caption" color={colors.textMuted}>
             {t("whatDoesItMean")}

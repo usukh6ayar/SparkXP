@@ -15,6 +15,7 @@ import { useLogoutConfirm, useComingSoon } from '../src/lib/useLogoutConfirm';
 import { ROLE_TKEY } from '../src/constants/roles';
 import { colors, spacing, radius, tints, type PremiumPalette } from '../src/theme/theme';
 import type { Lang } from '../src/i18n';
+import { bounded } from '../src/theme/responsive';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 type Tint = { bg: string; fg: string };
@@ -136,7 +137,7 @@ export default function SettingsScreen() {
           <View style={styles.backBtn} />
         </View>
 
-        <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={[styles.container, bounded]} showsVerticalScrollIndicator={false}>
           {/* Account mini-card → full account hub */}
           <Pressable onPress={() => router.push('/account')}
             style={({ pressed }) => [styles.account, { backgroundColor: p.card, borderColor: p.cardBorder }, pressed && styles.pressed]}>

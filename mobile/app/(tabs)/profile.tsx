@@ -26,6 +26,7 @@ import { useLogoutConfirm, useComingSoon } from '../../src/lib/useLogoutConfirm'
 import { tf, type TranslationKey } from '../../src/i18n';
 import { ROLE_TKEY } from '../../src/constants/roles';
 import { colors, spacing, radius, tints, elevation, type PremiumPalette } from '../../src/theme/theme';
+import { bounded } from '../../src/theme/responsive';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 type Styles = ReturnType<typeof makeStyles>;
@@ -175,7 +176,7 @@ export default function ProfileScreen() {
       <LinearGradient colors={p.bg} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} style={StyleSheet.absoluteFill} />
       <SafeAreaView style={styles.safe} edges={['top']}>
         <ScrollView
-          contentContainerStyle={styles.container}
+          contentContainerStyle={[styles.container, bounded]}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl refreshing={false} onRefresh={() => { haptics.tap(); loadProfile(); }} tintColor={p.primary} />

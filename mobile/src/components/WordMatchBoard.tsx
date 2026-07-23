@@ -66,7 +66,13 @@ export function WordMatchBoard({
         {pairs.map((p, i) => (
           <View
             key={i}
-            onLayout={(e) => setLeftFrames((m) => ({ ...m, [i]: e.nativeEvent.layout }))}
+            onLayout={(e) => {
+              // Read the layout synchronously: the setState updater below runs
+              // after the synthetic event is pooled, so e.nativeEvent would be
+              // null inside it (→ "Cannot read property 'layout' of null").
+              const layout = e.nativeEvent.layout;
+              setLeftFrames((m) => ({ ...m, [i]: layout }));
+            }}
           >
             <Animated.View
               style={[
