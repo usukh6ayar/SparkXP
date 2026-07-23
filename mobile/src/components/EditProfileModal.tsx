@@ -68,7 +68,7 @@ export function EditProfileModal({ visible, onClose }: { visible: boolean; onClo
 
   return (
     <ModalScreen visible={visible} onClose={onClose} animationType="fade">
-      <Animated.View entering={FadeInDown.springify().damping(16)} style={{ flex: 1 }}>
+      <Animated.View entering={FadeInDown.duration(200)} style={{ flex: 1 }}>
       <TopBar title={t('editProfile')} showBadges={false} />
       <ScrollView contentContainerStyle={{ padding: spacing.lg }} keyboardShouldPersistTaps="handled">
         <TextField label={t('fullName')} value={fullName} onChangeText={setFullName} placeholder={t('enterName')} />

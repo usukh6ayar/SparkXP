@@ -175,6 +175,13 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
     setSearchOpen(true);
   }, []);
 
+  // Clear the recent-search history (state + persisted cache).
+  const clearRecents = useCallback(() => {
+    haptics.tap();
+    setRecents([]);
+    AsyncStorage.removeItem(RECENTS_KEY).catch(() => {});
+  }, []);
+
   // Search from the overlay: remember it, close the overlay, then open the
   // popover near the top-centre of the screen (no tapped-word anchor here).
   const runSearch = useCallback(
@@ -305,18 +312,28 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
             </View>
 
             {recents.length > 0 ? (
-              <View style={styles.searchRecents}>
-                {recents.map((w) => (
-                  <Pressable
-                    key={w}
-                    style={styles.recentChip}
-                    onPress={() => runSearch(w)}
-                  >
-                    <Ionicons name="time-outline" size={14} color={colors.textMuted} />
-                    <AppText variant="label">{w}</AppText>
+              <>
+                <View style={styles.recentsHead}>
+                  <AppText variant="overline" color={colors.textMuted}>
+                    {t('recentSearches')}
+                  </AppText>
+                  <Pressable hitSlop={8} onPress={clearRecents}>
+                    <AppText variant="label" color={colors.primary}>{t('clearHistory')}</AppText>
                   </Pressable>
-                ))}
-              </View>
+                </View>
+                <View style={styles.searchRecents}>
+                  {recents.map((w) => (
+                    <Pressable
+                      key={w}
+                      style={styles.recentChip}
+                      onPress={() => runSearch(w)}
+                    >
+                      <Ionicons name="time-outline" size={14} color={colors.textMuted} />
+                      <AppText variant="label">{w}</AppText>
+                    </Pressable>
+                  ))}
+                </View>
+              </>
             ) : null}
           </Pressable>
         </Pressable>
@@ -476,11 +493,17 @@ const makeStyles = (colors: AppColors) => StyleSheet.create({
     paddingHorizontal: spacing.md,
   },
   searchInput: { flex: 1, fontSize: 15, color: colors.text, height: '100%' },
+  recentsHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: spacing.md,
+  },
   searchRecents: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.sm,
-    marginTop: spacing.md,
+    marginTop: spacing.sm,
   },
   recentChip: {
     flexDirection: 'row',

@@ -583,6 +583,8 @@ const mn = {
   // Dictionary
   notFoundShort: 'Олдсонгүй.',
   searchEnglishWord: 'Англи үг хайх...',
+  recentSearches: 'Сүүлд хайсан',
+  clearHistory: 'Цэвэрлэх',
 
   // CEFR levels (register)
   cefrA1: 'Анхан',
@@ -1307,6 +1309,8 @@ const en: Record<TranslationKey, string> = {
   // Dictionary
   notFoundShort: 'Not found.',
   searchEnglishWord: 'Search English word...',
+  recentSearches: 'Recent',
+  clearHistory: 'Clear',
 
   // CEFR levels (register)
   cefrA1: 'Beginner',
