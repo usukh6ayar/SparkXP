@@ -20,6 +20,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { haptics } from '../lib/haptics';
 import { t, tf } from '../i18n';
 import { spacing, radius, type AppColors } from '../theme/theme';
+import { bounded } from '../theme/responsive';
 import { useColors, useSettings } from '../settings/SettingsContext';
 import { AppText } from './Text';
 import { AppImage } from './AppImage';
@@ -123,7 +124,7 @@ export function BuddyChatSheet({
       android_keyboardInputMode="adjustResize"
     >
       {/* Header — unified SparkXP identity + history button. */}
-      <View style={styles.header}>
+      <View style={[styles.header, bounded]}>
         <AppImage source={brandAvatar} width={34} style={styles.headerAvatar} contentFit="contain" />
         <View style={styles.headerText}>
           <AppText variant="bodyStrong" numberOfLines={1}>{BRAND_NAME}</AppText>
@@ -149,7 +150,7 @@ export function BuddyChatSheet({
         ref={listRef}
         data={messages}
         keyExtractor={(m) => m.id}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, bounded]}
         ListEmptyComponent={<EmptyState />}
         ListFooterComponent={loading ? <TypingBubble styles={styles} c={c} /> : null}
         onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
@@ -177,7 +178,7 @@ const ChatInputBar = memo(function ChatInputBar({
     onSend(value);
   }
   return (
-    <View style={styles.inputBar}>
+    <View style={[styles.inputBar, bounded]}>
       <BottomSheetTextInput
         style={styles.input}
         value={text}

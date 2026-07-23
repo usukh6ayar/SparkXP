@@ -24,6 +24,7 @@ import { AppText } from '../../src/components/Text';
 import { haptics } from '../../src/lib/haptics';
 import { useReduceMotion } from '../../src/lib/motion';
 import { colors, islandMap } from '../../src/theme/theme';
+import { bounded, CONTENT_MAX_WIDTH } from '../../src/theme/responsive';
 
 /**
  * Level journey — the lessons of one CEFR level laid out as numbered nodes
@@ -169,8 +170,12 @@ export default function LevelScreen() {
   // enough to hold them all and scrolls; node 1 sits at the very bottom.
   const nodeCount = Math.max(lessons.length + LOCKED_AHEAD, MIN_NODES);
   const pathHeight = V_TOP_PAD + nodeCount * V_SPACING + V_BOTTOM_PAD;
+  // On tablets the trail lives in a centered max-width column (mapX offset)
+  // instead of sprawling edge-to-edge; on phones mapW == width, mapX == 0.
+  const mapW = Math.min(width, CONTENT_MAX_WIDTH);
+  const mapX = (width - mapW) / 2;
   const nodeCenter = (i: number) => ({
-    x: nodeXFrac(i) * width,
+    x: mapX + nodeXFrac(i) * mapW,
     y: pathHeight - V_BOTTOM_PAD - i * V_SPACING,
   });
 
@@ -319,6 +324,8 @@ export default function LevelScreen() {
         style={[styles.header, { paddingTop: insets.top + 6 }]}
         onLayout={(e) => setHeaderH(e.nativeEvent.layout.height)}
       >
+        {/* Centered max-width column on tablets (no-op on phones). */}
+        <View style={bounded}>
         {/* Top row: back + streak + gems */}
         <View style={styles.topRow}>
           <Pressable onPress={() => router.back()} hitSlop={12} style={[styles.backBtn, { backgroundColor: C.back }]}>
@@ -384,6 +391,7 @@ export default function LevelScreen() {
             <AppText variant="caption" color={C.textDim} style={{ flex: 1 }}>{t('levelNoLessons')}</AppText>
           </View>
         ) : null}
+        </View>
       </View>
 
       {loading && <ActivityIndicator size="large" color={C.text} style={StyleSheet.absoluteFill} />}

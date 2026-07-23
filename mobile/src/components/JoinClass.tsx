@@ -13,6 +13,7 @@ import { AppText } from './Text';
 import { TextField } from './TextField';
 import { Button } from './Button';
 import { spacing, radius, type AppColors } from '../theme/theme';
+import { bounded } from '../theme/responsive';
 import { useColors } from '../settings/SettingsContext';
 
 /**
@@ -82,7 +83,7 @@ export function JoinClass({ initialCode }: { initialCode?: string }) {
   // ── Pending (request sent) ──────────────────────────────────────────────
   if (pending) {
     return (
-      <View style={styles.center}>
+      <View style={[styles.center, bounded]}>
         <Ionicons name="hourglass-outline" size={64} color={colors.primary} />
         <AppText variant="h2" center style={{ marginTop: spacing.lg }}>
           {t('joinPending')}
@@ -123,7 +124,7 @@ export function JoinClass({ initialCode }: { initialCode?: string }) {
 
   // ── Manual code entry ───────────────────────────────────────────────────
   return (
-    <View style={styles.body}>
+    <View style={[styles.body, bounded]}>
       <AppText variant="body" color={colors.textSecondary} style={styles.subtitle}>
         {t('joinClassSubtitle')}
       </AppText>

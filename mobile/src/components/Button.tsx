@@ -81,7 +81,7 @@ export function Button({
       ) : (
         <View style={styles.content}>
           {icon ? <Ionicons name={icon} size={iconSize} color={fg} /> : null}
-          <AppText variant="bodyStrong" color={fg} style={styles.label}>
+          <AppText variant="bodyStrong" color={fg} numberOfLines={1} style={styles.label}>
             {label}
           </AppText>
           {iconRight ? <Ionicons name={iconRight} size={iconSize} color={fg} /> : null}
@@ -102,6 +102,8 @@ const styles = StyleSheet.create({
   fullWidth: { alignSelf: 'stretch' },
   ghost: { backgroundColor: 'transparent' },
   disabled: { opacity: 0.45 },
-  content: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  label: { fontWeight: '700' },
+  content: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, maxWidth: '100%' },
+  // flexShrink lets a long (e.g. Mongolian) label ellipsize inside the button
+  // instead of wrapping to a second line and overflowing the fixed height.
+  label: { fontWeight: '700', flexShrink: 1 },
 });

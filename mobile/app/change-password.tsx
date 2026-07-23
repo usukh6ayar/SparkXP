@@ -13,6 +13,7 @@ import { TextField } from '../src/components/TextField';
 import { Button } from '../src/components/Button';
 import { FormError } from '../src/components/FormError';
 import { spacing, radius, tints, type AppColors } from '../src/theme/theme';
+import { bounded } from '../src/theme/responsive';
 import { useColors } from '../src/settings/SettingsContext';
 
 /**
@@ -62,7 +63,7 @@ export default function ChangePasswordScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <TopBar title={t('changePassword')} back showBadges={false} />
-      <View style={styles.container}>
+      <View style={[styles.container, bounded]}>
         {step === 'done' ? (
           <View style={styles.doneWrap}>
             <Ionicons name="checkmark-circle" size={72} color={colors.success} />

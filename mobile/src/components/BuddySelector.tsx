@@ -21,15 +21,28 @@ import { useColors, useSettings } from '../settings/SettingsContext';
 import { tf } from '../i18n';
 import type { TranslationKey } from '../i18n';
 import { spacing, radius, elevation, tints, colors as staticColors, type AppColors } from '../theme/theme';
+import { CONTENT_MAX_WIDTH } from '../theme/responsive';
 import type { Buddy } from '../api/ai';
 
 const SCREEN_W = Dimensions.get('window').width;
+const SCREEN_H = Dimensions.get('window').height;
+// On tablets, size the carousel off a capped width so cards stay phone-sized
+// (a card is 60% of this, then SIDE_PAD centers it on the real screen).
+const BASE_W = Math.min(SCREEN_W, CONTENT_MAX_WIDTH);
 // Narrower card + tighter gap so the neighbouring buddies peek in further on
 // both sides (the carousel reads as a "coverflow", not a single card). The tall
 // 1.46 ratio keeps the panel portrait (not a boxy square) with room for a
 // standing character.
-const CARD_WIDTH = Math.round(SCREEN_W * 0.6);
-const CARD_HEIGHT = Math.round(CARD_WIDTH * 1.46);
+//
+// Height is capped by an ABSOLUTE reservation for the chrome + everything below
+// the card (TopBar, tab bar, insets, motto, dots, name, the single-row tag strip
+// and the Apply CTA), with margin to spare. A fraction of the screen wasn't
+// enough on shorter phones, so the fixed-height card overflowed its flex slot and
+// punched down into the dots / name. Reserving a fixed budget keeps the card fit
+// and non-overlapping on every device. Width is derived back from the 1.46 ratio.
+const CARD_RESERVED_H = 500;
+const CARD_HEIGHT = Math.max(190, Math.min(Math.round(BASE_W * 0.6 * 1.46), SCREEN_H - CARD_RESERVED_H));
+const CARD_WIDTH = Math.round(CARD_HEIGHT / 1.46);
 const CARD_GAP = spacing.xs;
 const SNAP = CARD_WIDTH + CARD_GAP;
 const SIDE_PAD = (SCREEN_W - CARD_WIDTH) / 2;
@@ -268,6 +281,7 @@ export function BuddySelector({
         </Pressable>
       )}
 
+      <View style={styles.carouselFlex}>
       <View style={styles.carouselRow}>
         <Animated.FlatList
           ref={listRef}
@@ -312,6 +326,7 @@ export function BuddySelector({
             <Ionicons name="chevron-forward" size={20} color={c.text} />
           </Pressable>
         )}
+      </View>
       </View>
 
       {display.length > 1 && (
@@ -419,7 +434,12 @@ function BuddyCard({
     const pos = scrollX.value / SNAP - index;
     const scale = interpolate(pos, [-1, 0, 1], [0.82, 1, 0.82], Extrapolation.CLAMP);
     const opacity = interpolate(pos, [-1, 0, 1], [0.55, 1, 0.55], Extrapolation.CLAMP);
-    return { transform: [{ scale }], opacity };
+    // Anchor the scale to the card's BOTTOM edge so every buddy "stands" on the
+    // same ground line. Scaling around the centre (the default) made the peek
+    // cards float up/down as they grew/shrank while swiping — uneven levels.
+    // translateY cancels the centre-scale's vertical shift so the bottom stays put.
+    const translateY = (CARD_HEIGHT * (1 - scale)) / 2;
+    return { transform: [{ translateY }, { scale }], opacity };
   });
 
   // Only the centered card mounts the 3D model (perf: avoid several live GL
@@ -516,30 +536,35 @@ function TraitChip({ label, icon, tint }: { label: string; icon: keyof typeof Io
   return (
     <View style={[chipStyles.chip, { backgroundColor: tint.bg }]}>
       <View style={[chipStyles.iconCircle, { backgroundColor: tint.fg }]}>
-        <Ionicons name={icon} size={15} color="#FFFFFF" />
+        <Ionicons name={icon} size={12} color="#FFFFFF" />
       </View>
-      <AppText variant="bodyStrong" color={tint.fg}>{label}</AppText>
+      <AppText variant="label" color={tint.fg} numberOfLines={1} style={chipStyles.label}>{label}</AppText>
     </View>
   );
 }
 
 const chipStyles = StyleSheet.create({
   chip: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    paddingLeft: 6, paddingRight: spacing.md, paddingVertical: 6, borderRadius: radius.full,
+    flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 1, minWidth: 0,
+    paddingLeft: 3, paddingRight: spacing.sm, paddingVertical: 3, borderRadius: radius.full,
   },
   iconCircle: {
-    width: 28, height: 28, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center',
+    width: 20, height: 20, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center',
   },
+  label: { flexShrink: 1 },
 });
 
 const makeStyles = (c: AppColors) => StyleSheet.create({
-  wrap: { flex: 1, paddingTop: spacing.sm, justifyContent: 'center' },
+  // No `justifyContent: 'center'`: on short phones that lets the centered group
+  // overflow (RN default overflow is visible) and the Apply CTA renders below
+  // the scene, under the tab bar. Instead the carousel row flexes (below) so the
+  // fixed motto/CTA always stay in view; paddingBottom keeps the CTA off the bar.
+  wrap: { flex: 1, paddingTop: spacing.sm, paddingBottom: spacing.md },
   centerFill: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md, paddingHorizontal: spacing.xl, minHeight: CARD_HEIGHT },
   retryBtn: { marginTop: spacing.xs },
-  mottoBubbleWrap: { alignItems: 'center', marginBottom: spacing.lg },
+  mottoBubbleWrap: { alignItems: 'center', marginBottom: spacing.md },
   mottoBubble: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.sm, maxWidth: SCREEN_W * 0.8,
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm, maxWidth: BASE_W * 0.8,
     borderRadius: radius.xl, paddingLeft: spacing.sm, paddingRight: spacing.lg, paddingVertical: spacing.sm,
   },
   mottoIconCircle: { width: 30, height: 30, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center' },
@@ -550,6 +575,10 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   },
   // -SHADOW_PAD cancels the list's added top/bottom padding in layout flow, so
   // surrounding elements keep their spacing while each card's shadow gets room.
+  // A flex wrapper (carouselFlex) absorbs the height variation instead of this
+  // row, so the SHADOW_PAD / negative-margin shadow mechanism stays untouched
+  // (flex on this row clipped the card's shadow into a hard line).
+  carouselFlex: { flex: 1, justifyContent: 'center' },
   carouselRow: { justifyContent: 'center', marginVertical: -SHADOW_PAD },
   carousel: { height: CARD_HEIGHT + SHADOW_PAD * 2 },
   navBtn: {
@@ -577,13 +606,16 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   dots: { flexDirection: 'row', gap: 6, alignSelf: 'center', marginTop: spacing.sm },
-  infoPanel: { paddingHorizontal: spacing.lg, marginTop: spacing.lg },
+  infoPanel: { paddingHorizontal: spacing.lg, marginTop: spacing.md },
   nameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, marginBottom: spacing.sm },
   nameText: { flexShrink: 1 },
   soundBtn: {
     width: 44, height: 44, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center',
   },
-  tagsRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: spacing.sm, marginBottom: spacing.xl },
+  // One single row, no wrap, no scroll — all chips visible side by side. Chips
+  // are small (see chipStyles) and may shrink so they always fit on one line
+  // (a 2nd wrapped row used to punch the card down into the name/dots).
+  tagsRow: { flexDirection: 'row', flexWrap: 'nowrap', justifyContent: 'center', gap: spacing.xs, marginBottom: spacing.md, paddingHorizontal: spacing.sm },
   applyBtn: {
     height: 56, borderRadius: radius.full, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     marginBottom: spacing.lg,

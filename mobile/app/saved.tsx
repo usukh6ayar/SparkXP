@@ -17,6 +17,7 @@ import { t } from '../src/i18n';
 import { useColors } from '../src/settings/SettingsContext';
 import { haptics } from '../src/lib/haptics';
 import { spacing, radius, type AppColors } from '../src/theme/theme';
+import { bounded } from '../src/theme/responsive';
 
 /**
  * Saved words (⭐). Lists everything the user starred from the flashcard deck.
@@ -102,7 +103,7 @@ export default function SavedScreen() {
       <FlatList
         data={words}
         keyExtractor={(w) => w.id}
-        contentContainerStyle={words.length === 0 ? styles.emptyWrap : styles.list}
+        contentContainerStyle={[words.length === 0 ? styles.emptyWrap : styles.list, bounded]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.primary} />}
         initialNumToRender={10}
         maxToRenderPerBatch={10}

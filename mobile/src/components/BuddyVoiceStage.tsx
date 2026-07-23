@@ -13,7 +13,7 @@ import { PressableScale } from './PressableScale';
 import { haptics } from '../lib/haptics';
 import { useColors, useSettings } from '../settings/SettingsContext';
 import { spacing, radius, elevation, colors as staticColors, type AppColors } from '../theme/theme';
-import { ms } from '../theme/responsive';
+import { ms, bounded } from '../theme/responsive';
 import type { Buddy } from '../api/ai';
 
 /** Drag left past this (px) while holding → release cancels instead of sends. */
@@ -177,7 +177,7 @@ export function BuddyVoiceStage({
   function lockedCancel() { setPhase('idle'); active.value = withSpring(0); haptics.warning(); onRecordCancel(); }
 
   return (
-    <View style={styles.wrap}>
+    <View style={[styles.wrap, bounded]}>
       {/* Top row: voice-minutes meter (left) + CC caption toggle (right). */}
       <View style={styles.topRow}>
         {usageLabel ? (() => {

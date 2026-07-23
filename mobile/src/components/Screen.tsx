@@ -7,6 +7,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { spacing } from '../theme/theme';
+import { bounded } from '../theme/responsive';
 import { useColors } from '../settings/SettingsContext';
 
 /**
@@ -30,7 +31,7 @@ export function Screen({
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
-          contentContainerStyle={[styles.content, centered && styles.centered]}
+          contentContainerStyle={[styles.content, centered && styles.centered, bounded]}
           keyboardShouldPersistTaps="handled"
         >
           {children}

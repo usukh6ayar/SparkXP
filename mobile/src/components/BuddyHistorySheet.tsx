@@ -14,6 +14,7 @@ import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { t } from '../i18n';
 import { spacing, radius, type AppColors } from '../theme/theme';
+import { bounded } from '../theme/responsive';
 import { useColors, useSettings } from '../settings/SettingsContext';
 import { AppText } from './Text';
 import type { BuddyTextSessionSummary } from '../api/ai';
@@ -84,11 +85,11 @@ export function BuddyHistorySheet({
       backgroundComponent={GlassBackground}
       handleIndicatorStyle={styles.handleIndicator}
     >
-      <View style={styles.header}>
+      <View style={[styles.header, bounded]}>
         <AppText variant="h2">{t('chatHistoryTitle')}</AppText>
       </View>
 
-      <Pressable style={[styles.newChatBtn, { borderColor: c.primary }]} onPress={newChat}>
+      <Pressable style={[styles.newChatBtn, bounded, { borderColor: c.primary }]} onPress={newChat}>
         <Ionicons name="add" size={22} color={c.primary} />
         <AppText variant="label" color={c.primary}>{t('chatNewChat')}</AppText>
       </Pressable>
@@ -103,7 +104,7 @@ export function BuddyHistorySheet({
         <BottomSheetFlatList
           data={sessions}
           keyExtractor={(s) => s.sessionId}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, bounded]}
           renderItem={({ item }) => (
             <Pressable
               style={[styles.row, item.sessionId === activeId && { backgroundColor: c.surfaceAlt }]}
