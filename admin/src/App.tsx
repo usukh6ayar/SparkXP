@@ -1,26 +1,31 @@
+import { lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './auth/AuthContext';
 import { RequireAdmin } from './auth/RequireAdmin';
 import { Layout } from './components/Layout';
 import Login from './pages/Login';
-import WordsPage from './pages/words/WordsPage';
-import LessonsPage from './pages/lessons/LessonsPage';
-import IdiomsPage from './pages/idioms/IdiomsPage';
-import ExercisesPage from './pages/exercises/ExercisesPage';
-import QuizzesPage from './pages/quizzes/QuizzesPage';
-import IeltsPage from './pages/ielts/IeltsPage';
-import UsersPage from './pages/users/UsersPage';
-import MonitorPage from './pages/monitor/MonitorPage';
-import SettingsPage from './pages/settings/SettingsPage';
-import LeaderboardPage from './pages/leaderboard/LeaderboardPage';
-import AiBuddyPage from './pages/buddy/AiBuddyPage';
-import ClassesPage from './pages/classes/ClassesPage';
-import OrganizationsPage from './pages/organizations/OrganizationsPage';
-import UsagePage from './pages/usage/UsagePage';
-import NotificationsPage from './pages/notifications/NotificationsPage';
-import GuidePage from './pages/guide/GuidePage';
-import SafetyEventsPage from './pages/safety/SafetyEventsPage';
-import BuddyFeedbackPage from './pages/feedback/BuddyFeedbackPage';
+
+// Route pages are code-split (lazy) so the admin loads only the current page's
+// JS instead of shipping all ~18 pages (incl. the 1200-line WordsPage) in the
+// initial bundle. The Layout's <Suspense> shows a spinner while a chunk loads.
+const WordsPage = lazy(() => import('./pages/words/WordsPage'));
+const LessonsPage = lazy(() => import('./pages/lessons/LessonsPage'));
+const IdiomsPage = lazy(() => import('./pages/idioms/IdiomsPage'));
+const ExercisesPage = lazy(() => import('./pages/exercises/ExercisesPage'));
+const QuizzesPage = lazy(() => import('./pages/quizzes/QuizzesPage'));
+const IeltsPage = lazy(() => import('./pages/ielts/IeltsPage'));
+const UsersPage = lazy(() => import('./pages/users/UsersPage'));
+const MonitorPage = lazy(() => import('./pages/monitor/MonitorPage'));
+const SettingsPage = lazy(() => import('./pages/settings/SettingsPage'));
+const LeaderboardPage = lazy(() => import('./pages/leaderboard/LeaderboardPage'));
+const AiBuddyPage = lazy(() => import('./pages/buddy/AiBuddyPage'));
+const ClassesPage = lazy(() => import('./pages/classes/ClassesPage'));
+const OrganizationsPage = lazy(() => import('./pages/organizations/OrganizationsPage'));
+const UsagePage = lazy(() => import('./pages/usage/UsagePage'));
+const NotificationsPage = lazy(() => import('./pages/notifications/NotificationsPage'));
+const GuidePage = lazy(() => import('./pages/guide/GuidePage'));
+const SafetyEventsPage = lazy(() => import('./pages/safety/SafetyEventsPage'));
+const BuddyFeedbackPage = lazy(() => import('./pages/feedback/BuddyFeedbackPage'));
 
 export default function App() {
   return (
