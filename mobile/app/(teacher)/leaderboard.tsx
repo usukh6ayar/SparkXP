@@ -83,8 +83,8 @@ export default function TeacherLeaderboardScreen() {
               username={e.username}
               avatarUrl={e.avatarUrl}
               xp={e.xp}
-              // Tap a student → their progress. Needs the classId the backend
-              // attaches to teacher-scope entries; skip the tap if it's missing.
+              // Tap a student → open their progress screen. Only possible when the
+              // backend attached a class the student is in (teacher scope).
               onPress={
                 e.classId
                   ? () => router.push(`/(teacher)/class/${e.classId}/student/${e.userId}`)

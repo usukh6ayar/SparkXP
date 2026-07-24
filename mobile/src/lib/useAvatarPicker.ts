@@ -15,8 +15,11 @@ export function useAvatarPicker() {
   const { token, updateUser } = useAuth();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A photo chosen but not yet uploaded — drives the preview + Save flow.
+  const [pending, setPending] = useState<string | null>(null);
 
-  const pickPhoto = useCallback(async () => {
+  // Open the OS library with a forced 1:1 crop; returns the picked uri or null.
+  const chooseFromLibrary = useCallback(async (): Promise<string | null> => {
     setError(null);
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
@@ -26,21 +29,25 @@ export function useAvatarPicker() {
         { text: t('cancel'), style: 'cancel' },
         { text: t('openSettings'), onPress: () => Linking.openSettings() },
       ]);
-      return;
+      return null;
     }
-
     const res = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.7,
     });
-    if (res.canceled || !token) return;
+    return res.canceled ? null : res.assets[0].uri;
+  }, []);
 
+  // Upload a chosen uri and refresh the user; shared by both flows.
+  const upload = useCallback(async (uri: string) => {
+    if (!token) return;
     setBusy(true);
     try {
-      const updated = await uploadAvatar(res.assets[0].uri, token);
+      const updated = await uploadAvatar(uri, token);
       await updateUser(updated);
+      setPending(null);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : t('errorGeneric'));
     } finally {
@@ -48,5 +55,23 @@ export function useAvatarPicker() {
     }
   }, [token, updateUser]);
 
-  return { pickPhoto, busy, error };
+  // Instant flow (profile hero camera tap): pick → upload right away.
+  const pickPhoto = useCallback(async () => {
+    const uri = await chooseFromLibrary();
+    if (uri) await upload(uri);
+  }, [chooseFromLibrary, upload]);
+
+  // Two-step flow (avatar screen): pick → preview → explicit Save.
+  const pickForPreview = useCallback(async () => {
+    const uri = await chooseFromLibrary();
+    if (uri) setPending(uri);
+  }, [chooseFromLibrary]);
+
+  const savePending = useCallback(async () => {
+    if (pending) await upload(pending);
+  }, [pending, upload]);
+
+  const cancelPending = useCallback(() => setPending(null), []);
+
+  return { pickPhoto, pickForPreview, pending, savePending, cancelPending, busy, error };
 }

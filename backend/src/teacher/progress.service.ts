@@ -127,7 +127,7 @@ export class ProgressService {
     return {
       studentId,
       fullName: student.fullName,
-      avatarUrl: student.avatarUrl,
+      avatarUrl: student.avatarUrl ?? null,
       xp: student.xp,
       currentStreak: student.currentStreak,
       skills: { ...skills, vocab },

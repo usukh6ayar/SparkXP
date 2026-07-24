@@ -19,12 +19,11 @@ export interface LeaderboardEntry {
   district: string | null;
   xp: number;
   /**
-   * A class (owned by the requesting teacher) that this student belongs to —
-   * only set for `scope=teacher`, so the teacher panel can deep-link a row to
-   * that student's progress (which is addressed by classId + studentId). Null
-   * for every other scope.
+   * Only set for the `teacher` scope: one class (owned by the teacher) that this
+   * student belongs to, so the teacher app can deep-link to the student's
+   * progress screen (class/:classId/student/:userId). null everywhere else.
    */
-  classId: string | null;
+  classId?: string | null;
 }
 
 /** The current user's standing (null xp if they earned nothing in the window). */
@@ -79,7 +78,7 @@ export class LeaderboardService {
     }
 
     // --- Top N list ---
-    const listQb = this.baseQuery(query.scope, scopeValue, since)
+    const qb = this.baseQuery(query.scope, scopeValue, since)
       .select('u.id', 'userId')
       .addSelect('u.fullName', 'fullName')
       .addSelect('u.username', 'username')
@@ -91,19 +90,20 @@ export class LeaderboardService {
       .orderBy('xp', 'DESC')
       .limit(query.limit);
 
-    // Teacher scope only: attach one of the teacher's classes each student is in
-    // (MIN keeps it single even if they share two classes) so a row can deep-link
-    // to that student's progress. `:v` is the teacher id, already bound by baseQuery.
+    // Teacher scope only: attach one class (of this teacher, `:v`) the student is
+    // in so the app can open their progress. Correlated scalar subquery on u.id —
+    // depends only on the GROUP BY key, so it doesn't affect the XP SUM.
     if (query.scope === LeaderboardScope.TEACHER) {
-      listQb.addSelect(
-        `(SELECT MIN(cs.class_id) FROM class_students cs
-          INNER JOIN classes c ON c.id = cs.class_id
-          WHERE cs.student_id = u.id AND c.teacher_id = :v)`,
+      qb.addSelect(
+        `(SELECT cs.class_id FROM class_students cs
+            INNER JOIN classes c ON c.id = cs.class_id
+            WHERE cs.student_id = u.id AND c.teacher_id = :v
+            ORDER BY c.created_at DESC LIMIT 1)`,
         'classId',
       );
     }
 
-    const rows = await listQb.getRawMany();
+    const rows = await qb.getRawMany();
 
     const entries: LeaderboardEntry[] = rows.map((r, i) => ({
       rank: i + 1,
@@ -251,7 +251,6 @@ export class LeaderboardService {
       province: r.province,
       district: r.district,
       xp: Number(r.xp),
-      classId: null, // admin scope never deep-links to teacher progress
     }));
   }
 

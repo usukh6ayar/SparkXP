@@ -178,7 +178,7 @@ Controller-level: JWT.
 | GET `/leaderboard/top` | admin-баг | Admin top-N (admin-ий байршлыг үл тооцно) | `scope`, `period`, `value?`, `limit` |
 
 > Entry бүр: `rank, userId, fullName, username, avatarUrl, province, district, xp, classId`.
-> `classId` зөвхөн `scope=teacher` үед бөглөгдөнө (сурагчийн харьяалагдах анги, олон бол MIN) —
+> `classId` зөвхөн `scope=teacher` үед бөглөгдөнө (сурагчийн харьяалагдах анги, олон бол хамгийн сүүлд үүсгэсэн) —
 > багшийн панель мөрөөс тухайн сурагчийн ahits руу deep-link хийхэд ашиглагдана. Бусад scope-д `null`.
 
 ## 10. AI / Chat — `/api/ai`
