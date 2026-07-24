@@ -591,7 +591,7 @@ const mn = {
   check: 'Шалгах',
   retryAnswer: 'Дахин оролдох',
   answerCorrect: 'Зөв! 🎉',
-  answerWrong: 'Буруу байна, дахин оролдоорой',
+  answerWrong: 'Буруу хариулт',
   correctAnswerLabel: 'Зөв хариу: {answer}',
 
   // Tab bar
@@ -1337,7 +1337,7 @@ const en: Record<TranslationKey, string> = {
   check: 'Check',
   retryAnswer: 'Try again',
   answerCorrect: 'Correct! 🎉',
-  answerWrong: 'Not quite — try again',
+  answerWrong: 'Not quite',
   correctAnswerLabel: 'Correct answer: {answer}',
 
   // Tab bar
