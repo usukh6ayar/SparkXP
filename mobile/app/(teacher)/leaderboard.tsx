@@ -1,7 +1,7 @@
 import { useCallback, useState, useMemo } from 'react';
 import { View, ScrollView, StyleSheet, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/auth/AuthContext';
 import { getLeaderboard, type Period, type LeaderboardResult } from '../../src/api/leaderboard';
@@ -18,6 +18,7 @@ import { bounded } from '../../src/theme/responsive';
 export default function TeacherLeaderboardScreen() {
   const { token } = useAuth();
   const colors = useColors();
+  const router = useRouter();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [period, setPeriod] = useState<Period>('weekly');
   const [data, setData] = useState<LeaderboardResult | null>(null);
@@ -82,6 +83,13 @@ export default function TeacherLeaderboardScreen() {
               username={e.username}
               avatarUrl={e.avatarUrl}
               xp={e.xp}
+              // Tap a student → open their progress screen. Only possible when the
+              // backend attached a class the student is in (teacher scope).
+              onPress={
+                e.classId
+                  ? () => router.push(`/(teacher)/class/${e.classId}/student/${e.userId}`)
+                  : undefined
+              }
             />
           ))}
           <View style={{ height: spacing.xxl }} />

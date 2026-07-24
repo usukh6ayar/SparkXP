@@ -12,6 +12,9 @@ export interface LeaderboardEntry {
   province: string | null;
   district: string | null;
   xp: number;
+  /** Only set for the `teacher` scope: a class the student is in (for deep-linking
+   *  to their progress screen). null/undefined for other scopes. */
+  classId?: string | null;
 }
 
 export interface LeaderboardResult {
