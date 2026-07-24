@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../src/auth/AuthContext';
+import { isBiometricAvailable } from '../src/auth/biometrics';
 import { useSettings } from '../src/settings/SettingsContext';
 import { AppText } from '../src/components/Text';
 import { resolveAvatar } from '../src/lib/avatar';
@@ -90,12 +91,14 @@ function SegToggle<T extends string>({
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, biometricEnabled, setBiometricEnabled } = useAuth();
   const { theme, lang, palette: p, setTheme, setLang, t } = useSettings();
 
   const [notifications, setNotifications] = useState(true);
   const [sound, setSound] = useState(true);
   const [haptics, setHaptics] = useState(true);
+  // Only offer the biometric lock when the device actually supports it.
+  const [bioAvailable, setBioAvailable] = useState(false);
 
   // Restore switch prefs + keep the status bar readable for the active theme.
   useFocusEffect(
@@ -103,6 +106,7 @@ export default function SettingsScreen() {
       AsyncStorage.getItem(KEYS.notifications).then((v) => { if (v != null) setNotifications(v === '1'); });
       AsyncStorage.getItem(KEYS.sound).then((v) => { if (v != null) setSound(v === '1'); });
       AsyncStorage.getItem(KEYS.haptics).then((v) => { if (v != null) setHaptics(v === '1'); });
+      isBiometricAvailable().then(setBioAvailable);
       setStatusBarStyle(theme === 'dark' ? 'light' : 'dark');
       return () => setStatusBarStyle('dark');
     }, [theme]),
@@ -189,6 +193,17 @@ export default function SettingsScreen() {
             <Row p={p} icon="phone-portrait" tint={tints.teal} label={t('haptics')}
               right={<Switcher value={haptics} onValueChange={toggle(KEYS.haptics, setHaptics)} />} />
           </Card>
+
+          {/* Security — biometric app-lock (only on devices that support it) */}
+          {bioAvailable ? (
+            <>
+              <SectionLabel>{t('security').toUpperCase()}</SectionLabel>
+              <Card p={p}>
+                <Row p={p} icon="finger-print" tint={tints.green} label={t('biometricLock')}
+                  right={<Switcher value={biometricEnabled} onValueChange={setBiometricEnabled} />} />
+              </Card>
+            </>
+          ) : null}
 
           {/* Account */}
           <SectionLabel>{t('account').toUpperCase()}</SectionLabel>
