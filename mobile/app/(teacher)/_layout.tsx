@@ -33,6 +33,12 @@ export default function TeacherLayout() {
   const insets = useSafeAreaInsets();
   return (
     <Tabs
+      // The class → student → progress drill-down screens live under this group
+      // as hidden tab routes, so "back" obeys the tab navigator, not a stack.
+      // Default `firstRoute` jumps straight to the first tab (home) — instead
+      // retrace visit history so back steps up one screen at a time (class detail,
+      // then home), and leaderboard→student→back returns to the leaderboard.
+      backBehavior="history"
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.primary,
