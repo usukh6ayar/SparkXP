@@ -175,16 +175,41 @@ export class AssignmentsService {
     }
   }
 
-  /** All assignments across the classes the current user is enrolled in. */
-  async findForStudent(user: User): Promise<Assignment[]> {
+  /**
+   * All assignments across the classes the current user is enrolled in, each
+   * annotated with THIS student's own submission state (status + score) so the
+   * "My Assignments" screen can show Хийсэн/Хоцорсон + %. Without this the rows
+   * come back with no status and never reflect a completed assignment.
+   */
+  async findForStudent(
+    user: User,
+  ): Promise<
+    (Assignment & { status: SubmissionStatus; scorePct: number | null })[]
+  > {
     const { enrolled } = await this.classesService.findForUser(user);
     const classIds = enrolled.map((c) => c.id);
     if (classIds.length === 0) return [];
 
-    return this.assignments.find({
+    const assignments = await this.assignments.find({
       where: { classId: In(classIds) },
       order: { dueAt: 'ASC', createdAt: 'DESC' },
     });
+    if (assignments.length === 0) return [];
+
+    // One completion row per (assignment, this student) — attach its state.
+    const completions = await this.completions.find({
+      where: {
+        assignmentId: In(assignments.map((a) => a.id)),
+        studentId: user.id,
+      },
+    });
+    const byAssignment = new Map(completions.map((c) => [c.assignmentId, c]));
+    return assignments.map((a) =>
+      Object.assign(a, {
+        status: byAssignment.get(a.id)?.status ?? SubmissionStatus.ASSIGNED,
+        scorePct: byAssignment.get(a.id)?.scorePct ?? null,
+      }),
+    );
   }
 
   /** Teacher view: every targeted student's submission for one assignment. */

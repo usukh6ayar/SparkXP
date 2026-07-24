@@ -12,6 +12,7 @@ import { useAuth } from '../../src/auth/AuthContext';
 import * as quizzesApi from '../../src/api/quizzes';
 import type { Quiz, AnswerItem, QuizResult } from '../../src/api/quizzes';
 import { Button } from '../../src/components/Button';
+import { Card } from '../../src/components/Card';
 import { Skeleton } from '../../src/components/Skeleton';
 import { EmptyState } from '../../src/components/EmptyState';
 import { PressableScale } from '../../src/components/PressableScale';
@@ -44,6 +45,28 @@ function bestCombo(breakdown: QuizResult['breakdown']): number {
   return best;
 }
 
+/** One stat pill on the result screen (correct count / XP / combo). */
+function StatTile({ value, label, color, bg, sub }: {
+  value: string; label: string; color: string; bg: string; sub: string;
+}) {
+  return (
+    <View style={[tileStyles.tile, { backgroundColor: bg }]}>
+      <AppText variant="h2" color={color}>{value}</AppText>
+      <AppText variant="caption" color={sub}>{label}</AppText>
+    </View>
+  );
+}
+
+const tileStyles = StyleSheet.create({
+  tile: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+    borderRadius: radius.md,
+    gap: 2,
+  },
+});
+
 export default function QuizScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { token } = useAuth();
@@ -61,7 +84,7 @@ export default function QuizScreen() {
   const [matches, setMatches] = useState<Record<number, string>>({});
   const [result, setResult] = useState<QuizResult | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  // Per-question feedback: user must answer correctly before advancing (C2).
+  // Per-question feedback: shows correct/wrong, then advances either way.
   const [feedback, setFeedback] = useState<'none' | 'correct' | 'wrong'>('none');
   const [checking, setChecking] = useState(false);
   // The correct answer to reveal when wrong (mc → option index, fill_blank → text).
@@ -151,18 +174,20 @@ export default function QuizScreen() {
   }
 
   /**
-   * Check the current answer for instant feedback. Correct → save it and unlock
-   * "Continue"; wrong → reveal the right answer and let the user retry. The quiz
-   * never advances past a question until it is answered correctly.
+   * Check the current answer for instant feedback, then let the student move on
+   * whether they were right or wrong. The chosen answer is always saved (so the
+   * final score reflects mistakes) and the correct answer is revealed when wrong
+   * — but the quiz never blocks progress on a wrong answer.
    */
   async function checkCurrent() {
     if (!canAnswer() || feedback !== 'none' || checking) return;
     setChecking(true);
     try {
       const res = await quizzesApi.checkAnswer(id!, currentIndex, currentAnswer(), token!);
+      // Save the student's actual answer either way — grading happens server-side.
+      saveAnswer();
       if (res.correct) {
         haptics.success();
-        saveAnswer();
         setFeedback('correct');
       } else {
         haptics.error();
@@ -177,13 +202,6 @@ export default function QuizScreen() {
     }
   }
 
-  /** Wrong answer → clear the feedback and let the user answer again. */
-  function retry() {
-    setFeedback('none');
-    setRevealCorrect(null);
-    if (currentQ?.type === 'multiple_choice') setSelected(null);
-  }
-
   function nextQuestion() {
     setSelected(null);
     setFillText('');
@@ -194,7 +212,8 @@ export default function QuizScreen() {
   }
 
   async function handleSubmit() {
-    // Every question was answered correctly to reach here, so `answers` is complete.
+    // Every question was checked (right or wrong) before reaching here, so each
+    // answer is saved — the server grades them and the score reflects mistakes.
     setSubmitting(true);
     try {
       const res = await quizzesApi.submitQuiz(id!, answers, token!);
@@ -239,63 +258,73 @@ export default function QuizScreen() {
   }
 
   if (phase === 'result' && result) {
+    const combo = bestCombo(result.breakdown);
+    const accent = result.passed ? c.success : c.danger;
     return (
       <SafeAreaView style={styles.safe}>
         {result.passed && <Confetti />}
-        <ScrollView contentContainerStyle={[styles.container, bounded]}>
-          <Animated.View entering={FadeInDown.springify().damping(14)} style={styles.resultHead}>
-            <Text style={styles.resultEmoji}>{result.passed ? '🎉' : '😅'}</Text>
-            <AppText variant="h1" center>
-              {result.passed ? t('quizPassed') : t('quizTryAgain')}
-            </AppText>
-            <CountUp value={result.percentage} suffix="%" variant="display" color={c.primary}
-              style={styles.resultScore} />
-            <AppText variant="caption" center>
-              {tf('scoreLine', { score: result.score, total: result.total })}
-            </AppText>
-            {/* IELTS Listening/Reading — the server's approximate band (0–9). */}
-            {result.band !== undefined ? (
-              <View style={styles.bandBox}>
-                <AppText variant="overline" color={c.textSecondary}>{t('ieltsBandLabel')}</AppText>
-                <AppText variant="display" color={c.xp}>{formatBand(result.band)}</AppText>
-                <AppText variant="caption" center color={c.textMuted}>{t('ieltsBandHint')}</AppText>
+        <ScrollView contentContainerStyle={[styles.resultContainer, bounded]}>
+          {/* Hero: verdict + big score ring */}
+          <Animated.View entering={FadeInDown.springify().damping(14)}>
+            <Card variant="raised" padding="xl" style={styles.heroCard}>
+              <Text style={styles.resultEmoji}>{result.passed ? '🎉' : '😅'}</Text>
+              <AppText variant="h1" center>
+                {result.passed ? t('quizPassed') : t('quizTryAgain')}
+              </AppText>
+              <View style={[styles.scoreRing, { borderColor: accent }]}>
+                <CountUp value={result.percentage} suffix="%" variant="display"
+                  color={accent} style={styles.ringScore} />
               </View>
-            ) : null}
+              <AppText variant="caption" center color={c.textSecondary}>
+                {tf('scoreLine', { score: result.score, total: result.total })}
+              </AppText>
+              {/* IELTS Listening/Reading — the server's approximate band (0–9). */}
+              {result.band !== undefined ? (
+                <View style={styles.bandBox}>
+                  <AppText variant="overline" color={c.textSecondary}>{t('ieltsBandLabel')}</AppText>
+                  <AppText variant="display" color={c.xp}>{formatBand(result.band)}</AppText>
+                  <AppText variant="caption" center color={c.textMuted}>{t('ieltsBandHint')}</AppText>
+                </View>
+              ) : null}
+            </Card>
           </Animated.View>
 
-          <View style={styles.badgeRow}>
+          {/* At-a-glance stats */}
+          <Animated.View entering={FadeInDown.delay(200).springify()} style={styles.statRow}>
+            <StatTile value={`${result.score}/${result.total}`} label={t('resultCorrectLabel')}
+              color={c.success} bg={c.surfaceAlt} sub={c.textSecondary} />
             {result.xpEarned > 0 && (
-              <Animated.View entering={FadeInDown.delay(300).springify()} style={styles.xpBadge}>
-                <CountUp value={result.xpEarned} prefix="+" suffix=" XP ⚡" variant="bodyStrong"
-                  color={c.primary} />
-              </Animated.View>
+              <StatTile value={`+${result.xpEarned}`} label={t('xp')}
+                color={c.primary} bg={c.surfaceAlt} sub={c.textSecondary} />
             )}
-            {bestCombo(result.breakdown) >= 2 && (
-              <Animated.View entering={FadeInDown.delay(380).springify()} style={styles.comboBadge}>
-                <AppText variant="bodyStrong" color={c.streak}>
-                  {tf('comboLabel', { count: bestCombo(result.breakdown) })}
-                </AppText>
-              </Animated.View>
+            {combo >= 2 && (
+              <StatTile value={`🔥 ${combo}`} label={t('resultComboLabel')}
+                color={c.streak} bg={c.surfaceAlt} sub={c.textSecondary} />
             )}
-          </View>
+          </Animated.View>
 
-          <View style={styles.breakdownBox}>
+          {/* Per-question breakdown as compact chips */}
+          <AppText variant="overline" color={c.textSecondary} style={styles.breakdownTitle}>
+            {t('resultBreakdownTitle')}
+          </AppText>
+          <View style={styles.chipWrap}>
             {result.breakdown.map((b, i) => (
               <Animated.View
                 key={b.questionIndex}
-                entering={FadeInDown.delay(360 + i * 50)}
-                style={styles.breakdownRow}
+                entering={FadeInDown.delay(300 + i * 40)}
+                style={[styles.chip, { backgroundColor: b.correct ? c.successSoft : c.dangerSoft }]}
               >
-                <Text style={styles.breakdownNum}>{b.questionIndex + 1}</Text>
-                <Text style={b.correct ? styles.correct : styles.wrong}>
+                <Text style={[styles.chipNum, { color: b.correct ? c.success : c.danger }]}>
+                  {b.questionIndex + 1}
+                </Text>
+                <Text style={[styles.chipMark, { color: b.correct ? c.success : c.danger }]}>
                   {b.correct ? '✓' : '✗'}
                 </Text>
-                <Text style={styles.breakdownPts}>{b.points} {t('pointsUnit')}</Text>
               </Animated.View>
             ))}
           </View>
 
-          <Button label={t('finish')} onPress={() => router.back()} style={{ marginTop: spacing.lg }} />
+          <Button label={t('finish')} onPress={() => router.back()} style={{ marginTop: spacing.xl }} />
         </ScrollView>
       </SafeAreaView>
     );
@@ -444,18 +473,18 @@ export default function QuizScreen() {
 
         <Button
           label={
-            feedback === 'wrong'
-              ? t('retryAnswer')
-              : feedback === 'correct'
-                ? (isLast ? (submitting ? t('submitting') : t('submit')) : t('continue'))
-                : t('check')
+            feedback === 'none'
+              ? t('check')
+              : isLast
+                ? (submitting ? t('submitting') : t('submit'))
+                : t('continue')
           }
           onPress={
-            feedback === 'wrong'
-              ? retry
-              : feedback === 'correct'
-                ? (isLast ? handleSubmit : nextQuestion)
-                : checkCurrent
+            feedback === 'none'
+              ? checkCurrent
+              : isLast
+                ? handleSubmit
+                : nextQuestion
           }
           disabled={(feedback === 'none' && !canAnswer()) || checking || submitting}
           style={{ marginTop: spacing.xl }}
@@ -560,34 +589,25 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   feedbackBox: { marginTop: spacing.lg, gap: spacing.xs, alignItems: 'flex-start' },
   errorText: { color: c.danger, fontSize: fontSize.md },
   // Result styles
-  resultHead: { alignItems: 'center', marginBottom: spacing.lg },
-  resultEmoji: { fontSize: 64, textAlign: 'center', marginBottom: spacing.sm },
-  resultScore: { fontSize: 56, lineHeight: 60, fontWeight: '900', marginTop: spacing.sm },
-  badgeRow: {
-    flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap',
-    gap: spacing.sm, marginBottom: spacing.lg,
+  resultContainer: { padding: spacing.lg, paddingTop: spacing.md, gap: spacing.lg },
+  heroCard: { alignItems: 'center', gap: spacing.sm },
+  resultEmoji: { fontSize: 64, textAlign: 'center' },
+  scoreRing: {
+    width: 132, height: 132, borderRadius: 66,
+    borderWidth: 6,
+    alignItems: 'center', justifyContent: 'center',
+    marginTop: spacing.sm,
   },
-  xpBadge: {
-    backgroundColor: c.primarySoft,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.full,
-  },
-  comboBadge: {
-    backgroundColor: c.surfaceAlt,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.full,
-  },
-  breakdownBox: {
-    backgroundColor: c.surfaceAlt,
+  ringScore: { fontSize: 40, lineHeight: 44, fontWeight: '900' },
+  statRow: { flexDirection: 'row', gap: spacing.sm },
+  breakdownTitle: { marginBottom: -spacing.xs },
+  chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  chip: {
+    minWidth: 46,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
+    paddingVertical: spacing.sm, paddingHorizontal: spacing.md,
     borderRadius: radius.md,
-    padding: spacing.md,
-    gap: spacing.sm,
   },
-  breakdownRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  breakdownNum: { width: 24, fontWeight: '700', color: c.textMuted, fontSize: fontSize.sm },
-  correct: { fontSize: fontSize.lg, color: c.success },
-  wrong: { fontSize: fontSize.lg, color: c.danger },
-  breakdownPts: { color: c.textMuted, fontSize: fontSize.sm },
+  chipNum: { fontWeight: '800', fontSize: fontSize.sm },
+  chipMark: { fontWeight: '800', fontSize: fontSize.md },
 });
