@@ -17,6 +17,7 @@ import { AuthProvider, useAuth } from "../src/auth/AuthContext";
 import { SettingsProvider, useColors, useSettings } from "../src/settings/SettingsContext";
 import { DictionaryProvider } from "../src/components/DictionaryProvider";
 import { ToastHost } from "../src/components/Toast";
+import { LockScreen } from "../src/components/LockScreen";
 
 /**
  * Auth gate: redirects based on whether the user is logged in.
@@ -28,7 +29,7 @@ import { ToastHost } from "../src/components/Toast";
 const PREVIEW_AUTH = false;
 
 function RootNavigator() {
-  const { token, user, loading, onboarded } = useAuth();
+  const { token, user, loading, onboarded, biometricEnabled, biometricLocked } = useAuth();
   const colors = useColors();
   const segments = useSegments();
   const router = useRouter();
@@ -63,7 +64,14 @@ function RootNavigator() {
   }
 
   // Platform-standard push transition so screens slide in instead of snapping.
-  return <Stack screenOptions={{ headerShown: false, animation: "slide_from_right" }} />;
+  // The lock overlay renders ON TOP of the (still-mounted) navigator so routing
+  // keeps working underneath while content stays hidden until biometrics pass.
+  return (
+    <>
+      <Stack screenOptions={{ headerShown: false, animation: "slide_from_right" }} />
+      {token && biometricEnabled && biometricLocked ? <LockScreen /> : null}
+    </>
+  );
 }
 
 /**
