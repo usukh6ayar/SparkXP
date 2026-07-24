@@ -208,7 +208,10 @@ function SpeakerButton({ speaking, onPress }: { speaking: boolean; onPress: () =
   }));
 
   return (
-    <Pressable onPress={onPress} hitSlop={12} style={styles.speaker}>
+    // onPressIn (not onPress): fires on touch-down so a plain tap plays audio
+    // immediately and reliably on Android, instead of the card's long-press
+    // being the only thing that triggers sound.
+    <Pressable onPressIn={onPress} hitSlop={16} style={styles.speaker}>
       <Animated.View style={[styles.speakerRing, ringStyle]} />
       <Ionicons name="volume-high" size={24} color={colors.white} />
     </Pressable>

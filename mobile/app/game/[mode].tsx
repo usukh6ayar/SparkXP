@@ -17,6 +17,7 @@ import {
 } from "../../src/api/wordQuiz";
 import { MatchGame } from "../../src/components/MatchGame";
 import { TopBar } from "../../src/components/TopBar";
+import { AwardBadge } from "../../src/components/AwardBadge";
 import { AppText } from "../../src/components/Text";
 import { Skeleton } from "../../src/components/Skeleton";
 import { EmptyState } from "../../src/components/EmptyState";
@@ -217,7 +218,7 @@ function VocabGame({ mode }: { mode: McMode }) {
       <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
         <TopBar title={t("scoreTitle")} back />
         <View style={styles.center}>
-          <AppText style={styles.emoji}>{perfect ? "🏆" : "🎉"}</AppText>
+          <AwardBadge icon={perfect ? "trophy" : "sparkles"} color={colors.white} bg={colors.primary} size={84} />
           <AppText variant="h1" center>
             {result.correct} / {result.total} {t("correctSuffix")}
           </AppText>

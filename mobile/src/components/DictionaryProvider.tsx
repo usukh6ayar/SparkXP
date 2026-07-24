@@ -278,8 +278,18 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
     transform: [{ translateY: (1 - reveal.value) * 8 }],
   }));
 
+  // Stable context value: the callbacks are already useCallback-stable, so
+  // memoizing here means popover state changes (loading → result) DON'T change
+  // the context identity — otherwise every consumer (e.g. the passage's
+  // <SelectableText>) re-renders on each lookup tick and the text visibly
+  // re-lays-out / "trembles" under the tapped word.
+  const value = useMemo(
+    () => ({ lookup, translatePhrase, openSearch }),
+    [lookup, translatePhrase, openSearch],
+  );
+
   return (
-    <DictionaryContext.Provider value={{ lookup, translatePhrase, openSearch }}>
+    <DictionaryContext.Provider value={value}>
       {children}
 
       {/* In-place search overlay — transparent backdrop, no screen change */}

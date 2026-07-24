@@ -164,7 +164,7 @@ const SavedRow = memo(function SavedRow({
     <Card variant="raised" padding="md" style={styles.row}>
       <View style={styles.thumb}>
         {item.imageUrl ? (
-          <AppImage source={{ uri: item.imageUrl }} width={120} style={styles.thumbImg} recyclingKey={item.id} />
+          <AppImage source={{ uri: item.imageUrl }} width={120} style={styles.thumbImg} contentFit="cover" recyclingKey={item.id} />
         ) : (
           // Words saved from the tap-to-translate dictionary have no picture —
           // show a clean letter tile instead of a broken-image icon.
@@ -197,7 +197,9 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
     width: 48, height: 48, borderRadius: radius.md,
     backgroundColor: c.primarySoft, alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
   },
-  thumbImg: { width: '100%', height: '100%' },
+  // absoluteFill (not width/height:'100%') so the picture reliably fills the
+  // 48×48 tile even though the tile centers its content for the letter fallback.
+  thumbImg: { ...StyleSheet.absoluteFillObject },
   info: { flex: 1 },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
   emptyEmoji: { fontSize: 52, marginBottom: spacing.md },

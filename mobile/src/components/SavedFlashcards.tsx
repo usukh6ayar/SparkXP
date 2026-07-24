@@ -1,12 +1,13 @@
 import { useMemo, useState, useEffect, useCallback } from 'react';
 import { View, StyleSheet, Modal, Pressable } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { AppImage } from './AppImage';
 import { AppText } from './Text';
 import { IconButton } from './IconButton';
 import { Button } from './Button';
+import { AwardBadge } from './AwardBadge';
 import { ProgressBar } from './ProgressBar';
 import { haptics } from '../lib/haptics';
 import { t } from '../i18n';
@@ -43,6 +44,9 @@ export function SavedFlashcards({
 }) {
   const c = useColors();
   const styles = useMemo(() => makeStyles(c), [c]);
+  // Real device insets read from the ROOT provider (reliable even though the
+  // content lives inside a full-screen, status-bar-translucent Modal).
+  const insets = useSafeAreaInsets();
   const [deck, setDeck] = useState<LearnWord[]>([]);
   const [flipped, setFlipped] = useState(false);
   const [known, setKnown] = useState(0);
@@ -74,11 +78,11 @@ export function SavedFlashcards({
   };
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
+      <View style={[styles.safe, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         {/* Header */}
         <View style={styles.header}>
-          <IconButton icon="close" size={40} onPress={onClose} accessibilityLabel={t('close')} />
+          <IconButton icon="arrow-back" size={40} onPress={onClose} accessibilityLabel={t('close')} />
           <AppText variant="h3">{t('savedWords')}</AppText>
           <AppText variant="label" color={c.textSecondary} style={styles.counter}>
             {card ? `${doneCount + 1} / ${total}` : `${total} / ${total}`}
@@ -142,11 +146,13 @@ export function SavedFlashcards({
         ) : (
           // Deck cleared → summary
           <View style={styles.done}>
-            <AppText style={styles.doneEmoji}>🎉</AppText>
-            <AppText variant="h2" center>{t('reviewComplete')}</AppText>
-            <AppText variant="body" color={c.textSecondary} center style={styles.doneHint}>
-              {t('knownLabel')}: {known} / {total}
-            </AppText>
+            <AwardBadge icon="trophy" color={c.white} bg={c.primary} size={88} />
+            <AppText variant="h2" center style={styles.doneTitle}>{t('reviewComplete')}</AppText>
+            {/* Big known/total score so the result reads at a glance. */}
+            <View style={styles.doneScore}>
+              <AppText variant="display" color={c.primary}>{known}</AppText>
+              <AppText variant="h3" color={c.textMuted}>/ {total}</AppText>
+            </View>
             <AppText variant="caption" color={c.textMuted} center style={styles.doneHint}>
               {t('reviewDoneHint')}
             </AppText>
@@ -154,7 +160,7 @@ export function SavedFlashcards({
             <Button label={t('close')} variant="secondary" onPress={onClose} style={styles.doneBtn2} />
           </View>
         )}
-      </SafeAreaView>
+      </View>
     </Modal>
   );
 }
@@ -192,7 +198,8 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   actionBtn: { flex: 1 },
 
   done: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
-  doneEmoji: { fontSize: 64, marginBottom: spacing.md },
+  doneTitle: { marginTop: spacing.lg },
+  doneScore: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs, marginTop: spacing.sm },
   doneHint: { marginTop: spacing.sm },
   doneBtn: { alignSelf: 'stretch', marginTop: spacing.xl },
   doneBtn2: { alignSelf: 'stretch', marginTop: spacing.sm },

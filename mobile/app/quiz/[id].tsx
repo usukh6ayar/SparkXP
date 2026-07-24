@@ -4,6 +4,7 @@ import {
   Pressable,
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,7 +13,7 @@ import { useAuth } from '../../src/auth/AuthContext';
 import * as quizzesApi from '../../src/api/quizzes';
 import type { Quiz, AnswerItem, QuizResult } from '../../src/api/quizzes';
 import { Button } from '../../src/components/Button';
-import { Card } from '../../src/components/Card';
+import { AwardBadge } from '../../src/components/AwardBadge';
 import { Skeleton } from '../../src/components/Skeleton';
 import { EmptyState } from '../../src/components/EmptyState';
 import { PressableScale } from '../../src/components/PressableScale';
@@ -29,7 +30,7 @@ import { alertError } from '../../src/lib/alerts';
 import { t, tf } from '../../src/i18n';
 import { formatBand } from '../../src/constants/ielts';
 import { useColors } from '../../src/settings/SettingsContext';
-import { spacing, radius, fontSize, type AppColors } from '../../src/theme/theme';
+import { colors, spacing, radius, fontSize, type AppColors } from '../../src/theme/theme';
 import { bounded } from '../../src/theme/responsive';
 
 type Phase = 'loading' | 'quiz' | 'result' | 'error';
@@ -43,6 +44,14 @@ function bestCombo(breakdown: QuizResult['breakdown']): number {
     if (run > best) best = run;
   }
   return best;
+}
+
+/** Performance grade shown on a pass — "EXCELLENT" for a near-perfect score down
+ *  to a plain "GOOD", so finishing feels rewarding (not just a bare percentage). */
+function gradeKey(percentage: number): 'gradeExcellent' | 'gradeGreat' | 'gradeGood' {
+  if (percentage >= 90) return 'gradeExcellent';
+  if (percentage >= 75) return 'gradeGreat';
+  return 'gradeGood';
 }
 
 /** One stat pill on the result screen (correct count / XP / combo). */
@@ -84,6 +93,11 @@ export default function QuizScreen() {
   const [matches, setMatches] = useState<Record<number, string>>({});
   const [result, setResult] = useState<QuizResult | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // Instant per-question feedback (C2): after answering, we grade THIS question
+  // via /check and show ✓/✗ (+ the correct answer) before letting the student
+  // move on — instead of silently advancing and only revealing the score at the end.
+  const [feedback, setFeedback] = useState<quizzesApi.CheckResult | null>(null);
+  const [checking, setChecking] = useState(false);
   // IELTS Reading passage panel + Listening playback.
   const [passageOpen, setPassageOpen] = useState(true);
   const audio = useAudioPlayer();
@@ -162,11 +176,35 @@ export default function QuizScreen() {
    * question submits the whole set; grading happens server-side and the score
    * only appears at the end.
    */
-  function advance() {
-    if (!canAnswer() || submitting) return;
+  async function advance() {
+    if (!canAnswer() || submitting || checking) return;
+    // Phase 1 — answer is in, but not yet checked: grade THIS question, show
+    // ✓/✗ feedback, and wait for a second tap before moving on.
+    if (!feedback) {
+      setChecking(true);
+      try {
+        const fb = await quizzesApi.checkAnswer(id!, currentIndex, currentAnswer(), token!);
+        setFeedback(fb);
+        if (fb.correct) haptics.success();
+        else haptics.error();
+      } catch {
+        // /check failed → don't block the quiz, just record + advance silently.
+        proceed();
+      } finally {
+        setChecking(false);
+      }
+      return;
+    }
+    // Phase 2 — feedback already shown: record the answer and continue.
+    proceed();
+  }
+
+  /** Record the current answer and move to the next question (or submit). */
+  function proceed() {
     haptics.select();
     const all = answersWithCurrent();
     setAnswers(all);
+    setFeedback(null);
     if (isLast) submit(all);
     else nextQuestion();
   }
@@ -175,6 +213,7 @@ export default function QuizScreen() {
     setSelected(null);
     setFillText('');
     setMatches({});
+    setFeedback(null);
     setCurrentIndex((i) => i + 1);
   }
 
@@ -229,29 +268,45 @@ export default function QuizScreen() {
       <SafeAreaView style={styles.safe}>
         {result.passed && <Confetti />}
         <ScrollView contentContainerStyle={[styles.resultContainer, bounded]}>
-          {/* Hero: verdict + big score ring */}
-          <Animated.View entering={FadeInDown.springify().damping(14)}>
-            <Card variant="raised" padding="xl" style={styles.heroCard}>
-              <Text style={styles.resultEmoji}>{result.passed ? '🎉' : '😅'}</Text>
-              <AppText variant="h1" center>
+          {/* Hero: a celebratory gradient card on a pass (white text + bright
+              grade badge + ring), a calm neutral card on a miss. */}
+          <Animated.View entering={FadeInDown.springify().damping(14)} style={styles.heroShadow}>
+            <LinearGradient
+              colors={result.passed ? colors.primaryGradient : [c.surfaceAlt, c.surface]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.hero}
+            >
+              <AwardBadge
+                icon={result.passed ? 'trophy' : 'refresh'}
+                color={result.passed ? colors.white : c.textSecondary}
+                bg={result.passed ? 'rgba(255,255,255,0.22)' : c.surfaceAlt}
+              />
+              {/* Performance grade badge — EXCELLENT / GREAT / GOOD on a pass. */}
+              {result.passed ? (
+                <View style={styles.gradeBadge}>
+                  <AppText variant="label" color={colors.primary}>{t(gradeKey(result.percentage))}</AppText>
+                </View>
+              ) : null}
+              <AppText variant="h1" center color={result.passed ? colors.white : c.text}>
                 {result.passed ? t('quizPassed') : t('quizTryAgain')}
               </AppText>
-              <View style={[styles.scoreRing, { borderColor: accent }]}>
+              <View style={[styles.scoreRing, { borderColor: result.passed ? 'rgba(255,255,255,0.85)' : accent }]}>
                 <CountUp value={result.percentage} suffix="%" variant="display"
-                  color={accent} style={styles.ringScore} />
+                  color={result.passed ? colors.white : accent} style={styles.ringScore} />
               </View>
-              <AppText variant="caption" center color={c.textSecondary}>
+              <AppText variant="caption" center color={result.passed ? 'rgba(255,255,255,0.85)' : c.textSecondary}>
                 {tf('scoreLine', { score: result.score, total: result.total })}
               </AppText>
               {/* IELTS Listening/Reading — the server's approximate band (0–9). */}
               {result.band !== undefined ? (
                 <View style={styles.bandBox}>
-                  <AppText variant="overline" color={c.textSecondary}>{t('ieltsBandLabel')}</AppText>
-                  <AppText variant="display" color={c.xp}>{formatBand(result.band)}</AppText>
-                  <AppText variant="caption" center color={c.textMuted}>{t('ieltsBandHint')}</AppText>
+                  <AppText variant="overline" color={result.passed ? 'rgba(255,255,255,0.85)' : c.textSecondary}>{t('ieltsBandLabel')}</AppText>
+                  <AppText variant="display" color={result.passed ? colors.white : c.xp}>{formatBand(result.band)}</AppText>
+                  <AppText variant="caption" center color={result.passed ? 'rgba(255,255,255,0.7)' : c.textMuted}>{t('ieltsBandHint')}</AppText>
                 </View>
               ) : null}
-            </Card>
+            </LinearGradient>
           </Animated.View>
 
           {/* At-a-glance stats */}
@@ -263,7 +318,7 @@ export default function QuizScreen() {
                 color={c.primary} bg={c.surfaceAlt} sub={c.textSecondary} />
             )}
             {combo >= 2 && (
-              <StatTile value={`🔥 ${combo}`} label={t('resultComboLabel')}
+              <StatTile value={`×${combo}`} label={t('resultComboLabel')}
                 color={c.streak} bg={c.surfaceAlt} sub={c.textSecondary} />
             )}
           </Animated.View>
@@ -364,19 +419,35 @@ export default function QuizScreen() {
           <View style={styles.optionsContainer}>
             {currentQ!.options!.map((opt, i) => {
               const isSel = selected === i;
+              const showFb = feedback !== null;
+              // On a correct answer the picked option IS the right one; on a wrong
+              // one the backend hands back the correct index so we can reveal it.
+              const correctIdx = feedback?.correct
+                ? selected
+                : (typeof feedback?.correctAnswer === 'number' ? feedback.correctAnswer : null);
+              const isCorrectOpt = showFb && correctIdx === i;
+              const isWrongSel = showFb && isSel && !feedback!.correct;
               return (
                 <PressableScale
                   key={i}
                   haptic={false}
-                  style={[styles.option, isSel && styles.optionSelected]}
+                  disabled={showFb}
+                  style={[
+                    styles.option,
+                    isSel && !showFb && styles.optionSelected,
+                    isCorrectOpt && styles.optionCorrect,
+                    isWrongSel && styles.optionWrong,
+                  ]}
                   onPress={() => { haptics.select(); setSelected(i); }}
                 >
-                  <Text style={[styles.optionLabel, isSel && styles.optionLabelSelected]}>
+                  <Text style={[styles.optionLabel, isSel && !showFb && styles.optionLabelSelected]}>
                     {String.fromCharCode(65 + i)}
                   </Text>
-                  <AppText variant="body" style={[styles.optionText, isSel && styles.optionTextSelected]}>
+                  <AppText variant="body" style={[styles.optionText, isSel && !showFb && styles.optionTextSelected]}>
                     {opt}
                   </AppText>
+                  {isCorrectOpt ? <Ionicons name="checkmark-circle" size={20} color={c.success} /> : null}
+                  {isWrongSel ? <Ionicons name="close-circle" size={20} color={c.danger} /> : null}
                 </PressableScale>
               );
             })}
@@ -391,6 +462,7 @@ export default function QuizScreen() {
             placeholder={t('yourAnswer')}
             placeholderTextColor={c.textMuted}
             autoCapitalize="none"
+            editable={!feedback}
           />
         )}
 
@@ -411,10 +483,37 @@ export default function QuizScreen() {
           />
         )}
 
+        {/* Instant ✓/✗ feedback banner (all question types). For fill_blank it
+            also spells out the correct answer the student missed. */}
+        {feedback ? (
+          <View style={[styles.fbBanner, { backgroundColor: feedback.correct ? c.successSoft : c.dangerSoft }]}>
+            <Ionicons
+              name={feedback.correct ? 'checkmark-circle' : 'close-circle'}
+              size={24}
+              color={feedback.correct ? c.success : c.danger}
+            />
+            <View style={{ flex: 1 }}>
+              <AppText variant="bodyStrong" color={feedback.correct ? c.success : c.danger}>
+                {feedback.correct ? t('answerCorrect') : t('answerWrong')}
+              </AppText>
+              {!feedback.correct && currentQ!.type === 'fill_blank' && typeof feedback.correctAnswer === 'string' ? (
+                <AppText variant="caption" color={c.textSecondary}>
+                  {tf('correctAnswerLabel', { answer: feedback.correctAnswer })}
+                </AppText>
+              ) : null}
+            </View>
+          </View>
+        ) : null}
+
         <Button
-          label={isLast ? (submitting ? t('submitting') : t('finish')) : t('continue')}
+          label={
+            checking ? t('checking')
+              : !feedback ? t('check')
+              : isLast ? (submitting ? t('submitting') : t('finish'))
+              : t('continue')
+          }
           onPress={advance}
-          disabled={!canAnswer() || submitting}
+          disabled={!canAnswer() || submitting || checking}
           style={{ marginTop: spacing.xl }}
         />
       </ScrollView>
@@ -502,6 +601,13 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   optionLabelSelected: { backgroundColor: c.primary, color: c.white },
   optionText: { flex: 1, fontSize: fontSize.md, color: c.text },
   optionTextSelected: { color: c.navy, fontWeight: '600' },
+  // Instant-feedback option states.
+  optionCorrect: { borderColor: c.success, backgroundColor: c.successSoft },
+  optionWrong: { borderColor: c.danger, backgroundColor: c.dangerSoft },
+  fbBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    padding: spacing.md, borderRadius: radius.md, marginTop: spacing.lg,
+  },
   fillInput: {
     borderWidth: 2,
     borderColor: c.border,
@@ -513,8 +619,22 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   errorText: { color: c.danger, fontSize: fontSize.md },
   // Result styles
   resultContainer: { padding: spacing.lg, paddingTop: spacing.md, gap: spacing.lg },
-  heroCard: { alignItems: 'center', gap: spacing.sm },
-  resultEmoji: { fontSize: 64, textAlign: 'center' },
+  heroShadow: {
+    borderRadius: radius.xl,
+    shadowColor: colors.primary, shadowOpacity: 0.3, shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 }, elevation: 8,
+  },
+  hero: {
+    alignItems: 'center', gap: spacing.sm,
+    borderRadius: radius.xl, overflow: 'hidden',
+    paddingVertical: spacing.xl, paddingHorizontal: spacing.lg,
+  },
+  // lineHeight ≥ fontSize so the celebration emoji isn't clipped on Android.
+  resultEmoji: { fontSize: 60, lineHeight: 72, textAlign: 'center' },
+  gradeBadge: {
+    backgroundColor: colors.white,
+    paddingHorizontal: spacing.md, paddingVertical: 4, borderRadius: radius.full,
+  },
   scoreRing: {
     width: 132, height: 132, borderRadius: 66,
     borderWidth: 6,
