@@ -329,6 +329,31 @@ WordReview, XpLog, AiUsage, Message, Payment, SparksLog, LessonUnlock.
   never raw `fetch` inside a screen.
 - Full plan + brand colors: see **`mobile/DESIGN.md`** + **`mobile/SCREEN_SPECS.md`**.
 
+### Running the mobile app — Expo Go vs native build
+
+Two ways to run the app; pick by role:
+
+- **Choi / Boju → Expo Go** (no native build). The project has
+  `expo-dev-client` installed, so **plain `expo start` defaults to a dev build**
+  (QR opens the dev client, not Expo Go) — this is what makes it look like "the
+  config changed / broke". Use the Expo Go script instead:
+  ```bash
+  git checkout main && git pull      # get latest
+  cd mobile && npm install           # deps may have changed → ALWAYS reinstall
+  npm run go                         # = expo start --go -c  (forces Expo Go)
+  ```
+  **Rule of thumb: after every `git pull`, run `npm install` before `npm run go`.**
+  Never run `expo prebuild` / `npm run android` (they generate `android/`+`ios/`
+  and break the Expo Go flow; those folders are gitignored — delete if created).
+  Hot Updater is guarded (`_layout.tsx`), so it's inert in Expo Go — safe.
+- **Өсөхбаяр (lead) → native builds + OTA.** Owns all native config
+  (`app.json`, `eas.json`, `package.json` deps, `hot-updater.config.ts`,
+  plugins). Builds real APKs and pushes JS updates via
+  `npm run ota:deploy:android`. **Only the lead edits native config/deps** — this
+  keeps a single source of truth so Expo Go doesn't break under the others.
+- **Can't be tested in Expo Go** (lead's build only): Hot Updater OTA and any
+  pure-native feature. ~95% of JS/screen work runs fine in Expo Go.
+
 ## Git Workflow (3-dev team)
 
 > **Remote:** `origin` = https://github.com/usukh6ayar/SparkXP.git
