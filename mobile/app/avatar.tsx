@@ -6,6 +6,7 @@ import { useAuth } from '../src/auth/AuthContext';
 import { useAvatarPicker } from '../src/lib/useAvatarPicker';
 import { t } from '../src/i18n';
 import { AppText } from '../src/components/Text';
+import { AppImage } from '../src/components/AppImage';
 import { Avatar } from '../src/components/Avatar';
 import { Button } from '../src/components/Button';
 import { TopBar } from '../src/components/TopBar';
@@ -13,22 +14,35 @@ import { spacing, radius, elevation, type AppColors } from '../src/theme/theme';
 import { bounded } from '../src/theme/responsive';
 import { useColors } from '../src/settings/SettingsContext';
 
-/** Change your profile photo. Just the photo picker — no default-avatar grid. */
+const AVATAR_SIZE = 132;
+
+/** Change your profile photo: pick → preview → Save (no default-avatar grid). */
 export default function AvatarScreen() {
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { user } = useAuth();
-  const { pickPhoto, busy, error } = useAvatarPicker();
+  const { pickForPreview, pending, savePending, cancelPending, busy, error } = useAvatarPicker();
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <TopBar title={t('avatarTitle')} back showBadges={false} />
 
       <View style={styles.content}>
-        {/* Tappable avatar with a camera badge — the whole thing opens the picker. */}
-        <Pressable style={styles.avatarWrap} onPress={pickPhoto} disabled={busy} accessibilityRole="button" accessibilityLabel={t('editAvatar')}>
+        {/* Tappable avatar with a camera badge — the whole thing opens the picker.
+            While a photo is pending it previews inside the same fixed-size frame
+            (contained), so the chosen image can never overflow the screen. */}
+        <Pressable style={styles.avatarWrap} onPress={pickForPreview} disabled={busy} accessibilityRole="button" accessibilityLabel={t('editAvatar')}>
           <View style={styles.avatarRing}>
-            <Avatar avatarUrl={user?.avatarUrl} name={user?.fullName} size={132} />
+            {pending ? (
+              <AppImage
+                source={{ uri: pending }}
+                width={AVATAR_SIZE * 2}
+                style={styles.preview}
+                contentFit="cover"
+              />
+            ) : (
+              <Avatar avatarUrl={user?.avatarUrl} name={user?.fullName} size={AVATAR_SIZE} />
+            )}
           </View>
           <View style={styles.cameraBadge}>
             {busy ? (
@@ -54,12 +68,39 @@ export default function AvatarScreen() {
       </View>
 
       <View style={[styles.actions, bounded]}>
-        <Button
-          label={t('chooseFromPhotos')}
-          icon="image-outline"
-          onPress={pickPhoto}
-          disabled={busy}
-        />
+        {pending ? (
+          // A photo is chosen but not uploaded yet → Save it, or pick another.
+          <>
+            <Button
+              label={busy ? t('saving') : t('saveAvatar')}
+              icon="checkmark"
+              onPress={savePending}
+              disabled={busy}
+            />
+            <Button
+              label={t('choosePhotoAgain')}
+              icon="image-outline"
+              variant="secondary"
+              onPress={pickForPreview}
+              disabled={busy}
+              style={styles.secondBtn}
+            />
+            <Button
+              label={t('cancel')}
+              variant="ghost"
+              onPress={cancelPending}
+              disabled={busy}
+              style={styles.secondBtn}
+            />
+          </>
+        ) : (
+          <Button
+            label={t('chooseFromPhotos')}
+            icon="image-outline"
+            onPress={pickForPreview}
+            disabled={busy}
+          />
+        )}
       </View>
     </SafeAreaView>
   );
@@ -85,8 +126,11 @@ const makeStyles = (colors: AppColors) => StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
     borderWidth: 3, borderColor: colors.background,
   },
+  // Pending preview fills the same circular frame as the Avatar (no overflow).
+  preview: { width: AVATAR_SIZE, height: AVATAR_SIZE, borderRadius: AVATAR_SIZE / 2, backgroundColor: colors.primarySoft },
   name: { marginTop: spacing.lg },
   hint: { marginTop: spacing.xs, maxWidth: 280 },
   error: { marginTop: spacing.md },
   actions: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg },
+  secondBtn: { marginTop: spacing.sm },
 });

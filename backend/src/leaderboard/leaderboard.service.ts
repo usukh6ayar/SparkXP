@@ -18,6 +18,12 @@ export interface LeaderboardEntry {
   province: string | null;
   district: string | null;
   xp: number;
+  /**
+   * Only set for the `teacher` scope: one class (owned by the teacher) that this
+   * student belongs to, so the teacher app can deep-link to the student's
+   * progress screen (class/:classId/student/:userId). null everywhere else.
+   */
+  classId?: string | null;
 }
 
 /** The current user's standing (null xp if they earned nothing in the window). */
@@ -72,7 +78,7 @@ export class LeaderboardService {
     }
 
     // --- Top N list ---
-    const rows = await this.baseQuery(query.scope, scopeValue, since)
+    const qb = this.baseQuery(query.scope, scopeValue, since)
       .select('u.id', 'userId')
       .addSelect('u.fullName', 'fullName')
       .addSelect('u.username', 'username')
@@ -82,8 +88,22 @@ export class LeaderboardService {
       .addSelect('SUM(x.amount)', 'xp')
       .groupBy('u.id')
       .orderBy('xp', 'DESC')
-      .limit(query.limit)
-      .getRawMany();
+      .limit(query.limit);
+
+    // Teacher scope only: attach one class (of this teacher, `:v`) the student is
+    // in so the app can open their progress. Correlated scalar subquery on u.id —
+    // depends only on the GROUP BY key, so it doesn't affect the XP SUM.
+    if (query.scope === LeaderboardScope.TEACHER) {
+      qb.addSelect(
+        `(SELECT cs.class_id FROM class_students cs
+            INNER JOIN classes c ON c.id = cs.class_id
+            WHERE cs.student_id = u.id AND c.teacher_id = :v
+            ORDER BY c.created_at DESC LIMIT 1)`,
+        'classId',
+      );
+    }
+
+    const rows = await qb.getRawMany();
 
     const entries: LeaderboardEntry[] = rows.map((r, i) => ({
       rank: i + 1,
@@ -94,6 +114,7 @@ export class LeaderboardService {
       province: r.province,
       district: r.district,
       xp: Number(r.xp),
+      classId: r.classId ?? null,
     }));
 
     // --- Current user's standing ---

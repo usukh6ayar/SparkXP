@@ -10,6 +10,7 @@ import { t } from '../../src/i18n';
 import { AppText } from '../../src/components/Text';
 import { Avatar } from '../../src/components/Avatar';
 import { Button } from '../../src/components/Button';
+import { EditProfileModal } from '../../src/components/EditProfileModal';
 import { spacing, radius, elevation, type AppColors } from '../../src/theme/theme';
 import { useColors } from '../../src/settings/SettingsContext';
 import { bounded } from '../../src/theme/responsive';
@@ -19,6 +20,7 @@ export default function TeacherProfileScreen() {
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
+  const [editing, setEditing] = useState(false);
   const [classCount, setClassCount] = useState<number | null>(null);
   const [studentCount, setStudentCount] = useState<number | null>(null);
 
@@ -111,6 +113,13 @@ export default function TeacherProfileScreen() {
         </View>
 
         <Button
+          label={t('editProfile')}
+          icon="create-outline"
+          onPress={() => setEditing(true)}
+          style={styles.editBtn}
+        />
+
+        <Button
           label={t('logout')}
           variant="secondary"
           icon="log-out-outline"
@@ -118,6 +127,8 @@ export default function TeacherProfileScreen() {
           style={styles.logout}
         />
       </ScrollView>
+
+      <EditProfileModal visible={editing} onClose={() => setEditing(false)} />
     </SafeAreaView>
   );
 }
@@ -172,5 +183,6 @@ const makeStyles = (colors: AppColors) => StyleSheet.create({
   },
   infoRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm },
   divider: { height: 1, backgroundColor: colors.border },
-  logout: { marginTop: spacing.lg },
+  editBtn: { marginTop: spacing.lg },
+  logout: { marginTop: spacing.md },
 });
