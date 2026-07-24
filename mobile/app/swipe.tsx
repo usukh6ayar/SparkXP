@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
+import { useCallback, useEffect, useRef, useState, useMemo, type ComponentProps } from 'react';
 import { View, StyleSheet, Dimensions, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -288,6 +288,7 @@ export default function ReviewFlashcardsScreen() {
       ) : done ? (
         <ReviewStats known={known} review={review} xpEarned={xpEarned} streak={streak} onContinue={() => router.back()} />
       ) : (
+        <>
         <View style={styles.deck}>
           <View style={[styles.stack, bounded]}>
             {/* Behind (next) card */}
@@ -332,13 +333,40 @@ export default function ReviewFlashcardsScreen() {
               </Animated.View>
             </GestureDetector>
           </View>
-
-          <AppText variant="caption" color={c.textMuted} center style={styles.hint}>
-            {t('swipeCardHint')}
-          </AppText>
         </View>
+
+        {/* Bottom-anchored swipe legend — spells out which direction does what
+            (← don't know · ↑ favorite · know →) as a fixed footer bar so the
+            controls are always clear, not a faint one-liner under the card. */}
+        <View style={styles.legendBar}>
+          <View style={[styles.legendRow, bounded]}>
+            <SwipeLegendItem icon="arrow-back" color={c.danger} label={t('swipeReview')} styles={styles} />
+            <SwipeLegendItem icon="arrow-up" color={c.xp} label={t('swipeFav')} styles={styles} />
+            <SwipeLegendItem icon="arrow-forward" color={c.success} label={t('swipeKnow')} styles={styles} />
+          </View>
+        </View>
+        </>
       )}
     </SafeAreaView>
+  );
+}
+
+/** One direction in the bottom legend: a coloured arrow badge + its label. */
+function SwipeLegendItem({
+  icon, color, label, styles,
+}: {
+  icon: ComponentProps<typeof Ionicons>['name'];
+  color: string;
+  label: string;
+  styles: ReturnType<typeof makeStyles>;
+}) {
+  return (
+    <View style={styles.legendItem}>
+      <View style={[styles.legendIcon, { backgroundColor: color }]}>
+        <Ionicons name={icon} size={18} color="#fff" />
+      </View>
+      <AppText variant="label" color={color} style={styles.legendLabel}>{label}</AppText>
+    </View>
   );
 }
 
@@ -372,7 +400,18 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   stampRight: { top: 28, right: 24 },
   stampTop: { top: 20, alignSelf: 'center' },
   stampText: { fontSize: 22, fontWeight: '900', letterSpacing: 1 },
-  hint: { marginTop: spacing.lg },
+  legendBar: {
+    backgroundColor: c.surface,
+    borderTopWidth: 1,
+    borderTopColor: c.border,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
+    paddingHorizontal: spacing.lg,
+  },
+  legendRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  legendIcon: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  legendLabel: { fontWeight: '800' },
 
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
   emoji: { fontSize: 56, marginBottom: spacing.md },
