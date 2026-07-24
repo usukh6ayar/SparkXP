@@ -29,3 +29,15 @@ export function resolveAvatar(
   }
   return null;
 }
+
+/**
+ * A bundled default avatar for a user who never set one — picked deterministically
+ * from their name so the same person always gets the same face (and a class
+ * roster isn't all identical). Used as the Avatar fallback instead of a letter.
+ */
+export function defaultAvatarFor(name?: string | null): ImageSourcePropType {
+  const key = (name ?? '').trim();
+  let hash = 0;
+  for (let i = 0; i < key.length; i += 1) hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
+  return DEFAULT_AVATARS[hash % DEFAULT_AVATARS.length].src;
+}

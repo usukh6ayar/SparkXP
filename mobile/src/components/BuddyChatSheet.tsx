@@ -116,10 +116,11 @@ export function BuddyChatSheet({
       backgroundComponent={GlassBackground}
       footerComponent={renderFooter}
       handleIndicatorStyle={styles.handleIndicator}
-      // 'extend' keeps the sheet at its (single) snap point when the keyboard
-      // opens instead of shoving the whole sheet up to the top of the screen —
-      // only the content shrinks and the footer rides above the keyboard.
-      keyboardBehavior="extend"
+      // 'interactive' lifts the sheet (and its footer input) up with the
+      // keyboard so what you type stays visible. 'extend' was a no-op here — the
+      // sheet's only snap point is already its max (92%), so there was nothing to
+      // extend to and the input stayed hidden behind the keyboard.
+      keyboardBehavior="interactive"
       keyboardBlurBehavior="restore"
       android_keyboardInputMode="adjustResize"
     >
@@ -274,8 +275,14 @@ function MessageBubble({
               </TappableText>
             )}
             {message.audioUrl !== undefined && (
+              // Muted icon (+ tap explains why) when this reply has no audio,
+              // so it doesn't look like a working button that does nothing.
               <Pressable style={styles.replayBtn} onPress={() => onReplay(message.audioUrl)}>
-                <Ionicons name="volume-medium-outline" size={16} color={c.primary} />
+                <Ionicons
+                  name={message.audioUrl ? 'volume-medium-outline' : 'volume-mute-outline'}
+                  size={16}
+                  color={message.audioUrl ? c.primary : c.textMuted}
+                />
               </Pressable>
             )}
           </>

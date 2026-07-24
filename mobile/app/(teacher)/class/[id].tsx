@@ -1,9 +1,8 @@
 import { useCallback, useState, useMemo } from 'react';
-import { View, ScrollView, Pressable, StyleSheet, Alert, RefreshControl, Modal } from 'react-native';
+import { View, ScrollView, Pressable, StyleSheet, Alert, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { AppIcon } from '../../../src/components/AppIcon';
 import { useAuth } from '../../../src/auth/AuthContext';
 import * as classesApi from '../../../src/api/classes';
 import * as assignmentsApi from '../../../src/api/assignments';
@@ -15,7 +14,6 @@ import type { Assignment } from '../../../src/api/assignments';
 import { getClassOverview, type ClassOverview } from '../../../src/api/teacher';
 import { t } from '../../../src/i18n';
 import { AppText } from '../../../src/components/Text';
-import { Avatar } from '../../../src/components/Avatar';
 import { SkillBars } from '../../../src/components/SkillBars';
 import { JoinCodeCard } from '../../../src/components/JoinCodeCard';
 import { StudentRow } from '../../../src/components/StudentRow';
@@ -95,7 +93,6 @@ export default function ClassDetailScreen() {
 
   const [refreshing, setRefreshing] = useState(false);
   const [actingId, setActingId] = useState<string | null>(null);
-  const [selectedStudent, setSelectedStudent] = useState<ClassStudent | null>(null);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -264,7 +261,7 @@ export default function ClassDetailScreen() {
                 username={s.username}
                 avatarUrl={s.avatarUrl}
                 xp={s.xp}
-                onPress={() => setSelectedStudent(s)}
+                onPress={() => router.push(`/(teacher)/class/${id}/student/${s.id}`)}
               />
             ))}
           </Card>
@@ -299,67 +296,6 @@ export default function ClassDetailScreen() {
         />
         <View style={{ height: spacing.xxl }} />
       </ScrollView>
-
-      {/* Student detail bottom sheet (read-only summary from the roster data). */}
-      <Modal
-        visible={selectedStudent != null}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setSelectedStudent(null)}
-      >
-        <Pressable style={styles.backdrop} onPress={() => setSelectedStudent(null)}>
-          <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
-            <View style={styles.sheetHandle} />
-            {selectedStudent ? (
-              <>
-                <View style={styles.sheetHead}>
-                  <Avatar
-                    avatarUrl={selectedStudent.avatarUrl}
-                    name={selectedStudent.fullName}
-                    size={56}
-                  />
-                  <View style={{ flex: 1 }}>
-                    <AppText variant="h3" numberOfLines={1}>{selectedStudent.fullName}</AppText>
-                    {selectedStudent.username ? (
-                      <AppText variant="caption" color={colors.textSecondary}>
-                        @{selectedStudent.username}
-                      </AppText>
-                    ) : null}
-                  </View>
-                </View>
-                <View style={styles.statRow}>
-                  <View style={styles.statBox}>
-                    <AppIcon name="xp" size={18} />
-                    <AppText variant="h3">{selectedStudent.xp}</AppText>
-                    <AppText variant="caption" color={colors.textSecondary}>{t('xp')}</AppText>
-                  </View>
-                  <View style={styles.statBox}>
-                    <AppIcon name="sparks" size={18} />
-                    <AppText variant="h3">{selectedStudent.sparks}</AppText>
-                    <AppText variant="caption" color={colors.textSecondary}>{t('sparks')}</AppText>
-                  </View>
-                </View>
-                <Button
-                  label={t('studentProgress')}
-                  icon="stats-chart"
-                  onPress={() => {
-                    const sid = selectedStudent.id;
-                    setSelectedStudent(null);
-                    router.push(`/(teacher)/class/${id}/student/${sid}`);
-                  }}
-                  style={{ marginTop: spacing.lg }}
-                />
-                <Button
-                  label={t('close')}
-                  variant="secondary"
-                  onPress={() => setSelectedStudent(null)}
-                  style={{ marginTop: spacing.sm }}
-                />
-              </>
-            ) : null}
-          </Pressable>
-        </Pressable>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -387,22 +323,4 @@ const makeStyles = (colors: AppColors) => StyleSheet.create({
   },
   requestCard: { borderWidth: 1, borderColor: colors.streak },
   weakChip: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start' },
-  backdrop: { flex: 1, backgroundColor: 'rgba(15,10,40,0.45)', justifyContent: 'flex-end' },
-  sheet: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
-    padding: spacing.xl,
-    paddingBottom: spacing.xxl,
-  },
-  sheetHandle: {
-    width: 40, height: 4, borderRadius: 2, backgroundColor: colors.borderStrong,
-    alignSelf: 'center', marginBottom: spacing.lg,
-  },
-  sheetHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.lg },
-  statRow: { flexDirection: 'row', gap: spacing.md },
-  statBox: {
-    flex: 1, alignItems: 'center', gap: 2,
-    backgroundColor: colors.surfaceAlt, borderRadius: radius.md, paddingVertical: spacing.md,
-  },
 });
