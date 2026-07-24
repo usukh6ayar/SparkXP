@@ -84,11 +84,6 @@ export default function QuizScreen() {
   const [matches, setMatches] = useState<Record<number, string>>({});
   const [result, setResult] = useState<QuizResult | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  // Per-question feedback: shows correct/wrong, then advances either way.
-  const [feedback, setFeedback] = useState<'none' | 'correct' | 'wrong'>('none');
-  const [checking, setChecking] = useState(false);
-  // The correct answer to reveal when wrong (mc → option index, fill_blank → text).
-  const [revealCorrect, setRevealCorrect] = useState<number | string | null>(null);
   // IELTS Reading passage panel + Listening playback.
   const [passageOpen, setPassageOpen] = useState(true);
   const audio = useAudioPlayer();
@@ -147,14 +142,6 @@ export default function QuizScreen() {
     return fillText.trim();
   }
 
-  function saveAnswer() {
-    const answer = currentAnswer();
-    setAnswers((prev) => {
-      const next = prev.filter((a) => a.questionIndex !== currentIndex);
-      return [...next, { questionIndex: currentIndex, answer }];
-    });
-  }
-
   function canAnswer() {
     if (currentQ?.type === 'multiple_choice') return selected !== null;
     if (currentQ?.type === 'word_match') {
@@ -164,59 +151,37 @@ export default function QuizScreen() {
     return fillText.trim().length > 0;
   }
 
-  /** Visual state of one multiple-choice option under the current feedback. */
-  function mcState(i: number): 'idle' | 'selected' | 'correct' | 'wrong' {
-    if (feedback === 'none') return selected === i ? 'selected' : 'idle';
-    if (feedback === 'correct') return selected === i ? 'correct' : 'idle';
-    if (revealCorrect === i) return 'correct'; // wrong → reveal the right option
-    if (selected === i) return 'wrong';
-    return 'idle';
+  /** The full answer list including the current question's choice. */
+  function answersWithCurrent(): AnswerItem[] {
+    const rest = answers.filter((a) => a.questionIndex !== currentIndex);
+    return [...rest, { questionIndex: currentIndex, answer: currentAnswer() }];
   }
 
   /**
-   * Check the current answer for instant feedback, then let the student move on
-   * whether they were right or wrong. The chosen answer is always saved (so the
-   * final score reflects mistakes) and the correct answer is revealed when wrong
-   * — but the quiz never blocks progress on a wrong answer.
+   * Save the current answer and move on — no per-question feedback. The last
+   * question submits the whole set; grading happens server-side and the score
+   * only appears at the end.
    */
-  async function checkCurrent() {
-    if (!canAnswer() || feedback !== 'none' || checking) return;
-    setChecking(true);
-    try {
-      const res = await quizzesApi.checkAnswer(id!, currentIndex, currentAnswer(), token!);
-      // Save the student's actual answer either way — grading happens server-side.
-      saveAnswer();
-      if (res.correct) {
-        haptics.success();
-        setFeedback('correct');
-      } else {
-        haptics.error();
-        // word_match returns pairs (object) — don't reveal those; mc/fill only.
-        setRevealCorrect(typeof res.correctAnswer === 'object' ? null : res.correctAnswer ?? null);
-        setFeedback('wrong');
-      }
-    } catch {
-      alertError(t('submitAnswerError'));
-    } finally {
-      setChecking(false);
-    }
+  function advance() {
+    if (!canAnswer() || submitting) return;
+    haptics.select();
+    const all = answersWithCurrent();
+    setAnswers(all);
+    if (isLast) submit(all);
+    else nextQuestion();
   }
 
   function nextQuestion() {
     setSelected(null);
     setFillText('');
     setMatches({});
-    setFeedback('none');
-    setRevealCorrect(null);
     setCurrentIndex((i) => i + 1);
   }
 
-  async function handleSubmit() {
-    // Every question was checked (right or wrong) before reaching here, so each
-    // answer is saved — the server grades them and the score reflects mistakes.
+  async function submit(all: AnswerItem[]) {
     setSubmitting(true);
     try {
-      const res = await quizzesApi.submitQuiz(id!, answers, token!);
+      const res = await quizzesApi.submitQuiz(id!, all, token!);
       if (res.passed && id) markExerciseCompleted(id); // local mirror → checkmark on the list
       setResult(res);
       setPhase('result');
@@ -398,24 +363,18 @@ export default function QuizScreen() {
         {currentQ!.type === 'multiple_choice' && (
           <View style={styles.optionsContainer}>
             {currentQ!.options!.map((opt, i) => {
-              const st = mcState(i);
+              const isSel = selected === i;
               return (
                 <PressableScale
                   key={i}
                   haptic={false}
-                  style={[
-                    styles.option,
-                    st === 'selected' && styles.optionSelected,
-                    st === 'correct' && styles.optionCorrect,
-                    st === 'wrong' && styles.optionWrong,
-                  ]}
-                  // Locked once checked — the user retries via the button.
-                  onPress={() => { if (feedback !== 'none') return; haptics.select(); setSelected(i); }}
+                  style={[styles.option, isSel && styles.optionSelected]}
+                  onPress={() => { haptics.select(); setSelected(i); }}
                 >
-                  <Text style={[styles.optionLabel, st === 'selected' && styles.optionLabelSelected]}>
+                  <Text style={[styles.optionLabel, isSel && styles.optionLabelSelected]}>
                     {String.fromCharCode(65 + i)}
                   </Text>
-                  <AppText variant="body" style={[styles.optionText, st === 'selected' && styles.optionTextSelected]}>
+                  <AppText variant="body" style={[styles.optionText, isSel && styles.optionTextSelected]}>
                     {opt}
                   </AppText>
                 </PressableScale>
@@ -426,14 +385,9 @@ export default function QuizScreen() {
 
         {currentQ!.type === 'fill_blank' && (
           <TextInput
-            style={[
-              styles.fillInput,
-              feedback === 'correct' && styles.fillInputCorrect,
-              feedback === 'wrong' && styles.fillInputWrong,
-            ]}
+            style={styles.fillInput}
             value={fillText}
             onChangeText={setFillText}
-            editable={feedback === 'none'}
             placeholder={t('yourAnswer')}
             placeholderTextColor={c.textMuted}
             autoCapitalize="none"
@@ -446,7 +400,6 @@ export default function QuizScreen() {
             rights={shuffledRights}
             matches={matches}
             onAssign={(leftIndex, right) => {
-              if (feedback !== 'none') return; // locked while showing feedback
               setMatches((m) => {
                 // Drop the right value from any other left it was on (1:1 mapping).
                 const next: Record<number, string> = {};
@@ -458,35 +411,10 @@ export default function QuizScreen() {
           />
         )}
 
-        {feedback !== 'none' && (
-          <View style={styles.feedbackBox}>
-            <AppText variant="bodyStrong" color={feedback === 'correct' ? c.success : c.danger}>
-              {feedback === 'correct' ? t('answerCorrect') : t('answerWrong')}
-            </AppText>
-            {feedback === 'wrong' && revealCorrect !== null && currentQ!.type === 'fill_blank' && (
-              <AppText variant="caption">
-                {tf('correctAnswerLabel', { answer: String(revealCorrect) })}
-              </AppText>
-            )}
-          </View>
-        )}
-
         <Button
-          label={
-            feedback === 'none'
-              ? t('check')
-              : isLast
-                ? (submitting ? t('submitting') : t('submit'))
-                : t('continue')
-          }
-          onPress={
-            feedback === 'none'
-              ? checkCurrent
-              : isLast
-                ? handleSubmit
-                : nextQuestion
-          }
-          disabled={(feedback === 'none' && !canAnswer()) || checking || submitting}
+          label={isLast ? (submitting ? t('submitting') : t('finish')) : t('continue')}
+          onPress={advance}
+          disabled={!canAnswer() || submitting}
           style={{ marginTop: spacing.xl }}
         />
       </ScrollView>
@@ -561,8 +489,6 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
     gap: spacing.md,
   },
   optionSelected: { borderColor: c.primary, backgroundColor: c.primarySoft },
-  optionCorrect: { borderColor: c.success, backgroundColor: c.successSoft },
-  optionWrong: { borderColor: c.danger, backgroundColor: c.dangerSoft },
   optionLabel: {
     width: 28, height: 28,
     borderRadius: 14,
@@ -584,9 +510,6 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
     fontSize: fontSize.md,
     color: c.text,
   },
-  fillInputCorrect: { borderColor: c.success, backgroundColor: c.successSoft },
-  fillInputWrong: { borderColor: c.danger, backgroundColor: c.dangerSoft },
-  feedbackBox: { marginTop: spacing.lg, gap: spacing.xs, alignItems: 'flex-start' },
   errorText: { color: c.danger, fontSize: fontSize.md },
   // Result styles
   resultContainer: { padding: spacing.lg, paddingTop: spacing.md, gap: spacing.lg },
