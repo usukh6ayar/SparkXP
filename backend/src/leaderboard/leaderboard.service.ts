@@ -18,6 +18,13 @@ export interface LeaderboardEntry {
   province: string | null;
   district: string | null;
   xp: number;
+  /**
+   * A class (owned by the requesting teacher) that this student belongs to —
+   * only set for `scope=teacher`, so the teacher panel can deep-link a row to
+   * that student's progress (which is addressed by classId + studentId). Null
+   * for every other scope.
+   */
+  classId: string | null;
 }
 
 /** The current user's standing (null xp if they earned nothing in the window). */
@@ -72,7 +79,7 @@ export class LeaderboardService {
     }
 
     // --- Top N list ---
-    const rows = await this.baseQuery(query.scope, scopeValue, since)
+    const listQb = this.baseQuery(query.scope, scopeValue, since)
       .select('u.id', 'userId')
       .addSelect('u.fullName', 'fullName')
       .addSelect('u.username', 'username')
@@ -82,8 +89,21 @@ export class LeaderboardService {
       .addSelect('SUM(x.amount)', 'xp')
       .groupBy('u.id')
       .orderBy('xp', 'DESC')
-      .limit(query.limit)
-      .getRawMany();
+      .limit(query.limit);
+
+    // Teacher scope only: attach one of the teacher's classes each student is in
+    // (MIN keeps it single even if they share two classes) so a row can deep-link
+    // to that student's progress. `:v` is the teacher id, already bound by baseQuery.
+    if (query.scope === LeaderboardScope.TEACHER) {
+      listQb.addSelect(
+        `(SELECT MIN(cs.class_id) FROM class_students cs
+          INNER JOIN classes c ON c.id = cs.class_id
+          WHERE cs.student_id = u.id AND c.teacher_id = :v)`,
+        'classId',
+      );
+    }
+
+    const rows = await listQb.getRawMany();
 
     const entries: LeaderboardEntry[] = rows.map((r, i) => ({
       rank: i + 1,
@@ -94,6 +114,7 @@ export class LeaderboardService {
       province: r.province,
       district: r.district,
       xp: Number(r.xp),
+      classId: r.classId ?? null,
     }));
 
     // --- Current user's standing ---
@@ -230,6 +251,7 @@ export class LeaderboardService {
       province: r.province,
       district: r.district,
       xp: Number(r.xp),
+      classId: null, // admin scope never deep-links to teacher progress
     }));
   }
 

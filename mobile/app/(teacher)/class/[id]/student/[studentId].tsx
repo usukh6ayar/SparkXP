@@ -93,7 +93,7 @@ export default function StudentProgressScreen() {
         {/* Header: who + activity */}
         <Card variant="raised" padding="md">
           <View style={styles.head}>
-            <Avatar name={data.fullName} size={56} />
+            <Avatar avatarUrl={data.avatarUrl} name={data.fullName} size={56} />
             <View style={{ flex: 1 }}>
               <AppText variant="h3" numberOfLines={1}>{data.fullName}</AppText>
               <View style={styles.activityRow}>

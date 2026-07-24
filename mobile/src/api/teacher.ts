@@ -29,6 +29,7 @@ export interface ClassOverview {
 export interface StudentProgress {
   studentId: string;
   fullName: string;
+  avatarUrl: string | null;
   xp: number;
   currentStreak: number;
   skills: SkillBreakdown & { vocab: number | null };

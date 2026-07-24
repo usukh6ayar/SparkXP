@@ -15,6 +15,7 @@ export function LeaderboardRow({
   avatarUrl,
   xp,
   isSelf,
+  onPress,
 }: {
   rank: number;
   name: string;
@@ -22,6 +23,7 @@ export function LeaderboardRow({
   avatarUrl?: string | null;
   xp: number;
   isSelf?: boolean;
+  onPress?: () => void;
 }) {
   const t = useT();
   const c = useColors();
@@ -32,6 +34,7 @@ export function LeaderboardRow({
       username={username}
       avatarUrl={avatarUrl}
       avatarSize={36}
+      onPress={onPress}
       style={StyleSheet.flatten([
         styles.row,
         { backgroundColor: c.surface, borderColor: c.border },

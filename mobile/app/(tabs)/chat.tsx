@@ -79,12 +79,24 @@ export default function ChatScreen() {
     })));
   }, []);
 
-  function playAudio(url?: string | null) {
-    if (!url) return;
+  // Play speech both here (replay a chat bubble) and after a voice turn. If the
+  // reply has no audio — e.g. TTS/ElevenLabs failed or ran out of credit, so the
+  // turn came back with audio_url = null — tell the user instead of a dead tap.
+  async function playAudio(url?: string | null) {
+    if (!url) {
+      Alert.alert(t('audioUnavailableTitle'), t('audioUnavailable'));
+      return;
+    }
     try {
+      // Recording flips the audio session into record mode (mic/earpiece, and
+      // muted by the ringer switch). Flip it back to speaker playback that isn't
+      // silenced by the silent switch, or the reply plays but is inaudible.
+      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
       player.replace({ uri: url });
       player.play();
-    } catch { /* playback is best-effort */ }
+    } catch {
+      Alert.alert(t('error'), t('audioPlayError'));
+    }
   }
 
   // Load the buddy list; the user picks + Applies one on the selector screen
