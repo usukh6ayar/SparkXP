@@ -283,6 +283,7 @@ export default function ClassDetailScreen() {
                 key={a.id}
                 type={a.type}
                 title={titles[a.targetId] ?? '—'}
+                note={a.note}
                 dueAt={a.dueAt}
                 onDelete={() => confirmDelete(a.id)}
               />

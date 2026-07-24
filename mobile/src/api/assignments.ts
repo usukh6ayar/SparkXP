@@ -12,6 +12,8 @@ export interface Assignment {
   assignedById: string;
   dueAt: string | null;
   createdAt: string;
+  /** Optional note the teacher wrote with the task. */
+  note?: string | null;
   /** Present on GET /assignments/mine rows (the student's own submission state). */
   status?: SubmissionStatus;
   scorePct?: number | null;

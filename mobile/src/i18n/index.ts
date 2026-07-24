@@ -287,6 +287,7 @@ const mn = {
 
   // Saved words
   savedWords: 'Хадгалсан үгс',
+  tapToReveal: 'Товшиж хариуг харах',
   noSavedWords: 'Хадгалсан үг алга',
   noSavedWordsHint: 'Үг сурах үед картны ⭐ дээр дарж хадгална.',
 
@@ -1025,6 +1026,7 @@ const en: Record<TranslationKey, string> = {
   comingSoonBody: 'This section is coming soon.',
 
   savedWords: 'Saved words',
+  tapToReveal: 'Tap to reveal',
   noSavedWords: 'No saved words',
   noSavedWordsHint: 'Tap ⭐ on a card while learning to save it here.',
 

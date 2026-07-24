@@ -119,6 +119,9 @@ export default function LeaderboardScreen() {
               {t('noLeaderboardData')}
             </AppText>
           ) : (
+            // Show every entry, including the current user's own row (highlighted
+            // via isSelf) — so they see their rank among neighbours *and* in the
+            // pinned "my standing" card above (two places, as requested).
             data.entries.map((e, i) => (
               <Animated.View key={e.userId} entering={FadeInDown.delay(Math.min(i, 8) * 50)}>
                 <LeaderboardRow

@@ -48,7 +48,18 @@ export function TopBar({
     <View style={styles.row}>
       <View style={styles.left}>
         {back ? (
-          <Pressable style={[styles.backBtn, { backgroundColor: c.surfaceAlt }]} onPress={() => (onBack ? onBack() : router.back())} hitSlop={8}>
+          <Pressable
+            style={[styles.backBtn, { backgroundColor: c.surfaceAlt }]}
+            onPress={() => {
+              if (onBack) return onBack();
+              // Fall back to the home tab when there's nothing to pop (e.g. the
+              // screen was opened from a deep link / notification), so the back
+              // button never becomes a dead press.
+              if (router.canGoBack()) router.back();
+              else router.replace('/(tabs)');
+            }}
+            hitSlop={8}
+          >
             <Ionicons name="chevron-back" size={22} color={c.text} />
           </Pressable>
         ) : null}
