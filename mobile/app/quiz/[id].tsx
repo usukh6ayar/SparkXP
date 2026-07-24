@@ -84,7 +84,7 @@ export default function QuizScreen() {
   const [matches, setMatches] = useState<Record<number, string>>({});
   const [result, setResult] = useState<QuizResult | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  // Per-question feedback: user must answer correctly before advancing (C2).
+  // Per-question feedback: shows correct/wrong, then advances either way.
   const [feedback, setFeedback] = useState<'none' | 'correct' | 'wrong'>('none');
   const [checking, setChecking] = useState(false);
   // The correct answer to reveal when wrong (mc → option index, fill_blank → text).
@@ -174,18 +174,20 @@ export default function QuizScreen() {
   }
 
   /**
-   * Check the current answer for instant feedback. Correct → save it and unlock
-   * "Continue"; wrong → reveal the right answer and let the user retry. The quiz
-   * never advances past a question until it is answered correctly.
+   * Check the current answer for instant feedback, then let the student move on
+   * whether they were right or wrong. The chosen answer is always saved (so the
+   * final score reflects mistakes) and the correct answer is revealed when wrong
+   * — but the quiz never blocks progress on a wrong answer.
    */
   async function checkCurrent() {
     if (!canAnswer() || feedback !== 'none' || checking) return;
     setChecking(true);
     try {
       const res = await quizzesApi.checkAnswer(id!, currentIndex, currentAnswer(), token!);
+      // Save the student's actual answer either way — grading happens server-side.
+      saveAnswer();
       if (res.correct) {
         haptics.success();
-        saveAnswer();
         setFeedback('correct');
       } else {
         haptics.error();
@@ -200,13 +202,6 @@ export default function QuizScreen() {
     }
   }
 
-  /** Wrong answer → clear the feedback and let the user answer again. */
-  function retry() {
-    setFeedback('none');
-    setRevealCorrect(null);
-    if (currentQ?.type === 'multiple_choice') setSelected(null);
-  }
-
   function nextQuestion() {
     setSelected(null);
     setFillText('');
@@ -217,7 +212,8 @@ export default function QuizScreen() {
   }
 
   async function handleSubmit() {
-    // Every question was answered correctly to reach here, so `answers` is complete.
+    // Every question was checked (right or wrong) before reaching here, so each
+    // answer is saved — the server grades them and the score reflects mistakes.
     setSubmitting(true);
     try {
       const res = await quizzesApi.submitQuiz(id!, answers, token!);
@@ -477,18 +473,18 @@ export default function QuizScreen() {
 
         <Button
           label={
-            feedback === 'wrong'
-              ? t('retryAnswer')
-              : feedback === 'correct'
-                ? (isLast ? (submitting ? t('submitting') : t('submit')) : t('continue'))
-                : t('check')
+            feedback === 'none'
+              ? t('check')
+              : isLast
+                ? (submitting ? t('submitting') : t('submit'))
+                : t('continue')
           }
           onPress={
-            feedback === 'wrong'
-              ? retry
-              : feedback === 'correct'
-                ? (isLast ? handleSubmit : nextQuestion)
-                : checkCurrent
+            feedback === 'none'
+              ? checkCurrent
+              : isLast
+                ? handleSubmit
+                : nextQuestion
           }
           disabled={(feedback === 'none' && !canAnswer()) || checking || submitting}
           style={{ marginTop: spacing.xl }}
