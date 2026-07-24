@@ -1,13 +1,14 @@
-import { View, StyleSheet } from 'react-native';
-import { AppText } from './Text';
+import { StyleSheet } from 'react-native';
 import { AppImage } from './AppImage';
-import { resolveAvatar } from '../lib/avatar';
-import { colors, radius } from '../theme/theme';
+import { resolveAvatar, defaultAvatarFor } from '../lib/avatar';
+import { colors } from '../theme/theme';
 
 /**
- * User avatar: shows the resolved image (uploaded URL or default key), or a
- * colored circle with the name's initial as a fallback. Reused on profile,
- * leaderboard rows, class rosters, etc.
+ * User avatar: shows the resolved image (uploaded URL or default key). When a
+ * user hasn't set a photo, falls back to a bundled default avatar image (picked
+ * deterministically from the name so it stays stable), never a bare initial —
+ * so every list/roster/progress row shows a real face. Reused on profile,
+ * leaderboard rows, class rosters, student progress, etc.
  */
 export function Avatar({
   avatarUrl,
@@ -18,29 +19,11 @@ export function Avatar({
   name?: string | null;
   size?: number;
 }) {
-  const src = resolveAvatar(avatarUrl);
+  const src = resolveAvatar(avatarUrl) ?? defaultAvatarFor(name);
   const circle = { width: size, height: size, borderRadius: size / 2 };
-
-  if (src) {
-    return <AppImage source={src} width={size * 2} style={[circle, styles.img]} contentFit="cover" />;
-  }
-  const initial = (name ?? '').trim().charAt(0).toUpperCase() || '?';
-  return (
-    <View style={[circle, styles.fallback]}>
-      {/* Match lineHeight to the enlarged fontSize so the glyph stays centered
-          (the base variant's lineHeight would push it off-center). */}
-      <AppText variant="bodyStrong" color={colors.primary} style={{ fontSize: size * 0.4, lineHeight: size * 0.44 }}>
-        {initial}
-      </AppText>
-    </View>
-  );
+  return <AppImage source={src} width={size * 2} style={[circle, styles.img]} contentFit="cover" />;
 }
 
 const styles = StyleSheet.create({
   img: { backgroundColor: colors.primarySoft },
-  fallback: {
-    backgroundColor: colors.primarySoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
 });

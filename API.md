@@ -177,6 +177,10 @@ Controller-level: JWT.
 | GET `/leaderboard` | JWT | XP-ээр эрэмбэ (period+scope) + өөрийн байр | `QueryLeaderboardDto` (period, scope, classId) |
 | GET `/leaderboard/top` | admin-баг | Admin top-N (admin-ий байршлыг үл тооцно) | `scope`, `period`, `value?`, `limit` |
 
+> Entry бүр: `rank, userId, fullName, username, avatarUrl, province, district, xp, classId`.
+> `classId` зөвхөн `scope=teacher` үед бөглөгдөнө (сурагчийн харьяалагдах анги, олон бол хамгийн сүүлд үүсгэсэн) —
+> багшийн панель мөрөөс тухайн сурагчийн ahits руу deep-link хийхэд ашиглагдана. Бусад scope-д `null`.
+
 ## 10. AI / Chat — `/api/ai`
 Controller-level: JWT.
 
@@ -299,7 +303,7 @@ Controller-level: JWT.
 | --- | --- | --- | --- |
 | GET `/teacher/dashboard` | teacher, admin, super_admin | Багшийн ангиудын нийт/идэвхтэй(7 хон.) сурагч, дундаж, pending/overdue | — |
 | GET `/classes/:id/overview` | teacher, admin, super_admin | Ангийн skill breakdown + хамгийн сул skill + сурагч бүрийн completion % | path `id` |
-| GET `/classes/:id/students/:studentId/progress` | teacher, admin, super_admin | Нэг сурагчийн skill breakdown (+vocab), даалгаврын түүх+оноо, XP/streak | path `id`, `studentId` |
+| GET `/classes/:id/students/:studentId/progress` | teacher, admin, super_admin | Нэг сурагчийн skill breakdown (+vocab), даалгаврын түүх+оноо, XP/streak. Хариу: `studentId, fullName, avatarUrl, xp, currentStreak, skills, assignments[]` | path `id`, `studentId` |
 
 ## 17. Payments — `/api/payments`
 Guard per-method. (QPay QR stub — §PRODUCT: Update 1.)
