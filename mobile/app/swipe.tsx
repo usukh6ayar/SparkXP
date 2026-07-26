@@ -25,6 +25,7 @@ import { AppText } from '../src/components/Text';
 import { Skeleton } from '../src/components/Skeleton';
 import { EmptyState } from '../src/components/EmptyState';
 import { ProgressBar } from '../src/components/ProgressBar';
+import { AwardBadge } from '../src/components/AwardBadge';
 import { FlashCard, type MemoryStatus } from '../src/components/FlashCard';
 import { ReviewStats } from '../src/components/ReviewStats';
 import { IconButton } from '../src/components/IconButton';
@@ -281,8 +282,8 @@ export default function ReviewFlashcardsScreen() {
 
       {total === 0 ? (
         <View style={styles.empty}>
-          <AppText style={styles.emoji}>🎉</AppText>
-          <AppText variant="h2" center>{t('noReviews')}</AppText>
+          <AwardBadge icon="sparkles" color={c.white} bg={c.primary} size={84} />
+          <AppText variant="h2" center style={{ marginTop: spacing.lg }}>{t('noReviews')}</AppText>
           <AppText variant="body" center color={c.textSecondary} style={{ marginTop: 4 }}>{t('noReviewsHint')}</AppText>
         </View>
       ) : done ? (

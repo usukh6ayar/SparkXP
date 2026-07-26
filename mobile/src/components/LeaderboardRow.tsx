@@ -40,7 +40,11 @@ export function LeaderboardRow({
         { backgroundColor: c.surface, borderColor: c.border },
         // Top-3 get a soft coloured glow so the podium reads at a glance.
         medalColor && { borderColor: medalColor, shadowColor: medalColor, ...styles.medalGlow },
-        isSelf && { borderColor: colors.primary, backgroundColor: c.primarySoft },
+        // The current user's own row gets a thin left accent bar instead of a full
+        // box — their standing is already shown in the pinned "my standing" card
+        // above, so a second boxed highlight would read as a duplicate. A slim
+        // accent + the "(Та)" name suffix is enough to spot their row.
+        isSelf && styles.selfAccent,
       ])}
       leading={
         <View style={[styles.rankBadge, { backgroundColor: medalColor ?? c.surfaceAlt }]}>
@@ -64,6 +68,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md, marginBottom: spacing.sm,
     borderWidth: 1,
   },
+  // Thin purple bar on the left edge marks the current user's row (no full box).
+  selfAccent: { borderLeftWidth: 3, borderLeftColor: colors.primary, paddingLeft: spacing.md - 2 },
   rankBadge: { width: 28, height: 28, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center' },
   medalGlow: { shadowOpacity: 0.35, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 4 },
   xp: { flexDirection: 'row', alignItems: 'center', gap: 4 },

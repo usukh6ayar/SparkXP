@@ -3,17 +3,17 @@ import { View, ScrollView, StyleSheet, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../../src/auth/AuthContext';
-import { getLeaderboard, type Period, type LeaderboardResult } from '../../src/api/leaderboard';
-import { AppText } from '../../src/components/Text';
-import { PeriodTabs } from '../../src/components/PeriodTabs';
-import { LeaderboardRow } from '../../src/components/LeaderboardRow';
-import { SkeletonRows } from '../../src/components/SkeletonRows';
-import { PERIODS } from '../../src/constants/leaderboard';
-import { t } from '../../src/i18n';
-import { spacing, type AppColors } from '../../src/theme/theme';
-import { useColors } from '../../src/settings/SettingsContext';
-import { bounded } from '../../src/theme/responsive';
+import { useAuth } from '../../../src/auth/AuthContext';
+import { getLeaderboard, type Period, type LeaderboardResult } from '../../../src/api/leaderboard';
+import { AppText } from '../../../src/components/Text';
+import { PeriodTabs } from '../../../src/components/PeriodTabs';
+import { LeaderboardRow } from '../../../src/components/LeaderboardRow';
+import { SkeletonRows } from '../../../src/components/SkeletonRows';
+import { PERIODS } from '../../../src/constants/leaderboard';
+import { t } from '../../../src/i18n';
+import { spacing, type AppColors } from '../../../src/theme/theme';
+import { useColors } from '../../../src/settings/SettingsContext';
+import { bounded } from '../../../src/theme/responsive';
 
 export default function TeacherLeaderboardScreen() {
   const { token } = useAuth();

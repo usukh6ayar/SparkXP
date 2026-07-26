@@ -4,16 +4,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../../src/auth/AuthContext';
-import * as classesApi from '../../src/api/classes';
-import { t } from '../../src/i18n';
-import { AppText } from '../../src/components/Text';
-import { Avatar } from '../../src/components/Avatar';
-import { Button } from '../../src/components/Button';
-import { EditProfileModal } from '../../src/components/EditProfileModal';
-import { spacing, radius, elevation, type AppColors } from '../../src/theme/theme';
-import { useColors } from '../../src/settings/SettingsContext';
-import { bounded } from '../../src/theme/responsive';
+import { useAuth } from '../../../src/auth/AuthContext';
+import * as classesApi from '../../../src/api/classes';
+import { t } from '../../../src/i18n';
+import { AppText } from '../../../src/components/Text';
+import { Avatar } from '../../../src/components/Avatar';
+import { Button } from '../../../src/components/Button';
+import { EditProfileModal } from '../../../src/components/EditProfileModal';
+import { spacing, radius, elevation, type AppColors } from '../../../src/theme/theme';
+import { useColors } from '../../../src/settings/SettingsContext';
+import { bounded } from '../../../src/theme/responsive';
 
 export default function TeacherProfileScreen() {
   const { user, token, logout } = useAuth();

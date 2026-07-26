@@ -24,6 +24,9 @@ import { Card } from '../../src/components/Card';
 import { Skeleton } from '../../src/components/Skeleton';
 import { EmptyState } from '../../src/components/EmptyState';
 import { ReadingQuiz } from '../../src/components/ReadingQuiz';
+import { Confetti } from '../../src/components/Confetti';
+import { AwardBadge } from '../../src/components/AwardBadge';
+import { haptics } from '../../src/lib/haptics';
 import { markReadingCompleted } from '../../src/lib/readingProgress';
 import { t } from '../../src/i18n';
 import { spacing, radius, levelColor, type AppColors } from '../../src/theme/theme';
@@ -74,6 +77,7 @@ export default function ReadingDetailScreen() {
     } finally {
       markReadingCompleted(id); // local mirror → checkmark on the list
       setDone(true);
+      haptics.success(); // celebratory tick as the confetti fires
     }
   }, [token, id, done]);
 
@@ -284,6 +288,17 @@ export default function ReadingDetailScreen() {
             </AppText>
           </Pressable>
 
+          {/* Celebration banner once the passage is finished. */}
+          {done && (
+            <View style={styles.congrats}>
+              <AwardBadge icon="checkmark-done" color={colors.white} bg={colors.success} />
+              <AppText variant="h3" color={colors.success} center>{t('readingCongrats')}</AppText>
+              <AppText variant="caption" color={colors.textSecondary} center>
+                {t('readingCongratsHint')}
+              </AppText>
+            </View>
+          )}
+
           {/* After finishing, show comprehension questions (AI-authored). */}
           {done && passage.comprehensionQuestions?.length > 0 && (
             <ReadingQuiz questions={passage.comprehensionQuestions} />
@@ -291,6 +306,8 @@ export default function ReadingDetailScreen() {
 
           <View style={{ height: 60 }} />
         </Animated.ScrollView>
+        {/* One-shot confetti burst over the whole screen on finish. */}
+        {done && <Confetti />}
         </>
       )}
     </SafeAreaView>
@@ -377,6 +394,7 @@ const makeStyles = (colors: AppColors) => StyleSheet.create({
     marginTop: spacing.lg,
   },
   finishBtnDone: { backgroundColor: colors.success },
+  congrats: { alignItems: 'center', gap: spacing.sm, marginTop: spacing.lg },
 
   empty: { marginTop: spacing.xxl },
 });
