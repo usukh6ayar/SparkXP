@@ -92,3 +92,15 @@ export function useTheme(): PremiumPalette {
 export function useColors(): AppColors {
   return useSettings().colors;
 }
+
+/**
+ * Status-bar content style for the ACTIVE app theme ('light' = white icons).
+ *
+ * Feeds the single app-wide `<StatusBar>` in `app/_layout.tsx`. Screens must
+ * never set the status bar themselves (imperative `setStatusBarStyle` leaks to
+ * the next screen; the per-screen `statusBarStyle` navigator option needs an
+ * iOS Info.plist change we don't make) — change the theme instead.
+ */
+export function useStatusBarStyle(): 'light' | 'dark' {
+  return useSettings().theme === 'dark' ? 'light' : 'dark';
+}

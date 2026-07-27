@@ -127,6 +127,9 @@ export function JoinClass({ initialCode }: { initialCode?: string }) {
     <ScrollView
       contentContainerStyle={[styles.body, bounded]}
       keyboardShouldPersistTaps="handled"
+      // iOS does not resize the window for the keyboard the way Android does,
+      // so the code field/button end up hidden behind it. No-op on Android.
+      automaticallyAdjustKeyboardInsets
       showsVerticalScrollIndicator={false}
     >
       <AppText variant="body" color={colors.textSecondary} style={styles.subtitle}>

@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import { ScrollView, Alert } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useAuth } from '../auth/AuthContext';
+import { ApiError } from '../api/client';
 import { haptics } from '../lib/haptics';
+import { isValidUsername } from '../lib/username';
 import { useSettings } from '../settings/SettingsContext';
 import * as usersApi from '../api/users';
 import { MN_PROVINCES as PROVINCES, UB_DISTRICTS } from '../constants/locations';
@@ -24,11 +26,16 @@ export function EditProfileModal({ visible, onClose }: { visible: boolean; onClo
   const { user, token, updateUser } = useAuth();
   const { t } = useSettings();
   const [fullName, setFullName] = useState('');
+  const [username, setUsername] = useState('');
   const [englishName, setEnglishName] = useState('');
   const [province, setProvince] = useState('');
   const [district, setDistrict] = useState('');
   const [saving, setSaving] = useState(false);
   const isUB = province === 'Улаанбаатар';
+
+  // Only send the username when it actually changed — re-sending your own name
+  // would trip the server's uniqueness check against your own row.
+  const usernameChanged = username.trim() !== (user?.username ?? '');
 
   // Pre-fill from the current profile each time the sheet opens (only on the
   // open transition, so a background user refresh doesn't wipe unsaved edits).
@@ -36,6 +43,7 @@ export function EditProfileModal({ visible, onClose }: { visible: boolean; onClo
     if (!visible) return;
     haptics.tap();
     setFullName(user?.fullName ?? '');
+    setUsername(user?.username ?? '');
     setEnglishName(user?.englishName ?? '');
     setProvince(user?.province ?? '');
     setDistrict(user?.district ?? '');
@@ -44,11 +52,14 @@ export function EditProfileModal({ visible, onClose }: { visible: boolean; onClo
 
   async function save() {
     if (!fullName.trim()) { alertError(t('enterName')); return; }
+    // The username is the login handle, so it must stay well-formed and unique.
+    if (usernameChanged && !isValidUsername(username)) { alertError(t('usernameInvalid')); return; }
     setSaving(true);
     try {
       const updated = await usersApi.updateProfile(
         {
           fullName: fullName.trim(),
+          username: usernameChanged ? username.trim() : undefined,
           englishName: englishName.trim() || undefined,
           province: province || undefined,
           district: isUB ? district || undefined : undefined,
@@ -57,10 +68,19 @@ export function EditProfileModal({ visible, onClose }: { visible: boolean; onClo
       );
       // Apply the returned user so the profile header reflects changes at once.
       await updateUser(updated);
+      // The server strips fields its DTO doesn't know (global ValidationPipe
+      // runs with `whitelist: true`), so a username change can come back
+      // silently unapplied. Say so instead of claiming a save that didn't
+      // happen — see the note on UpdateProfilePayload.username.
+      if (usernameChanged && updated.username !== username.trim()) {
+        alertError(t('usernameUnavailable'));
+        return;
+      }
       Alert.alert(t('success'), t('profileUpdated'));
       onClose();
-    } catch {
-      alertError(t('saveError'));
+    } catch (e) {
+      // 409 = the handle is already someone else's.
+      alertError(e instanceof ApiError && e.status === 409 ? t('usernameTaken') : t('saveError'));
     } finally {
       setSaving(false);
     }
@@ -70,8 +90,22 @@ export function EditProfileModal({ visible, onClose }: { visible: boolean; onClo
     <ModalScreen visible={visible} onClose={onClose} animationType="fade">
       <Animated.View entering={FadeInDown.duration(200)} style={{ flex: 1 }}>
       <TopBar title={t('editProfile')} showBadges={false} />
-      <ScrollView contentContainerStyle={{ padding: spacing.lg }} keyboardShouldPersistTaps="handled">
+      {/* `automaticallyAdjustKeyboardInsets`: iOS doesn't resize for the keyboard
+          like Android does, so lower fields hide behind it. No-op on Android. */}
+      <ScrollView
+        contentContainerStyle={{ padding: spacing.lg }}
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
+      >
         <TextField label={t('fullName')} value={fullName} onChangeText={setFullName} placeholder={t('enterName')} />
+        {/* Login handle — unique, so it gets its own hint about the allowed
+            characters and is only sent when the student actually changed it. */}
+        <TextField
+          label={t('username')} value={username} onChangeText={setUsername}
+          placeholder={t('usernamePlaceholder')} autoCapitalize="none" autoCorrect={false}
+          hint={t('usernameHint')}
+          error={usernameChanged && username.trim() !== '' && !isValidUsername(username) ? t('usernameInvalid') : undefined}
+        />
         <TextField
           label={t('englishName')} value={englishName} onChangeText={setEnglishName}
           placeholder={t('optional')} autoCapitalize="words"

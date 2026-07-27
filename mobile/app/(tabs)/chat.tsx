@@ -1,6 +1,7 @@
 import { useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import { StyleSheet, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as Speech from 'expo-speech';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { BuddySelector } from '../../src/components/BuddySelector';
 import { BuddyVoiceStage } from '../../src/components/BuddyVoiceStage';
@@ -79,21 +80,30 @@ export default function ChatScreen() {
     })));
   }, []);
 
-  // Play speech both here (replay a chat bubble) and after a voice turn. If the
-  // reply has no audio — e.g. TTS/ElevenLabs failed or ran out of credit, so the
-  // turn came back with audio_url = null — tell the user instead of a dead tap.
-  async function playAudio(url?: string | null) {
-    if (!url) {
-      Alert.alert(t('audioUnavailableTitle'), t('audioUnavailable'));
-      return;
-    }
+  // Play speech both here (replay a chat bubble) and after a voice turn.
+  //
+  // Typed-chat replies usually come back with `audio_url = null` (ElevenLabs TTS
+  // only runs on voice turns, to save credit), so the speaker button used to pop
+  // an "audio unavailable" alert and stay silent. Now it falls back to the
+  // device's own TTS with the reply text — the same trick the saved-words and
+  // flashcard screens use — so the button always speaks.
+  async function playAudio(url?: string | null, text?: string | null) {
     try {
       // Recording flips the audio session into record mode (mic/earpiece, and
       // muted by the ringer switch). Flip it back to speaker playback that isn't
       // silenced by the silent switch, or the reply plays but is inaudible.
       await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
-      player.replace({ uri: url });
-      player.play();
+      if (url) {
+        player.replace({ uri: url });
+        player.play();
+        return;
+      }
+      if (text?.trim()) {
+        Speech.stop(); // never stack two readings on a double-tap
+        Speech.speak(text.trim(), { language: 'en-US' });
+        return;
+      }
+      Alert.alert(t('audioUnavailableTitle'), t('audioUnavailable'));
     } catch {
       Alert.alert(t('error'), t('audioPlayError'));
     }

@@ -3,7 +3,6 @@ import { View, StyleSheet, ScrollView, Pressable, Share, RefreshControl } from '
 import { haptics } from '../../src/lib/haptics';
 import { AppImage } from '../../src/components/AppImage';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { setStatusBarStyle } from 'expo-status-bar';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -115,13 +114,11 @@ export default function ProfileScreen() {
     }
   }, [token]);
 
-  // Refetch on focus + set the status bar to suit the active theme.
+  // Refetch on focus. (The status bar is handled app-wide in `app/_layout.tsx`.)
   useFocusEffect(
     useCallback(() => {
       loadProfile();
-      setStatusBarStyle(theme === 'dark' ? 'light' : 'dark');
-      return () => setStatusBarStyle('dark');
-    }, [loadProfile, theme]),
+    }, [loadProfile]),
   );
 
   const soon = useComingSoon();
@@ -385,8 +382,15 @@ export default function ProfileScreen() {
             </LinearGradient>
           </Pressable>
 
-          {/* Logout */}
-          <Pressable style={styles.logout} onPress={confirmLogout} hitSlop={8}>
+          {/* Logout — the only destructive action on the screen, so it gets the
+              same press feedback as every other card here (it had none) and an
+              explicit button role for screen readers. */}
+          <Pressable
+            style={({ pressed }) => [styles.logout, pressed && styles.pressed]}
+            onPress={confirmLogout}
+            accessibilityRole="button"
+            accessibilityLabel={t('logout')}
+          >
             <Ionicons name="log-out-outline" size={18} color={colors.danger} />
             <AppText variant="bodyStrong" color={colors.danger}>{t('logout')}</AppText>
           </Pressable>

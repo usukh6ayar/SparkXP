@@ -7,6 +7,7 @@ import { AppIcon } from '../../src/components/AppIcon';
 import { useAuth } from '../../src/auth/AuthContext';
 import { ApiError } from '../../src/api/client';
 import { haptics } from '../../src/lib/haptics';
+import { isValidUsername } from '../../src/lib/username';
 import { shake, useReduceMotion } from '../../src/lib/motion';
 import * as authApi from '../../src/api/auth';
 import { peekPendingReferral, clearPendingReferral } from '../../src/lib/referralLink';
@@ -118,7 +119,7 @@ export default function RegisterScreen() {
 
   const isUB = province === 'Улаанбаатар';
   const passOk = rules.minLen(password) && rules.letterCase(password) && rules.number(password);
-  const usernameOk = /^[a-zA-Z0-9_]{3,30}$/.test(username.trim());
+  const usernameOk = isValidUsername(username);
   const infoValid = usernameOk && fullName.trim() && email.trim() && passOk && confirm === password;
 
   function onProvinceChange(value: string) {

@@ -5,6 +5,8 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 import { ThemeProvider, DarkTheme, DefaultTheme } from "@react-navigation/native";
+import { StatusBar } from "expo-status-bar";
+import { setAudioModeAsync } from "expo-audio";
 import Constants from "expo-constants";
 import {
   useFonts,
@@ -14,7 +16,9 @@ import {
   Onest_400Regular, Onest_500Medium, Onest_600SemiBold, Onest_700Bold, Onest_800ExtraBold,
 } from "@expo-google-fonts/onest";
 import { AuthProvider, useAuth } from "../src/auth/AuthContext";
-import { SettingsProvider, useColors, useSettings } from "../src/settings/SettingsContext";
+import {
+  SettingsProvider, useColors, useSettings, useStatusBarStyle,
+} from "../src/settings/SettingsContext";
 import { DictionaryProvider } from "../src/components/DictionaryProvider";
 import { ToastHost } from "../src/components/Toast";
 import { LockScreen } from "../src/components/LockScreen";
@@ -82,6 +86,7 @@ function RootNavigator() {
 function ThemedNav() {
   const { theme } = useSettings();
   const colors = useColors();
+  const statusBarStyle = useStatusBarStyle();
   const navTheme = useMemo(() => {
     const base = theme === "light" ? DefaultTheme : DarkTheme;
     return {
@@ -92,6 +97,19 @@ function ThemedNav() {
 
   return (
     <ThemeProvider value={navTheme}>
+      {/*
+        THE one status bar for the whole app — driven by the active theme so the
+        clock/battery stay readable on every screen.
+
+        Do NOT move this to the navigators' `statusBarStyle` screen option: that
+        is react-native-screens' per-screen mode, which iOS only allows when
+        `UIViewControllerBasedStatusBarAppearance` is YES in Info.plist. Expo
+        ships it as NO (so this JS API works), and flipping it means editing
+        native config + a rebuild. Screens must not call `setStatusBarStyle`
+        imperatively either — that leaks to the next screen, which is how
+        leaving Settings used to hide the icons.
+      */}
+      <StatusBar style={statusBarStyle} />
       <RootNavigator />
     </ThemeProvider>
   );
@@ -105,6 +123,15 @@ function RootLayout() {
     Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold,
     Onest_400Regular, Onest_500Medium, Onest_600SemiBold, Onest_700Bold, Onest_800ExtraBold,
   });
+
+  // iOS mutes app audio when the physical ring/silent switch is on unless we opt
+  // out — without this, word pronunciation is silent on an iPhone while it plays
+  // fine on Android. Set once for the whole app; screens that record (chat) still
+  // flip `allowsRecording` for their session.
+  useEffect(() => {
+    setAudioModeAsync({ playsInSilentMode: true }).catch(() => {});
+  }, []);
+
   if (!fontsLoaded && !fontError) {
     return (
       <View style={[styles.center, { backgroundColor: "#191040" }]}>
