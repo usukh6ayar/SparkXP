@@ -46,13 +46,28 @@ Controller-level: бүгд JWT. Заримд нэмэлт роль.
 
 | Method + Path | Auth | Зорилго | Params / Body |
 | --- | --- | --- | --- |
-| PATCH `/users/me` | JWT | Өөрийн профайл засах | `UpdateProfileDto` |
+| PATCH `/users/me` | JWT | Өөрийн профайл засах (`username` солиход давхардвал **409**) | `UpdateProfileDto` |
 | GET `/users/me/stats` | JWT | Өөрийн XP + Sparks | — |
 | GET `/users/me/plan` | JWT | Өөрийн багц + хэрэглээ | — |
 | POST `/users/me/avatar` | JWT | Аватар зураг байршуулах (jpg/png/webp ≤5MB) | multipart `file` |
 | GET `/users` | admin, super_admin | Бүх хэрэглэгч (хуудаслалттай) | `page`, `limit`, `search` |
 | PATCH `/users/:id` | super_admin | Хэрэглэгчийн роль солих (өөрийгөө болихгүй) | `{ role }` |
 | DELETE `/users/:id` | admin, super_admin | Хэрэглэгч устгах | path `id` |
+
+**`UpdateProfileDto` талбарууд:** `fullName` · **`username`** · `province` ·
+`district` · `avatarUrl` · `level` · `englishName`. Бүгд optional — илгээсэн
+талбарууд нь л шинэчлэгдэнэ (global `ValidationPipe({ whitelist: true })` тул
+DTO-д байхгүй талбарыг чимээгүй арчина).
+
+**`username` (нэвтрэх нэр):** 3–30 тэмдэгт, зөвхөн `a-zA-Z0-9_` (дүрэм нэг газар:
+`src/common/validation/username.ts` → `@IsUsername()`, `RegisterDto` мөн үүнийг
+хэрэглэнэ; mobile тал `src/lib/username.ts`).
+- буруу хэлбэр → **400**
+- өөр хүн эзэмшсэн → **409** `Энэ username аль хэдийн бүртгэлтэй байна`
+- Шалгалт **том/жижиг үсэг ялгахгүй** (`Bataa` = `bataa`) — нэвтрэхэд яг таарч
+  тулгардаг тул хоёулаа орших нь нэг хүн мэт харагдах эрсдэлтэй. Мөн энэ дүрэм
+  `POST /auth/register`-т ижилхэн үйлчилнэ.
+- Өөрийнхөө одоогийн нэрийг дахин илгээх нь зөрчил **биш** (200).
 
 ## 3. Words — `/api/words`
 Толь бичгийн үгс + AI үүсгэлт + bulk pipeline. GET уншилт public/JWT; бичилт admin-баг.
@@ -268,6 +283,14 @@ Controller-level: JWT. Зарим бичилт роль шаардана; зар
 | GET `/classes/:id/requests` | JWT (багш/admin) | Хүлээгдэж буй элсэх хүсэлтүүд | path `id` |
 | POST `/classes/:id/requests/:studentId/approve` | JWT (багш/admin) | Хүсэлт батлаж элсүүлэх | path `id`, `studentId` |
 | DELETE `/classes/:id/requests/:studentId` | JWT (багш/admin) | Хүсэлт татгалзах | path `id`, `studentId` |
+
+> **Сурагчийн `avatarUrl`.** `/classes/:id` (`students[]` + `teacher`),
+> `/classes/:id/students`, `/classes/:id/requests` бүгд бүтэн `SafeUser` буцаана —
+> **`avatarUrl` аль хэдийн орсон** (`sanitizeUser` нь зөвхөн `passwordHash`-ыг л
+> хасдаг). Утга нь эсвэл байршуулсан зургийн URL, эсвэл `default:avN` түлхүүр,
+> эсвэл **`null`** (сурагч зураг тавиагүй → mobile `Avatar` нэрнээс нь үүдэлтэй
+> бэлэн зураг харуулна). Багшийн талд зураг гарахгүй бол API биш, тухайн мөрийн
+> `avatar_url` хоосон байгаа эсэхийг эхлээд шалга.
 
 ## 15. Organizations — `/api/organizations`
 Controller-level: JWT. Бичилт admin-only.

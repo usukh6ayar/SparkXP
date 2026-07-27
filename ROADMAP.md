@@ -86,6 +86,58 @@
 | C4 | Auth-аас өмнө үнэ цэн (taste-task) | ✅ дууссан | BE ✅ (PR #143) + FE ✅ (2026-07-22): онбординг → `/(auth)/taste` 3 асуулт (public `/words/sample`, локал шалгалт) → register `tasteCompleted` → verify дээр +10 XP |
 
 ### Өсөхбаяр (Backend + Admin)
+
+#### ✅ Choi-гийн PR #170-ийн 2 BE хүсэлт — хариу (2026-07-27) · ДАВХАРДУУЛАХГҮЙ
+
+| # | Хүсэлт | Төлөв |
+| --- | --- | --- |
+| 1 | `UpdateProfileDto`-д `username` + давхардлын 409 | ✅ **Хийгдсэн.** DTO-д `username` нэмсэн (`@IsUsername()`); `UsersService.assertUsernameFree()` 409 шиднэ; өөрийн нэрээ дахин илгээх нь зөрчил биш; unique index-ийн `23505` race-ийг мөн 409 болгож барина |
+| 2 | Багшийн roster / ахиц `avatarUrl` буцаах | ✅ **Аль хэдийн буцаадаг байсан — код өөрчлөөгүй.** Доорх бодит шалгалт хар |
+
+**Username солих дүрэм** нэг газар төвлөрсөн: `src/common/validation/username.ts`
+(`@IsUsername()` — 3–30 тэмдэгт, `a-zA-Z0-9_`). `RegisterDto` мөн үүнийг хэрэглэнэ,
+mobile талын `src/lib/username.ts`-тэй яг тохирно. Шалгалт нь **том/жижиг үсэг
+ялгахгүй** болсон (өмнө нь `Bataa` ба `bataa` хоёр өөр данс болж чаддаг байсан) —
+register-т мөн үйлчилнэ. Дэлгэрэнгүй: `API.md` §2.
+
+**QA #11 / #15 (сурагчийн зураг багшийн талд гарахгүй) — BE талын алдаа БИШ.**
+Локал API дээр бодитоор дуудаж баталсан (сурагч `default:av3` сонгосон):
+```
+GET /classes/:id            → students[]: {"fullName":"…","avatarUrl":"default:av3"}
+GET /classes/:id/students/:sid/progress → {"fullName":"…","avatarUrl":"default:av3"}
+```
+`sanitizeUser` нь зөвхөн `passwordHash`-ыг хасдаг тул roster · join requests ·
+progress бүгд бүтэн `SafeUser` (⊃ `avatarUrl`) буцаана. Тиймээс бодит шалтгаан
+хоёрын нэг:
+1. Тухайн сурагчдын `users.avatar_url` = `NULL` (зураг тавиагүй) → mobile `Avatar`
+   нэрнээс нь сонгосон **бэлэн зураг** руу унана. Гэвч `av1–av6.webp` нь одоогоор
+   **ижилхэн placeholder** зураг тул "зураг гарахгүй" мэт харагдана → жинхэнэ
+   засвар = 6 өөр аватар зураг тавих (design).
+2. Сурагч зураг байршуулсан ч харагдахгүй бол `resolveAvatar()`/URL-ийн асуудал.
+
+➡️ **Choi:** асуудал давтагдвал ганц сурагчийн `avatarUrl` утгыг (`GET /classes/:id`
+хариунаас) хуулж ирүүлээрэй — тэр утга аль хувилбар болохыг шууд хэлнэ.
+
+- [ ] **⚠️ MERGE-ЭЭС ӨМНӨ: прод дээр username давхардал шалгах.**
+      ```sql
+      select lower(username), count(*), array_agg(username)
+      from users where username is not null group by 1 having count(*) > 1;
+      ```
+      Register нь энэ commit хүртэл том/жижиг үсэг ялгадаг байсан тул `Bataa` ба
+      `bataa` хоёулаа орших боломжтой (unique index нь түүхий утган дээр). Мөр
+      гарвал тэдгээр хүн нэрээ солиж чадахгүй болно (шалгалт нөгөө мөрийг тоолно)
+      → гараар нэгтгэ. Мөр гарахгүй бол шууд merge.
+- [ ] `username`-ий unique index нь түүхий утган дээр тул `LOWER(...)` хайлт
+      индекс ашиглахгүй (одоогийн хэмжээнд асуудалгүй). Хэрэглэгч олширвол
+      `lower(username)` дээр expression index нэмэх.
+- [ ] **`test/app.e2e-spec.ts` хуучирсан — шинэчлэх.** `POST /classes/join` одоо
+      `{ status:'pending', className }` буцаадаг (багшийн зөвшөөрөлтэй болсон) ч
+      тест хуучнаар `res.body.students`-ийг шалгасаар байна. Мөн `jest.config.ts`-ийн
+      `testRegex` нь `*.e2e-spec.ts` л барьдаг тул `src/**/*.spec.ts` unit тестүүд
+      ямар ч script-ээр гүйдэггүй → `test` (unit) + `test:e2e` гэж 2 script болгох.
+- [ ] **Бэлэн аватар зургууд (av1–av6) солих** — одоо 6 нь ижилхэн placeholder
+      art тул зураггүй сурагчид бүгд адилхан харагдаж, "зураг гарахгүй" мэт
+      ойлгогдож байна (QA #11/#15-ийн магадлалтай үндсэн шалтгаан).
 - [ ] **Прод migration бүрэн гүйцэх** (`DB_SYNCHRONIZE=false` дээр гараар):
       `reading_passages`, `translations`, `idioms` table + `synonyms`/`antonyms`
       багана + `reading` enum утга. (`src/migrations/` шалгах.)
