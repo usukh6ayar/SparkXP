@@ -1,11 +1,20 @@
 import { IsOptional, IsString, MaxLength, IsIn } from 'class-validator';
 import { MN_PROVINCES } from '../../common/enums';
+import { IsUsername } from '../../common/validation/username';
 
 export class UpdateProfileDto {
   @IsOptional()
   @IsString()
   @MaxLength(100)
   fullName?: string;
+
+  /**
+   * New login handle. Unique across users — the service answers 409 when it is
+   * already taken. Same rules as sign-up (see `IsUsername`).
+   */
+  @IsOptional()
+  @IsUsername()
+  username?: string;
 
   @IsOptional()
   @IsString()

@@ -75,9 +75,9 @@ export class AuthService {
     if (await this.usersService.findByEmail(dto.email)) {
       throw new ConflictException('Энэ имэйл аль хэдийн бүртгэлтэй байна');
     }
-    if (await this.usersService.findByUsername(dto.username)) {
-      throw new ConflictException('Энэ username аль хэдийн бүртгэлтэй байна');
-    }
+    // Same check profile-edit uses (case-insensitive), so a handle can't be
+    // taken twice just by changing its capitalisation.
+    await this.usersService.assertUsernameFree(dto.username);
 
     const passwordHash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
     const user = await this.usersService.create({

@@ -6,17 +6,14 @@ import {
   IsBoolean,
   MinLength,
   MaxLength,
-  Matches,
 } from 'class-validator';
 import { MN_PROVINCES, UserRole } from '../../common/enums';
+import { IsUsername } from '../../common/validation/username';
 
 /** Body for POST /api/auth/register. Validated by the global ValidationPipe. */
 export class RegisterDto {
   /** Unique handle chosen at sign-up — used to log in. */
-  @IsString()
-  @MinLength(3)
-  @MaxLength(30)
-  @Matches(/^[a-zA-Z0-9_]+$/, { message: 'Username зөвхөн үсэг, тоо, _ агуулна' })
+  @IsUsername()
   username: string;
 
   @IsEmail({}, { message: 'Имэйл хаяг буруу байна' })

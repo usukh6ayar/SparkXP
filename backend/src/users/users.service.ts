@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ILike, Repository } from 'typeorm';
 import { User } from '../entities/user.entity';
@@ -75,10 +75,6 @@ export class UsersService {
     return this.users.findOne({ where: { email } });
   }
 
-  findByUsername(username: string): Promise<User | null> {
-    return this.users.findOne({ where: { username } });
-  }
-
   /** Find by username or email (case used by login: one field, either kind). */
   findByUsernameOrEmail(identifier: string): Promise<User | null> {
     return this.users.findOne({
@@ -117,12 +113,49 @@ export class UsersService {
     await this.users.update(id, { passwordHash });
   }
 
+  /**
+   * Throw 409 unless `username` is free. Used by sign-up and by profile edit,
+   * so both answer the same way.
+   *
+   * The comparison is case-insensitive: login matches the handle exactly, so
+   * letting `Bataa` and `bataa` both exist would be two accounts that look like
+   * one person. `LOWER(...) =` (not `ILike`) because `_` is a legal username
+   * character but a single-character wildcard in LIKE.
+   */
+  async assertUsernameFree(username: string, excludeUserId?: string): Promise<void> {
+    const query = this.users
+      .createQueryBuilder('u')
+      .where('LOWER(u.username) = LOWER(:username)', { username });
+    // Keeping your own handle is never a clash. Excluded in SQL (not by reading
+    // one row and comparing ids) so the answer stays the same even if the table
+    // already holds case-variants of one name — the unique index is on the raw
+    // value, so `Bataa` + `bataa` can both pre-date this check.
+    if (excludeUserId) query.andWhere('u.id != :excludeUserId', { excludeUserId });
+    if (await query.getCount()) {
+      throw new ConflictException('Энэ username аль хэдийн бүртгэлтэй байна');
+    }
+  }
+
   async updateProfile(id: string, dto: UpdateProfileDto): Promise<SafeUser> {
     const user = await this.users.findOne({ where: { id } });
     if (!user) throw new NotFoundException('Хэрэглэгч олдсонгүй');
+    // The username is the login handle → it must stay unique. Skipped when it
+    // didn't change, so re-saving your own profile is never a conflict.
+    if (dto.username && dto.username !== user.username) {
+      await this.assertUsernameFree(dto.username, id);
+    }
     Object.assign(user, dto);
-    const saved = await this.users.save(user);
-    return this.sanitize(saved);
+    try {
+      const saved = await this.users.save(user);
+      return this.sanitize(saved);
+    } catch (err) {
+      // Two people can pass the check above at the same moment; the unique index
+      // is the real referee. Its 23505 must still read as 409, not a 500.
+      if ((err as { code?: string }).code === '23505') {
+        throw new ConflictException('Энэ username аль хэдийн бүртгэлтэй байна');
+      }
+      throw err;
+    }
   }
 
   /** Set the user's avatar (uploaded URL or default key) and return them. */
