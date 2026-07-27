@@ -13,6 +13,15 @@ interface Props extends TextProps {
 }
 
 /**
+ * Cap for the OS "large text" accessibility setting. Many of our surfaces (tab
+ * bar, stat cards, quiz options) have fixed heights, so an unbounded multiplier
+ * (Android goes to 2.0, iOS higher still) overflows them. 1.3 keeps the app
+ * readable for large-text users without breaking the layout. At the default
+ * system size the multiplier is 1.0, so nothing changes for most users.
+ */
+const MAX_FONT_SCALE = 1.3;
+
+/**
  * The single text primitive. Screens pick a *role* (`h1`, `body`, `caption`)
  * instead of a raw size + weight, so hierarchy stays consistent everywhere.
  * Style overrides still work for one-off tweaks (margins, etc.).
@@ -26,7 +35,13 @@ export function AppText({ variant = 'body', color, center, style, ...rest }: Pro
   const muted = variant === 'caption' || variant === 'overline';
   const override: TextStyle = { color: color ?? (muted ? c.textMuted : c.text) };
   if (center) override.textAlign = 'center';
-  return <RNText style={[typography[variant], override, style]} {...rest} />;
+  return (
+    <RNText
+      maxFontSizeMultiplier={MAX_FONT_SCALE}
+      style={[typography[variant], override, style]}
+      {...rest}
+    />
+  );
 }
 
 export { colors };

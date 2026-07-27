@@ -1,8 +1,7 @@
-import { useCallback, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useState } from 'react';
 import { View, StyleSheet, ScrollView, Pressable, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppImage } from '../src/components/AppImage';
-import { setStatusBarStyle } from 'expo-status-bar';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -64,6 +63,62 @@ function Row({
   return <Pressable onPress={onPress} style={({ pressed }) => pressed && styles.pressed}>{body}</Pressable>;
 }
 
+/**
+ * One on/off switch.
+ *
+ * Two things keep it steady, both learned the hard way:
+ * 1. It lives at MODULE level. A component declared inside another component's
+ *    body is a NEW type on every render, so React unmounts and remounts it —
+ *    flipping one switch remounted all the others and they flashed.
+ * 2. It is `memo`ised and only ever fed STABLE props (see `usePref`), so
+ *    flipping one switch no longer re-renders its neighbours mid-animation,
+ *    which is what made their thumbs visibly grow/shrink.
+ */
+const Switcher = memo(function Switcher({
+  p, value, onValueChange,
+}: { p: PremiumPalette; value: boolean; onValueChange: (v: boolean) => void }) {
+  return (
+    <Switch
+      value={value}
+      onValueChange={onValueChange}
+      trackColor={{ false: p.track, true: p.primary }}
+      thumbColor={colors.white}
+      ios_backgroundColor={p.track}
+    />
+  );
+});
+
+/**
+ * A locally-persisted on/off preference (loads once, saves on change).
+ *
+ * The returned setter has a STABLE identity — unlike an inline
+ * `(v) => { set(v); save(v); }`, which is a new function on every render and
+ * therefore re-renders the switch it feeds. That is exactly how the biometric
+ * lock switch behaves (its setter is a `useCallback` in AuthContext), which is
+ * why that one always animated cleanly.
+ */
+function usePref(key: string): [boolean, (v: boolean) => void] {
+  const [value, setValue] = useState(true);
+
+  useEffect(() => {
+    AsyncStorage.getItem(key).then((v) => { if (v != null) setValue(v === '1'); });
+  }, [key]);
+
+  const set = useCallback((v: boolean) => {
+    setValue(v);
+    AsyncStorage.setItem(key, v ? '1' : '0');
+  }, [key]);
+
+  return [value, set];
+}
+
+/** Small caps heading above a card group. */
+function SectionLabel({ p, children }: { p: PremiumPalette; children: string }) {
+  return (
+    <AppText variant="overline" color={p.textMuted} style={styles.sectionLabel}>{children}</AppText>
+  );
+}
+
 /** A two-option segmented toggle (icon + label per side). */
 function SegToggle<T extends string>({
   p, options, value, onChange,
@@ -94,39 +149,21 @@ export default function SettingsScreen() {
   const { user, biometricEnabled, setBiometricEnabled } = useAuth();
   const { theme, lang, palette: p, setTheme, setLang, t } = useSettings();
 
-  const [notifications, setNotifications] = useState(true);
-  const [sound, setSound] = useState(true);
-  const [haptics, setHaptics] = useState(true);
+  const [notifications, setNotifications] = usePref(KEYS.notifications);
+  const [sound, setSound] = usePref(KEYS.sound);
+  const [haptics, setHaptics] = usePref(KEYS.haptics);
   // Only offer the biometric lock when the device actually supports it.
   const [bioAvailable, setBioAvailable] = useState(false);
 
-  // Restore switch prefs + keep the status bar readable for the active theme.
+  // (The status bar is handled app-wide in `app/_layout.tsx` — never per screen.)
   useFocusEffect(
     useCallback(() => {
-      AsyncStorage.getItem(KEYS.notifications).then((v) => { if (v != null) setNotifications(v === '1'); });
-      AsyncStorage.getItem(KEYS.sound).then((v) => { if (v != null) setSound(v === '1'); });
-      AsyncStorage.getItem(KEYS.haptics).then((v) => { if (v != null) setHaptics(v === '1'); });
       isBiometricAvailable().then(setBioAvailable);
-      setStatusBarStyle(theme === 'dark' ? 'light' : 'dark');
-      return () => setStatusBarStyle('dark');
-    }, [theme]),
+    }, []),
   );
-
-  const toggle = (key: string, set: (v: boolean) => void) => (v: boolean) => {
-    set(v); AsyncStorage.setItem(key, v ? '1' : '0');
-  };
 
   const soon = useComingSoon();
   const confirmLogout = useLogoutConfirm();
-
-  const Switcher = ({ value, onValueChange }: { value: boolean; onValueChange: (v: boolean) => void }) => (
-    <Switch value={value} onValueChange={onValueChange}
-      trackColor={{ false: p.track, true: p.primary }} thumbColor={colors.white} ios_backgroundColor={p.track} />
-  );
-
-  const SectionLabel = ({ children }: { children: string }) => (
-    <AppText variant="overline" color={p.textMuted} style={styles.sectionLabel}>{children}</AppText>
-  );
 
   return (
     <View style={[styles.root, { backgroundColor: p.bgFlat }]}>
@@ -156,7 +193,7 @@ export default function SettingsScreen() {
           </Pressable>
 
           {/* Appearance + Language */}
-          <SectionLabel>{t('settings').toUpperCase()}</SectionLabel>
+          <SectionLabel p={p}>{t('settings').toUpperCase()}</SectionLabel>
           <View style={[styles.card, { backgroundColor: p.card, borderColor: p.cardBorder }]}>
             <View style={styles.prefBlock}>
               <View style={styles.prefHead}>
@@ -184,36 +221,36 @@ export default function SettingsScreen() {
           </View>
 
           {/* Notifications & sound */}
-          <SectionLabel>{t('notificationsSound').toUpperCase()}</SectionLabel>
+          <SectionLabel p={p}>{t('notificationsSound').toUpperCase()}</SectionLabel>
           <Card p={p}>
             <Row p={p} icon="notifications" tint={tints.coral} label={t('notifications')}
-              right={<Switcher value={notifications} onValueChange={toggle(KEYS.notifications, setNotifications)} />} />
+              right={<Switcher p={p} value={notifications} onValueChange={setNotifications} />} />
             <Row p={p} icon="volume-high" tint={tints.amber} label={t('sound')}
-              right={<Switcher value={sound} onValueChange={toggle(KEYS.sound, setSound)} />} />
+              right={<Switcher p={p} value={sound} onValueChange={setSound} />} />
             <Row p={p} icon="phone-portrait" tint={tints.teal} label={t('haptics')}
-              right={<Switcher value={haptics} onValueChange={toggle(KEYS.haptics, setHaptics)} />} />
+              right={<Switcher p={p} value={haptics} onValueChange={setHaptics} />} />
           </Card>
 
           {/* Security — biometric app-lock (only on devices that support it) */}
           {bioAvailable ? (
             <>
-              <SectionLabel>{t('security').toUpperCase()}</SectionLabel>
+              <SectionLabel p={p}>{t('security').toUpperCase()}</SectionLabel>
               <Card p={p}>
                 <Row p={p} icon="finger-print" tint={tints.green} label={t('biometricLock')}
-                  right={<Switcher value={biometricEnabled} onValueChange={setBiometricEnabled} />} />
+                  right={<Switcher p={p} value={biometricEnabled} onValueChange={setBiometricEnabled} />} />
               </Card>
             </>
           ) : null}
 
           {/* Account */}
-          <SectionLabel>{t('account').toUpperCase()}</SectionLabel>
+          <SectionLabel p={p}>{t('account').toUpperCase()}</SectionLabel>
           <Card p={p}>
             <Row p={p} icon="sparkles" tint={tints.purple} label={t('buddyMemory')} onPress={() => router.push('/buddy-memory')} />
             <Row p={p} icon="shield-checkmark" tint={tints.green} label={t('privacy')} onPress={soon} />
           </Card>
 
           {/* Support */}
-          <SectionLabel>{t('support').toUpperCase()}</SectionLabel>
+          <SectionLabel p={p}>{t('support').toUpperCase()}</SectionLabel>
           <Card p={p}>
             <Row p={p} icon="help-circle" tint={tints.blue} label={t('helpFaq')} onPress={soon} />
             <Row p={p} icon="chatbubble-ellipses" tint={tints.pink} label={t('sendFeedback')} onPress={soon} />
@@ -222,7 +259,7 @@ export default function SettingsScreen() {
           </Card>
 
           {/* Legal */}
-          <SectionLabel>{t('legal').toUpperCase()}</SectionLabel>
+          <SectionLabel p={p}>{t('legal').toUpperCase()}</SectionLabel>
           <Card p={p}>
             <Row p={p} icon="document-text" tint={tints.purple} label={t('terms')} onPress={soon} />
             <Row p={p} icon="shield" tint={tints.green} label={t('privacyPolicy')} onPress={soon} />

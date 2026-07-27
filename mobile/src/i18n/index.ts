@@ -74,6 +74,10 @@ const mn = {
   username: 'Нэвтрэх нэр',
   usernamePlaceholder: 'жишээ: bataa_2010',
   usernameOrEmail: 'Нэвтрэх нэр эсвэл имэйл',
+  usernameHint: '3–30 тэмдэгт · зөвхөн латин үсэг, тоо, доогуур зураас',
+  usernameInvalid: 'Нэвтрэх нэр буруу байна. 3–30 тэмдэгт, зөвхөн латин үсэг, тоо, доогуур зураас.',
+  usernameTaken: 'Энэ нэвтрэх нэр аль хэдийн ашиглагдсан байна. Өөрийг сонгоно уу.',
+  usernameUnavailable: 'Нэвтрэх нэр солих боломж одоогоор бэлэн болоогүй байна.',
 
   // OTP / email verification
   otpTitle: 'Имэйлээ баталгаажуулна уу',
@@ -761,6 +765,9 @@ const mn = {
   planUpgradeSoon: 'Төлбөрийн систем тун удахгүй нэмэгдэнэ.',
   planFairUseNote: 'Дуут яриа, толь бичиг, санах ойн хязгаар нь premium чанарыг тогтвортой байлгах зорилготой.',
   planRecommended: 'Санал болгож буй',
+  planActive: 'Идэвхтэй',
+  planCurrent: 'Таны одоогийн багц',
+  planSwitchTo: '{plan} багц руу шилжих',
 
   // Teacher panel (Phase 1)
   skill_listening: 'Сонсгол',
@@ -853,6 +860,10 @@ const en: Record<TranslationKey, string> = {
   username: 'Username',
   usernamePlaceholder: 'e.g. bataa_2010',
   usernameOrEmail: 'Username or email',
+  usernameHint: '3–30 characters · letters, numbers and underscore only',
+  usernameInvalid: 'Invalid username. Use 3–30 letters, numbers or underscores.',
+  usernameTaken: 'That username is already taken. Please pick another.',
+  usernameUnavailable: 'Changing your username is not available yet.',
 
   otpTitle: 'Verify your email',
   otpSentTo: 'We sent a code to:',
@@ -1514,6 +1525,9 @@ const en: Record<TranslationKey, string> = {
   planUpgradeSoon: 'Payments are coming soon.',
   planFairUseNote: 'Voice, dictionary and memory limits keep the premium quality sustainable.',
   planRecommended: 'Recommended',
+  planActive: 'Active',
+  planCurrent: 'Your current plan',
+  planSwitchTo: 'Switch to {plan}',
 
   // Teacher panel (Phase 1)
   skill_listening: 'Listening',

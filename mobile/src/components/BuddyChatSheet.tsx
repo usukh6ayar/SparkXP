@@ -58,7 +58,8 @@ export function BuddyChatSheet({
   messages: ChatMessage[];
   loading: boolean;
   onSend: (text: string) => void;
-  onReplay: (url?: string | null) => void;
+  /** Speak a reply: its recorded audio when there is one, else its text via device TTS. */
+  onReplay: (url?: string | null, text?: string | null) => void;
   onOpenHistory: () => void;
 }) {
   const c = useColors();
@@ -239,7 +240,7 @@ function TypingBubble({ styles, c }: { styles: any; c: AppColors }) {
 
 function MessageBubble({
   message, onReplay,
-}: { message: ChatMessage; onReplay: (url?: string | null) => void }) {
+}: { message: ChatMessage; onReplay: (url?: string | null, text?: string | null) => void }) {
   const c = useColors();
   const styles = useMemo(() => makeStyles(c, false), [c]);
   const isUser = message.role === 'user';
@@ -274,17 +275,17 @@ function MessageBubble({
                 {message.followUp}
               </TappableText>
             )}
-            {message.audioUrl !== undefined && (
-              // Muted icon (+ tap explains why) when this reply has no audio,
-              // so it doesn't look like a working button that does nothing.
-              <Pressable style={styles.replayBtn} onPress={() => onReplay(message.audioUrl)}>
-                <Ionicons
-                  name={message.audioUrl ? 'volume-medium-outline' : 'volume-mute-outline'}
-                  size={16}
-                  color={message.audioUrl ? c.primary : c.textMuted}
-                />
-              </Pressable>
-            )}
+            {/* Always tappable: with an audio_url it replays the ElevenLabs
+                take, without one the screen reads the text out with the device
+                voice — so the speaker is never a dead button. */}
+            <Pressable
+              style={styles.replayBtn}
+              onPress={() => onReplay(message.audioUrl, message.content)}
+              accessibilityRole="button"
+              accessibilityLabel={t('swipeListen')}
+            >
+              <Ionicons name="volume-medium-outline" size={16} color={c.primary} />
+            </Pressable>
           </>
         )}
       </View>

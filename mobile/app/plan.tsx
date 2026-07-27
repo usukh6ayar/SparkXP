@@ -1,7 +1,6 @@
 import { useCallback, useState } from 'react';
 import { View, StyleSheet, ScrollView, Pressable, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { setStatusBarStyle } from 'expo-status-bar';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -9,9 +8,14 @@ import { useAuth } from '../src/auth/AuthContext';
 import { useSettings } from '../src/settings/SettingsContext';
 import { AppText } from '../src/components/Text';
 import { getBuddyUsage, type BuddyUsageBlock } from '../src/api/ai';
+import { getMyPlan } from '../src/api/users';
+import { tf } from '../src/i18n';
 import { colors, spacing, radius, type PremiumPalette } from '../src/theme/theme';
 import { bounded } from '../src/theme/responsive';
 import type { TranslationKey } from '../src/i18n';
+
+/** The two tiers the comparison cards offer. */
+type PlanKey = 'standard' | 'premium';
 
 /**
  * "Миний багц" — plan, this-month usage and limits, per the Premium 56,000₮
@@ -22,17 +26,29 @@ import type { TranslationKey } from '../src/i18n';
 export default function PlanScreen() {
   const router = useRouter();
   const { token } = useAuth();
-  const { theme, palette: p, t } = useSettings();
+  const { palette: p, t } = useSettings();
 
   const [usage, setUsage] = useState<{ voice: BuddyUsageBlock; stt: BuddyUsageBlock } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  // Which plan the user has tapped (premium is pre-selected as the recommended
-  // option). Payment is still a stub, so this only drives the visual selection.
-  const [selectedPlan, setSelectedPlan] = useState<'standard' | 'premium'>('premium');
+  // The plan the user is actually on (from GET /users/me/plan). The free tier
+  // maps to "standard" — the paid tier is the only one called Premium.
+  const [currentPlan, setCurrentPlan] = useState<PlanKey>('standard');
+  // Which plan card is tapped. It starts on the user's real plan so the screen
+  // opens showing the truth, and tapping the other card previews a switch.
+  const [selectedPlan, setSelectedPlan] = useState<PlanKey>('standard');
 
   const load = useCallback(async () => {
     if (!token) return;
+    // The plan is a separate call from usage — a usage failure shouldn't hide
+    // which plan you're on, so it keeps its own try/catch.
+    getMyPlan(token)
+      .then((info) => {
+        const key: PlanKey = info.isFree ? 'standard' : 'premium';
+        setCurrentPlan(key);
+        setSelectedPlan(key);
+      })
+      .catch(() => {});
     try {
       setError(false);
       setUsage(await getBuddyUsage(token));
@@ -43,12 +59,16 @@ export default function PlanScreen() {
     }
   }, [token]);
 
+  // (The status bar is handled app-wide in `app/_layout.tsx`.)
   useFocusEffect(
     useCallback(() => {
-      setStatusBarStyle(theme === 'dark' ? 'light' : 'dark');
       load();
-    }, [load, theme]),
+    }, [load]),
   );
+
+  const onCurrentPlan = selectedPlan === currentPlan;
+  const selectedName = t(selectedPlan === 'premium' ? 'planPremiumName' : 'planStandardName');
+  const ctaLabel = onCurrentPlan ? t('planCurrent') : tf('planSwitchTo', { plan: selectedName });
 
   return (
     <View style={[styles.root, { backgroundColor: p.bgFlat }]}>
@@ -88,22 +108,28 @@ export default function PlanScreen() {
           <PlanCard
             p={p} name={t('planStandardName')} price={t('planStandardPrice')}
             features={['planStdVoice', 'planStdDict', 'planStdMemory']} t={t}
+            active={currentPlan === 'standard' ? t('planActive') : undefined}
             selected={selectedPlan === 'standard'} onPress={() => setSelectedPlan('standard')}
           />
 
           <PlanCard
             p={p} name={t('planPremiumName')} price={t('planPremiumPrice')} recommended={t('planRecommended')}
             features={['planPremVoice', 'planPremDict', 'planPremMemory', 'planPremBuddies', 'planPremSparks']} t={t}
+            active={currentPlan === 'premium' ? t('planActive') : undefined}
             selected={selectedPlan === 'premium'} onPress={() => setSelectedPlan('premium')}
           />
 
+          {/* The CTA follows the selection instead of always saying "upgrade":
+              on your current plan it is a disabled "this is your plan", and on
+              the other one it names the plan you'd switch to. */}
           <Pressable
-            onPress={() => Alert.alert(t('planUpgrade'), t('planUpgradeSoon'))}
-            style={({ pressed }) => pressed && styles.pressed}
+            disabled={onCurrentPlan}
+            onPress={() => Alert.alert(ctaLabel, t('planUpgradeSoon'))}
+            style={({ pressed }) => [onCurrentPlan && styles.ctaDisabled, pressed && styles.pressed]}
           >
             <LinearGradient colors={colors.primaryGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.upgradeBtn}>
               <AppText style={styles.crown}>👑</AppText>
-              <AppText variant="bodyStrong" color={colors.white}>{t('planUpgrade')}</AppText>
+              <AppText variant="bodyStrong" color={colors.white}>{ctaLabel}</AppText>
             </LinearGradient>
           </Pressable>
 
@@ -149,10 +175,13 @@ function UsageRow({
 /** A selectable plan card: name, price, feature bullets, optional "recommended"
  *  tag. Tapping selects it (radio dot + primary border show the choice). */
 function PlanCard({
-  p, name, price, features, recommended, selected, onPress, t,
+  p, name, price, features, recommended, active, selected, onPress, t,
 }: {
   p: PremiumPalette; name: string; price: string; features: TranslationKey[];
-  recommended?: string; selected?: boolean; onPress?: () => void; t: (k: TranslationKey) => string;
+  recommended?: string;
+  /** Label shown when this is the plan the user is actually on ("Идэвхтэй"). */
+  active?: string;
+  selected?: boolean; onPress?: () => void; t: (k: TranslationKey) => string;
 }) {
   return (
     <Pressable
@@ -172,7 +201,13 @@ function PlanCard({
           />
           <AppText variant="h3" color={p.text}>{name}</AppText>
         </View>
-        {recommended ? (
+        {/* "Идэвхтэй" wins over "Санал болгож буй" — which plan you are on is
+            the more useful fact, and two tags would crowd the row. */}
+        {active ? (
+          <View style={[styles.tag, { backgroundColor: colors.success }]}>
+            <AppText variant="label" color={colors.white}>{active}</AppText>
+          </View>
+        ) : recommended ? (
           <View style={[styles.tag, { backgroundColor: p.primary }]}>
             <AppText variant="label" color={colors.white}>{recommended}</AppText>
           </View>
@@ -228,4 +263,5 @@ const styles = StyleSheet.create({
   note: { textAlign: 'center', marginTop: spacing.lg, paddingHorizontal: spacing.md },
 
   pressed: { opacity: 0.85 },
+  ctaDisabled: { opacity: 0.5 },
 });

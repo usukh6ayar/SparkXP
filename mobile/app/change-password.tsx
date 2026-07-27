@@ -66,6 +66,9 @@ export default function ChangePasswordScreen() {
       <ScrollView
         contentContainerStyle={[styles.container, bounded]}
         keyboardShouldPersistTaps="handled"
+        // iOS does not resize the window for the keyboard the way Android does,
+        // so the lower fields end up hidden behind it. No-op on Android.
+        automaticallyAdjustKeyboardInsets
         showsVerticalScrollIndicator={false}
       >
         {step === 'done' ? (

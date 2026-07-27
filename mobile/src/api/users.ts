@@ -8,6 +8,13 @@ export interface UserStats {
 
 export interface UpdateProfilePayload {
   fullName?: string;
+  /**
+   * Unique login handle. Rejected by the server when already taken (409), and
+   * silently ignored while `UpdateProfileDto` has no `username` field — the
+   * edit-profile sheet checks the response and says so rather than pretending
+   * it saved. See CLAUDE.md: mobile requests backend fields from Өсөхбаяр.
+   */
+  username?: string;
   province?: string;
   district?: string;
   /** Image URL or a `default:avN` key. */

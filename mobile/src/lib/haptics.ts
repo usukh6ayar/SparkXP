@@ -16,22 +16,31 @@
  */
 import * as Haptics from 'expo-haptics';
 
+/**
+ * Budget Android phones often have no haptic motor (and web has no API at all),
+ * so these calls reject. Feedback is a nice-to-have — swallow the rejection so
+ * it never surfaces as an unhandled promise warning mid-lesson.
+ */
+const safe = (run: () => Promise<void>) => () => {
+  run().catch(() => {});
+};
+
 /** Light tap — default button / general press feedback. */
-const tap = () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+const tap = safe(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light));
 
 /** Medium tap — a heavier confirmation (e.g. unlocking a lesson). */
-const medium = () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+const medium = safe(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium));
 
 /** Success notification — correct answer, XP earned, task complete. */
-const success = () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+const success = safe(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success));
 
 /** Warning notification — soft "not quite" (e.g. "review" swipe). */
-const warning = () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+const warning = safe(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning));
 
 /** Error notification — wrong answer, failed validation. */
-const error = () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+const error = safe(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error));
 
 /** Selection tick — moving between options / segments / tabs. */
-const select = () => Haptics.selectionAsync();
+const select = safe(() => Haptics.selectionAsync());
 
 export const haptics = { tap, medium, success, warning, error, select };

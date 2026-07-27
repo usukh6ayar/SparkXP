@@ -1,7 +1,6 @@
 import { useCallback, useState } from 'react';
 import { View, StyleSheet, ScrollView, Pressable, Alert, ActivityIndicator, Share } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { setStatusBarStyle } from 'expo-status-bar';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -33,7 +32,7 @@ const TYPE_META: Record<string, { key: TranslationKey; icon: IconName; tint: Tin
 export default function BuddyMemoryScreen() {
   const router = useRouter();
   const { token } = useAuth();
-  const { theme, palette: p, t } = useSettings();
+  const { palette: p, t } = useSettings();
 
   const [items, setItems] = useState<BuddyMemory[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,11 +51,11 @@ export default function BuddyMemoryScreen() {
     }
   }, [token]);
 
+  // (The status bar is handled app-wide in `app/_layout.tsx`.)
   useFocusEffect(
     useCallback(() => {
-      setStatusBarStyle(theme === 'dark' ? 'light' : 'dark');
       load();
-    }, [load, theme]),
+    }, [load]),
   );
 
   /** Export (share) the buddy's memory as plain text — data-portability (doc §8). */

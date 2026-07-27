@@ -25,6 +25,10 @@ interface Props extends TextInputProps {
    * lifts above the keyboard on focus.
    */
   InputComponent?: ComponentType<TextInputProps>;
+  /** Small grey note under the field (e.g. the allowed characters). */
+  hint?: string;
+  /** Validation message; replaces the hint and turns the field's edge red. */
+  error?: string;
 }
 
 /** Labeled text input with brand styling, optional left icon + password reveal. */
@@ -34,6 +38,8 @@ export function TextField({
   secureToggle,
   secureTextEntry,
   InputComponent = TextInput,
+  hint,
+  error,
   ...rest
 }: Props) {
   const c = useColors();
@@ -43,7 +49,7 @@ export function TextField({
   return (
     <View style={styles.wrap}>
       {label ? <Text style={[styles.label, { color: c.navy }]}>{label}</Text> : null}
-      <View style={[styles.field, { borderColor: c.border, backgroundColor: c.surfaceAlt }]}>
+      <View style={[styles.field, { borderColor: error ? c.danger : c.border, backgroundColor: c.surfaceAlt }]}>
         {leftIcon ? (
           <Ionicons
             name={leftIcon}
@@ -72,6 +78,9 @@ export function TextField({
           </Pressable>
         ) : null}
       </View>
+      {error || hint ? (
+        <Text style={[styles.note, { color: error ? c.danger : c.textMuted }]}>{error ?? hint}</Text>
+      ) : null}
     </View>
   );
 }
@@ -98,4 +107,5 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   eye: { paddingLeft: spacing.sm },
+  note: { fontSize: fontSize.xs, marginTop: spacing.xs },
 });
