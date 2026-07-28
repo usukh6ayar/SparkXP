@@ -1,7 +1,7 @@
 # SparkXP — Backend API Reference
 
 Backend (NestJS) endpoint-үүдийн бүрэн лавлах. **Зам/метод англиар**, тайлбар монголоор.
-Шинэчилсэн: 2026-07-04. Эх сурвалж: `backend/src/**/*.controller.ts` (22 controller).
+Шинэчилсэн: 2026-07-28. Эх сурвалж: `backend/src/**/*.controller.ts` (25 controller).
 
 > Mobile dev-үүд (Choi/Boju) `/backend`-ийг шууд заслахгүй — шинэ endpoint хэрэгтэй бол
 > Өсөхбаяр-аас хүсэн авч, энэ файлыг шинэчилнэ. Дэлгэрэнгүй дүрэм: `CLAUDE.md`.
@@ -136,7 +136,7 @@ Controller-level: JWT. Бичилт admin-баг. (Хичээлийн тест �
 | PATCH `/quizzes/:id` | admin-баг | Quiz засах | `UpdateQuizDto` |
 | DELETE `/quizzes/:id` | admin-баг | Quiz устгах | path `id` |
 | POST `/quizzes/:id/submit` | JWT | Хариу шалгаж XP олгох (≥1 зөв бол). XP нь **quiz тус бүрт нэг удаа** (`awardOnce`, farming-аас сэргийлнэ); дахин илгээвэл `xpEarned: 0`. Бүр submit `quiz_attempt` (skill+score) хадгална; `assignmentId` өгвөл даалгаврын submission-ыг оноотой бүртгэнэ | `SubmitQuizDto` (`answers`, `assignmentId?`) |
-| POST `/quizzes/:id/check` | JWT | **Нэг** хариу шалгах — C2 шуурхай feedback (XP олгохгүй, бүх түлхүүр задлахгүй). Буруу бол тухайн асуултын зөв хариу буцна → `{ correct, correctAnswer? }` (`correctAnswer`: mc→index · fill_blank→string · word_match→pairs) | `AnswerItemDto` (`questionIndex`, `answer`) |
+| POST `/quizzes/:id/check` | JWT | **Нэг** хариу шалгах — C2 шуурхай feedback (XP олгохгүй, бүх түлхүүр задлахгүй). Буруу бол тухайн асуултын зөв хариу буцна. **Буруу хариулт 1 зүрх авна** (§17 харна уу) → `{ correct, correctAnswer?, hearts }` (`correctAnswer`: mc→index · fill_blank→string · word_match→pairs; `hearts` = `HeartsState`) | `AnswerItemDto` (`questionIndex`, `answer`) |
 
 > **IELTS (Approach A):** IELTS content = quizzes with `category` in
 > `ielts_listening` / `ielts_reading` / `ielts_writing` / `ielts_speaking`.
@@ -145,6 +145,46 @@ Controller-level: JWT. Бичилт admin-баг. (Хичээлийн тест �
 > `imageUrl`/`bandNote`, `points:0`, self-study — no submit). Listening/Reading
 > `POST /quizzes/:id/submit` responses include an approximate **`band`** (0–9)
 > from the count of correct questions.
+
+## 6a. Hearts (зүрх / амь) — `/api/hearts`
+Duolingo-маягийн "амь". Бүгд JWT.
+
+| Method + Path | Auth | Зорилго | Params / Body |
+| --- | --- | --- | --- |
+| GET `/hearts` | JWT | Одоогийн зүрхний төлөв (сэргэлтийг тооцсон) | — |
+| POST `/hearts/refill` | JWT | Sparks зарцуулж дүүргэх. Дүүрэн эсвэл Sparks хүрэхгүй бол **400** | — |
+
+**`HeartsState` (хоёулаа энэ хэлбэрийг буцаана, `/quizzes/:id/check` мөн):**
+
+```jsonc
+{
+  "hearts": 4,          // одоо байгаа тоо (сэргэлт нэмэгдсэн)
+  "max": 5,             // тухайн багцын дээд хязгаар
+  "unlimited": false,   // premium бол true — хэзээ ч хасагдахгүй
+  "nextHeartAt": "…",   // дараагийн зүрх сэргэх цаг (дүүрэн/unlimited бол null)
+  "fullAt": "…",        // бүрэн дүүрэх цаг (дүүрэн/unlimited бол null)
+  "refillCost": 50      // одоо дүүргэхэд шаардах Sparks (дүүрэн бол null)
+}
+```
+
+**Гол дүрэм — заавал ойлгох:**
+- **Зүрх зөвхөн `POST /quizzes/:id/check` дотор хасагдана.** `POST /hearts/lose`
+  гэсэн endpoint **зориудаар байхгүй** — client-ээс дуудаж болдог бол client-ээс
+  алгасаж бас болно. Зөв/буруугийн шийдвэрийг server гаргадаг цорын ганц цэг нь
+  `/check` тул хасалт тэнд явна.
+- **Дахин илгээлтийн хамгаалалт:** ижил (хэрэглэгч, quiz, асуулт, хариу)-г 90
+  секундэд дахин илгээвэл **дахин хасахгүй** (Redis `SET NX`). Хоёр дарсан/сүлжээ
+  тасарч retry хийсэн нь 2 зүрх авахгүй. Харин **өөр** буруу хариулт (жишээ нь
+  дахин эргэж ирсэн асуултад) шинэ алдаа тул дахин хасна.
+- **Redis унасан үед fail-open** — хасахгүй өнгөрнө. Авах ёстой зүрхээ авахгүй нь
+  2 удаа авахаас дээр.
+- **Сэргэлт нь lazy** — cron байхгүй. `users.hearts` нь `hearts_updated_at`-ын
+  хувьд л зөв; уншихад л тооцоолно. Тиймээс DB-ээс `hearts`-ыг **шууд уншиж
+  болохгүй**, `HeartsService` дундуур ор.
+- **Багцаас хамаарна** (`plans` хүснэгт, admin-аас тохируулна, app шинэчлэлгүй):
+  `unlimited_hearts` · `max_hearts` · `heart_regen_minutes` · `heart_refill_sparks`.
+  NULL = үнэгүй багцын анхдагч (**5 зүрх · 240 мин/зүрх · 50 Sparks**).
+  Хугацаа нь дууссан багц = багцгүйтэй адил.
 
 ## 7. Reading — `/api/reading`
 Унших материал. GET уншилт JWT; бичилт/AI admin-баг.

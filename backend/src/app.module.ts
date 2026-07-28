@@ -14,6 +14,7 @@ import { LeaderboardModule } from './leaderboard/leaderboard.module';
 import { QuizzesModule } from './quizzes/quizzes.module';
 import { XpModule } from './xp/xp.module';
 import { SparksModule } from './sparks/sparks.module';
+import { HeartsModule } from './hearts/hearts.module';
 import { AiGatewayModule } from './ai-gateway/ai-gateway.module';
 import { HealthModule } from './health/health.module';
 import { OrganizationsModule } from './organizations/organizations.module';
@@ -50,6 +51,7 @@ import { TeacherModule } from './teacher/teacher.module';
     QuizzesModule,
     XpModule,
     SparksModule,
+    HeartsModule,
     AiGatewayModule,
     HealthModule,
     OrganizationsModule,

@@ -98,6 +98,22 @@ export class User extends BaseEntity {
   @Column({ type: 'int', default: 0 })
   sparks: number;
 
+  /**
+   * Duolingo-style "lives" for quizzes. A wrong answer costs one; hitting 0
+   * ends the quiz. Refills over time (see `heartsUpdatedAt`) or with Sparks.
+   *
+   * This is a LAZY counter: it is only correct as of `heartsUpdatedAt`. Never
+   * read it directly — go through `HeartsService`, which folds in the hearts
+   * regenerated since that timestamp. Storing it this way avoids a cron job
+   * ticking every user's hearts on a schedule.
+   */
+  @Column({ type: 'int', default: 5 })
+  hearts: number;
+
+  /** When `hearts` was last written — the anchor regeneration counts from. */
+  @Column({ name: 'hearts_updated_at', type: 'timestamptz', nullable: true })
+  heartsUpdatedAt: Date | null;
+
   /** Consecutive active days (updated when XP is earned). */
   @Column({ name: 'current_streak', type: 'int', default: 0 })
   currentStreak: number;
