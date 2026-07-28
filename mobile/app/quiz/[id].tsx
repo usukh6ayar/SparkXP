@@ -3,7 +3,9 @@ import {
   View, Text, StyleSheet, ScrollView, TextInput,
   Pressable,
 } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, {
+  FadeInDown, SlideInDown, useSharedValue, useAnimatedStyle, withSequence, withTiming,
+} from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -12,6 +14,10 @@ import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { useAuth } from '../../src/auth/AuthContext';
 import * as quizzesApi from '../../src/api/quizzes';
 import type { Quiz, AnswerItem, QuizResult } from '../../src/api/quizzes';
+import { getHearts, refillHearts, type HeartsState } from '../../src/api/hearts';
+import { getMe } from '../../src/api/auth';
+import { HeartsBar } from '../../src/components/HeartsBar';
+import { HeartsEmptySheet } from '../../src/components/HeartsEmptySheet';
 import { Button } from '../../src/components/Button';
 import { AwardBadge } from '../../src/components/AwardBadge';
 import { Skeleton } from '../../src/components/Skeleton';
@@ -25,6 +31,7 @@ import { RewardBurst } from '../../src/components/RewardBurst';
 import { CountUp } from '../../src/components/CountUp';
 import { AppText } from '../../src/components/Text';
 import { haptics } from '../../src/lib/haptics';
+import { sound } from '../../src/lib/sound';
 import { markExerciseCompleted } from '../../src/lib/exerciseProgress';
 import { showXpToast } from '../../src/lib/xpToast';
 import { alertError } from '../../src/lib/alerts';
@@ -91,15 +98,22 @@ const tileStyles = StyleSheet.create({
 
 export default function QuizScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { token } = useAuth();
+  const { token, user, updateUser } = useAuth();
   const c = useColors();
   const styles = useMemo(() => makeStyles(c), [c]);
   const router = useRouter();
 
   const [quiz, setQuiz] = useState<Quiz | null>(null);
   const [phase, setPhase] = useState<Phase>('loading');
-  const [currentIndex, setCurrentIndex] = useState(0);
+  // Presentation order: a queue of question indices (not a plain counter) so a
+  // wrong answer can be re-queued to the end (Duolingo). `answers` only ever
+  // records the FIRST attempt per index, which is what the score is graded from.
+  const [queue, setQueue] = useState<number[]>([]);
+  const [queuePos, setQueuePos] = useState(0);
   const [answers, setAnswers] = useState<AnswerItem[]>([]);
+  // Hearts (lives) — server is the only source of truth (API.md §6a).
+  const [hearts, setHearts] = useState<HeartsState | null>(null);
+  const [refilling, setRefilling] = useState(false);
   const [fillText, setFillText] = useState('');
   const [selected, setSelected] = useState<number | null>(null);
   // word_match: leftIndex → chosen right value (drag/tap handled in WordMatchBoard).
@@ -119,6 +133,22 @@ export default function QuizScreen() {
   const audio = useAudioPlayer();
   const playing = useAudioPlayerStatus(audio).playing;
 
+  // Wrong-answer shake (C1c): a quick left/right wobble of the answer area.
+  const shakeX = useSharedValue(0);
+  const shakeStyle = useAnimatedStyle(() => ({ transform: [{ translateX: shakeX.value }] }));
+  function triggerShake() {
+    // Bigger, snappier wobble so a wrong answer is unmistakable (Duolingo feel).
+    shakeX.value = withSequence(
+      withTiming(-12, { duration: 40 }),
+      withTiming(12, { duration: 40 }),
+      withTiming(-10, { duration: 40 }),
+      withTiming(10, { duration: 40 }),
+      withTiming(-6, { duration: 40 }),
+      withTiming(6, { duration: 40 }),
+      withTiming(0, { duration: 40 }),
+    );
+  }
+
   /** Play / pause the IELTS Listening recording (pause keeps the position, so a
    *  student can stop mid-section and resume instead of restarting). */
   function toggleAudio() {
@@ -129,11 +159,35 @@ export default function QuizScreen() {
   const load = useCallback(() => {
     setPhase('loading');
     return quizzesApi.getQuiz(id!, token!)
-      .then((q) => { setQuiz(q); setPhase('quiz'); })
+      .then((q) => {
+        setQuiz(q);
+        setQueue(q.questions.map((_, i) => i)); // start with each question once, in order
+        setQueuePos(0);
+        setAnswers([]);
+        setPhase('quiz');
+      })
       .catch(() => setPhase('error'));
   }, [id, token]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Load current hearts once, so the top bar and the out-of-hearts gate are
+  // right from the first question (later updates come from /check responses).
+  useEffect(() => {
+    if (token) getHearts(token).then(setHearts).catch(() => { /* hearts optional */ });
+  }, [token]);
+
+  // While blocked at 0 hearts, refetch exactly when the next heart regenerates so
+  // the gate lifts on its own (no polling) even if the learner just waits.
+  useEffect(() => {
+    const blocked = !!hearts && !hearts.unlimited && hearts.hearts <= 0;
+    if (!blocked || !token || !hearts?.nextHeartAt) return;
+    const ms = new Date(hearts.nextHeartAt).getTime() - Date.now();
+    const timer = setTimeout(() => {
+      getHearts(token).then(setHearts).catch(() => {});
+    }, Math.max(1000, ms + 500));
+    return () => clearTimeout(timer);
+  }, [token, hearts]);
 
   useEffect(() => () => {
     if (rewardTimer.current) clearTimeout(rewardTimer.current);
@@ -151,21 +205,28 @@ export default function QuizScreen() {
     if (phase !== 'result' || !result) return;
     if (quiz?.audioUrl) audio.pause(); // the IELTS recording shouldn't outlive the test
     if (result.passed) {
-      if (result.xpEarned > 0) showXpToast(result.xpEarned);
+      if (result.xpEarned > 0) { showXpToast(result.xpEarned); sound.xp(); }
       else haptics.success();
     } else {
       haptics.error();
     }
   }, [phase, result]);
 
+  const currentIndex = queue[queuePos] ?? 0;
   const currentQ = quiz?.questions[currentIndex];
-  const isLast = quiz ? currentIndex === quiz.questions.length - 1 : false;
+  // This presentation is a first attempt unless we already locked an answer for it.
+  const wasFirstAttempt = !answers.some((a) => a.questionIndex === currentIndex);
+  // A first-time wrong answer gets re-queued, so it is NOT the final step yet.
+  const willReask = !!feedback && !feedback.correct && wasFirstAttempt;
+  const isFinalStep = queuePos >= queue.length - 1 && !willReask;
+  // Hearts gate: 0 left on a non-premium plan blocks progress until refill/regen.
+  const outOfHearts = !!hearts && !hearts.unlimited && hearts.hearts <= 0;
 
   // word_match: right column shuffled once per question.
   const shuffledRights = useMemo(() => {
     if (currentQ?.type !== 'word_match' || !currentQ.pairs) return [];
     return [...currentQ.pairs.map((p) => p.right)].sort(() => Math.random() - 0.5);
-  }, [currentIndex, currentQ]);
+  }, [currentQ]);
 
   /** The answer value for the current question, in the shape the server grades. */
   function currentAnswer(): number | string {
@@ -185,16 +246,25 @@ export default function QuizScreen() {
     return fillText.trim().length > 0;
   }
 
-  /** The full answer list including the current question's choice. */
-  function answersWithCurrent(): AnswerItem[] {
-    const rest = answers.filter((a) => a.questionIndex !== currentIndex);
-    return [...rest, { questionIndex: currentIndex, answer: currentAnswer() }];
+  /** Spend Sparks to refill hearts, then refresh the balance so it stays in sync. */
+  async function handleRefill() {
+    if (!token || refilling) return;
+    setRefilling(true);
+    try {
+      const next = await refillHearts(token);
+      setHearts(next);
+      getMe(token).then(updateUser).catch(() => {}); // Sparks just dropped — resync
+    } catch {
+      alertError(t('errorGeneric'));
+    } finally {
+      setRefilling(false);
+    }
   }
 
   /**
-   * Save the current answer and move on — no per-question feedback. The last
-   * question submits the whole set; grading happens server-side and the score
-   * only appears at the end.
+   * Grade the current answer (instant ✓/✗), then on a second tap record it and
+   * move on. Wrong first attempts are re-asked at the end; the score is graded
+   * server-side from first attempts only.
    */
   async function advance() {
     if (!canAnswer() || submitting || checking) return;
@@ -205,7 +275,9 @@ export default function QuizScreen() {
       try {
         const fb = await quizzesApi.checkAnswer(id!, currentIndex, currentAnswer(), token!);
         setFeedback(fb);
+        if (fb.hearts) setHearts(fb.hearts); // server-authoritative — never count locally
         if (fb.correct) {
+          sound.correct();
           setCorrectRun((run) => {
             const nextRun = run + 1;
             haptics.combo(nextRun);
@@ -215,12 +287,16 @@ export default function QuizScreen() {
             return nextRun;
           });
         } else {
+          sound.wrong();
+          triggerShake();
           setCorrectRun(0);
           setRewardFlash(null);
           haptics.error();
         }
       } catch {
-        // /check failed → don't block the quiz, just record + advance silently.
+        // /check failed → don't block the quiz. Reconcile hearts from the server
+        // (a lost heart may have applied before the response dropped) and advance.
+        if (token) getHearts(token).then(setHearts).catch(() => {});
         proceed();
       } finally {
         setChecking(false);
@@ -231,22 +307,38 @@ export default function QuizScreen() {
     proceed();
   }
 
-  /** Record the current answer and move to the next question (or submit). */
+  /**
+   * Move on from the current question. On a FIRST attempt we lock its answer
+   * (that is what the final score is graded from) and, if it was wrong, re-queue
+   * the question once at the end. Re-ask attempts never change the locked answer.
+   */
   function proceed() {
     haptics.select();
-    const all = answersWithCurrent();
-    setAnswers(all);
-    setFeedback(null);
-    if (isLast) submit(all);
-    else nextQuestion();
-  }
+    const idx = currentIndex;
+    const firstAttempt = !answers.some((a) => a.questionIndex === idx);
+    const wrong = feedback ? !feedback.correct : false;
 
-  function nextQuestion() {
-    setSelected(null);
-    setFillText('');
-    setMatches({});
+    let finalAnswers = answers;
+    let nextQueue = queue;
+    if (firstAttempt) {
+      finalAnswers = [...answers, { questionIndex: idx, answer: currentAnswer() }];
+      setAnswers(finalAnswers);
+      if (wrong) {
+        nextQueue = [...queue, idx]; // ask it again at the very end
+        setQueue(nextQueue);
+      }
+    }
+
     setFeedback(null);
-    setCurrentIndex((i) => i + 1);
+    const nextPos = queuePos + 1;
+    if (nextPos >= nextQueue.length) {
+      submit(finalAnswers);
+    } else {
+      setSelected(null);
+      setFillText('');
+      setMatches({});
+      setQueuePos(nextPos);
+    }
   }
 
   async function submit(all: AnswerItem[]) {
@@ -408,19 +500,21 @@ export default function QuizScreen() {
         <AppText variant="h3" numberOfLines={1} style={styles.headerTitle}>
           {quiz!.title}
         </AppText>
+        {/* Hearts — hidden entirely for premium (unlimited). */}
+        {hearts && !hearts.unlimited ? <HeartsBar hearts={hearts} /> : null}
         <Text style={styles.progress}>
-          {currentIndex + 1} / {quiz!.questions.length}
+          {queuePos + 1} / {queue.length}
         </Text>
       </View>
 
-      {/* Progress bar — eases to its new value on each question. */}
+      {/* Progress bar — eases to its new value on each step (re-asks included). */}
       <ProgressBar
-        value={(currentIndex + 1) / quiz!.questions.length}
+        value={queue.length ? (queuePos + 1) / queue.length : 0}
         height={4}
         style={{ marginHorizontal: spacing.lg }}
       />
 
-      <ScrollView contentContainerStyle={[styles.container, bounded]}>
+      <ScrollView style={styles.scroll} contentContainerStyle={[styles.container, bounded]}>
 
         {/* IELTS Listening — the section recording, replayable at any time. */}
         {quiz!.audioUrl ? (
@@ -458,6 +552,8 @@ export default function QuizScreen() {
           />
         ) : null}
 
+        {/* Answer area — wobbles on a wrong answer (C1c). */}
+        <Animated.View style={shakeStyle}>
         {currentQ!.type === 'multiple_choice' && (
           <View style={styles.optionsContainer}>
             {currentQ!.options!.map((opt, i) => {
@@ -525,20 +621,30 @@ export default function QuizScreen() {
             }}
           />
         )}
+        </Animated.View>
 
-        {/* Instant ✓/✗ feedback banner (all question types). For fill_blank it
-            also spells out the correct answer the student missed. */}
+      </ScrollView>
+
+      {/* Duolingo-style docked feedback footer: sits at the bottom, tints
+          green/red and slides its ✓/✗ verdict up the moment the answer is
+          checked. For fill_blank it also spells out the answer that was missed. */}
+      <View
+        style={[
+          styles.footer,
+          feedback && (feedback.correct ? styles.footerCorrect : styles.footerWrong),
+        ]}
+      >
         {feedback ? (
-          <View style={[styles.fbBanner, { backgroundColor: feedback.correct ? c.successSoft : c.dangerSoft }]}>
+          <Animated.View entering={SlideInDown.springify().damping(18)} style={styles.fbRow}>
             <Ionicons
               name={feedback.correct ? 'checkmark-circle' : 'close-circle'}
-              size={24}
+              size={26}
               color={feedback.correct ? c.success : c.danger}
             />
             <View style={{ flex: 1 }}>
               <AppText variant="bodyStrong" color={feedback.correct ? c.success : c.danger}>
                 {feedback.correct
-                  ? `${t('answerCorrect')} ${correctRun >= 2 ? tf('correctComboInline', { n: correctRun }) : ''}`
+                  ? `${t('answerCorrect')} ${correctRun >= 2 ? tf('correctComboInline', { n: correctRun }) : ''}`.trim()
                   : t('answerWrong')}
               </AppText>
               {!feedback.correct && currentQ!.type === 'fill_blank' && typeof feedback.correctAnswer === 'string' ? (
@@ -547,21 +653,31 @@ export default function QuizScreen() {
                 </AppText>
               ) : null}
             </View>
-          </View>
+          </Animated.View>
         ) : null}
 
         <Button
           label={
             checking ? t('checking')
               : !feedback ? t('check')
-              : isLast ? (submitting ? t('submitting') : t('finish'))
+              : isFinalStep ? (submitting ? t('submitting') : t('finish'))
               : t('continue')
           }
           onPress={advance}
           disabled={!canAnswer() || submitting || checking}
-          style={{ marginTop: spacing.xl }}
         />
-      </ScrollView>
+      </View>
+
+      {/* Out-of-hearts gate — blocks the quiz until a refill/regen (API.md §6a). */}
+      {outOfHearts && hearts ? (
+        <HeartsEmptySheet
+          hearts={hearts}
+          sparks={user?.sparks ?? 0}
+          refilling={refilling}
+          onRefill={handleRefill}
+          onQuit={() => router.back()}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -583,7 +699,8 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   },
   headerTitle: { flex: 1, textAlign: 'center', marginHorizontal: spacing.sm },
   progress: { color: c.textMuted, fontSize: fontSize.sm },
-  container: { padding: spacing.lg, paddingTop: spacing.md },
+  scroll: { flex: 1 },
+  container: { padding: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.xl },
 
   // IELTS: Listening player bar, Reading passage panel, result band.
   audioBar: {
@@ -649,10 +766,20 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   // Instant-feedback option states.
   optionCorrect: { borderColor: c.success, backgroundColor: c.successSoft },
   optionWrong: { borderColor: c.danger, backgroundColor: c.dangerSoft },
-  fbBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    padding: spacing.md, borderRadius: radius.md, marginTop: spacing.lg,
+  // Docked feedback footer (Duolingo-style) — always holds the action button;
+  // tints + reveals the verdict once the answer is checked.
+  footer: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.lg,
+    gap: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: c.border,
+    backgroundColor: c.surface,
   },
+  footerCorrect: { backgroundColor: c.successSoft, borderTopColor: c.success },
+  footerWrong: { backgroundColor: c.dangerSoft, borderTopColor: c.danger },
+  fbRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   fillInput: {
     borderWidth: 2,
     borderColor: c.border,

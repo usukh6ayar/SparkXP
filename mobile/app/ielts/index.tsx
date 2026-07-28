@@ -55,13 +55,15 @@ export default function IeltsHubScreen() {
 
         {IELTS_MODULES.map((m) => {
           const count = counts?.[m.key] ?? 0;
-          // Open only what exists: an unbuilt (W/S) or empty module stays inert.
-          const ready = m.auto && count > 0;
+          // Open only what exists: an empty module stays inert ("coming soon").
+          // Listening/Reading (auto) → quiz runner; Writing/Speaking → self-study.
+          const ready = count > 0;
+          const target = m.auto ? `/skill/${m.category}` : `/ielts/practice/${m.category}`;
           return (
             <PressableScale
               key={m.key}
               haptic={ready}
-              onPress={() => ready && router.push(`/skill/${m.category}`)}
+              onPress={() => ready && router.push(target)}
               style={styles.tile}
             >
               <LinearGradient
