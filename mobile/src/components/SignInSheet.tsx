@@ -23,7 +23,7 @@ import { ApiError } from '../api/client';
 import { haptics } from '../lib/haptics';
 import { shake, useReduceMotion } from '../lib/motion';
 import { saveCredentials, clearCredentials, type SavedCredentials } from '../lib/savedCredentials';
-import { isBiometricAvailable, authenticateBiometric } from '../lib/biometric';
+import { isBiometricAvailable, authenticateBiometric } from '../auth/biometrics';
 import { t } from '../i18n';
 import { spacing, radius, type AppColors } from '../theme/theme';
 import { useColors, useSettings } from '../settings/SettingsContext';
@@ -87,6 +87,8 @@ export function SignInSheet({
   const [busy, setBusy] = useState(false);
   // Biometric unlock is offered only when creds are saved AND a face/finger is enrolled.
   const [bioAvailable, setBioAvailable] = useState(false);
+  // Guards the one-shot auto Face ID prompt (see the effect below).
+  const autoPromptedRef = useRef(false);
   const reduce = useReduceMotion();
 
   // Shake + error haptic when sign-in fails.
@@ -112,9 +114,25 @@ export function SignInSheet({
     ref.current?.present();
   }, []);
 
-  // Offer biometric unlock only if we have saved creds to unlock with.
+  // Offer biometric unlock only if we have saved creds to unlock with — and go
+  // straight to the prompt instead of making a returning user tap first.
   useEffect(() => {
-    if (initial) isBiometricAvailable().then(setBioAvailable);
+    if (!initial) return;
+    let cancelled = false;
+    isBiometricAvailable().then((ok) => {
+      if (cancelled) return;
+      setBioAvailable(ok);
+      // Auto-prompt once per sheet open. If the user cancels, the button is
+      // still there for a manual retry — re-prompting on its own would trap
+      // them in a loop they can't dismiss to reach the password fields.
+      if (ok && !autoPromptedRef.current) {
+        autoPromptedRef.current = true;
+        void onBiometric();
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [initial]);
 
   const close = useCallback(() => ref.current?.dismiss(), []);
@@ -146,12 +164,9 @@ export function SignInSheet({
   async function onBiometric() {
     if (!initial) return;
     setError(null);
-    let ok = false;
-    try {
-      ok = await authenticateBiometric();
-    } catch {
-      return; // hardware error → silently fall back to typing
-    }
+    // `authenticateBiometric` swallows hardware errors and returns false, so a
+    // quirky device silently falls back to typing rather than throwing here.
+    const ok = await authenticateBiometric(t('biometricPrompt'));
     if (!ok) return; // user cancelled or scan failed
     setBusy(true);
     try {

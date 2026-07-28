@@ -1,21 +1,30 @@
 # SparkXP — Critical UX Fixes: Build Spec (C1–C4)
 
-> **⏱ Статус (2026-07-21, кодоос баталсан):**
-> - **C1 Home hero** 🔶 хагас — skeleton + continue card орсон; гэхдээ 4 skill tile
->   primary хэвээр, `C1-BE` бодит progress endpoint алга.
-> - **C2 Quiz feedback** 🔶 хагас — үр дүнгийн баяр (Confetti+haptics+combo) ✅;
->   гэхдээ **асуулт-бүрийн шууд feedback БАЙХГҮЙ** (`POST /quizzes/:id/check` C2-BE
->   хэрэгжээгүй — backend-д зөвхөн `/submit`).
+> **⏱ Статус (2026-07-28, кодоос дахин баталсан):**
+> - **C1 Home hero** ✅ дууссан — skill tile → compact quick-row (`dd7bc3a`); hero нь
+>   `GET /lessons/continue`-ийн бодит ахицыг харуулна.
+> - **C2 Quiz feedback** ✅ **дууссан (BE + FE)** — BE `POST /quizzes/:id/check`
+>   (`quizzes.controller.ts:138`); FE нь check→continue 2 шаттай урсгал, ✓/✗
+>   өнгө, зөв хариу задлах, combo haptic (`app/quiz/[id].tsx:199–232`,
+>   commit `52b3a5a`).
 > - **C3 Buddy** 🔶 хагас — таб **шошготой** боллоо ✅; starter prompt +
->   voice-минут үлдэгдэл scaffold дутуу.
-> - **C4 Taste-task онбординг** ❌ эхлээгүй — guest mode + public sample endpoint алга.
+>   voice-минут үлдэгдэл scaffold дутуу (Boju).
+> - **C4 Taste-task онбординг** ✅ дууссан — BE `GET /words/sample`
+>   (`words.controller.ts:331`) + `POST /auth/register`-ийн `tasteCompleted` →
+>   verify дээр нэг удаагийн +10 XP (`auth.service.ts:150`, `XpSource.ONBOARDING`);
+>   FE `/(auth)/taste` 3 асуулт.
 > Дэлгэрэнгүй launch төлөв → `ROADMAP.md §3`.
 
-> Turns the **Critical** items from [`UX_REVIEW.md`](./UX_REVIEW.md) into a
-> build-ready spec. Each item: owner · files · the change · copy · states ·
-> acceptance criteria · effort · dependencies. Respects the Choi/Boju ownership
-> split (`DESIGN_REVIEW_ASSIGNMENTS.md`). Backend deltas are called out for
-> Өсөхбаяр. **No visual redesign beyond what's specified — implement the flow.**
+> Энэ файл нь mobile-ийн **критик UX засваруудын build spec**. Item бүр: эзэн ·
+> файл · өөрчлөлт · copy · төлөв · acceptance criteria · багтаамж · хамаарал.
+> Backend delta-г Өсөхбаяр-т тусад нь заасан.
+> **No visual redesign beyond what's specified — implement the flow.**
+>
+> **📌 2026-07-28:** өмнөх 3 шинжилгээний баримт (`UX_REVIEW.md` · `UI_REVIEW.md` ·
+> `DESIGN_REVIEW.md`) болон ажил хуваарилалт (`DESIGN_REVIEW_ASSIGNMENTS.md`) —
+> нэгтгэгдэж устсан. Тэдгээрийн **хараахан хаагдаагүй** олдворууд доорх
+> §"Үлдсэн дизайн-системийн өр" хэсэгт шилжсэн. Хийгдсэн зүйлсийн жагсаалт
+> `ROADMAP.md §3`-д бий.
 
 **Order of impact:** C1 (Home hero) → C2 (quiz feedback) → C3 (Buddy legibility)
 → C4 (value before auth). C1+C2 alone move activation/retention the most.
@@ -215,3 +224,26 @@ C4 is larger; can follow C1–C3.
 - The AI Buddy tab **announces itself**, scaffolds turn 1, and degrades gracefully.
 - A new user **earns XP before signup**.
 - Every touched screen has skeleton/empty/error/success states.
+
+---
+
+## Үлдсэн дизайн-системийн өр (2026-07-28-нд нэгтгэсэн)
+
+> `UX_REVIEW.md` · `UI_REVIEW.md` · `DESIGN_REVIEW.md`-ээс **зөвхөн хаагдаагүй**
+> олдворуудыг энд шилжүүлэв (кодоос дахин баталсан). Хийгдсэн зүйлс (haptics,
+> motion, skeleton, responsive, tab bar, chat, quiz баяр, фонт, textMuted
+> contrast) → `ROADMAP.md §3`-ийн ✅ жагсаалт.
+
+| # | Олдвор | Баталгаа (код) | Эрэмбэ | Эзэн |
+| --- | --- | --- | --- | --- |
+| D1 | **2 палитр зэрэгцэн** — `premiumThemes` (Profile/Settings) vs `appThemes` (бусад). Зэргэлдээ таб өөр апп мэт харагдана. Нэг `useColors()` рүү нэгтгэх | `src/theme/theme.ts` — static+premium × light/dark = 4 палитр | 🟥 Өндөр | Shared (зарлаад PR) |
+| D2 | **`warning` === `streak`** — хоёулаа `#FF8A3D`. Анхааруулга ба шагнал ялгагдахгүй. `warning`-д өөр өнгө (amber) өгөх | `theme.ts:66` + `theme.ts:71` | 🟨 Дунд | Shared |
+| D3 | **`colors.navy = '#FFFFFF'`** — нэр нь утгынхаа эсрэг. `ink`/`textPrimary` болгож дахин нэрлэх | `theme.ts:28` | 🟩 Бага | Shared |
+| D4 | **Hardcoded hex 71 газар** — `Card`/theme-ийг тойрсон inline өнгө | дэлгэрэнгүй → `docs/CODE_AUDIT.md §M5` | 🟨 Дунд | Choi + Boju (өөрийн дэлгэцэд) |
+| D5 | **2 button систем** — auth (58/r28) vs апп (52/r16). `AuthButton`-ыг `Button`-д `glass` variant болгож нэгтгэх | `src/components/` | 🟨 Дунд | Shared |
+| D6 | **Icon хэл 3 янз** — 3D PNG + flat vector нэг дэлгэц дээр. Context тус бүрт нэг систем сонгох | Home / Lessons | 🟨 Дунд | Boju |
+| D7 | **`TextField`-д focus / error төлөв алга** — идэвхтэй ба буруу талбар харагдахгүй (a11y цоорхой) | `src/components/TextField.tsx` | 🟨 Дунд | Choi |
+| D8 | **Dynamic Type бодлого алга** — `allowFontScaling` шийдвэрлээгүй, 1.3× дээр тестлээгүй. App Store review эрсдэл | бүх дэлгэц | 🟨 Дунд | Shared |
+| D9 | **Glow shadow зөвхөн iOS** — Android дээр premium дохио алга. Tonal surface + нимгэн border-оор нөхөх | `Button.tsx` | 🟩 Бага | Boju |
+| D10 | **2 loading paradigm** — skeleton ба bare spinner зэрэг. Контентын дэлгэцэд skeleton-оор нэгтгэх | `Loading.tsx` | 🟩 Бага | Choi |
+| D11 | **Placeholder gamification** — streak/level/progress хэсэгчлэн хуурамч хэвээр | `ROADMAP.md §3` (Boju) | 🟥 Өндөр | Boju |

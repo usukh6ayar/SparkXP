@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
 import { buildTypeOrmOptions } from './config/typeorm.config';
@@ -14,6 +16,7 @@ import { LeaderboardModule } from './leaderboard/leaderboard.module';
 import { QuizzesModule } from './quizzes/quizzes.module';
 import { XpModule } from './xp/xp.module';
 import { SparksModule } from './sparks/sparks.module';
+import { HeartsModule } from './hearts/hearts.module';
 import { AiGatewayModule } from './ai-gateway/ai-gateway.module';
 import { HealthModule } from './health/health.module';
 import { OrganizationsModule } from './organizations/organizations.module';
@@ -39,6 +42,9 @@ import { TeacherModule } from './teacher/teacher.module';
       inject: [ConfigService],
       useFactory: buildTypeOrmOptions,
     }),
+    // Global request-rate baseline. Auth routes tighten this further with
+    // @Throttle() — brute-forcing a password or a 6-digit OTP was unlimited.
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
     RedisModule,
     MailModule,
     UsersModule,
@@ -50,6 +56,7 @@ import { TeacherModule } from './teacher/teacher.module';
     QuizzesModule,
     XpModule,
     SparksModule,
+    HeartsModule,
     AiGatewayModule,
     HealthModule,
     OrganizationsModule,
@@ -66,5 +73,6 @@ import { TeacherModule } from './teacher/teacher.module';
     AchievementsModule,
     TeacherModule,
   ],
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}

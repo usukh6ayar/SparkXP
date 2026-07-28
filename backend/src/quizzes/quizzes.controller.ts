@@ -11,7 +11,12 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  Inject,
 } from '@nestjs/common';
+import { createHash } from 'crypto';
+import type Redis from 'ioredis';
+import { REDIS_CLIENT } from '../redis/redis.module';
+import { HeartsService } from '../hearts/hearts.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -37,6 +42,8 @@ export class QuizzesController {
     private readonly xpService: XpService,
     private readonly progress: ProgressService,
     private readonly assignments: AssignmentsService,
+    private readonly hearts: HeartsService,
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
 
   /** Admin: create a new quiz. */
@@ -134,14 +141,65 @@ export class QuizzesController {
    * No XP and no answer-key leak — grading here is a preview; `/submit` stays
    * authoritative for scoring. Returns `{ correct, correctAnswer? }` where
    * `correctAnswer` is present only when the answer was wrong.
+   *
+   * A wrong answer also costs a heart. This is the ONLY place hearts are spent:
+   * it is the one point where the server decides right/wrong, so the client
+   * can't skip the cost by not calling an endpoint. The response carries the
+   * resulting `hearts` state so the client never has to track it locally.
    */
   @Post(':id/check')
   @HttpCode(HttpStatus.OK)
   async check(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: AnswerItemDto,
+    @CurrentUser() user: User,
   ) {
     const quiz = await this.quizzesService.findOne(id);
-    return this.quizzesService.checkAnswer(quiz, dto.questionIndex, dto.answer);
+    const result = this.quizzesService.checkAnswer(
+      quiz,
+      dto.questionIndex,
+      dto.answer,
+    );
+
+    // Charge a heart per mistake — but only once per distinct submission, so a
+    // double-tap or a client retry after a network blip can't cost two. A
+    // genuinely new wrong answer to the same question (e.g. when it comes back
+    // around in the re-queue) is a different submission and does cost again.
+    const hearts = result.correct
+      ? await this.hearts.get(user.id)
+      : (await this.wasJustCharged(user.id, id, dto))
+        ? await this.hearts.get(user.id)
+        : await this.hearts.lose(user.id);
+
+    return { ...result, hearts };
+  }
+
+  /**
+   * Retry guard for heart spending: remembers (user, quiz, question, answer)
+   * for a short window and reports whether we've already charged for exactly
+   * this submission. Redis is the right home — it's per-attempt, disposable
+   * state that must expire on its own.
+   *
+   * Fails OPEN (returns true → no charge) if Redis is unavailable: losing a
+   * heart we should have taken is far better than taking one twice.
+   */
+  private async wasJustCharged(
+    userId: string,
+    quizId: string,
+    dto: AnswerItemDto,
+  ): Promise<boolean> {
+    const key = `quizcheck:${userId}:${quizId}:${dto.questionIndex}:${createHash(
+      'sha1',
+    )
+      .update(String(dto.answer))
+      .digest('hex')
+      .slice(0, 16)}`;
+    try {
+      // SET NX → "true" only for the FIRST caller; later ones find it present.
+      const claimed = await this.redis.set(key, '1', 'EX', 90, 'NX');
+      return claimed === null; // null = key already existed = already charged
+    } catch {
+      return true;
+    }
   }
 }
