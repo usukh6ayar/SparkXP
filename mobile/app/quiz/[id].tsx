@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput,
   Pressable,
@@ -21,19 +21,26 @@ import { AppImage } from '../../src/components/AppImage';
 import { WordMatchBoard } from '../../src/components/WordMatchBoard';
 import { ProgressBar } from '../../src/components/ProgressBar';
 import { Confetti } from '../../src/components/Confetti';
+import { RewardBurst } from '../../src/components/RewardBurst';
 import { CountUp } from '../../src/components/CountUp';
 import { AppText } from '../../src/components/Text';
 import { haptics } from '../../src/lib/haptics';
 import { markExerciseCompleted } from '../../src/lib/exerciseProgress';
 import { showXpToast } from '../../src/lib/xpToast';
 import { alertError } from '../../src/lib/alerts';
-import { t, tf } from '../../src/i18n';
+import { t, tf, type TranslationKey } from '../../src/i18n';
 import { formatBand } from '../../src/constants/ielts';
 import { useColors } from '../../src/settings/SettingsContext';
 import { colors, spacing, radius, fontSize, type AppColors } from '../../src/theme/theme';
 import { bounded } from '../../src/theme/responsive';
 
 type Phase = 'loading' | 'quiz' | 'result' | 'error';
+
+type RewardFlash = {
+  id: number;
+  run: number;
+  titleKey: TranslationKey;
+};
 
 /** Longest run of consecutive correct answers — the quiz "combo" (Duolingo feel).
  *  Computed from the graded breakdown (no per-question data needed client-side). */
@@ -52,6 +59,12 @@ function gradeKey(percentage: number): 'gradeExcellent' | 'gradeGreat' | 'gradeG
   if (percentage >= 90) return 'gradeExcellent';
   if (percentage >= 75) return 'gradeGreat';
   return 'gradeGood';
+}
+
+function praiseKey(run: number): TranslationKey {
+  if (run >= 5) return 'correctPraise5';
+  if (run >= 3) return 'correctPraise3';
+  return run === 2 ? 'correctPraise2' : 'correctPraise1';
 }
 
 /** One stat pill on the result screen (correct count / XP / combo). */
@@ -98,6 +111,9 @@ export default function QuizScreen() {
   // move on — instead of silently advancing and only revealing the score at the end.
   const [feedback, setFeedback] = useState<quizzesApi.CheckResult | null>(null);
   const [checking, setChecking] = useState(false);
+  const [correctRun, setCorrectRun] = useState(0);
+  const [rewardFlash, setRewardFlash] = useState<RewardFlash | null>(null);
+  const rewardTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // IELTS Reading passage panel + Listening playback.
   const [passageOpen, setPassageOpen] = useState(true);
   const audio = useAudioPlayer();
@@ -118,6 +134,10 @@ export default function QuizScreen() {
   }, [id, token]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => () => {
+    if (rewardTimer.current) clearTimeout(rewardTimer.current);
+  }, []);
 
   // Load the IELTS Listening recording once the quiz arrives (nothing to do for
   // ordinary quizzes, which have no audioUrl).
@@ -185,8 +205,20 @@ export default function QuizScreen() {
       try {
         const fb = await quizzesApi.checkAnswer(id!, currentIndex, currentAnswer(), token!);
         setFeedback(fb);
-        if (fb.correct) haptics.success();
-        else haptics.error();
+        if (fb.correct) {
+          setCorrectRun((run) => {
+            const nextRun = run + 1;
+            haptics.combo(nextRun);
+            setRewardFlash({ id: Date.now(), run: nextRun, titleKey: praiseKey(nextRun) });
+            if (rewardTimer.current) clearTimeout(rewardTimer.current);
+            rewardTimer.current = setTimeout(() => setRewardFlash(null), 1250);
+            return nextRun;
+          });
+        } else {
+          setCorrectRun(0);
+          setRewardFlash(null);
+          haptics.error();
+        }
       } catch {
         // /check failed → don't block the quiz, just record + advance silently.
         proceed();
@@ -352,6 +384,17 @@ export default function QuizScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
+      {rewardFlash ? (
+        <RewardBurst
+          key={rewardFlash.id}
+          title={t(rewardFlash.titleKey)}
+          subtitle={rewardFlash.run >= 2
+            ? tf('correctComboToast', { n: rewardFlash.run })
+            : t('correctInstantToast')}
+          icon={rewardFlash.run >= 3 ? 'flame' : 'flash'}
+          confettiCount={rewardFlash.run >= 3 ? 24 : 14}
+        />
+      ) : null}
       <View style={styles.header}>
         <Pressable
           onPress={() => router.back()}
@@ -494,7 +537,9 @@ export default function QuizScreen() {
             />
             <View style={{ flex: 1 }}>
               <AppText variant="bodyStrong" color={feedback.correct ? c.success : c.danger}>
-                {feedback.correct ? t('answerCorrect') : t('answerWrong')}
+                {feedback.correct
+                  ? `${t('answerCorrect')} ${correctRun >= 2 ? tf('correctComboInline', { n: correctRun }) : ''}`
+                  : t('answerWrong')}
               </AppText>
               {!feedback.correct && currentQ!.type === 'fill_blank' && typeof feedback.correctAnswer === 'string' ? (
                 <AppText variant="caption" color={c.textSecondary}>

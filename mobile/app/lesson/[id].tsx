@@ -19,8 +19,10 @@ import { Pill } from '../../src/components/Pill';
 import { Button } from '../../src/components/Button';
 import { Skeleton } from '../../src/components/Skeleton';
 import { EmptyState } from '../../src/components/EmptyState';
+import { RewardBurst } from '../../src/components/RewardBurst';
 import { getSkill } from '../../src/constants/skills';
 import { haptics } from '../../src/lib/haptics';
+import { showXpToast } from '../../src/lib/xpToast';
 import { useReduceMotion } from '../../src/lib/motion';
 import { t, tf } from '../../src/i18n';
 import { useColors } from '../../src/settings/SettingsContext';
@@ -55,6 +57,10 @@ export default function LessonDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [unlocking, setUnlocking] = useState(false);
+  const [lessonReward, setLessonReward] = useState<number | null>(null);
+  const lessonRewardSubtitle = lessonReward && lessonReward > 0
+    ? `${t('lessonCompletePrefix')} +${lessonReward} XP ${t('lessonCompleteSuffix')}`
+    : t('lessonCompleteUnlocked');
 
   const doneKey = `lesson_done:${id}`;
   const videoUrl = (lesson?.content as { videoUrl?: string } | undefined)?.videoUrl ?? null;
@@ -100,11 +106,16 @@ export default function LessonDetailScreen() {
   async function markDone() {
     await AsyncStorage.setItem(doneKey, '1');
     setDone(true);
-    haptics.success(); // tests unlocked — reward the milestone
+    setLessonReward(0);
+    setTimeout(() => setLessonReward(null), 1800);
+    haptics.celebrate(); // tests unlocked — reward the milestone
     if (token && id) {
       try {
         const res = await lessonsApi.completeLesson(id, token);
-        if (res.xpAwarded > 0) Alert.alert(t('lessonCompleteTitle'), `${t('lessonCompletePrefix')} +${res.xpAwarded} XP ${t('lessonCompleteSuffix')}`);
+        if (res.xpAwarded > 0) {
+          setLessonReward(res.xpAwarded);
+          showXpToast(res.xpAwarded);
+        }
       } catch { /* non-critical */ }
     }
   }
@@ -194,6 +205,14 @@ export default function LessonDetailScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <TopBar back />
+      {lessonReward !== null ? (
+        <RewardBurst
+          title={t('lessonCompleteTitle')}
+          subtitle={lessonRewardSubtitle}
+          icon="trophy"
+          confettiCount={34}
+        />
+      ) : null}
       <ScrollView contentContainerStyle={[styles.container, bounded]} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.head}>
