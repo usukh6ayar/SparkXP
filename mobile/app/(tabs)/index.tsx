@@ -23,6 +23,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../src/auth/AuthContext";
 import { getStats } from "../../src/api/users";
 import { getGamification, type Gamification } from "../../src/api/gamification";
+import { getHearts, type HeartsState } from "../../src/api/hearts";
+import { HeartsRow } from "../../src/components/HeartsRow";
+import { HeartsSheet } from "../../src/components/HeartsSheet";
+import { DailyGoalCard } from "../../src/components/DailyGoalCard";
+import { DailyGoalSheet } from "../../src/components/DailyGoalSheet";
+import { StreakFreezeSheet } from "../../src/components/StreakFreezeSheet";
 import { getDue } from "../../src/api/reviews";
 import { getContinue } from "../../src/api/lessons";
 import { getExercises } from "../../src/api/quizzes";
@@ -36,6 +42,7 @@ import { AppImage } from "../../src/components/AppImage";
 import { AppIcon } from "../../src/components/AppIcon";
 import { type AppIconName } from "../../src/constants/appIcons";
 import { IconButton } from "../../src/components/IconButton";
+import { PressableScale } from "../../src/components/PressableScale";
 import { Button } from "../../src/components/Button";
 import { Skeleton } from "../../src/components/Skeleton";
 import { ProgressBar } from "../../src/components/ProgressBar";
@@ -175,6 +182,12 @@ export default function HomeScreen() {
     total: number;
   } | null>(null);
   const [gam, setGam] = useState<Gamification | null>(null);
+  // Quiz lives. Shown here (not only inside a quiz) so a student knows what
+  // they have BEFORE starting — otherwise the limit is invisible until it bites.
+  const [hearts, setHearts] = useState<HeartsState | null>(null);
+  const [goalSheet, setGoalSheet] = useState(false);
+  const [freezeSheet, setFreezeSheet] = useState(false);
+  const [heartsSheet, setHeartsSheet] = useState(false);
   // Whether the student has joined a class — assignments come from a teacher's
   // class, so the "My assignments" card only shows for enrolled students.
   const [enrolled, setEnrolled] = useState(false);
@@ -191,16 +204,18 @@ export default function HomeScreen() {
     if (!token) return;
     try {
       setLoadFailed(false);
-      const [stats, dueList, gamification, myClasses] = await Promise.all([
+      const [stats, dueList, gamification, myClasses, heartsState] = await Promise.all([
         getStats(token),
         getDue(token),
         getGamification(token).catch(() => null),
         getMyClasses(token).catch(() => null),
+        getHearts(token).catch(() => null),
       ]);
       setXp(stats.xp);
       setSparks(stats.sparks);
       setDue(dueList.length);
       if (gamification) setGam(gamification);
+      if (heartsState) setHearts(heartsState);
       setEnrolled((myClasses?.enrolled?.length ?? 0) > 0);
     } catch {
       setLoadFailed(true); // keep last values, but surface a retry cue
@@ -227,9 +242,15 @@ export default function HomeScreen() {
     }
   }, [token]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  // On focus, not just on mount: XP, streak, hearts and the daily-goal ring all
+  // change while the student is off in a lesson or quiz. Refetching on mount
+  // only meant coming back to Home showed the numbers from app start. The GET
+  // cache paints instantly and dedups the request, so this is cheap.
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load]),
+  );
 
   // "Continue learning": the server picks the next unfinished lesson and reports
   // real progress through its level (C1). If everything is done we fall back to
@@ -271,6 +292,7 @@ export default function HomeScreen() {
   };
 
   const streak = gam?.currentStreak ?? 0;
+  const freezes = gam?.streakFreezes ?? 0;
   // Total published exercises across all skills (header count pill).
   const totalExercises = Object.values(taskCounts).reduce((a, b) => a + b, 0);
 
@@ -346,7 +368,14 @@ export default function HomeScreen() {
 
             {/* Streak / gem / XP badges over the scene */}
             <View style={styles.heroTop}>
-              <View style={styles.streakBadge}>
+              {/* Tapping the streak opens the freeze shop — the sub-line says
+                  how many are banked, so the offer appears where the thing it
+                  protects is already on screen. */}
+              <PressableScale
+                style={styles.streakBadge}
+                onPress={() => { haptics.tap(); setFreezeSheet(true); }}
+                accessibilityLabel={t("streakFreezeTitle")}
+              >
                 <StreakFlame streak={streak} />
                 <AppText variant="h2" color={c.white}>{streak}</AppText>
                 <View>
@@ -354,10 +383,12 @@ export default function HomeScreen() {
                     {t("statStreak")}
                   </AppText>
                   <AppText variant="caption" color={c.textOnDarkMuted}>
-                    {t("keepGoing")}
+                    {freezes > 0
+                      ? `❄ ${tf("streakFreezeBadge", { n: freezes })}`
+                      : t("keepGoing")}
                   </AppText>
                 </View>
-              </View>
+              </PressableScale>
               <View style={styles.heroPillCol}>
                 <View style={styles.heroPill}>
                   <AppIcon name="sparks" size={30} />
@@ -371,6 +402,27 @@ export default function HomeScreen() {
                     {xp.toLocaleString()} XP
                   </AppText>
                 </View>
+                {/* Quiz lives — visible before a quiz starts, not just inside
+                    one. No countdown here: it made the pill much wider than its
+                    siblings, and tapping opens the sheet that spells it out.
+                    Turns red when empty — the one state the student has to act
+                    on shouldn't look like the others. */}
+                {hearts ? (
+                  <View
+                    style={[
+                      styles.heroPill,
+                      !hearts.unlimited && hearts.hearts === 0 && styles.heroPillEmpty,
+                    ]}
+                  >
+                    <HeartsRow
+                      state={hearts}
+                      size={22}
+                      onDark
+                      onRegen={load}
+                      onPress={() => { haptics.tap(); setHeartsSheet(true); }}
+                    />
+                  </View>
+                ) : null}
               </View>
             </View>
           </SafeAreaView>
@@ -446,6 +498,17 @@ export default function HomeScreen() {
                 )}
               </View>
             </Pressable>
+          ) : null}
+
+          {/* Today's XP against the student's own goal. Only once the summary
+              has loaded — a ring at 0/50 while loading reads as "you did
+              nothing today", which is a lie on a slow connection. */}
+          {gam ? (
+            <DailyGoalCard
+              todayXp={gam.todayXp}
+              dailyGoal={gam.dailyGoal}
+              onPress={() => { haptics.tap(); setGoalSheet(true); }}
+            />
           ) : null}
 
           {/* Review reminder */}
@@ -577,6 +640,35 @@ export default function HomeScreen() {
           <View style={{ height: 110 }} />
         </View>
       </ScrollView>
+
+      {/* Goal picker. Saving returns the refreshed summary, so the ring updates
+          from the response — no extra round trip. */}
+      <DailyGoalSheet
+        visible={goalSheet}
+        current={gam?.dailyGoal ?? 0}
+        onClose={() => setGoalSheet(false)}
+        onSaved={setGam}
+      />
+
+      {/* Buying spends Sparks, so refresh the balance from the same load that
+          feeds the hero pills — the summary itself comes back in the response. */}
+      <StreakFreezeSheet
+        visible={freezeSheet}
+        gam={gam}
+        sparksBalance={sparks}
+        onClose={() => setFreezeSheet(false)}
+        onBought={(next) => { setGam(next); load(); }}
+      />
+
+      {/* Info only here — there is no quiz to leave, so no `onExit`. */}
+      <HeartsSheet
+        visible={heartsSheet}
+        state={hearts}
+        sparksBalance={sparks}
+        onRefilled={(next) => { setHearts(next); load(); }}
+        onClose={() => setHeartsSheet(false)}
+        onRegen={load}
+      />
     </View>
   );
 }
@@ -657,7 +749,13 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: 10,
   },
-
+  // Out of hearts — a warm tint + border so it reads as "needs attention"
+  // rather than as one more neutral stat.
+  heroPillEmpty: {
+    backgroundColor: "rgba(248,113,113,0.28)",
+    borderWidth: 1,
+    borderColor: c.danger,
+  },
   // Continue learning
   continueCard: {
     flexDirection: "row",

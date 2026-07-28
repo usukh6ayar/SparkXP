@@ -619,6 +619,56 @@ const mn = {
   correctComboInline: '×{n} комбо',
   correctAnswerLabel: 'Зөв хариу: {answer}',
 
+  // Hearts (зүрх / амь) — buruu hariult бүр 1 зүрх авна
+  heartsCountA11y: 'Зүрх {n} / {max}',
+  heartsUnlimitedA11y: 'Хязгааргүй зүрх',
+  heartsNextIn: 'Дараагийн зүрх {time}',
+  heartsEmptyTitle: 'Зүрх дууслаа',
+  heartsEmptyBody: 'Зүрх сэргэхийг хүлээх эсвэл Sparks-аар дүүргэнэ үү.',
+  heartsEmptyBodyTimer: 'Дараагийн зүрх {time}-ийн дараа сэргэнэ.',
+  heartsBalance: 'Танд {n} Sparks байна',
+  heartsRefillCta: '{n} Sparks-аар дүүргэх',
+  heartsLeaveForNow: 'Дараа үргэлжлүүлэх',
+  heartsTapHint: 'Дэлгэрэнгүй харах',
+  heartsInfoTitle: 'Таны зүрх',
+  heartsInfoBody: '{max}-аас {n} зүрх үлдсэн. Дараагийн зүрх {time}-ийн дараа.',
+  heartsFullBody: 'Бүх зүрх бүрэн. Дасгал хийхэд бэлэн!',
+  heartsFullIn: 'Бүгд дүүрэхэд {time}',
+  heartsUnlimitedBody: 'Танд хязгааргүй зүрх байна — буруу хариулт зүрх авахгүй.',
+
+  // Countdown (үлдсэн хугацаа)
+  countdownHm: '{h}ц {m}м',
+  countdownM: '{m} мин',
+  countdownS: '{s} сек',
+
+  // Өдрийн зорилт (XP цагираг + сонголт)
+  dailyGoalTitle: 'Өдрийн зорилт',
+  dailyGoalProgress: 'Өнөөдөр {done}/{goal} XP',
+  dailyGoalRemaining: 'Дуусгахад {n} XP үлдлээ',
+  dailyGoalDone: 'Өнөөдрийн зорилт биеллээ! 🎉',
+  dailyGoalPickTitle: 'Өдрийн зорилтоо сонго',
+  dailyGoalPickSubtitle: 'Хэзээ ч солиж болно. Тогтмол байх нь хэмжээнээс чухал.',
+  dailyGoalXpValue: '{n} XP',
+  goalEasy: 'Хөнгөн',
+  goalEasyHint: 'Өдөрт ~5 минут · завгүй өдрүүдэд',
+  goalMedium: 'Дунд',
+  goalMediumHint: 'Өдөрт ~10 минут · тэнцвэртэй хурд',
+  goalHard: 'Ширүүн',
+  goalHardHint: 'Өдөрт ~20 минут · хурдан ахих',
+
+  // Streak freeze (мөстөх)
+  streakFreezeTitle: 'Streak мөстөх',
+  streakFreezeBody:
+    'Нэг өдөр алгасахад streak чинь тасрахгүй. Урьдчилж аваад бэлэн байлга.',
+  streakFreezeHeld: 'Танд {held} / {max} мөстөлт байна',
+  streakFreezeBuyCta: '{n} Sparks-аар авах',
+  streakFreezeAtCap: 'Дээд хэмжээнд хүрсэн',
+  streakFreezeBadge: '{n} мөстөлт',
+  streakFreezeNone: 'Мөстөлт аваад streak-ээ хамгаал',
+  checkAnswerError: 'Хариултыг шалгаж чадсангүй. Дахин оролдоно уу.',
+  cardsReviewed: 'Үзсэн карт',
+  tryAgainHint: 'Энэ асуулт дахин ирнэ — бодоод үзээрэй.',
+
   // Tab bar
   tabLessons: 'Хичээл',
 
@@ -1391,6 +1441,56 @@ const en: Record<TranslationKey, string> = {
   correctComboToast: '{n} correct in a row',
   correctComboInline: '×{n} combo',
   correctAnswerLabel: 'Correct answer: {answer}',
+
+  // Hearts
+  heartsCountA11y: '{n} of {max} hearts',
+  heartsUnlimitedA11y: 'Unlimited hearts',
+  heartsNextIn: 'Next heart {time}',
+  heartsEmptyTitle: 'Out of hearts',
+  heartsEmptyBody: 'Wait for a heart to regenerate, or refill with Sparks.',
+  heartsEmptyBodyTimer: 'Your next heart arrives in {time}.',
+  heartsBalance: 'You have {n} Sparks',
+  heartsRefillCta: 'Refill for {n} Sparks',
+  heartsLeaveForNow: 'Continue later',
+  heartsTapHint: 'See details',
+  heartsInfoTitle: 'Your hearts',
+  heartsInfoBody: '{n} of {max} hearts left. Next one in {time}.',
+  heartsFullBody: 'All hearts full. Ready to practise!',
+  heartsFullIn: 'All back in {time}',
+  heartsUnlimitedBody: 'You have unlimited hearts — wrong answers cost nothing.',
+
+  // Countdown
+  countdownHm: '{h}h {m}m',
+  countdownM: '{m} min',
+  countdownS: '{s} sec',
+
+  // Daily goal
+  dailyGoalTitle: 'Daily goal',
+  dailyGoalProgress: 'Today {done}/{goal} XP',
+  dailyGoalRemaining: '{n} XP to go',
+  dailyGoalDone: "Today's goal complete! 🎉",
+  dailyGoalPickTitle: 'Pick your daily goal',
+  dailyGoalPickSubtitle: 'Change it any time. Consistency beats intensity.',
+  dailyGoalXpValue: '{n} XP',
+  goalEasy: 'Casual',
+  goalEasyHint: '~5 min a day · for busy days',
+  goalMedium: 'Regular',
+  goalMediumHint: '~10 min a day · balanced pace',
+  goalHard: 'Serious',
+  goalHardHint: '~20 min a day · fast progress',
+
+  // Streak freeze
+  streakFreezeTitle: 'Streak freeze',
+  streakFreezeBody:
+    'Miss a day and your streak survives. Stock up before you need one.',
+  streakFreezeHeld: 'You hold {held} / {max} freezes',
+  streakFreezeBuyCta: 'Buy for {n} Sparks',
+  streakFreezeAtCap: 'You hold the maximum',
+  streakFreezeBadge: '{n} freezes',
+  streakFreezeNone: 'Get a freeze to protect your streak',
+  checkAnswerError: "Couldn't check that answer. Please try again.",
+  cardsReviewed: 'Cards reviewed',
+  tryAgainHint: "This one comes back — have another think.",
 
   // Tab bar
   tabLessons: 'Lessons',

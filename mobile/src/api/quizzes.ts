@@ -1,4 +1,5 @@
 import { apiRequest } from './client';
+import type { HeartsState } from './hearts';
 
 export interface QuizQuestion {
   type: 'multiple_choice' | 'fill_blank' | 'word_match' | 'open_response';
@@ -93,6 +94,12 @@ export function submitQuiz(
 export interface CheckResult {
   correct: boolean;
   correctAnswer?: number | string | { left: string; right: string }[];
+  /**
+   * Hearts remaining after this answer — a wrong one costs one, charged
+   * server-side. Optional because a JS-only OTA update can reach a phone before
+   * the backend that returns it; screens fall back to their last known state.
+   */
+  hearts?: HeartsState;
 }
 
 /** POST /quizzes/:id/check — grade ONE answer without revealing the full key. */

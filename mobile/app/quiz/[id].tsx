@@ -12,6 +12,10 @@ import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { useAuth } from '../../src/auth/AuthContext';
 import * as quizzesApi from '../../src/api/quizzes';
 import type { Quiz, AnswerItem, QuizResult } from '../../src/api/quizzes';
+import { getHearts, type HeartsState } from '../../src/api/hearts';
+import { getStats } from '../../src/api/users';
+import { HeartsRow } from '../../src/components/HeartsRow';
+import { HeartsSheet } from '../../src/components/HeartsSheet';
 import { Button } from '../../src/components/Button';
 import { AwardBadge } from '../../src/components/AwardBadge';
 import { Skeleton } from '../../src/components/Skeleton';
@@ -35,6 +39,9 @@ import { colors, spacing, radius, fontSize, type AppColors } from '../../src/the
 import { bounded } from '../../src/theme/responsive';
 
 type Phase = 'loading' | 'quiz' | 'result' | 'error';
+
+/** Wrong attempts at one question before the correct answer is revealed. */
+const REVEAL_AFTER_TRIES = 2;
 
 type RewardFlash = {
   id: number;
@@ -98,7 +105,29 @@ export default function QuizScreen() {
 
   const [quiz, setQuiz] = useState<Quiz | null>(null);
   const [phase, setPhase] = useState<Phase>('loading');
-  const [currentIndex, setCurrentIndex] = useState(0);
+  /**
+   * Question indices still to answer, in order — the head is what's on screen.
+   *
+   * A wrong answer moves its question to the BACK to be retried instead of
+   * being scored and forgotten — that retry is what makes hearts meaningful.
+   * After REVEAL_AFTER_TRIES wrong tries the answer is shown and the question
+   * is dropped, so nobody can be stuck on one question forever.
+   * `/submit` keeps the LAST answer per question and grants XP once per quiz,
+   * so re-answering can't be farmed.
+   */
+  const [queue, setQueue] = useState<number[]>([]);
+  /** Bumped on every question change — re-shuffles a re-queued word_match. */
+  const [attempt, setAttempt] = useState(0);
+  /**
+   * Wrong attempts per question index.
+   *
+   * Since a wrong answer comes back to be retried, revealing the right one
+   * straight away would make the retry pointless — the student just copies what
+   * they were shown. So the answer stays hidden until they have genuinely tried
+   * `REVEAL_AFTER_TRIES` times; at that point it is shown AND the question is
+   * dropped from the queue, so nobody loops on one question forever.
+   */
+  const [wrongTries, setWrongTries] = useState<Record<number, number>>({});
   const [answers, setAnswers] = useState<AnswerItem[]>([]);
   const [fillText, setFillText] = useState('');
   const [selected, setSelected] = useState<number | null>(null);
@@ -112,6 +141,12 @@ export default function QuizScreen() {
   const [feedback, setFeedback] = useState<quizzesApi.CheckResult | null>(null);
   const [checking, setChecking] = useState(false);
   const [correctRun, setCorrectRun] = useState(0);
+  // Hearts ("lives"). The server owns the count — every /check response carries
+  // the new state, so this is only ever assigned from the API, never decremented
+  // here. `sparks` is what the refill sheet needs to know if refilling is possible.
+  const [hearts, setHearts] = useState<HeartsState | null>(null);
+  const [sparks, setSparks] = useState(0);
+  const [heartsSheet, setHeartsSheet] = useState(false);
   const [rewardFlash, setRewardFlash] = useState<RewardFlash | null>(null);
   const rewardTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // IELTS Reading passage panel + Listening playback.
@@ -129,11 +164,52 @@ export default function QuizScreen() {
   const load = useCallback(() => {
     setPhase('loading');
     return quizzesApi.getQuiz(id!, token!)
-      .then((q) => { setQuiz(q); setPhase('quiz'); })
+      .then((q) => {
+        setQuiz(q);
+        setQueue(q.questions.map((_, i) => i));
+        setWrongTries({}); // a reloaded quiz starts a fresh run
+        setPhase('quiz');
+      })
       .catch(() => setPhase('error'));
   }, [id, token]);
 
   useEffect(() => { load(); }, [load]);
+
+  /**
+   * Hearts + Sparks balance. Deliberately off the quiz's load path: if either
+   * call fails the quiz must stay playable — the server still charges the real
+   * cost on /check, so a missing display never lets anyone cheat.
+   */
+  const loadHearts = useCallback(async () => {
+    if (!token) return;
+    const [state, stats] = await Promise.all([
+      // Swallowed on purpose (a dead hearts call must not break the quiz), but
+      // logged in dev — otherwise a missing hearts row looks like a UI bug when
+      // it is really a 401/404/500 from the API.
+      getHearts(token).catch((e: unknown) => {
+        if (__DEV__) console.warn('[hearts] GET /hearts failed:', e);
+        return null;
+      }),
+      getStats(token).catch(() => null),
+    ]);
+    if (state) {
+      setHearts(state);
+      // Already empty on arrival → say so now, not after a wasted answer.
+      if (!state.unlimited && state.hearts <= 0) setHeartsSheet(true);
+    }
+    if (stats) setSparks(stats.sparks);
+  }, [token]);
+
+  useEffect(() => { loadHearts(); }, [loadHearts]);
+
+  // Hearts came back — regenerated while the student waited, or refilled with
+  // Sparks. Close the blocking sheet rather than making them dismiss a dialog
+  // whose reason no longer applies.
+  useEffect(() => {
+    if (heartsSheet && hearts && (hearts.unlimited || hearts.hearts > 0)) {
+      setHeartsSheet(false);
+    }
+  }, [heartsSheet, hearts]);
 
   useEffect(() => () => {
     if (rewardTimer.current) clearTimeout(rewardTimer.current);
@@ -158,14 +234,30 @@ export default function QuizScreen() {
     }
   }, [phase, result]);
 
+  const total = quiz?.questions.length ?? 0;
+  // Questions are asked from the head of `queue`; a wrong one goes to the back.
+  const currentIndex = queue[0] ?? 0;
   const currentQ = quiz?.questions[currentIndex];
-  const isLast = quiz ? currentIndex === quiz.questions.length - 1 : false;
+  // "Last" only if this answer is right — a wrong one re-queues, so the run
+  // isn't over. Computed from the feedback we already have.
+  const solved = total - queue.length;
+  // Only give the answer away once they've really tried — see `wrongTries`.
+  const revealAnswer = (wrongTries[currentIndex] ?? 0) >= REVEAL_AFTER_TRIES;
+  /**
+   * Does the current answer take us off this question? True when it's right,
+   * and also when it's wrong for the REVEAL_AFTER_TRIES-th time — the answer is
+   * on screen by then, so asking again would only be asking them to copy it.
+   */
+  const advances = feedback !== null && (feedback.correct || revealAnswer);
+  const isLast = queue.length === 1 && advances;
 
-  // word_match: right column shuffled once per question.
+  // word_match: right column shuffled once per question. `attempt` is in the
+  // deps so a re-queued question comes back shuffled differently instead of
+  // letting the student memorise last time's column order.
   const shuffledRights = useMemo(() => {
     if (currentQ?.type !== 'word_match' || !currentQ.pairs) return [];
     return [...currentQ.pairs.map((p) => p.right)].sort(() => Math.random() - 0.5);
-  }, [currentIndex, currentQ]);
+  }, [currentIndex, currentQ, attempt]);
 
   /** The answer value for the current question, in the shape the server grades. */
   function currentAnswer(): number | string {
@@ -205,6 +297,9 @@ export default function QuizScreen() {
       try {
         const fb = await quizzesApi.checkAnswer(id!, currentIndex, currentAnswer(), token!);
         setFeedback(fb);
+        // A wrong answer costs a heart, charged by the server — this is the
+        // authoritative count (an older backend simply omits it).
+        if (fb.hearts) setHearts(fb.hearts);
         if (fb.correct) {
           setCorrectRun((run) => {
             const nextRun = run + 1;
@@ -218,10 +313,17 @@ export default function QuizScreen() {
           setCorrectRun(0);
           setRewardFlash(null);
           haptics.error();
+          setWrongTries((w) => ({
+            ...w,
+            [currentIndex]: (w[currentIndex] ?? 0) + 1,
+          }));
         }
       } catch {
-        // /check failed → don't block the quiz, just record + advance silently.
-        proceed();
+        // /check failed. Advancing silently used to look like the quiz had
+        // decided the answer itself — on the last question it jumped straight
+        // to the score with no feedback at all. Say what happened and let the
+        // student press again; nothing is recorded, so nothing is lost.
+        alertError(t('checkAnswerError'));
       } finally {
         setChecking(false);
       }
@@ -233,20 +335,33 @@ export default function QuizScreen() {
 
   /** Record the current answer and move to the next question (or submit). */
   function proceed() {
+    // Out of hearts → the run ends here. Gating on `proceed` rather than on the
+    // /check response means the student still sees why the answer was wrong
+    // before the sheet takes over.
+    if (hearts && !hearts.unlimited && hearts.hearts <= 0) {
+      setHeartsSheet(true);
+      return;
+    }
     haptics.select();
     const all = answersWithCurrent();
     setAnswers(all);
-    setFeedback(null);
-    if (isLast) submit(all);
-    else nextQuestion();
+
+    // Done with this question (right, or wrong enough times that the answer has
+    // been shown) → drop it. Otherwise it goes to the back to be asked again.
+    const next = advances ? queue.slice(1) : [...queue.slice(1), currentIndex];
+
+    setQueue(next);
+    if (next.length === 0) submit(all);
+    else resetQuestionInput();
   }
 
-  function nextQuestion() {
+  /** Clear the previous answer so the next (or repeated) question starts blank. */
+  function resetQuestionInput() {
     setSelected(null);
     setFillText('');
     setMatches({});
     setFeedback(null);
-    setCurrentIndex((i) => i + 1);
+    setAttempt((n) => n + 1);
   }
 
   async function submit(all: AnswerItem[]) {
@@ -408,17 +523,29 @@ export default function QuizScreen() {
         <AppText variant="h3" numberOfLines={1} style={styles.headerTitle}>
           {quiz!.title}
         </AppText>
+        {/* Solved-of-total, not position-of-total: a re-queued question would
+            make a position counter jump backwards. */}
         <Text style={styles.progress}>
-          {currentIndex + 1} / {quiz!.questions.length}
+          {solved} / {total}
         </Text>
       </View>
 
-      {/* Progress bar — eases to its new value on each question. */}
-      <ProgressBar
-        value={(currentIndex + 1) / quiz!.questions.length}
-        height={4}
-        style={{ marginHorizontal: spacing.lg }}
-      />
+      {/* Progress + remaining hearts, side by side: the bar tracks how far the
+          run has got, the hearts show what the next mistake costs. */}
+      <View style={styles.progressRow}>
+        {/* ProgressBar's own style is `width: '100%'`, so it must be sized by a
+            wrapper here — giving it `flex: 1` directly leaves the two rules
+            fighting and pushes the hearts off the right edge. */}
+        <View style={styles.progressBarWrap}>
+          <ProgressBar value={total > 0 ? solved / total : 0} height={4} />
+        </View>
+        <HeartsRow
+          state={hearts}
+          size={18}
+          onRegen={loadHearts}
+          onPress={() => { haptics.tap(); setHeartsSheet(true); }}
+        />
+      </View>
 
       <ScrollView contentContainerStyle={[styles.container, bounded]}>
 
@@ -463,11 +590,15 @@ export default function QuizScreen() {
             {currentQ!.options!.map((opt, i) => {
               const isSel = selected === i;
               const showFb = feedback !== null;
-              // On a correct answer the picked option IS the right one; on a wrong
-              // one the backend hands back the correct index so we can reveal it.
+              // On a correct answer the picked option IS the right one. On a
+              // wrong one the backend hands back the correct index, but we only
+              // point at it after REVEAL_AFTER_TRIES — otherwise the retry is
+              // just "tap the option with the green tick".
               const correctIdx = feedback?.correct
                 ? selected
-                : (typeof feedback?.correctAnswer === 'number' ? feedback.correctAnswer : null);
+                : (revealAnswer && typeof feedback?.correctAnswer === 'number'
+                    ? feedback.correctAnswer
+                    : null);
               const isCorrectOpt = showFb && correctIdx === i;
               const isWrongSel = showFb && isSel && !feedback!.correct;
               return (
@@ -526,8 +657,9 @@ export default function QuizScreen() {
           />
         )}
 
-        {/* Instant ✓/✗ feedback banner (all question types). For fill_blank it
-            also spells out the correct answer the student missed. */}
+        {/* Instant ✓/✗ feedback banner (all question types). A wrong answer
+            gets a nudge, not the solution — the question is coming back. After
+            REVEAL_AFTER_TRIES attempts it does spell the answer out. */}
         {feedback ? (
           <View style={[styles.fbBanner, { backgroundColor: feedback.correct ? c.successSoft : c.dangerSoft }]}>
             <Ionicons
@@ -541,10 +673,17 @@ export default function QuizScreen() {
                   ? `${t('answerCorrect')} ${correctRun >= 2 ? tf('correctComboInline', { n: correctRun }) : ''}`
                   : t('answerWrong')}
               </AppText>
-              {!feedback.correct && currentQ!.type === 'fill_blank' && typeof feedback.correctAnswer === 'string' ? (
-                <AppText variant="caption" color={c.textSecondary}>
-                  {tf('correctAnswerLabel', { answer: feedback.correctAnswer })}
-                </AppText>
+              {!feedback.correct ? (
+                revealAnswer && currentQ!.type === 'fill_blank' && typeof feedback.correctAnswer === 'string' ? (
+                  <AppText variant="caption" color={c.textSecondary}>
+                    {tf('correctAnswerLabel', { answer: feedback.correctAnswer })}
+                  </AppText>
+                ) : !revealAnswer ? (
+                  // Nudge instead of the answer — the question is coming back.
+                  <AppText variant="caption" color={c.textSecondary}>
+                    {t('tryAgainHint')}
+                  </AppText>
+                ) : null
               ) : null}
             </View>
           </View>
@@ -555,13 +694,36 @@ export default function QuizScreen() {
             checking ? t('checking')
               : !feedback ? t('check')
               : isLast ? (submitting ? t('submitting') : t('finish'))
-              : t('continue')
+              // Wrong and coming back → say so; "continue" would imply we're
+              // moving past it. Once the answer has been revealed we ARE moving
+              // on, so it reads as "continue" again.
+              : advances ? t('continue')
+              : t('retryAnswer')
           }
           onPress={advance}
           disabled={!canAnswer() || submitting || checking}
           style={{ marginTop: spacing.xl }}
         />
       </ScrollView>
+
+      {/* Hearts status. Blocking when empty (`onExit` present), otherwise just
+          the tapped-for-info view. */}
+      <HeartsSheet
+        visible={heartsSheet}
+        state={hearts}
+        sparksBalance={sparks}
+        onRefilled={(next) => {
+          setHearts(next);
+          setHeartsSheet(false);
+          loadHearts(); // Sparks were just spent → refresh the balance
+        }}
+        onClose={() => setHeartsSheet(false)}
+        onExit={() => {
+          setHeartsSheet(false);
+          router.back();
+        }}
+        onRegen={loadHearts}
+      />
     </SafeAreaView>
   );
 }
@@ -583,6 +745,13 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   },
   headerTitle: { flex: 1, textAlign: 'center', marginHorizontal: spacing.sm },
   progress: { color: c.textMuted, fontSize: fontSize.sm },
+  progressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    marginHorizontal: spacing.lg,
+  },
+  progressBarWrap: { flex: 1 },
   container: { padding: spacing.lg, paddingTop: spacing.md },
 
   // IELTS: Listening player bar, Reading passage panel, result band.
