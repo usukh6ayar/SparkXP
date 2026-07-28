@@ -6,9 +6,13 @@ import { json, urlencoded } from 'express';
 import helmet from 'helmet';
 import { join } from 'path';
 import { AppModule } from './app.module';
+import { initSentry } from './common/observability/sentry';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
 async function bootstrap() {
+  // Before anything else: Sentry patches the runtime at init and cannot
+  // instrument code that has already run.
+  initSentry();
   // Disable the default body parser so we can raise the limit: batch image jobs
   // POST thousands of word ids (5000 UUIDs ≈ 200KB > the 100KB default → 500).
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {

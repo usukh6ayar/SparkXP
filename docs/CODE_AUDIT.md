@@ -18,9 +18,13 @@
 
 | Эрэмбэ | Тоо | Гол сэдэв |
 | --- | --- | --- |
-| 🔴 Өндөр | 3 | ~~Migration гинж тасарсан~~ ✅ · `JWT_SECRET` default · Rate limit алга |
-| 🟠 Дунд | 11 | Lint/test ажиллахгүй · **crash reporting алга** · **CLAUDE.md буруу мэдээлэл** · index дутуу · hardcoded өнгө · том файл · bundle ID зөрүү |
-| 🟡 Бага | 6 | TODO stub · `console.log` · **үхмэл код** · **сануулга алга** · i18n цоорхой · CI алга |
+| 🔴 Өндөр | 3 | **бүгд ✅ зассан** — migration гинж (#178) · `JWT_SECRET` (#179) · rate limit (#179) |
+| 🟠 Дунд | 11 | ✅ lint/test (#181) · ✅ crash reporting (#183) · ✅ CLAUDE.md (#177) · ✅ index (#182) · ⬜ hardcoded өнгө · ⬜ том файл · ⬜ bundle ID |
+| 🟡 Бага | 6 | ✅ Expo Push (#180) · ✅ сануулга (#180) · ✅ CI (#181) · ⬜ QPay stub · ⬜ i18n цоорхой |
+
+> **Төлөв (2026-07-28 орой):** өндөр эрэмбийн **3/3** хаагдсан. Үлдсэн ажил нь
+> ихэвчлэн `/mobile` талын (өнгө/i18n/bundle ID) буюу Choi/Boju-гийн хэсэг,
+> эсвэл бизнесийн шийдвэр хүлээж буй (QPay).
 
 ---
 
@@ -213,7 +217,7 @@ Android + slug + scheme + EAS дахин холбох) эсвэл буцаах. 
 | --- | --- | --- |
 | L1 | QPay жинхэнэ API дуудлага stub хэвээр | `backend/src/payments/payments.service.ts:67` |
 | L2 | Expo Push илгээлт stub хэвээр (`expoPushToken` хадгалагдаагүй) | `backend/src/notifications/notifications.service.ts:22` |
-| L3 | Production код дотор `console.log` | `notifications.service.ts`, `admin/.../WordsPage.tsx` (`src/scripts/*` нь зүгээр) |
+| ~~L3~~ | ~~Production код дотор `console.log`~~ — **энэ олдвор БУРУУ байсан.** `notifications.service.ts`-ийнх нь stub байсан (одоо бодит push, #180). `WordsPage.tsx`-ийнх нь **зориудын оператор хэрэгсэл**: удаан ажиллах bulk job-ийн явцыг browser console-д харуулдаг (кодод нь тайлбарласан байсан). Ажиллаж байгаа хэрэгслийг "цэвэрлэх" нь буруу тул хөндөөгүй | — |
 | L4 | Англи хатуу текст i18n-д ороогүй (level narrative) | `mobile/app/level/[code].tsx:79` |
 | L5 | CI байхгүй — `.github/workflows/` огт алга | repo root |
 | L6 | **Үхмэл код** — `sound.ts` бүрэн бичигдсэн ч хаанаас ч import хийгдээгүй, `SOURCES` хоосон (CODING_RULES §5 зөрчил) | `mobile/src/lib/sound.ts` |
@@ -235,7 +239,7 @@ L5-ын улмаас M1–M3 (lint/test) нь ажиллаж эхэлсэн ч *
 | 5 | `refactor/i18n-split` | M6-ийн эхний алхам — `i18n/index.ts`-ийг хуваах | Бага (зан төлөв өөрчлөхгүй) |
 | 6 | `chore/store-identity` | M7 + M8 — bundle ID шийдвэр + splash | **Шийдвэр эхэлж хэрэгтэй** |
 
-| 7 | `chore/sentry` | M7a — crash reporting (mobile + backend) | Бага |
+| ~~7~~ | ~~`chore/sentry`~~ | ✅ **backend хийгдсэн — PR #183.** DSN-гүй бол бүрэн идэвхгүй. **Mobile тал үлдсэн** (Boju) | — |
 | 8 | `docs/claude-md-fix` | M7b — админы framework залруулга | ✅ хийгдсэн |
 
 > M5 (hardcoded өнгө) нь `CODING_RULES.md §7`-ийн refactor prompt-оор
