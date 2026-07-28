@@ -180,16 +180,51 @@ function withHotUpdater(App: ComponentType): ComponentType {
   return HotUpdater.wrap({
     baseURL: checkURL,
     updateStrategy: "appVersion",
-    fallbackComponent: ({ progress, status }: { progress: number; status: string }) => (
-      <View style={styles.otaFallback}>
-        <Text style={styles.otaTitle}>
-          {status === "UPDATING" ? "Шинэчлэл суулгаж байна…" : "Шинэчлэл шалгаж байна…"}
-        </Text>
-        {progress > 0 ? (
-          <Text style={styles.otaProgress}>{Math.round(progress * 100)}%</Text>
-        ) : null}
-      </View>
-    ),
+    // Without this the library swallows every check/download failure: a wrong
+    // or undeployed Worker URL just means "no update, ever" with nothing in the
+    // logs. The app still starts normally — this only makes the cause visible.
+    onError: (err: unknown) => {
+      console.warn(
+        "[HotUpdater] update check/download failed:",
+        err instanceof Error ? err.message : String(err),
+        "| endpoint:",
+        checkURL,
+      );
+    },
+    // Update screen. This renders BEFORE the app's providers mount, so it can
+    // use neither the theme nor i18n — colours and copy are literal on purpose.
+    fallbackComponent: ({ progress, status, downloadedBytes, totalBytes }) => {
+      const downloading = status === "UPDATING";
+      const pct = Math.max(0, Math.min(100, Math.round((progress ?? 0) * 100)));
+      // Size is only known once the download responds with Content-Length.
+      const showSize = downloading && !!totalBytes && totalBytes > 0;
+      const mb = (bytes: number) => (bytes / 1024 / 1024).toFixed(1);
+
+      return (
+        <View style={styles.otaFallback}>
+          <Text style={styles.otaTitle}>
+            {downloading ? "Шинэчлэл татаж байна…" : "Шинэчлэл шалгаж байна…"}
+          </Text>
+
+          {downloading ? (
+            <>
+              <Text style={styles.otaPercent}>{pct}%</Text>
+              <View style={styles.otaTrack}>
+                <View style={[styles.otaFill, { width: `${pct}%` }]} />
+              </View>
+              {showSize ? (
+                <Text style={styles.otaProgress}>
+                  {mb(downloadedBytes ?? 0)} / {mb(totalBytes)} MB
+                </Text>
+              ) : null}
+              <Text style={styles.otaHint}>Аппыг хаахгүй байна уу</Text>
+            </>
+          ) : (
+            <ActivityIndicator size="small" color="#B9A9E6" style={styles.otaSpinner} />
+          )}
+        </View>
+      );
+    },
   })(App);
 }
 
@@ -221,4 +256,31 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginTop: 12,
   },
+  // Big percentage — the number the user actually watches.
+  otaPercent: {
+    color: "#FFFFFF",
+    fontSize: 40,
+    fontWeight: "800",
+    marginTop: 20,
+  },
+  otaTrack: {
+    width: "100%",
+    maxWidth: 280,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#372A7A",
+    marginTop: 14,
+    overflow: "hidden",
+  },
+  otaFill: {
+    height: "100%",
+    borderRadius: 4,
+    backgroundColor: "#6C3BFF",
+  },
+  otaHint: {
+    color: "#8E80BC",
+    fontSize: 13,
+    marginTop: 18,
+  },
+  otaSpinner: { marginTop: 18 },
 });

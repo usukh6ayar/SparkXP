@@ -39,8 +39,16 @@
 ## 3. App Store-д гаргахаас ӨМНӨ хийх ажил (launch blocker) 🚀
 
 > Энэ бол **launch блокер** жагсаалт. Анхны 07.09 target хойшилсон. UI/UX
-> өнгөлгөөний ихэнх нь хийгдсэн (доор ✅), гэхдээ **store setup + хэдэн критик
-> зүйл дутуу** (fonts, app icon PNG, EAS init, taste-task onboarding).
+> өнгөлгөөний ихэнх нь хийгдсэн (доор ✅).
+>
+> **🔄 2026-07-28 — кодоос дахин баталсан.** Өмнө "дутуу" гэж бичсэн 4 зүйлээс
+> **3 нь аль хэдийн хийгдсэн** байсан: фонт (`useFonts` → `_layout.tsx:122`),
+> app icon (`assets/icon-ios.png` 1024×1024 + `icon.png` 1254×1254),
+> EAS init (`extra.eas.projectId` жинхэнэ). Taste-task онбординг ч ✅ (C4).
+> **Үнэхээр үлдсэн store блокер:** `splash` тохируулаагүй · iOS/Android
+> **bundle ID зөрүү** · eas.json submit creds хоосон.
+> Кодын талын бүрэн олдвор → **`docs/CODE_AUDIT.md`** (migration гинж тасарсан,
+> `JWT_SECRET` default, rate limit алга гэсэн 3 өндөр эрэмбийн зүйл багтсан).
 
 ### 🧑‍🤝‍🧑 Launch ажлын хуваарь (шинэчилсэн 2026-07-21 — 3-талт тэнцүү)
 > Ажлыг **3-уулаа тэнцүү** хуваав. **3D AI buddy avatar-ыг хамгийн СҮҮЛД, 3-уулаа
@@ -48,9 +56,9 @@
 
 | Owner | Ажил (тэнцүү 3 багц) |
 | --- | --- |
-| **Өсөхбаяр** (backend/admin/infra) | Railway Hobby + **бүх prod migration** (reading/idioms/translations/ai-buddy-voice/**IELTS**); `C1-BE` lesson progress %; `C4-BE` public sample + guest→user migration; **IELTS Plan 2 — admin authoring**; Apple($99)/Google($25) account + EAS submit config |
+| **Өсөхбаяр** (backend/admin/infra) | Railway Hobby + **бүх prod migration** (reading/idioms/translations/ai-buddy-voice/**IELTS**); 🆕 **`docs/CODE_AUDIT.md`-ийн 3 өндөр эрэмбэ**: migration гинж засах (`CreateAssignmentCompletions`) · `JWT_SECRET` fail-fast · rate limit (`@nestjs/throttler`) + helmet; `C1-BE` ✅ · `C2-BE` ✅ · `C4-BE` ✅; **IELTS Plan 2 — admin authoring**; Apple($99)/Google($25) account + EAS submit config |
 | **Choi** (mobile — learning + IELTS L/R) | ✅ бүгд дууссан (2026-07-22): `C1` Home hero (FE) · `C4` taste-task онбординг (FE) · **IELTS Plan 3a — `/ielts` hub + L/R runner (band)** · фонт (Onest/Inter). Үлдсэн: бодит утсан дээрх regression тест |
-| **Boju** (mobile — buddy/games + store) | `C3` buddy scaffold (starter prompt + voice-минут үлдэгдэл + limit→текст); real gamification data (placeholder → бодит); **IELTS Plan 3b — Writing/Speaking практик дэлгэц** (model-answer reveal); **app icon 1024 PNG (шинэ дизайн) + splash + App Store material** (screenshot/description/privacy/data-safety) |
+| **Boju** (mobile — buddy/games + store) | `C3` buddy scaffold (starter prompt + voice-минут үлдэгдэл + limit→текст); real gamification data (placeholder → бодит); **IELTS Plan 3b — Writing/Speaking практик дэлгэц** (model-answer reveal); **splash + App Store material** (screenshot/description/privacy/data-safety) — *icon ✅ хийгдсэн* |
 
 > **🟪 3D AI buddy — ХАМГИЙН СҮҮЛД, 3-уулаа хамт:** optimize rigged GLB (<5MB) → R2
 > upload → admin `avatarAssetUrl` → mobile wire + procedural lip-sync + утсан дээр тест.
@@ -81,7 +89,7 @@
 | # | Item | Төлөв | Дутуу |
 | --- | --- | --- | --- |
 | C1 | Home нэг primary hero | ✅ дууссан | skill tile → compact quick-row (`dd7bc3a`); hero нь `GET /lessons/continue`-ийн **бодит** level ахицыг харуулна |
-| C2 | Quiz асуулт-бүрийн шууд feedback | 🔶 хагас | баяр ✅, гэхдээ `POST /quizzes/:id/check` (C2-BE) байхгүй |
+| C2 | Quiz асуулт-бүрийн шууд feedback | ✅ дууссан | BE `POST /quizzes/:id/check` (`quizzes.controller.ts:138`) + FE check→continue урсгал, ✓/✗ өнгө, зөв хариу задлах, combo haptic (`app/quiz/[id].tsx:199–232`, commit `52b3a5a`) |
 | C3 | Buddy tab уншигдахуйц + scaffold | 🔶 хагас | таб шошго ✅, starter prompt + voice-min remaining алга |
 | C4 | Auth-аас өмнө үнэ цэн (taste-task) | ✅ дууссан | BE ✅ (PR #143) + FE ✅ (2026-07-22): онбординг → `/(auth)/taste` 3 асуулт (public `/words/sample`, локал шалгалт) → register `tasteCompleted` → verify дээр +10 XP |
 
@@ -224,17 +232,24 @@ QA хүснэгтийн (27 мөр) кодтой тулгасан шалгалт
       OTA-гаар нэмнэ. Boju зөвхөн limit-warning тестээр үргэлжилнэ. Boju/Choi давхардуулахгүй.
 - [ ] Багшийн урсгал (анги үүсгэх → QR/код → сурагч батлах → даалгавар) бүрэн тест.
 
-### 🚨 Store setup — бодит blocker (шинэчилсэн 2026-07-21)
+### 🚨 Store setup — бодит blocker (шинэчилсэн 2026-07-28, кодоос баталсан)
 - [x] **EAS холбогдсон** — `eas init` (2026-07-21). Expo project үүссэн
       (`@usukh6ayar/englishxp`), `app.json` `extra.eas.projectId` =
       `d5b190dd-0fb6-4684-8aff-4648fb0f0357`.
-- [ ] **App icon 1024 PNG (альфагүй)** — fox-badge (`buddy-menu`)-аас туршиж үзсэн
-      боловч **зөвшөөрөгдөөгүй** → зохих icon дизайн шаардлагатай (1024×1024 PNG,
-      альфагүй). `app.json` одоо `logoSparkXP.webp` руу заасан (түр).
-- [ ] **Splash screen** — `assets/splash.png` + `expo-splash-screen` тохиргоо (fox/logo
-      on `#191040`). Store blocker биш ч launch-д хэрэгтэй.
-- [ ] **Cyrillic фонт (Onest/Inter) ачаалагдаагүй** — `assets/fonts/` алга,
-      `useFonts` дуудлага алга. `_layout.tsx`-д ачаалах (Boju).
+- [x] **App icon холбогдсон** (2026-07-23) — `assets/icon-ios.png` **1024×1024**
+      (iOS) + `assets/icon.png` **1254×1254** (Android adaptive, bg `#191040`).
+      `app.json` эдгээр рүү зааж байна.
+- [x] **Cyrillic фонт (Onest/Inter) ачаалагдсан** — `@expo-google-fonts/onest` +
+      `/inter` dependency, `useFonts` → `mobile/app/_layout.tsx:122`, `expo-font`
+      plugin `app.json`-д бүртгэлтэй.
+- [ ] **Splash screen** — `app.json`-д `splash` түлхүүр **огт байхгүй** → Expo-ийн
+      default цагаан дэлгэц гарна. `assets/splash.png` + тохиргоо (fox/logo on
+      `#191040`). Store blocker биш ч launch-д хэрэгтэй.
+- [ ] 🆕 **Bundle ID зөрүү — submit хийхийн ӨМНӨ шийдэх.** iOS
+      `com.usukhbayar.sparkxp` ↔ Android `com.usukh6ayar.englishxp`, `slug`/`scheme`
+      нь `englishxp` хэвээр. EAS credential нь хуучин ID-д уягдсан тул iOS-ийн
+      bundle ID солих нь App Store Connect дээр **шинэ апп** үүсгэнэ (шинэчлэл
+      биш). Бүрэн rename эсвэл буцаах — хагас байдал хамгийн муу. → `docs/CODE_AUDIT.md §M7`
 - [ ] **eas.json iOS submit блок** — Apple creds алга байсан тул түр **хассан**
       (`appleId`/`ascAppId`/`appleTeamId` хоосон байвал `eas` validation унадаг).
       Apple account гарахад буцааж нэмнэ. Android `google-service-account.json` алга.
