@@ -4,5 +4,9 @@
     "types": ["node", "jest"],
     "outDir": "./dist-test"
   },
+  // The parent excludes "test", and `exclude` is inherited — which silently
+  // cancelled the `include` below. Restating it without "test" is what makes
+  // the e2e specs actually part of this project (and lintable).
+  "exclude": ["node_modules", "dist"],
   "include": ["src/**/*.ts", "test/**/*.ts"]
 }

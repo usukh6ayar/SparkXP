@@ -13,7 +13,10 @@
 module.exports = {
   parser: '@typescript-eslint/parser',
   parserOptions: {
-    project: 'tsconfig.json',
+    // tsconfig.json EXCLUDES test/, so linting {src,test} against it alone
+    // fails with "parserOptions.project has been provided". tsconfig.test.json
+    // includes both, which is exactly the lint surface.
+    project: ['tsconfig.json', 'tsconfig.test.json'],
     tsconfigRootDir: __dirname,
     sourceType: 'module',
   },
