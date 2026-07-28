@@ -55,6 +55,26 @@ export class Plan extends BaseEntity {
   @Column({ name: 'memory_mb_limit', type: 'int', nullable: true })
   memoryMbLimit: number | null;
 
+  // --- Hearts (quiz lives) ---
+  // Tunable per plan from admin so the economy can change without an app
+  // update (CLAUDE.md core rule). null = fall back to the free-tier default.
+
+  /** Premium perk: never run out of hearts. */
+  @Column({ name: 'unlimited_hearts', type: 'boolean', default: false })
+  unlimitedHearts: boolean;
+
+  /** Hearts a user tops out at (null → default 5). */
+  @Column({ name: 'max_hearts', type: 'int', nullable: true })
+  maxHearts: number | null;
+
+  /** Minutes to regenerate ONE heart (null → default 240 = 4h, Duolingo-like). */
+  @Column({ name: 'heart_regen_minutes', type: 'int', nullable: true })
+  heartRegenMinutes: number | null;
+
+  /** Sparks cost to refill hearts to full (null → default 50). */
+  @Column({ name: 'heart_refill_sparks', type: 'int', nullable: true })
+  heartRefillSparks: number | null;
+
   @OneToMany(() => User, (user) => user.plan)
   subscribers: User[];
 }
