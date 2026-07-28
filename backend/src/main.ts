@@ -52,4 +52,9 @@ async function bootstrap() {
   Logger.log(`EnglishXP API running on port ${port} (prefix /api)`, 'Bootstrap');
 }
 
-bootstrap();
+// A rejected bootstrap (bad DB creds, missing JWT_SECRET) must exit non-zero so
+// the platform restarts / marks the deploy failed instead of exiting quietly.
+bootstrap().catch((err) => {
+  Logger.error(`Failed to start: ${err.message}`, 'Bootstrap');
+  process.exit(1);
+});

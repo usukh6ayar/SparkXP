@@ -7,7 +7,6 @@ import {
   Body,
   Param,
   Query,
-  Req,
   ParseUUIDPipe,
   UseGuards,
   UseInterceptors,
