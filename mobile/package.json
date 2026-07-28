@@ -52,6 +52,8 @@
     "@types/react": "~19.1.10",
     "@types/three": "^0.169.0",
     "dotenv": "^17.4.2",
+    "eslint": "^9.39.5",
+    "eslint-config-expo": "^9.2.0",
     "hot-updater": "^0.35.3",
     "typescript": "~5.9.2",
     "wrangler": "^4.110.0"
@@ -65,7 +67,9 @@
     "ota:deploy": "hot-updater deploy -t 1.0.0",
     "ota:deploy:ios": "hot-updater deploy -p ios -t 1.0.0",
     "ota:deploy:android": "hot-updater deploy -p android -t 1.0.0",
-    "ota:console": "hot-updater console"
+    "ota:console": "hot-updater console",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint ."
   },
   "private": true
 }

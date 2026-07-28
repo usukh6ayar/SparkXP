@@ -1,0 +1,73 @@
+name: CI
+
+# There was no CI at all before (docs/CODE_AUDIT.md §L5), so nothing stopped a
+# broken build reaching `main` — which auto-deploys to Railway and Vercel.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A new push to the same PR cancels the previous run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (typecheck · lint · test · build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      # `npm install`, not `npm ci`: sharp ships platform-specific optional
+      # binaries, and a lockfile resolved on macOS omits transitive deps the
+      # Linux runner needs (@emnapi/*), so `npm ci` refuses to install at all.
+      - run: npm install --no-audit --no-fund
+      - run: npx tsc --noEmit
+      - run: npm run lint
+      - run: npm test
+      # Catches anything that compiles under tsc but breaks `nest build`.
+      - run: npm run build
+
+  admin:
+    name: Admin (typecheck · lint · build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: admin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: admin/package-lock.json
+      - run: npm install --no-audit --no-fund
+      - run: npm run lint
+      - run: npm run build
+
+  mobile:
+    name: Mobile (typecheck · lint)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm install --no-audit --no-fund
+      - run: npm run typecheck
+      # Mobile has never been linted, so there is a backlog of warnings. Only
+      # ERRORS fail the build; warnings stay visible without blocking anyone.
+      - run: npm run lint

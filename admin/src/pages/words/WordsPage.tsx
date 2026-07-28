@@ -13,6 +13,7 @@ import { FileUpload } from '../../components/FileUpload';
 import { FormActions } from '../../components/FormActions';
 import { Pagination } from '../../components/Pagination';
 import { levelFilterOptions as levelOptions, levelFormOptions, CEFR_LEVELS as VALID_LEVELS } from '../../lib/options';
+import { toggleInSet } from '../../lib/utils';
 
 // ── Interfaces ─────────────────────────────────────────────────────────────
 
@@ -303,7 +304,7 @@ export default function WordsPage() {
         for (let i = a; i <= b; i++) n.add(words[i].id);
       } else {
         const id = words[index].id;
-        n.has(id) ? n.delete(id) : n.add(id);
+        toggleInSet(n, id);
       }
       return n;
     });

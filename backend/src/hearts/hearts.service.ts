@@ -181,7 +181,7 @@ export class HeartsService {
     const cfg = this.configOf(user);
     if (cfg.unlimited) return this.toState(cfg.max, null, cfg);
 
-    const { hearts, anchor } = this.regenerate(user, cfg.max, cfg.regenMinutes);
+    const { hearts } = this.regenerate(user, cfg.max, cfg.regenMinutes);
     if (hearts >= cfg.max) {
       throw new BadRequestException('Зүрх аль хэдийн дүүрэн байна');
     }

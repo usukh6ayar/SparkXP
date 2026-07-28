@@ -18,6 +18,7 @@ import {
   type QuestionType,
 } from '../../components/QuizQuestionsEditor';
 import ReadingPage from '../reading/ReadingPage';
+import { toggleInSet } from '../../lib/utils';
 
 const LIMIT = 20;
 
@@ -146,7 +147,7 @@ export default function ExercisesPage() {
   function toggleRow(id: string) {
     setSelected((s) => {
       const n = new Set(s);
-      n.has(id) ? n.delete(id) : n.add(id);
+      toggleInSet(n, id);
       return n;
     });
   }

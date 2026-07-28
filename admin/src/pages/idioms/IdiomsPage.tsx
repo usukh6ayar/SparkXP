@@ -11,6 +11,7 @@ import { ImageCropUpload } from '../../components/ImageCropUpload';
 import { FormActions } from '../../components/FormActions';
 import { RowActions } from '../../components/RowActions';
 import { Pagination } from '../../components/Pagination';
+import { toggleInSet } from '../../lib/utils';
 
 const LIMIT = 20;
 
@@ -183,7 +184,7 @@ export default function IdiomsPage() {
         for (let i = a; i <= b; i++) next.add(idioms[i].id);
       } else {
         const id = idioms[index].id;
-        next.has(id) ? next.delete(id) : next.add(id);
+        toggleInSet(next, id);
       }
       return next;
     });

@@ -11,6 +11,7 @@ export type SafeUser = Omit<User, 'passwordHash'>;
  * one place means we never accidentally leak the hash from a new endpoint.
  */
 export function sanitizeUser(user: User): SafeUser {
-  const { passwordHash, ...rest } = user;
+  // Destructured purely to DROP it; the underscore marks it as intentional.
+  const { passwordHash: _passwordHash, ...rest } = user;
   return rest;
 }

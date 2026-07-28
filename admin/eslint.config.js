@@ -23,6 +23,13 @@ export default tseslint.config(
         'warn',
         { allowConstantExport: true },
       ],
+      // `_name` is the project's convention for a deliberately-unused binding
+      // (kept for signature compatibility). Honour it instead of forcing a
+      // rename or a disable comment at every site.
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+      ],
     },
   },
 )
