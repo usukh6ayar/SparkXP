@@ -116,8 +116,8 @@ avatar/"Continue Learning"/student assignments). See `docs/FUTURE_PLAN.md` + `RO
 phone sizes (`src/theme/responsive.ts`), delight layer (haptics/motion/glow/anim),
 skeleton loading, flat Duolingo tab bar with labelled buddy tab, frosted-glass
 multi-thread chat, quiz result celebration (Confetti+haptics+combo), notification
-center, WebP asset perf. Full done-list + **Critical UX C1–C4** (C1 ✅, C2 ✅ BE
-(`POST /quizzes/:id/check`) + FE утас үлдсэн, C3 buddy scaffold 🔶, C4 ✅) →
+center, WebP asset perf. Full done-list + **Critical UX C1–C4** (C1 ✅, C2 ✅ BE+FE
+(`POST /quizzes/:id/check` → check→continue урсгал), C3 buddy scaffold 🔶, C4 ✅) →
 `ROADMAP.md §3` + `mobile/UX_CRITICAL_SPEC.md`.
 **Still pending (launch blockers), re-verified 2026-07-28:** `splash` not
 configured in `app.json`; **iOS/Android bundle ID mismatch** (iOS

@@ -3,9 +3,10 @@
 > **⏱ Статус (2026-07-28, кодоос дахин баталсан):**
 > - **C1 Home hero** ✅ дууссан — skill tile → compact quick-row (`dd7bc3a`); hero нь
 >   `GET /lessons/continue`-ийн бодит ахицыг харуулна.
-> - **C2 Quiz feedback** ✅ **BE дууссан** — `POST /quizzes/:id/check` нь
->   `quizzes.controller.ts:138`-д хэрэгжсэн (API.md-д баримтжсан). Үлдсэн нь
->   зөвхөн **FE утас** — асуулт бүрийн шууд feedback-ийг холбох (Boju).
+> - **C2 Quiz feedback** ✅ **дууссан (BE + FE)** — BE `POST /quizzes/:id/check`
+>   (`quizzes.controller.ts:138`); FE нь check→continue 2 шаттай урсгал, ✓/✗
+>   өнгө, зөв хариу задлах, combo haptic (`app/quiz/[id].tsx:199–232`,
+>   commit `52b3a5a`).
 > - **C3 Buddy** 🔶 хагас — таб **шошготой** боллоо ✅; starter prompt +
 >   voice-минут үлдэгдэл scaffold дутуу (Boju).
 > - **C4 Taste-task онбординг** ✅ дууссан — BE `GET /words/sample`
