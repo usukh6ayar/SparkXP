@@ -103,7 +103,7 @@ export default function ChangePasswordScreen() {
               <>
                 <TextField
                   leftIcon="key-outline"
-                  placeholder={t('otpCode')}
+                  label={t('otpCode')}
                   keyboardType="number-pad"
                   maxLength={6}
                   value={code}
@@ -111,7 +111,7 @@ export default function ChangePasswordScreen() {
                 />
                 <TextField
                   leftIcon="lock-closed-outline"
-                  placeholder={t('newPassword')}
+                  label={t('newPassword')}
                   secureToggle
                   value={password}
                   onChangeText={setPassword}

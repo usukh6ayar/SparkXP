@@ -13,7 +13,12 @@ export function IconButton({
   variant = 'surface',
   /** Small red notification dot (attention cue), top-right of the icon. */
   dot,
-  /** Screen-reader label — required for icon-only buttons to be accessible. */
+  /**
+   * Screen-reader label. REQUIRED — this button renders an icon and nothing
+   * else, so without it assistive tech announces only "button". Keeping the
+   * prop mandatory means a missing label is a compile error, not a silent
+   * accessibility gap nobody notices until an audit.
+   */
   accessibilityLabel,
   style,
 }: {
@@ -24,7 +29,7 @@ export function IconButton({
   iconColor?: string;
   variant?: 'surface' | 'filled';
   dot?: boolean;
-  accessibilityLabel?: string;
+  accessibilityLabel: string;
   style?: ViewStyle;
 }) {
   const c = useColors();

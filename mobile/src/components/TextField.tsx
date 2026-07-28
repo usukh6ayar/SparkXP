@@ -10,6 +10,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { radius, spacing, fontSize } from '../theme/theme';
 import { useColors } from '../settings/SettingsContext';
+import { t } from '../i18n';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -31,7 +32,14 @@ interface Props extends TextInputProps {
   error?: string;
 }
 
-/** Labeled text input with brand styling, optional left icon + password reveal. */
+/**
+ * Labeled text input with brand styling, optional left icon + password reveal.
+ *
+ * Always pass `label` — a placeholder is not a label: it disappears the moment
+ * the user types, and screen readers don't reliably announce it. The visible
+ * label doubles as the accessible name (see `accessibilityLabel` below), so
+ * one prop satisfies both the sighted and the screen-reader path.
+ */
 export function TextField({
   label,
   leftIcon,
@@ -40,11 +48,15 @@ export function TextField({
   InputComponent = TextInput,
   hint,
   error,
+  accessibilityLabel,
   ...rest
 }: Props) {
   const c = useColors();
   const [hidden, setHidden] = useState(true);
   const isSecure = secureToggle ? hidden : secureTextEntry;
+  // The visible label is the accessible name unless a caller overrides it.
+  // Falling back to `placeholder` keeps older call sites from going nameless.
+  const a11yLabel = accessibilityLabel ?? label ?? rest.placeholder;
 
   return (
     <View style={styles.wrap}>
@@ -62,6 +74,7 @@ export function TextField({
           style={[styles.input, { color: c.text }]}
           placeholderTextColor={c.textMuted}
           secureTextEntry={isSecure}
+          accessibilityLabel={a11yLabel}
           {...rest}
         />
         {secureToggle ? (
@@ -69,6 +82,8 @@ export function TextField({
             onPress={() => setHidden((h) => !h)}
             hitSlop={8}
             style={styles.eye}
+            accessibilityRole="button"
+            accessibilityLabel={t(hidden ? 'showPassword' : 'hidePassword')}
           >
             <Ionicons
               name={hidden ? 'eye-off-outline' : 'eye-outline'}

@@ -177,8 +177,8 @@ const SavedRow = memo(function SavedRow({
         <AppText variant="h3" color={c.navy} numberOfLines={1}>{item.english}</AppText>
         <AppText variant="caption" color={c.primary} numberOfLines={1}>{item.mongolian}</AppText>
       </View>
-      <IconButton icon="volume-high" size={38} variant="filled" iconColor={c.primary} onPress={() => onPlay(item)} />
-      <IconButton icon="star" size={38} variant="filled" iconColor={c.xp} onPress={() => onUnsave(item)} />
+      <IconButton icon="volume-high" size={38} variant="filled" iconColor={c.primary} accessibilityLabel={t('playAudio')} onPress={() => onPlay(item)} />
+      <IconButton icon="star" size={38} variant="filled" iconColor={c.xp} accessibilityLabel={t('removeFromSaved')} onPress={() => onUnsave(item)} />
     </Card>
   );
 });

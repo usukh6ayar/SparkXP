@@ -83,7 +83,7 @@ export default function ForgotPasswordScreen() {
             <>
               <TextField
                 leftIcon="mail-outline"
-                placeholder={t('email')}
+                label={t('email')}
                 autoCapitalize="none"
                 keyboardType="email-address"
                 value={email}
@@ -96,7 +96,7 @@ export default function ForgotPasswordScreen() {
             <>
               <TextField
                 leftIcon="key-outline"
-                placeholder={t('otpCode')}
+                label={t('otpCode')}
                 keyboardType="number-pad"
                 maxLength={6}
                 value={code}
@@ -104,7 +104,7 @@ export default function ForgotPasswordScreen() {
               />
               <TextField
                 leftIcon="lock-closed-outline"
-                placeholder={t('newPassword')}
+                label={t('newPassword')}
                 secureToggle
                 value={password}
                 onChangeText={setPassword}

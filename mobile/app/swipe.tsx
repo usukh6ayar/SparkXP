@@ -264,7 +264,7 @@ export default function ReviewFlashcardsScreen() {
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       {/* Header */}
       <View style={styles.header}>
-        <IconButton icon="arrow-back" onPress={() => router.back()} iconColor={c.primary} />
+        <IconButton icon="arrow-back" onPress={() => router.back()} iconColor={c.primary} accessibilityLabel={t('back')} />
         <View style={styles.headerCenter}>
           <AppText variant="label" color={c.textMuted}>{t('reviewWords')}</AppText>
           {total > 0 && !done ? <AppText variant="h3">{Math.min(index + 1, total)} / {total}</AppText> : null}
