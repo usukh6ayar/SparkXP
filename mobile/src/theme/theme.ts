@@ -40,7 +40,12 @@ export const colors = {
   // Text (high → low emphasis) — light on dark
   text: '#FFFFFF', // primary text
   textSecondary: '#B9A9E6', // secondary copy (lavender)
-  textMuted: '#8E80BC', // captions, hints, inactive (muted lavender)
+  // Lightened from #8E80BC, which only reached 4.15:1 on `surface` and 3.36:1
+  // on `surfaceAlt` (the input background this token also tints placeholders
+  // with) — below the 4.5:1 AA floor for 11–12px caption/overline text.
+  // #A79BD0 clears every dark surface (6.93 / 5.73 / 4.64) while staying
+  // dimmer than textSecondary, so the emphasis hierarchy is unchanged.
+  textMuted: '#A79BD0', // captions, hints, inactive (muted lavender)
   textOnDark: '#FFFFFF',
   textOnDarkMuted: '#DCD7FF', // on-purple secondary
 
