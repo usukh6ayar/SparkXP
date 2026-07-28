@@ -1,16 +1,19 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, MoreThanOrEqual } from 'typeorm';
 import { XpLog } from '../entities/xp-log.entity';
 import { User } from '../entities/user.entity';
 import { Lesson } from '../entities/lesson.entity';
-import { XpSource, ContentLevel } from '../common/enums';
+import { SparksService } from '../sparks/sparks.service';
+import { XpSource, ContentLevel, SparksSource } from '../common/enums';
 import {
   computeLevel,
   dayKeyUB,
   dayKeyUBOffset,
   startOfUBDay,
   type LevelInfo,
+  resolveStreak,
+  MAX_HELD_FREEZES,
 } from './gamification';
 
 export interface AwardXpOptions {
@@ -26,6 +29,8 @@ export interface GamificationSummary extends LevelInfo {
   xp: number;
   currentStreak: number;
   longestStreak: number;
+  /** Unused streak freezes the learner owns. */
+  streakFreezes: number;
   todayXp: number;
   dailyGoal: number;
   cefrLevel: string | null;
@@ -41,6 +46,9 @@ const DAILY_GOAL = 50;
 /** The goals the app offers (Хөнгөн / Дунд / Ширүүн). */
 export const DAILY_GOAL_CHOICES = [20, 50, 100] as const;
 
+/** Free-tier Sparks price of one streak freeze (plans may override). */
+const STREAK_FREEZE_SPARKS = 100;
+
 @Injectable()
 export class XpService {
   constructor(
@@ -51,6 +59,7 @@ export class XpService {
     @InjectRepository(Lesson)
     private readonly lessons: Repository<Lesson>,
     private readonly dataSource: DataSource,
+    private readonly sparks: SparksService,
   ) {}
 
   /**
@@ -76,18 +85,28 @@ export class XpService {
       // Advance the streak (first activity of the day only).
       const user = await manager.findOne(User, {
         where: { id: opts.userId },
-        select: { id: true, currentStreak: true, longestStreak: true, lastActiveDate: true },
+        select: {
+          id: true,
+          currentStreak: true,
+          longestStreak: true,
+          lastActiveDate: true,
+          streakFreezes: true,
+        },
       });
       if (user) {
         const today = dayKeyUB();
         if (user.lastActiveDate !== today) {
-          const yesterday = dayKeyUBOffset(-1);
-          const streak = user.lastActiveDate === yesterday ? (user.currentStreak ?? 0) + 1 : 1;
-          const longest = Math.max(user.longestStreak ?? 0, streak);
+          const next = resolveStreak({
+            lastActiveDate: user.lastActiveDate,
+            currentStreak: user.currentStreak ?? 0,
+            freezes: user.streakFreezes ?? 0,
+            today,
+          });
           await manager.update(User, { id: opts.userId }, {
-            currentStreak: streak,
-            longestStreak: longest,
+            currentStreak: next.streak,
+            longestStreak: Math.max(user.longestStreak ?? 0, next.streak),
             lastActiveDate: today,
+            streakFreezes: next.freezesLeft,
           });
         }
       }
@@ -113,6 +132,46 @@ export class XpService {
   }
 
   /** Streak + level + today's XP for the gamification UI. */
+  /**
+   * Buy one streak freeze with Sparks.
+   *
+   * Capped at MAX_HELD_FREEZES so it can't be stockpiled into permanent streak
+   * immunity — the streak has to still mean something.
+   */
+  async buyStreakFreeze(userId: string) {
+    const user = await this.users.findOne({
+      where: { id: userId },
+      relations: { plan: true },
+    });
+    if (!user) throw new NotFoundException('Хэрэглэгч олдсонгүй');
+
+    const activePlan =
+      user.plan && (!user.planExpiresAt || user.planExpiresAt.getTime() > Date.now())
+        ? user.plan
+        : null;
+    const cost = activePlan?.streakFreezeSparks ?? STREAK_FREEZE_SPARKS;
+    const held = user.streakFreezes ?? 0;
+
+    if (held >= MAX_HELD_FREEZES) {
+      throw new BadRequestException(
+        `Хамгийн ихдээ ${MAX_HELD_FREEZES} freeze хадгална`,
+      );
+    }
+    if (user.sparks < cost) {
+      throw new BadRequestException('Sparks хүрэлцэхгүй байна');
+    }
+
+    await this.sparks.change({
+      userId,
+      amount: -cost,
+      source: SparksSource.STORE_PURCHASE,
+      metadata: { item: 'streak_freeze', held: held + 1 },
+    });
+    await this.users.update(userId, { streakFreezes: held + 1 });
+
+    return this.getGamification(userId);
+  }
+
   /** Persist the user's chosen daily XP goal, then return the fresh summary. */
   async setDailyGoal(userId: string, dailyGoalXp: number) {
     await this.users.update(userId, { dailyGoalXp });
@@ -129,6 +188,7 @@ export class XpService {
         lastActiveDate: true,
         level: true,
         dailyGoalXp: true,
+        streakFreezes: true,
       },
     });
     const xp = user?.xp ?? 0;
@@ -186,6 +246,7 @@ export class XpService {
       ...computeLevel(xp),
       currentStreak,
       longestStreak: user?.longestStreak ?? 0,
+      streakFreezes: user?.streakFreezes ?? 0,
       todayXp: Number(todayRow?.sum ?? 0),
       dailyGoal: user?.dailyGoalXp ?? DAILY_GOAL,
       cefrLevel: user?.level ?? null,

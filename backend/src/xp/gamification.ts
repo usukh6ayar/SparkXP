@@ -54,3 +54,72 @@ export function computeLevel(xp: number): LevelInfo {
     progress: levelTarget > 0 ? levelXp / levelTarget : 0,
   };
 }
+
+/** Most consecutive missed days a stock of freezes can bridge. */
+export const MAX_FROZEN_DAYS = 2;
+
+/** Max freezes a learner may hold at once. */
+export const MAX_HELD_FREEZES = 2;
+
+export interface StreakInput {
+  /** UB day key of the last active day, or null if never active. */
+  lastActiveDate: string | null;
+  currentStreak: number;
+  /** Unused streak freezes the user owns. */
+  freezes: number;
+  /** Today's UB day key. */
+  today: string;
+}
+
+/** Whole days between two YYYY-MM-DD keys (b - a). */
+function daysBetween(a: string, b: string): number {
+  const ms = Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`);
+  return Math.round(ms / 86_400_000);
+}
+
+/**
+ * Decides the new streak on the first activity of a day, spending streak
+ * freezes to bridge missed days where possible.
+ *
+ * Rules:
+ *  - Active yesterday → streak continues, nothing spent.
+ *  - Missed N days and holding ≥ N freezes (N ≤ MAX_FROZEN_DAYS) → spend N,
+ *    streak continues as if unbroken.
+ *  - Otherwise → streak resets to 1 and freezes are left untouched (we never
+ *    burn freezes on a gap they cannot save).
+ *
+ * The MAX_FROZEN_DAYS cap stops someone banking freezes, disappearing for a
+ * month, and returning with a "100-day streak" that means nothing.
+ *
+ * Pure on purpose — the DB-facing caller in XpService is hard to test, this is
+ * not.
+ */
+export function resolveStreak(input: StreakInput): {
+  streak: number;
+  freezesLeft: number;
+  freezesUsed: number;
+} {
+  const { lastActiveDate, currentStreak, freezes, today } = input;
+
+  // Never active before, or same-day (caller already guards) → start at 1.
+  if (!lastActiveDate) return { streak: 1, freezesLeft: freezes, freezesUsed: 0 };
+
+  const gap = daysBetween(lastActiveDate, today);
+
+  // Active yesterday → uninterrupted.
+  if (gap <= 1) {
+    return { streak: currentStreak + 1, freezesLeft: freezes, freezesUsed: 0 };
+  }
+
+  const missed = gap - 1;
+  if (missed <= MAX_FROZEN_DAYS && freezes >= missed) {
+    return {
+      streak: currentStreak + 1,
+      freezesLeft: freezes - missed,
+      freezesUsed: missed,
+    };
+  }
+
+  // Gap too wide (or not enough freezes) — reset, keep what they own.
+  return { streak: 1, freezesLeft: freezes, freezesUsed: 0 };
+}

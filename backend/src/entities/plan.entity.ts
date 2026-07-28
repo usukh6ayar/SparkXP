@@ -75,6 +75,10 @@ export class Plan extends BaseEntity {
   @Column({ name: 'heart_refill_sparks', type: 'int', nullable: true })
   heartRefillSparks: number | null;
 
+  /** Sparks cost of one streak freeze (null → default 100). */
+  @Column({ name: 'streak_freeze_sparks', type: 'int', nullable: true })
+  streakFreezeSparks: number | null;
+
   @OneToMany(() => User, (user) => user.plan)
   subscribers: User[];
 }

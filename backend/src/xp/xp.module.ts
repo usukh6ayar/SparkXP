@@ -5,9 +5,10 @@ import { User } from '../entities/user.entity';
 import { Lesson } from '../entities/lesson.entity';
 import { XpService } from './xp.service';
 import { XpController } from './xp.controller';
+import { SparksModule } from '../sparks/sparks.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([XpLog, User, Lesson])],
+  imports: [TypeOrmModule.forFeature([XpLog, User, Lesson]), SparksModule],
   controllers: [XpController],
   providers: [XpService],
   exports: [XpService],
