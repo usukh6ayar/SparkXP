@@ -7,6 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+import { captureException } from '../observability/sentry';
 
 /**
  * Global filter that normalises all HTTP errors into:
@@ -44,6 +45,13 @@ export class HttpExceptionFilter implements ExceptionFilter {
         `Unhandled exception on ${request.method} ${request.url}`,
         exception instanceof Error ? exception.stack : String(exception),
       );
+      // Only genuinely unexpected errors reach Sentry. Deliberate 4xx
+      // (HttpException) are normal traffic and would drown the signal.
+      captureException(exception, {
+        method: request.method,
+        url: request.url,
+        userId: (request as Request & { user?: { id?: string } }).user?.id,
+      });
     }
 
     response.status(status).json({
