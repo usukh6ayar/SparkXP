@@ -68,15 +68,20 @@ announced here first.
   34,000₮ / 56,000₮ plan cost breakdowns, SparkXP Plan, Teacher Panel UI/UX.
 - `API.md` — full backend endpoint reference (path · auth/role · purpose · params)
   **+ mobile/admin frontend usage mapping**. Keep updated as endpoints land.
+- `docs/CODE_AUDIT.md` — **standing code audit (2026-07-28)**: verified findings
+  across backend/mobile/admin with severity + suggested PR order. Read before
+  starting hardening/refactor work so you don't re-derive it.
+- `mobile/UX_CRITICAL_SPEC.md` — mobile critical-UX build spec (C1–C4) + the
+  carried-over design-system debt list (D1–D11).
 
 ---
 
-## Current Status (2026-06)
+## Current Status (last verified against code: 2026-07-28)
 
 **Phase 1 — Foundation: DONE.** Built so far in `/backend`:
 
 - NestJS + TypeScript project, PostgreSQL (TypeORM) + Redis wired up.
-- All 14 entities created with UUID PKs, `created_at`/`updated_at`, jsonb where
+- The original 14 entities created with UUID PKs, `created_at`/`updated_at`, jsonb where
   needed: User, Organization, Class, Lesson, Word, Quiz, Assignment, WordReview,
   XpLog, AiUsage, Message, Payment, SparksLog, LessonUnlock.
 - `DB_SYNCHRONIZE=true` in dev auto-creates the schema from entities on boot.
@@ -111,15 +116,20 @@ avatar/"Continue Learning"/student assignments). See `docs/FUTURE_PLAN.md` + `RO
 phone sizes (`src/theme/responsive.ts`), delight layer (haptics/motion/glow/anim),
 skeleton loading, flat Duolingo tab bar with labelled buddy tab, frosted-glass
 multi-thread chat, quiz result celebration (Confetti+haptics+combo), notification
-center, WebP asset perf. Full done-list + the still-open **Critical UX C1–C4**
-(C1 Home hero 🔶, C2 quiz instant-feedback 🔶, C3 buddy scaffold 🔶, C4 taste-task
-onboarding ❌) → `ROADMAP.md §3`.
-**Still pending (launch blockers):** **app icon 1024 PNG** not wired (`app.json`
-still points to `logoSparkXP.webp`; no splash); **fonts (Onest/Inter) not loaded**
-(no `assets/fonts/`, no `useFonts`); **EAS not initialized** (`app.json`
-`extra.eas.projectId` = placeholder); eas.json submit creds empty; Lucide
-migration; real gamification data (streak/level/progress placeholders); real video
-player. Full list: `ROADMAP.md §3` + `docs/LAUNCH_FROM_SCRATCH.md`.
+center, WebP asset perf. Full done-list + **Critical UX C1–C4** (C1 ✅, C2 ✅ BE
+(`POST /quizzes/:id/check`) + FE утас үлдсэн, C3 buddy scaffold 🔶, C4 ✅) →
+`ROADMAP.md §3` + `mobile/UX_CRITICAL_SPEC.md`.
+**Still pending (launch blockers), re-verified 2026-07-28:** `splash` not
+configured in `app.json`; **iOS/Android bundle ID mismatch** (iOS
+`com.usukhbayar.sparkxp` vs Android `com.usukh6ayar.englishxp`, `slug`/`scheme`
+still `englishxp`) — decide before store submit; eas.json submit creds empty;
+Lucide migration; real gamification data (streak/level/progress placeholders);
+real video player. Full list: `ROADMAP.md §3` + `docs/LAUNCH_FROM_SCRATCH.md`.
+**Already DONE (was wrongly listed as pending):** app icon wired
+(`assets/icon-ios.png` 1024×1024 + `assets/icon.png` 1254×1254 adaptive); fonts
+loaded (`@expo-google-fonts/onest`+`inter`, `useFonts` at
+`mobile/app/_layout.tsx:122`, `expo-font` plugin); EAS initialized (real
+`extra.eas.projectId`).
 
 **Vocabulary AI pipeline — shipped (2026-06-25).** Admin Words page now does
 end-to-end AI authoring:
@@ -197,7 +207,7 @@ backend/src/
   common/
     entities/base.entity.ts   BaseEntity: UUID id + created_at/updated_at
     enums/index.ts            All shared enums
-  entities/               12 entities + index.ts barrel (the `entities` array)
+  entities/               27 entities + index.ts barrel (the `entities` array)
 ```
 
 When adding a feature, create a module folder under `src/` (e.g.
@@ -256,6 +266,12 @@ host `localhost`, port `5432`, db `englishxp`, user `postgres`, pass `postgres`.
 
 Core entities (14): User, Organization, Class, Lesson, Word, Quiz, Assignment,
 WordReview, XpLog, AiUsage, Message, Payment, SparksLog, LessonUnlock.
+
+**27 entities total as of 2026-07-28** — the 14 above plus, added by later
+features: AiBuddy, AssignmentCompletion, BuddyMemory, BuddySession,
+BuddyVoiceCache, ClassJoinRequest, Idiom, Notification, Plan, QuizAttempt,
+ReadingPassage, SafetyEvent, Translation. Source of truth = the `entities` array
+in `backend/src/entities/index.ts` (never this list).
 
 - **Organization** covers schools, companies, law firms. Its `type` is an
   open-ended string (NOT a fixed enum) so new org types can be added from
