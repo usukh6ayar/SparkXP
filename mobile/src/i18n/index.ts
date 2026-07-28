@@ -389,6 +389,7 @@ const mn = {
   lessonCompleteTitle: 'Бэрхшээлгүй!',
   lessonCompletePrefix: 'Хичээл дуусгаж',
   lessonCompleteSuffix: 'авлаа 🎉',
+  lessonCompleteUnlocked: 'Тестүүд нээгдлээ. Одоо оноогоо ахиулаарай!',
   insufficientSparksTitle: 'Очирхон хүрэлцэхгүй',
   insufficientSparksBody: 'Танд {have} 💎 байна. Энэ хичээлд {need} 💎 шаардлагатай.',
   unlockConfirmTitle: 'Хичээл нээх үү?',
@@ -604,6 +605,13 @@ const mn = {
   retryAnswer: 'Дахин оролдох',
   answerCorrect: 'Зөв! 🎉',
   answerWrong: 'Буруу хариулт',
+  correctPraise1: 'Яг зөв!',
+  correctPraise2: 'Дараалж зөв!',
+  correctPraise3: 'Галтай байна!',
+  correctPraise5: 'Зогсоохын аргагүй!',
+  correctInstantToast: 'Ингээд үргэлжлүүл!',
+  correctComboToast: '{n} дараалсан зөв',
+  correctComboInline: '×{n} комбо',
   correctAnswerLabel: 'Зөв хариу: {answer}',
 
   // Tab bar
@@ -1153,6 +1161,7 @@ const en: Record<TranslationKey, string> = {
   lessonCompleteTitle: 'Well done!',
   lessonCompletePrefix: 'You finished the lesson and earned',
   lessonCompleteSuffix: '🎉',
+  lessonCompleteUnlocked: 'Tests unlocked. Keep the run going!',
   insufficientSparksTitle: 'Not enough Sparks',
   insufficientSparksBody: 'You have {have} 💎. This lesson needs {need} 💎.',
   unlockConfirmTitle: 'Unlock this lesson?',
@@ -1365,6 +1374,13 @@ const en: Record<TranslationKey, string> = {
   retryAnswer: 'Try again',
   answerCorrect: 'Correct! 🎉',
   answerWrong: 'Not quite',
+  correctPraise1: 'Nice!',
+  correctPraise2: 'Two in a row!',
+  correctPraise3: 'On fire!',
+  correctPraise5: 'Unstoppable!',
+  correctInstantToast: 'Keep going!',
+  correctComboToast: '{n} correct in a row',
+  correctComboInline: '×{n} combo',
   correctAnswerLabel: 'Correct answer: {answer}',
 
   // Tab bar

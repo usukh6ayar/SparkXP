@@ -11,9 +11,12 @@
  *   import { haptics } from '../lib/haptics';
  *   haptics.tap();      // light press (buttons, tabs)
  *   haptics.success();  // correct answer, XP earned
+ *   haptics.combo(3);   // streak reward with a stronger vibration pattern
+ *   haptics.celebrate(); // lesson/exercise completion
  *   haptics.error();    // wrong answer, validation error
  *   haptics.select();   // option / segment change
  */
+import { Platform, Vibration } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
 /**
@@ -25,6 +28,21 @@ const safe = (run: () => Promise<void>) => () => {
   run().catch(() => {});
 };
 
+function vibrate(pattern: number | number[]) {
+  if (Platform.OS === 'web') return;
+  try {
+    Vibration.vibrate(pattern);
+  } catch {
+    // Haptics are non-critical.
+  }
+}
+
+function delayedImpact(style: Haptics.ImpactFeedbackStyle, delay: number) {
+  setTimeout(() => {
+    Haptics.impactAsync(style).catch(() => {});
+  }, delay);
+}
+
 /** Light tap — default button / general press feedback. */
 const tap = safe(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light));
 
@@ -33,6 +51,22 @@ const medium = safe(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium
 
 /** Success notification — correct answer, XP earned, task complete. */
 const success = safe(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success));
+
+/** Combo reward — stronger as the correct-answer streak grows. */
+const combo = (run: number) => {
+  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+  if (run >= 3) delayedImpact(Haptics.ImpactFeedbackStyle.Medium, 80);
+  if (run >= 5) delayedImpact(Haptics.ImpactFeedbackStyle.Heavy, 160);
+  vibrate(run >= 5 ? [0, 22, 28, 34, 34, 44] : run >= 3 ? [0, 18, 28, 34] : [0, 14]);
+};
+
+/** Completion reward — lesson watched, exercise finished, bigger XP moments. */
+const celebrate = () => {
+  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+  delayedImpact(Haptics.ImpactFeedbackStyle.Medium, 90);
+  delayedImpact(Haptics.ImpactFeedbackStyle.Light, 170);
+  vibrate([0, 20, 35, 40]);
+};
 
 /** Warning notification — soft "not quite" (e.g. "review" swipe). */
 const warning = safe(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning));
@@ -43,4 +77,4 @@ const error = safe(() => Haptics.notificationAsync(Haptics.NotificationFeedbackT
 /** Selection tick — moving between options / segments / tabs. */
 const select = safe(() => Haptics.selectionAsync());
 
-export const haptics = { tap, medium, success, warning, error, select };
+export const haptics = { tap, medium, success, combo, celebrate, warning, error, select };
