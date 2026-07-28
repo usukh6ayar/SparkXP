@@ -11,6 +11,10 @@ import { User } from './user.entity';
  * real, correct interaction) and reconstruct a user's balance if needed.
  */
 @Entity('xp_logs')
+// Leaderboards filter this append-only ledger by a date window and group by
+// user (weekly / monthly / all-time). With only the user_id index below, every
+// windowed board scanned the whole table — and the table only ever grows.
+@Index(['userId', 'createdAt'])
 export class XpLog extends BaseEntity {
   @Index()
   @ManyToOne(() => User, (user) => user.xpLogs, { onDelete: 'CASCADE' })

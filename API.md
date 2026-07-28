@@ -335,9 +335,21 @@ Controller-level: JWT. Бүгд student-ийн өөрийн давталтын �
 | Method + Path | Auth | Зорилго | Body |
 | --- | --- | --- | --- |
 | PATCH `/gamification/goal` | JWT | Өдрийн XP зорилт тавих. Зөвхөн **20 / 50 / 100** (өөр утга → **400**). Хариу нь шинэчилсэн gamification summary | `{ dailyGoalXp: 20\|50\|100 }` |
+| POST `/gamification/streak-freeze` | JWT | **Streak freeze** худалдаж авах (100 Sparks, багцаас хамаарна). Хамгийн ихдээ **2** хадгална → давсан бол **400**; Sparks дутуу → **400** | — |
 
 `GET /gamification`-ийн `dailyGoal` нь одоо хатуу 50 биш, **хэрэглэгчийн сонголт**
-(`users.daily_goal_xp`).
+(`users.daily_goal_xp`). Хариунд **`streakFreezes`** (үлдсэн freeze) бас орно.
+
+**Streak freeze дүрэм** (`resolveStreak`, `src/xp/gamification.ts` — цэвэр функц,
+unit-тесттэй):
+- Өчигдөр идэвхтэй байсан → streak үргэлжилнэ, freeze зарцуулагдахгүй.
+- **1 өдөр** алгассан + ≥1 freeze → 1 freeze зарцуулж streak хадгалагдана.
+- **2 өдөр** алгассан + ≥2 freeze → 2 freeze зарцуулна.
+- **3+ өдөр** алгассан → хэдэн freeze байсан ч streak тэглэгдэнэ
+  (`MAX_FROZEN_DAYS = 2`). Freeze хураагаад сараар алга болчихоод "100 хоногийн
+  streak"-тай эргэж ирэхээс сэргийлнэ.
+- **Аврах боломжгүй завсарт freeze зарцуулахгүй** — streak яагаад ч хамаагүй
+  тасрах бол freeze нь хэвээр үлдэнэ.
 
 ## 14. Classes (багш) — `/api/classes`
 Controller-level: JWT. Зарим бичилт роль шаардана; заримд эзэмшлийг service шалгана.

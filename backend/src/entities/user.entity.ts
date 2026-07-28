@@ -126,6 +126,16 @@ export class User extends BaseEntity {
   @Column({ name: 'last_active_date', type: 'date', nullable: true })
   lastActiveDate: string | null;
 
+  /**
+   * Unused streak freezes the learner owns. One is consumed automatically per
+   * missed day, protecting the streak — bought with Sparks.
+   *
+   * Losing a streak is the single biggest reason people abandon a learning
+   * app, so this is both a retention tool and a Sparks sink.
+   */
+  @Column({ name: 'streak_freezes', type: 'int', default: 0 })
+  streakFreezes: number;
+
   /** Daily XP target the user picked (Хөнгөн 20 / Дунд 50 / Ширүүн 100). */
   @Column({ name: 'daily_goal_xp', type: 'int', default: 50 })
   dailyGoalXp: number;
