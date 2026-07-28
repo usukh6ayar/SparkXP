@@ -35,8 +35,8 @@ import { bounded } from '../../src/theme/responsive';
  * as fractions of the scene so they scale to any width. Swapping a level's art
  * is now just swapping one PNG.
  *
- * Scope: FRONTEND-only. Progress / streak are placeholders until the backend
- * tracks lesson completion + daily streak (see TODOs).
+ * Per-island progress and the streak both come from `GET /gamification`
+ * (`progressByLevel` / `currentStreak`) — no placeholder counts.
  */
 
 const skyImg = require('../../assets/avatars/islands/background.webp'); // starry sky backdrop — dark theme
@@ -88,24 +88,30 @@ interface LevelNode {
   name: string; // themed island name
   color: string; // level-badge color
   unlockAt: number | null; // min user level to unlock; null = always open
-  // Placeholders (no backend completion tracking yet) — match the design.
-  done: number;
-  total: number;
   /** Island image placement, as fractions of the scene (left, top, width). */
   isl: { left: number; top: number; w: number };
 }
+
+/**
+ * Real per-island progress from `GET /gamification` (`progressByLevel`, which
+ * covers every CEFR level a1…c2). `null` = not loaded yet, or the request
+ * failed — the label then shows a dash instead of an invented count. Never
+ * fall back to hardcoded numbers here: plausible-looking fake progress is
+ * worse than showing nothing.
+ */
+type LevelProgress = { done: number; total: number } | null;
 
 // Serpentine bottom→top climb: A1 sits at the BOTTOM slot and the path ascends
 // to C2 at the top (a mountain-climb metaphor). The 6 on-screen slots (and the
 // golden trail stretched over them) are unchanged — only which level occupies
 // each slot is reversed. The label card is auto-placed under each island.
 const LEVELS: LevelNode[] = [
-  { code: 'A1', name: 'Forest',    color: BADGE.green,  unlockAt: null, done: 15, total: 30, isl: { left: 0.44, top: 0.740, w: 0.52 } },
-  { code: 'A2', name: 'Village',   color: BADGE.green,  unlockAt: null, done: 20, total: 30, isl: { left: 0.00, top: 0.600, w: 0.50 } },
-  { code: 'B1', name: 'Castle',    color: BADGE.blue,   unlockAt: null, done: 10, total: 30, isl: { left: 0.47, top: 0.455, w: 0.50 } },
-  { code: 'B2', name: 'Mountain',  color: BADGE.blue,   unlockAt: 30,   done: 0,  total: 30, isl: { left: 0.00, top: 0.300, w: 0.52 } },
-  { code: 'C1', name: 'Space',     color: BADGE.purple, unlockAt: 45,   done: 0,  total: 30, isl: { left: 0.48, top: 0.140, w: 0.50 } },
-  { code: 'C2', name: 'Sky Realm', color: BADGE.purple, unlockAt: 60,   done: 0,  total: 30, isl: { left: 0.00, top: 0.010, w: 0.50 } },
+  { code: 'A1', name: 'Forest',    color: BADGE.green,  unlockAt: null, isl: { left: 0.44, top: 0.740, w: 0.52 } },
+  { code: 'A2', name: 'Village',   color: BADGE.green,  unlockAt: null, isl: { left: 0.00, top: 0.600, w: 0.50 } },
+  { code: 'B1', name: 'Castle',    color: BADGE.blue,   unlockAt: null, isl: { left: 0.47, top: 0.455, w: 0.50 } },
+  { code: 'B2', name: 'Mountain',  color: BADGE.blue,   unlockAt: 30,   isl: { left: 0.00, top: 0.300, w: 0.52 } },
+  { code: 'C1', name: 'Space',     color: BADGE.purple, unlockAt: 45,   isl: { left: 0.48, top: 0.140, w: 0.50 } },
+  { code: 'C2', name: 'Sky Realm', color: BADGE.purple, unlockAt: 60,   isl: { left: 0.00, top: 0.010, w: 0.50 } },
 ];
 
 /** Add thousands separators (Hermes' toLocaleString is unreliable). */
@@ -258,10 +264,9 @@ export default function LessonsScreen() {
               resizeMode="stretch"
             />
 
-            {LEVELS.map((baseNode) => {
-              // Overlay real per-level lesson progress on the placeholder counts.
-              const p = gam?.progressByLevel?.[baseNode.code.toLowerCase()];
-              const node = p ? { ...baseNode, done: p.done, total: p.total } : baseNode;
+            {LEVELS.map((node) => {
+              // Real per-level lesson progress, or null until it loads.
+              const progress: LevelProgress = gam?.progressByLevel?.[node.code.toLowerCase()] ?? null;
               const locked = node.unlockAt != null && userLevel < node.unlockAt;
               const onPress = locked ? undefined : () => openLevel(node);
 
@@ -297,7 +302,7 @@ export default function LessonsScreen() {
                     onPress={onPress}
                     style={[styles.card, { width: CARD_W, left: cardLeft, top: cardTop }]}
                   >
-                    <Label node={node} locked={locked} />
+                    <Label node={node} locked={locked} progress={progress} />
                   </Pressable>
                 </Fragment>
               );
@@ -337,8 +342,8 @@ function StatPill({
 }
 
 /** Label-card contents: badge + name, then progress or a lock. */
-function Label({ node, locked }: { node: LevelNode; locked: boolean }) {
-  const pct = node.total > 0 ? node.done / node.total : 0;
+function Label({ node, locked, progress }: { node: LevelNode; locked: boolean; progress: LevelProgress }) {
+  const pct = progress && progress.total > 0 ? progress.done / progress.total : 0;
   return (
     <>
       <View style={styles.labelTop}>
@@ -361,7 +366,9 @@ function Label({ node, locked }: { node: LevelNode; locked: boolean }) {
         <>
           <View style={styles.progRow}>
             <Ionicons name="leaf" size={13} color={node.color} />
-            <AppText variant="caption" color="#FFFFFF">{node.done}/{node.total}</AppText>
+            <AppText variant="caption" color="#FFFFFF">
+              {progress ? `${progress.done}/${progress.total}` : '—'}
+            </AppText>
           </View>
           <View style={styles.track}>
             <View style={[styles.fill, { width: `${Math.round(pct * 100)}%`, backgroundColor: node.color }]} />

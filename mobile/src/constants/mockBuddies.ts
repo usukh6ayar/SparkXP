@@ -2,17 +2,21 @@ import type { TranslationKey, Lang } from '../i18n';
 import type { Buddy } from '../api/ai';
 
 /**
- * Placeholder buddy roster for the AI Buddy selector — TEMPORARY content so
- * the full carousel/lock/unlock design can be built and reviewed before the
- * real characters exist in the backend. Usukhbayar owns adding real buddies
- * via admin (name/emoji/GLB/etc.); once a real buddy's `slug` matches one of
- * these, `buildMockBuddies`'s caller (chat.tsx) drops the mock stand-in
- * automatically — no code change needed to "connect" the real one later.
+ * DEV-ONLY placeholder buddy roster for the AI Buddy selector — TEMPORARY
+ * content so the full carousel/lock/unlock design can be built and reviewed
+ * before the real characters exist in the backend.
  *
- * `FOX_SLUG` is the default/flagship buddy (matches the app's existing
- * "Спарк" fox mascot — see defaultBuddyName / the AI Buddy tab icon), always
- * shown first and unlocked. The rest are locked (Spark/Premium) to exercise
- * that part of the design.
+ * ⚠️ These characters have no backend record, so starting a session with one
+ * silently falls back to a *different* (real) buddy — the user would be
+ * talking to a persona they didn't pick. That is why `buildMockBuddies` is
+ * gated behind `__DEV__` (same rule as DEV_MOCK_NOTIFICATIONS): in production
+ * the carousel shows only the real buddies the backend returns. Usukhbayar
+ * adds those via admin (name/emoji/GLB/etc.), and they appear with no app
+ * update. DELETE this file once the real roster is authored.
+ *
+ * `FOX_SLUG` is the default/flagship stand-in (matches the app's existing
+ * "Спарк" fox mascot — see defaultBuddyName / the AI Buddy tab icon), shown
+ * first and unlocked. The rest are locked to exercise that part of the design.
  *
  * Name/title/description/motto are bilingual (unlike real backend buddy
  * content, which is plain DB text) so the screen doesn't mix languages when
@@ -102,6 +106,8 @@ const DEFS: MockBuddyDef[] = [
 ];
 
 export function buildMockBuddies(t: (key: TranslationKey) => string, lang: Lang): Buddy[] {
+  // Never ship fake characters — production shows only what the backend returns.
+  if (!__DEV__) return [];
   return DEFS.map((d) => {
     const copy = lang === 'mn' ? d.mn : d.en;
     return {

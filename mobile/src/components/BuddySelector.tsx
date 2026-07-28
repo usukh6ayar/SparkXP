@@ -70,6 +70,14 @@ const DEFAULT_UNLOCK_COST = 500;
  * client-only placeholder). Remove once the backend sends real `isLocked`.
  */
 const POLICE_SLUG = 'police';
+/**
+ * Nothing is gated server-side yet: the backend sends no `isLocked` and the
+ * unlock sheet doesn't spend Sparks (see BuddyUnlockSheet). So the invented
+ * lock only runs in dev — where it exercises the design against the mock
+ * roster. In production every real buddy admin publishes stays open rather
+ * than showing a fake 500-Spark price it can't actually charge.
+ */
+const DEMO_LOCKING = __DEV__;
 /** Dark text on the gold Unlock button — white would have poor contrast on `colors.xp`. */
 const UNLOCK_TEXT_COLOR = '#402D00';
 
@@ -104,7 +112,7 @@ function withDefaults(buddy: Buddy, index: number, t: (key: TranslationKey) => s
     ...buddy,
     personalityTags: buddy.personalityTags ?? [t('traitFriendly'), t('traitPatient'), t('traitEncouraging')],
     motto: buddy.motto ?? t('defaultBuddyMotto'),
-    isLocked: buddy.isLocked ?? (index > 0 && buddy.slug !== POLICE_SLUG),
+    isLocked: buddy.isLocked ?? (DEMO_LOCKING && index > 0 && buddy.slug !== POLICE_SLUG),
     unlockCostSparks: buddy.unlockCostSparks ?? DEFAULT_UNLOCK_COST,
   };
 }
