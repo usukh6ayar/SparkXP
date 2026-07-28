@@ -20,7 +20,7 @@ import { appIcons } from "../../src/constants/appIcons";
 import { IconTile } from "../../src/components/IconTile";
 import { Pill } from "../../src/components/Pill";
 import { ProgressBar } from "../../src/components/ProgressBar";
-import { t } from "../../src/i18n";
+import { t, tf } from "../../src/i18n";
 import { useColors } from "../../src/settings/SettingsContext";
 import {
   spacing,
@@ -110,9 +110,8 @@ function games(t: (key: import("../../src/i18n").TranslationKey) => string): Gam
   ];
 }
 
-// TODO: бодит daily-challenge backend-ээс.
-const DAILY_DONE = 2;
-const DAILY_GOAL = 5;
+/** Daily-goal fallback while `/gamification` is still loading (backend: 50 XP). */
+const DAILY_GOAL_FALLBACK = 50;
 const PATH = [1, 2, 3, 4, 5]; // node-ууд (тухайн level доторх ахиц)
 
 export default function SorilScreen() {
@@ -126,6 +125,10 @@ export default function SorilScreen() {
   const level = gam?.level ?? 1;
   // Path nodes = progress through the current level (5 steps).
   const pathDone = gam ? Math.min(PATH.length, Math.round(gam.progress * PATH.length)) : 0;
+  // Today's challenge = real XP earned today vs the backend's daily goal.
+  // Until it loads we show 0 rather than a plausible-looking made-up number.
+  const dailyGoal = gam?.dailyGoal ?? DAILY_GOAL_FALLBACK;
+  const dailyDone = gam?.todayXp ?? 0;
   const router = useRouter();
   const open = () =>
     Alert.alert(t("comingSoon"), t("gameComingSoon"));
@@ -174,20 +177,24 @@ export default function SorilScreen() {
               </AppText>
             </View>
             <AppText variant="h3" color={c.white} style={styles.heroTitle}>
-              {t("dailyChallengeTitle")}
+              {tf("dailyChallengeTitle", { xp: dailyGoal })}
             </AppText>
+            {/* Was a flat "20 XP bonus waiting!" — the backend awards no such
+                bonus, so this now states the real XP still owed on the goal. */}
             <AppText variant="bodyStrong" color={c.xp}>
-              {t("dailyChallengeBonus")}
+              {dailyDone >= dailyGoal
+                ? t("dailyChallengeDone")
+                : tf("dailyChallengeRemaining", { xp: dailyGoal - dailyDone })}
             </AppText>
             <AppText
               variant="caption"
               color="rgba(255,255,255,0.9)"
               style={styles.heroProg}
             >
-              {DAILY_DONE} / {DAILY_GOAL} {t("completedOf")}
+              {dailyDone} / {dailyGoal} XP {t("completedOf")}
             </AppText>
             <ProgressBar
-              value={DAILY_DONE / DAILY_GOAL}
+              value={Math.min(1, dailyDone / dailyGoal)}
               color={c.success}
               track="rgba(255,255,255,0.3)"
               height={8}

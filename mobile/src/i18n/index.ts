@@ -327,8 +327,9 @@ const mn = {
   // Soril (games)
   sorilSubtitle: 'Мэдлэгээ шалгаж, амжилтаа ахиулаарай!',
   dailyChallenge: 'ӨНӨӨДРИЙН CHALLENGE',
-  dailyChallengeTitle: 'Өнөөдөр 50 XP авахад',
-  dailyChallengeBonus: '20 XP bonus хүлээж байна!',
+  dailyChallengeTitle: 'Өнөөдөр {xp} XP цуглуул',
+  dailyChallengeRemaining: 'Дуусгахад {xp} XP үлдлээ',
+  dailyChallengeDone: 'Өнөөдрийн зорилго биеллээ! 🎉',
   completedOf: 'дууссан',
   quizzesSection: 'Сорилууд',
   allLabel: 'Бүгд',
@@ -1095,8 +1096,9 @@ const en: Record<TranslationKey, string> = {
 
   sorilSubtitle: 'Test your knowledge and level up!',
   dailyChallenge: "TODAY'S CHALLENGE",
-  dailyChallengeTitle: 'Earn 50 XP today',
-  dailyChallengeBonus: '20 XP bonus waiting!',
+  dailyChallengeTitle: 'Earn {xp} XP today',
+  dailyChallengeRemaining: '{xp} XP to go',
+  dailyChallengeDone: "Today's goal complete! 🎉",
   completedOf: 'done',
   quizzesSection: 'Quizzes',
   allLabel: 'All',

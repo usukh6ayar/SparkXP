@@ -37,8 +37,9 @@ export default function ChatScreen() {
   const [buddiesErrorDetail, setBuddiesErrorDetail] = useState<string | null>(null);
   const [selected, setSelected] = useState<Buddy | null>(null);
   // Slugs the backend actually knows (from getBuddies) + a fallback real slug.
-  // Mock buddies (placeholder characters, see mockBuddies.ts) aren't in the DB,
-  // so their session is routed to a real buddy until Usukhbayar adds them.
+  // Only dev builds can hold a buddy the DB doesn't know (the mock roster is
+  // __DEV__-gated), and those route their session to a real buddy. In
+  // production every listed buddy is real, so the fallback never fires.
   const [realSlugs, setRealSlugs] = useState<Set<string>>(new Set());
   const [fallbackSlug, setFallbackSlug] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -111,10 +112,9 @@ export default function ChatScreen() {
 
   // Load the buddy list; the user picks + Applies one on the selector screen
   // before any session is started (see BuddySelector / mode === 'select').
-  // Real buddies are padded out with mock ones (see mockBuddies.ts) so the
-  // full carousel/lock design can be reviewed before Usukhbayar adds the
-  // rest via admin — a mock is dropped automatically once a real buddy with
-  // the same slug exists.
+  // In DEV the real buddies are padded out with mocks (see mockBuddies.ts) so
+  // the full carousel/lock design can be reviewed; `buildMockBuddies` returns
+  // [] in production, so shipped builds list only what admin has published.
   const loadBuddies = useCallback(() => {
     if (!token) return;
     setBuddiesLoading(true);
