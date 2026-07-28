@@ -35,8 +35,11 @@ export interface GamificationSummary extends LevelInfo {
   progressByLevel: Record<string, { done: number; total: number }>;
 }
 
-/** Default daily-XP goal (could become plan/admin-configurable later). */
+/** Fallback daily-XP goal for rows predating the per-user column. */
 const DAILY_GOAL = 50;
+
+/** The goals the app offers (Хөнгөн / Дунд / Ширүүн). */
+export const DAILY_GOAL_CHOICES = [20, 50, 100] as const;
 
 @Injectable()
 export class XpService {
@@ -110,6 +113,12 @@ export class XpService {
   }
 
   /** Streak + level + today's XP for the gamification UI. */
+  /** Persist the user's chosen daily XP goal, then return the fresh summary. */
+  async setDailyGoal(userId: string, dailyGoalXp: number) {
+    await this.users.update(userId, { dailyGoalXp });
+    return this.getGamification(userId);
+  }
+
   async getGamification(userId: string): Promise<GamificationSummary> {
     const user = await this.users.findOne({
       where: { id: userId },
@@ -119,6 +128,7 @@ export class XpService {
         longestStreak: true,
         lastActiveDate: true,
         level: true,
+        dailyGoalXp: true,
       },
     });
     const xp = user?.xp ?? 0;
@@ -177,7 +187,7 @@ export class XpService {
       currentStreak,
       longestStreak: user?.longestStreak ?? 0,
       todayXp: Number(todayRow?.sum ?? 0),
-      dailyGoal: DAILY_GOAL,
+      dailyGoal: user?.dailyGoalXp ?? DAILY_GOAL,
       cefrLevel: user?.level ?? null,
       lessonsDone: Number(lessonRow?.n ?? 0),
       quizzesDone,

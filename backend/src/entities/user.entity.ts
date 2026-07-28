@@ -110,6 +110,26 @@ export class User extends BaseEntity {
   @Column({ name: 'last_active_date', type: 'date', nullable: true })
   lastActiveDate: string | null;
 
+  /** Daily XP target the user picked (Хөнгөн 20 / Дунд 50 / Ширүүн 100). */
+  @Column({ name: 'daily_goal_xp', type: 'int', default: 50 })
+  dailyGoalXp: number;
+
+  // --- Push notifications ---
+  /** Expo push token (`ExponentPushToken[...]`). Null = device not registered. */
+  @Column({ name: 'expo_push_token', type: 'varchar', nullable: true })
+  expoPushToken: string | null;
+
+  /** User-facing opt-out. Reminders check this before sending. */
+  @Column({ name: 'push_enabled', type: 'boolean', default: true })
+  pushEnabled: boolean;
+
+  /**
+   * Last time a REMINDER push was sent (not broadcasts). Guarantees we never
+   * nag the same person twice in a day even if the cron runs more than once.
+   */
+  @Column({ name: 'last_reminder_at', type: 'timestamptz', nullable: true })
+  lastReminderAt: Date | null;
+
   // --- Location (for local leaderboards: by province / district) ---
   // Stored on the User so leaderboard queries stay simple. Populated either
   // from registration (user picks) or inherited from their school/org.
