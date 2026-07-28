@@ -309,6 +309,36 @@ Controller-level: JWT. Бүгд student-ийн өөрийн давталтын �
 | --- | --- | --- | --- |
 | GET `/gamification` | JWT | Streak, level, өнөөдрийн XP, зорилго + `progressByLevel` (CEFR island бүрийн `done/total`) | — |
 
+## 13a. Push мэдэгдэл — `/api/notifications`
+
+| Method + Path | Auth | Зорилго | Body |
+| --- | --- | --- | --- |
+| POST `/notifications/token` | JWT | Төхөөрөмжийн Expo token бүртгэх (idempotent). Хэлбэр буруу бол **400** | `{ token: "ExponentPushToken[...]" }` |
+| DELETE `/notifications/token` | JWT | Гарах/зөвшөөрөл цуцлахад token устгах | — |
+| POST `/notifications/prefs` | JWT | Сануулга асаах/унтраах (token хэвээр үлдэнэ) | `{ enabled: boolean }` |
+| POST `/notifications/broadcast` | admin | Бүх (эсвэл роль тус бүрийн) хэрэглэгчид push илгээх — **одоо бодитоор илгээнэ** (өмнө нь `console.log` stub байсан) | `BroadcastNotificationDto` |
+| GET `/notifications` | admin | Илгээсэн мэдэгдлийн түүх | — |
+
+**Өдөр тутмын давтлагын сануулга (cron).** UB цагаар **20:00**-д ажиллана
+(`scheduler.service.ts`). Сонгох дүрэм:
+- `word_reviews.next_review_at <= now()` тоо **≥ 5**
+- `expo_push_token` бий **ба** `push_enabled = true`
+- **өнөөдөр хичээллээгүй** (`last_active_date != today`) → идэвхтэй хэрэглэгчийг сайрхуулахгүй
+- сүүлийн **20 цагт** сануулга аваагүй (`last_reminder_at`) → cron 2 удаа ажиллавал давхар илгээхгүй
+
+Мессеж нь **тодорхой**: "*N үг чамайг хүлээж байна*" — ерөнхий "буцаж ирээрэй"
+биш. Expo `DeviceNotRegistered` гэж хариулсан token-ыг **автоматаар цэвэрлэнэ**
+(устгасан апп руу мөнхөд илгээхгүй).
+
+## 13b. Өдрийн зорилт — `/api/gamification`
+
+| Method + Path | Auth | Зорилго | Body |
+| --- | --- | --- | --- |
+| PATCH `/gamification/goal` | JWT | Өдрийн XP зорилт тавих. Зөвхөн **20 / 50 / 100** (өөр утга → **400**). Хариу нь шинэчилсэн gamification summary | `{ dailyGoalXp: 20\|50\|100 }` |
+
+`GET /gamification`-ийн `dailyGoal` нь одоо хатуу 50 биш, **хэрэглэгчийн сонголт**
+(`users.daily_goal_xp`).
+
 ## 14. Classes (багш) — `/api/classes`
 Controller-level: JWT. Зарим бичилт роль шаардана; заримд эзэмшлийг service шалгана.
 
