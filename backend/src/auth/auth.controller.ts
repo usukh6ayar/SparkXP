@@ -6,6 +6,16 @@ import { VerifyOtpDto, EmailOnlyDto, ResetPasswordDto } from './dto/otp.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { User } from '../entities/user.entity';
+import { Throttle } from '@nestjs/throttler';
+
+/**
+ * Strict per-IP limits for the credential/OTP surface. These endpoints were
+ * previously unlimited, which made password brute-forcing and guessing a
+ * 6-digit OTP (1,000,000 possibilities) purely a matter of time. The global
+ * 120/min baseline in AppModule is far too loose for them.
+ */
+const STRICT = { default: { limit: 5, ttl: 60_000 } };   // credentials
+const EMAIL_SEND = { default: { limit: 3, ttl: 300_000 } }; // outbound email
 
 /** Auth endpoints under /api/auth. */
 @Controller('auth')
@@ -13,12 +23,14 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   /** Create an account (unverified) and email an OTP. No token yet. */
+  @Throttle(EMAIL_SEND)
   @Post('register')
   register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
   }
 
   /** Confirm the email with the OTP → returns a token (logs in). */
+  @Throttle(STRICT)
   @Post('verify-otp')
   @HttpCode(200)
   verifyOtp(@Body() dto: VerifyOtpDto) {
@@ -26,6 +38,7 @@ export class AuthController {
   }
 
   /** Re-send the verification OTP. */
+  @Throttle(EMAIL_SEND)
   @Post('resend-otp')
   @HttpCode(200)
   resendOtp(@Body() dto: EmailOnlyDto) {
@@ -33,6 +46,7 @@ export class AuthController {
   }
 
   /** Log in with username (or email) + password, return a token. */
+  @Throttle(STRICT)
   @Post('login')
   @HttpCode(200) // login isn't "creating" a resource, so 200 not 201
   login(@Body() dto: LoginDto) {
@@ -40,6 +54,7 @@ export class AuthController {
   }
 
   /** Start password recovery — email a reset code. */
+  @Throttle(EMAIL_SEND)
   @Post('forgot-password')
   @HttpCode(200)
   forgotPassword(@Body() dto: EmailOnlyDto) {
@@ -47,6 +62,7 @@ export class AuthController {
   }
 
   /** Finish password recovery — set a new password with the emailed code. */
+  @Throttle(STRICT)
   @Post('reset-password')
   @HttpCode(200)
   resetPassword(@Body() dto: ResetPasswordDto) {

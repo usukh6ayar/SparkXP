@@ -1,9 +1,12 @@
 import { Controller, Get, Inject } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { REDIS_CLIENT } from '../redis/redis.module';
 import type Redis from 'ioredis';
 
+/** Deploy healthcheck — exempt from rate limiting so a probe can poll freely. */
+@SkipThrottle()
 @Controller('health')
 export class HealthController {
   constructor(
