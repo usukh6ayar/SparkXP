@@ -18,9 +18,9 @@
 
 | Эрэмбэ | Тоо | Гол сэдэв |
 | --- | --- | --- |
-| 🔴 Өндөр | 3 | Migration гинж тасарсан · `JWT_SECRET` default · Rate limit алга |
-| 🟠 Дунд | 8 | Lint/test ажиллахгүй · index дутуу · hardcoded өнгө · том файл · bundle ID зөрүү |
-| 🟡 Бага | 4 | TODO stub · `console.log` · i18n цоорхой · CI алга |
+| 🔴 Өндөр | 3 | ~~Migration гинж тасарсан~~ ✅ · `JWT_SECRET` default · Rate limit алга |
+| 🟠 Дунд | 11 | Lint/test ажиллахгүй · **crash reporting алга** · **CLAUDE.md буруу мэдээлэл** · index дутуу · hardcoded өнгө · том файл · bundle ID зөрүү |
+| 🟡 Бага | 6 | TODO stub · `console.log` · **үхмэл код** · **сануулга алга** · i18n цоорхой · CI алга |
 
 ---
 
@@ -55,8 +55,10 @@ timestamp нь `1785600000000`-ээс **бага** байх ёстой (pending 
 timestamp-ийн дарааллаар ажилладаг), дотор нь `CREATE TABLE IF NOT EXISTS`
 хэрэглэнэ. Ингэснээр **prod дээр no-op**, шинэ DB дээр зөв дарааллаар ажиллана.
 
-> Энэ PR-д ОРУУЛААГҮЙ: `main` нь Railway руу auto-deploy хийдэг тул migration-ыг
-> баримтын PR-т хольж болохгүй.
+> ✅ **ЗАССАН (PR #178).** `1785550000000-CreateAssignmentCompletions` нэмэгдэв —
+> timestamp нь TeacherPanelPhase1-ээс өмнө, `CREATE TABLE IF NOT EXISTS` тул prod
+> дээр no-op, шинэ орчинд зөв дарааллаар ажиллана. Зүрхний PR шинэ migration
+> нэмж байсан тул тасарсан гинжийг эхлээд нөхөх шаардлагатай байв.
 
 ### H2. `JWT_SECRET` нь `'change-me'` гэсэн default-той
 
@@ -163,6 +165,26 @@ Ledger нь append-only тул мөрийн тоо зөвхөн өснө.
 эрсдэлгүй эхлэл. `words.service.ts` нь CRUD + AI fill + bulk job + медиа гэсэн
 4 хариуцлагыг нэг дор барьж байна (God service).
 
+### M7a. Crash reporting / error monitoring ОГТ БАЙХГҮЙ
+
+`backend` · `mobile` · `admin` гурвуулаа Sentry (эсвэл түүнтэй адилтгах) ашигладаггүй
+— `package.json`-уудад `sentry`/`bugsnag` grep = **0**.
+
+Store-д гарсны дараа **хэрэглэгчийн утсан дээр юу эвдэрснийг харах арга байхгүй**
+болно. Хэрэглэгч "ажиллахгүй байна" гэж бичихээс өөр дохио ирэхгүй. Launch-ийн
+өмнө хийх ёстой хамгийн өндөр өгөөжтэй техникийн ажлуудын нэг (≈1 цаг):
+`@sentry/react-native` (mobile) + `@sentry/node` (backend).
+
+### M7b. `CLAUDE.md` админыг **Next.js** гэж бичсэн — бодитоор **Vite + React**
+
+`CLAUDE.md` §Repo Structure: *"`/admin` — Next.js web admin dashboard"*.
+Гэтэл `admin/package.json`-д `next` **байхгүй**, `vite` × 5 (`"dev": "vite"`,
+`@vitejs/plugin-react`, `vite build`). `README.md` нь зөв бичсэн.
+
+3 dev тус бүрийн Claude session энэ файлыг "shared brain" болгон уншдаг тул
+буруу framework нь **идэвхтэй төөрөгдүүлж** байна (Next.js-ийн routing/SSR
+таамаглалаар код бичих эрсдэл). Хамгийн хямд, хамгийн шууд өгөөжтэй засвар.
+
 ### M7. `app.json` bundle ID зөрүүтэй — store-д гарахын өмнө шийдэх
 
 | Талбар | Утга |
@@ -194,6 +216,8 @@ Android + slug + scheme + EAS дахин холбох) эсвэл буцаах. 
 | L3 | Production код дотор `console.log` | `notifications.service.ts`, `admin/.../WordsPage.tsx` (`src/scripts/*` нь зүгээр) |
 | L4 | Англи хатуу текст i18n-д ороогүй (level narrative) | `mobile/app/level/[code].tsx:79` |
 | L5 | CI байхгүй — `.github/workflows/` огт алга | repo root |
+| L6 | **Үхмэл код** — `sound.ts` бүрэн бичигдсэн ч хаанаас ч import хийгдээгүй, `SOURCES` хоосон (CODING_RULES §5 зөрчил) | `mobile/src/lib/sound.ts` |
+| L7 | **Сануулга (reminder) огт илгээгддэггүй** — `scheduler/`-т streak/давтлагын job алга, Expo Push нь stub. Гэтэл `WordReview`-д SM-2 due date аль хэдийн бий → өгөгдөл бэлэн, зөвхөн хүргэлт дутуу. Gamified апп-д хамгийн том retention хөшүүрэг | `backend/src/scheduler/`, `notifications.service.ts:22` |
 
 L5-ын улмаас M1–M3 (lint/test) нь ажиллаж эхэлсэн ч **автоматаар шалгагдахгүй**.
 Хамгийн бага CI: 3 төслийн `tsc --noEmit` + backend `jest`.
@@ -204,12 +228,15 @@ L5-ын улмаас M1–M3 (lint/test) нь ажиллаж эхэлсэн ч *
 
 | # | PR | Агуулга | Эрсдэл |
 | --- | --- | --- | --- |
-| 1 | `fix/migration-chain` | H1 — `CreateAssignmentCompletions` (`IF NOT EXISTS`, timestamp `1785550000000`) | Бага (prod дээр no-op) |
+| ~~1~~ | ~~`fix/migration-chain`~~ | ✅ **ХИЙГДСЭН — PR #178** (зүрхний PR-т багтав) | — |
 | 2 | `fix/auth-hardening` | H2 + H3 — secret fail-fast · throttler · helmet | Дунд — auth зам хөндөнө, тест хэрэгтэй |
 | 3 | `chore/lint-test-ci` | M1 + M2 + M3 + L5 — eslint config × 3, jest testRegex, GitHub Actions | Бага |
 | 4 | `perf/leaderboard-index` | M4 — composite index + migration | Бага |
 | 5 | `refactor/i18n-split` | M6-ийн эхний алхам — `i18n/index.ts`-ийг хуваах | Бага (зан төлөв өөрчлөхгүй) |
 | 6 | `chore/store-identity` | M7 + M8 — bundle ID шийдвэр + splash | **Шийдвэр эхэлж хэрэгтэй** |
+
+| 7 | `chore/sentry` | M7a — crash reporting (mobile + backend) | Бага |
+| 8 | `docs/claude-md-fix` | M7b — админы framework залруулга | ✅ хийгдсэн |
 
 > M5 (hardcoded өнгө) нь `CODING_RULES.md §7`-ийн refactor prompt-оор
 > **талбар тус бүрээр** явуулах нь зөв — нэг PR-т 71 газар бүү хөндөөрэй.

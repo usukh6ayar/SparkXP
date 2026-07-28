@@ -56,7 +56,8 @@ announced here first.
 
 - `/backend` — NestJS API (built — see "Current Status")
 - `/mobile` — React Native (Expo) app (Expo Router)
-- `/admin` — Next.js web admin dashboard (content + user + org management)
+- `/admin` — **Vite + React** web admin dashboard (content + user + org
+  management). Deployed on Vercel. *(Not Next.js — corrected 2026-07-28.)*
 - `CLAUDE.md` — this file (shared rules + project context)
 - `CODING_RULES.md` — **enforced coding standard (read before any code).** Less
   code · DRY · component/service-based · junior-readable; + a refactor prompt.
