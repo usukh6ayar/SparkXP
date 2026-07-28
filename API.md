@@ -1,7 +1,7 @@
 # SparkXP — Backend API Reference
 
 Backend (NestJS) endpoint-үүдийн бүрэн лавлах. **Зам/метод англиар**, тайлбар монголоор.
-Шинэчилсэн: 2026-07-04. Эх сурвалж: `backend/src/**/*.controller.ts` (22 controller).
+Шинэчилсэн: 2026-07-28. Эх сурвалж: `backend/src/**/*.controller.ts` (24 controller).
 
 > Mobile dev-үүд (Choi/Boju) `/backend`-ийг шууд заслахгүй — шинэ endpoint хэрэгтэй бол
 > Өсөхбаяр-аас хүсэн авч, энэ файлыг шинэчилнэ. Дэлгэрэнгүй дүрэм: `CLAUDE.md`.
