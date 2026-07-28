@@ -165,6 +165,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function persist(result: { accessToken: string; user: AuthUser }) {
+    // The GET cache now survives a process kill (see api/persistCache.ts), so
+    // logout alone is no longer enough — a fresh login on a device where
+    // someone else was signed in must start from an empty cache.
+    clearApiCache();
     await SecureStore.setItemAsync(TOKEN_KEY, result.accessToken);
     await SecureStore.setItemAsync(USER_KEY, JSON.stringify(result.user));
     setToken(result.accessToken);

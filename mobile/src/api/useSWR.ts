@@ -1,6 +1,6 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
-import { getCached } from './client';
+import { cacheReady, getCached } from './client';
 
 interface Options {
   /** Skip fetching (e.g. no auth token yet). Default true. */
@@ -48,6 +48,18 @@ export function useSWR<T>(
       refetch();
     }, [refetch]),
   );
+
+  // On a cold start the disk cache may still be loading when this screen first
+  // renders, so the instant paint above finds nothing. Repaint once hydration
+  // lands — but only if the network hasn't already answered with fresher data.
+  useEffect(() => {
+    let active = true;
+    void cacheReady.then(() => {
+      if (!active) return;
+      setData((current) => (current === undefined ? getCached<T>(path) : current));
+    });
+    return () => { active = false; };
+  }, [path]);
 
   return { data, loading, refetch };
 }
