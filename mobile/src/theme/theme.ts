@@ -89,7 +89,11 @@ const lightOverrides: Partial<AppColors> = {
   cream: '#EFEBFA',
   text: '#1A1430',
   textSecondary: '#5A5470',
-  textMuted: '#8A83A8',
+  // Light mode needs its OWN muted ink — the dark theme's #8A83A8 only reaches
+  // 3.2:1 on this background (WCAG AA needs 4.5:1 for the 11–12px caption /
+  // overline / placeholder text that defaults to this token). #6B6485 keeps the
+  // lavender-gray hue at 5.0:1 on the app background, 5.6:1 on white cards.
+  textMuted: '#6B6485',
   // textOnDark / textOnDarkMuted stay light — they sit on colored surfaces.
   border: '#E4DFF4',
   borderStrong: '#D5CEEC',
@@ -259,7 +263,8 @@ export const premiumThemes: Record<'dark' | 'light', PremiumPalette> = {
     cardBorder: 'rgba(108,59,255,0.16)',
     text: '#1A1430',
     textSecondary: '#5A5470',
-    textMuted: '#8A83A8',
+    // Own muted ink for light mode — see the note on `colors.textMuted` above.
+    textMuted: '#6B6485',
     primary: '#6C3BFF',
     primaryLight: '#7A4DFF',
     track: '#ECE8FA',

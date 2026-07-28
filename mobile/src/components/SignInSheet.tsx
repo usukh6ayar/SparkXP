@@ -201,7 +201,7 @@ export function SignInSheet({
           <TextField
             InputComponent={BottomSheetTextInput}
             leftIcon="person-outline"
-            placeholder={t('usernameOrEmail')}
+            label={t('usernameOrEmail')}
             autoCapitalize="none"
             autoCorrect={false}
             defaultValue={initial?.username}
@@ -210,7 +210,7 @@ export function SignInSheet({
           <TextField
             InputComponent={BottomSheetTextInput}
             leftIcon="lock-closed-outline"
-            placeholder={t('password')}
+            label={t('password')}
             secureToggle
             defaultValue={initial?.password}
             onChangeText={setPassword}

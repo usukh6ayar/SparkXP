@@ -259,7 +259,7 @@ export default function RegisterScreen() {
 
           <TextField
             leftIcon="at-outline"
-            placeholder={t('username')}
+            label={t('username')}
             autoCapitalize="none"
             autoCorrect={false}
             value={username}
@@ -267,13 +267,13 @@ export default function RegisterScreen() {
           />
           <TextField
             leftIcon="person-outline"
-            placeholder={t('fullName')}
+            label={t('fullName')}
             value={fullName}
             onChangeText={setFullName}
           />
           <TextField
             leftIcon="mail-outline"
-            placeholder={t('email')}
+            label={t('email')}
             autoCapitalize="none"
             keyboardType="email-address"
             value={email}
@@ -281,14 +281,14 @@ export default function RegisterScreen() {
           />
           <TextField
             leftIcon="lock-closed-outline"
-            placeholder={t('password')}
+            label={t('password')}
             secureToggle
             value={password}
             onChangeText={setPassword}
           />
           <TextField
             leftIcon="lock-closed-outline"
-            placeholder={t('confirmPassword')}
+            label={t('confirmPassword')}
             secureToggle
             value={confirm}
             onChangeText={setConfirm}
@@ -419,7 +419,7 @@ export default function RegisterScreen() {
 
           <TextField
             leftIcon="key-outline"
-            placeholder={t('otpCode')}
+            label={t('otpCode')}
             keyboardType="number-pad"
             maxLength={6}
             value={code}
