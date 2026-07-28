@@ -14,6 +14,7 @@ import * as authApi from '../api/auth';
 import type { AuthResult, AuthUser } from '../api/auth';
 import { t } from '../i18n';
 import { isBiometricAvailable, authenticateBiometric } from './biometrics';
+import { createAppLockPolicy } from './appLockPolicy';
 
 const TOKEN_KEY = 'englishxp.token';
 const USER_KEY = 'englishxp.user';
@@ -70,7 +71,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // True while the OS biometric sheet is up. The sheet sends the app briefly to
   // 'inactive'→'active', which would otherwise re-fire the prompt in a loop.
   const authRef = useRef(false);
-  const appStateRef = useRef(AppState.currentState);
+  // Tracks whether the app was really backgrounded (vs. a transient overlay
+  // like Control Center) — see appLockPolicy for why prev/next isn't enough.
+  const lockPolicyRef = useRef(createAppLockPolicy());
   tokenRef.current = token;
   bioRef.current = biometricEnabled;
   lockedRef.current = locked;
@@ -134,14 +137,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Re-lock a logged-in session (and re-prompt) whenever the app returns to the
-  // foreground — "lock on every open". Guarded against the biometric sheet's own
-  // background/foreground cycle via authRef.
+  // Re-lock a logged-in session (and re-prompt) when the app comes back from
+  // being BACKGROUNDED — not on every focus blip. Control Center, the
+  // notification shade, permission dialogs, screenshots and the Face ID sheet
+  // itself all bounce through 'inactive' without the user ever leaving; those
+  // must not demand Face ID again (see appLockPolicy).
   useEffect(() => {
     const sub = AppState.addEventListener('change', (next) => {
-      const prev = appStateRef.current;
-      appStateRef.current = next;
-      if (next !== 'active' || prev === 'active') return;
+      // Feed every transition so the policy's state stays accurate — it must
+      // run before any early return below.
+      if (!lockPolicyRef.current.next(next)) return;
       if (authRef.current) return; // the biometric sheet itself — ignore
       if (!tokenRef.current || !bioRef.current) return;
       if (!lockedRef.current) setLocked(true);
