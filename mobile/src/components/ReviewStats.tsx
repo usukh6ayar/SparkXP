@@ -12,13 +12,20 @@ import { useColors } from '../settings/SettingsContext';
 interface Props {
   known: number;
   review: number;
-  xpEarned: number;
   streak: number;
   onContinue: () => void;
 }
 
-/** Summary shown after every card in the deck has been swiped. */
-export function ReviewStats({ known, review, xpEarned, streak, onContinue }: Props) {
+/**
+ * Summary shown after every card in the deck has been swiped.
+ *
+ * Note there is no XP tile: `POST /reviews/:wordId` reschedules the card but
+ * awards no XP, so the "+N XP" this used to show was invented on the client and
+ * never appeared in the student's balance. Requested from Өсөхбаяр in
+ * `docs/REQUEST_choi_review_xp_and_streak.md`; the tile comes back when the
+ * server actually reports earned XP.
+ */
+export function ReviewStats({ known, review, streak, onContinue }: Props) {
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const graded = known + review;
@@ -28,7 +35,7 @@ export function ReviewStats({ known, review, xpEarned, streak, onContinue }: Pro
     { icon: 'checkmark-done', color: colors.success, value: `${accuracy}%`, label: t('accuracy') },
     { icon: 'sparkles', color: colors.success, value: known, label: t('knownLabel') },
     { icon: 'refresh', color: colors.streak, value: review, label: t('reviewLabel') },
-    { icon: 'flash', color: colors.xp, value: `+${xpEarned}`, label: t('xpEarned') },
+    { icon: 'albums', color: colors.primary, value: graded, label: t('cardsReviewed') },
   ] as const;
 
   return (
