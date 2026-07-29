@@ -1,4 +1,5 @@
 import { apiRequest } from './client';
+import type { HeartsState } from './hearts';
 
 export interface QuizQuestion {
   type: 'multiple_choice' | 'fill_blank' | 'word_match' | 'open_response';
@@ -93,6 +94,9 @@ export function submitQuiz(
 export interface CheckResult {
   correct: boolean;
   correctAnswer?: number | string | { left: string; right: string }[];
+  /** Hearts after this answer (server-authoritative). Absent if hearts are off /
+   *  Redis was down — the caller then reconciles via GET /hearts. */
+  hearts?: HeartsState;
 }
 
 /** POST /quizzes/:id/check — grade ONE answer without revealing the full key. */

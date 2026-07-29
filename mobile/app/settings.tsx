@@ -9,6 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../src/auth/AuthContext';
 import { isBiometricAvailable } from '../src/auth/biometrics';
 import { useSettings } from '../src/settings/SettingsContext';
+import { loadSoundEnabled, setSoundEnabled } from '../src/lib/sound';
 import { AppText } from '../src/components/Text';
 import { resolveAvatar } from '../src/lib/avatar';
 import { useLogoutConfirm, useComingSoon } from '../src/lib/useLogoutConfirm';
@@ -24,7 +25,9 @@ const avatarImg = require('../assets/buddy-menu.webp');
 const APP_VERSION = '1.0.0';
 
 // Locally-persisted switch prefs (UI-only — nothing else reacts to them yet).
-const KEYS = { notifications: 'settings.notifications', sound: 'settings.sound', haptics: 'settings.haptics' };
+// Sound is NOT here: it lives in `lib/sound.ts` (default OFF) so the audio layer
+// and this switch share one source of truth — see `useSoundPref` below.
+const KEYS = { notifications: 'settings.notifications', haptics: 'settings.haptics' };
 
 type Option<T> = { value: T; label: string; icon: IconName };
 
@@ -112,6 +115,24 @@ function usePref(key: string): [boolean, (v: boolean) => void] {
   return [value, set];
 }
 
+/**
+ * The sound-effect switch. Unlike `usePref` it defaults OFF (many learners study
+ * in public) and drives `lib/sound.ts` — which owns persistence under the same
+ * `settings.sound` key — so the switch and the audio layer never disagree.
+ */
+function useSoundPref(): [boolean, (v: boolean) => void] {
+  const [value, setValue] = useState(false);
+
+  useEffect(() => { loadSoundEnabled().then(setValue); }, []);
+
+  const set = useCallback((v: boolean) => {
+    setValue(v);
+    setSoundEnabled(v); // updates the live flag + persists
+  }, []);
+
+  return [value, set];
+}
+
 /** Small caps heading above a card group. */
 function SectionLabel({ p, children }: { p: PremiumPalette; children: string }) {
   return (
@@ -150,7 +171,7 @@ export default function SettingsScreen() {
   const { theme, lang, palette: p, setTheme, setLang, t } = useSettings();
 
   const [notifications, setNotifications] = usePref(KEYS.notifications);
-  const [sound, setSound] = usePref(KEYS.sound);
+  const [sound, setSound] = useSoundPref();
   const [haptics, setHaptics] = usePref(KEYS.haptics);
   // Only offer the biometric lock when the device actually supports it.
   const [bioAvailable, setBioAvailable] = useState(false);

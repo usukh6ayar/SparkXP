@@ -153,7 +153,7 @@ export function BuddyChatSheet({
         data={messages}
         keyExtractor={(m) => m.id}
         contentContainerStyle={[styles.list, bounded]}
-        ListEmptyComponent={<EmptyState />}
+        ListEmptyComponent={<EmptyState onStart={handleSend} />}
         ListFooterComponent={loading ? <TypingBubble styles={styles} c={c} /> : null}
         onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
         renderItem={({ item }) => <MessageBubble message={item} onReplay={onReplay} />}
@@ -293,7 +293,20 @@ function MessageBubble({
   );
 }
 
-function EmptyState() {
+/**
+ * Starter prompts (C3): tap-to-send openers so a brand-new chat is never a blank
+ * page. They are the English messages the learner sends, so they stay in English
+ * regardless of UI language (the buddy is an English tutor); only the small hint
+ * above them is localized.
+ */
+const STARTER_PROMPTS = [
+  "Let's have a short daily conversation",
+  'Ask me a question about my day',
+  'Teach me 3 new words',
+  'Help me fix my grammar',
+];
+
+function EmptyState({ onStart }: { onStart: (text: string) => void }) {
   const c = useColors();
   const styles = useMemo(() => makeStyles(c, false), [c]);
   return (
@@ -305,6 +318,22 @@ function EmptyState() {
       <AppText variant="body" color={c.textSecondary} center>
         {t('buddyChatIntro')}
       </AppText>
+      <AppText variant="caption" color={c.textSecondary} center style={styles.starterHint}>
+        {t('chatStarterHint')}
+      </AppText>
+      <View style={styles.starterList}>
+        {STARTER_PROMPTS.map((p) => (
+          <Pressable
+            key={p}
+            style={styles.starterChip}
+            onPress={() => { haptics.tap(); onStart(p); }}
+            accessibilityRole="button"
+            accessibilityLabel={p}
+          >
+            <AppText variant="body" color={c.primary} center>{p}</AppText>
+          </Pressable>
+        ))}
+      </View>
     </View>
   );
 }
@@ -409,4 +438,14 @@ const makeStyles = (c: AppColors, isLight: boolean) => StyleSheet.create({
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xl, paddingTop: spacing.xxxl },
   emptyImg: { width: 92, height: 92, borderRadius: 46, marginBottom: spacing.md },
   emptyTitle: { marginBottom: spacing.sm },
+  starterHint: { marginTop: spacing.lg, marginBottom: spacing.sm },
+  starterList: { alignSelf: 'stretch', gap: spacing.sm },
+  starterChip: {
+    borderWidth: 1,
+    borderColor: isLight ? c.border : c.glassBorder,
+    backgroundColor: c.surfaceAlt,
+    borderRadius: radius.lg,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+  },
 });
