@@ -633,6 +633,50 @@ k6 ramp: 0 → 250 VU (5 мин) → 250 VU барих (15 мин) → 500 VU (5
 хүсэлтэд ~70 мс хэмнэсэн. Гэхдээ зөв тохиргоо тул үлдээв: 10,000 DAU дээр pool
 дүүрэхээс сэргийлнэ (§4).
 
+### 12c. ⚠️ R2 — production дээр `r2.dev` ашиглаж байна (засах ёстой)
+
+Bucket-д **custom domain холбогдоогүй**, зөвхөн Public Development URL
+(`https://pub-6b9eaedaf87348b0ab542274f72b5c96.r2.dev`) ажиллаж байна.
+
+Cloudflare-ийн баримт ([R2 limits](https://developers.cloudflare.com/r2/platform/limits/),
+[public buckets](https://developers.cloudflare.com/r2/buckets/public-buckets/)):
+
+> "`r2.dev` … is **not intended for production usage** and has a variable rate
+> limit applied to it… If you exceed the rate limit (**hundreds of
+> requests/second**), requests will be temporarily throttled and you will receive
+> a **429 Too Many Requests**. **Bandwidth (throughput) may also be throttled.**"
+>
+> "To use features like WAF custom rules, **caching**, access controls, or Bot
+> Management, you must configure your bucket behind a custom domain. **These
+> capabilities are not available when using the `r2.dev` development url.**"
+
+| | `r2.dev` (одоо) | Custom domain |
+| --- | --- | --- |
+| Rate limit | **Тийм → 429** | Үгүй |
+| Cloudflare CDN кэш | **Байхгүй** | Бий (үнэгүй) |
+| WAF / Access / Bot | Байхгүй | Бий |
+| Egress үнэ | $0 | $0 |
+
+**Зардалд нөлөө бага** (кэшгүй → Class B ops ~9 сая/сар ≈ $3), гэхдээ **1,000+
+DAU дээр 429 гарч зураг ачаалагдахгүй болно** → launch-ийн өмнө засах ёстой.
+
+**Хийх алхмууд:**
+1. Домэйныг Cloudflare-т нэмэх (nameserver-ыг Cloudflare руу заана). ⚠️
+   `sparkxp.mn` **бүртгэгдээгүй** — авах боломжтой. `sparkxp.com` нь 2021 оноос
+   Hostinger дээр бүртгэлтэй.
+2. R2 → Settings → **Custom Domains → Connect Domain** → `cdn.<домэйн>`
+3. **Cache rule:** default-аар зөвхөн зарим өргөтгөл кэшлэгддэг → медиад
+   **"Cache Everything"** + урт TTL. R2-д **Smart Tiered Cache**-ыг зөвлөдөг.
+4. `R2_PUBLIC_BASE_URL` env-ийг шинэ домэйн болгох
+5. DB дэх хуучин `r2.dev` URL-уудыг backfill (эсвэл шилжилтийн үед хоёуланг зэрэг
+   асаалттай үлдээх — зэрэг ажиллана)
+6. Дуусаад **`r2.dev`-ийг унтраах** — эс бөгөөс WAF/Access тойрч bucket нээлттэй
+   хэвээр үлдэнэ (баримтын анхааруулга).
+
+✅ **Кодын тал бэлэн болсон:** `achievements/catalog.ts` дахь **100 хатуу
+`r2.dev` URL**-ыг зам болгож, `AchievementsService` нь `R2_PUBLIC_BASE_URL`-аас
+угсардаг болгов. Домэйн солиход **зөвхөн env** өөрчилнө, код дахин deploy хийхгүй.
+
 ### 12b. Бүс — аль хэдийн оновчтой (өөрчлөх шаардлагагүй)
 
 Монголоос хэмжсэн TCP RTT:
