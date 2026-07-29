@@ -1,5 +1,12 @@
 # SparkXP Mobile App Design System
 
+> ⚡ **Redesign v2.0 (2026-07-29) — `REDESIGN_SPEC.md` supersedes the
+> colour / typography / radius / elevation values in this file.** The token
+> half has landed in `src/theme/theme.ts`; the component + layout half
+> (Home / Lessons / Profile) is still to build. Read `REDESIGN_SPEC.md` first
+> for anything visual. Everything else here (philosophy, screen inventory,
+> copy tone) still applies.
+
 ## Design Philosophy
 
 SparkXP бол Монгол сурагчдад зориулсан gamified English learning app.
