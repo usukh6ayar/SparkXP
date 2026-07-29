@@ -94,8 +94,13 @@ export function submitQuiz(
 export interface CheckResult {
   correct: boolean;
   correctAnswer?: number | string | { left: string; right: string }[];
-  /** Hearts after this answer (server-authoritative). Absent if hearts are off /
-   *  Redis was down — the caller then reconciles via GET /hearts. */
+  /**
+   * Hearts remaining after this answer — a wrong one costs one, charged
+   * server-side. Optional for two reasons: a JS-only OTA update can reach a
+   * phone before the backend that returns it, and the backend omits it if
+   * Redis is down. Either way the caller falls back to its last known state
+   * or reconciles via `GET /hearts`.
+   */
   hearts?: HeartsState;
 }
 

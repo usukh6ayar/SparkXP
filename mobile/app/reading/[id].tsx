@@ -329,7 +329,10 @@ const makeStyles = (colors: AppColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   container: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg },
 
-  progressTrack: { height: 3, backgroundColor: colors.surfaceAlt },
+  // No track colour: a filled 3px bar directly under the header reads as a
+  // stray divider line between the back button and the cover before the reader
+  // has scrolled. Only the filled part should be visible.
+  progressTrack: { height: 3, backgroundColor: 'transparent' },
   progressFill: { height: 3, backgroundColor: colors.primary },
 
   cover: {

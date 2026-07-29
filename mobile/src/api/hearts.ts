@@ -1,32 +1,40 @@
 import { apiRequest } from './client';
 
 /**
- * Duolingo-style "hearts" (lives). The server is the ONLY source of truth —
- * never count locally. A wrong answer is charged inside `POST /quizzes/:id/check`
- * (see API.md §6a), so the check response carries a fresh `HeartsState`; this
- * client is for reading the current state and for spending Sparks to refill.
+ * Duolingo-style "hearts" (lives). Mirrors the backend `HeartsState`
+ * (`backend/src/hearts/hearts.service.ts`, documented in API.md §6a).
+ *
+ * The server is the ONLY source of truth — never count hearts locally. A wrong
+ * answer is charged inside `POST /quizzes/:id/check` (there is deliberately no
+ * "lose a heart" endpoint), so the check response already carries a fresh
+ * `HeartsState`. Regeneration is lazy on the server, so a stored count is
+ * meaningless without going through this API.
  */
 export interface HeartsState {
-  /** Hearts left right now (server already added any lazy regen). */
+  /** Hearts available right now (regeneration already folded in). */
   hearts: number;
-  /** Max hearts for the user's plan. */
+  /** Cap for this user's plan. */
   max: number;
-  /** Premium: hearts are never spent — the UI hides them entirely. */
+  /** True on premium plans — hearts never decrement and the UI hides them. */
   unlimited: boolean;
-  /** ISO time the next heart regenerates (null when full / unlimited). */
+  /** ISO time the NEXT heart regenerates; null when full or unlimited. */
   nextHeartAt: string | null;
-  /** ISO time hearts are fully restored (null when full / unlimited). */
+  /** ISO time hearts are back to full; null when full or unlimited. */
   fullAt: string | null;
-  /** Sparks it costs to refill to full right now (null when already full). */
+  /** Sparks needed to refill right now; null when full or unlimited. */
   refillCost: number | null;
 }
 
-/** Current hearts, regen accounted for. */
+/** GET /hearts — current state, with elapsed regeneration applied. */
 export function getHearts(token: string): Promise<HeartsState> {
   return apiRequest<HeartsState>('/hearts', { token });
 }
 
-/** Spend Sparks to refill to full. 400 if already full or Sparks are short. */
+/**
+ * POST /hearts/refill — spend Sparks to fill back up.
+ * Throws `ApiError` 400 when already full or short on Sparks (the backend
+ * message is already Mongolian, so callers can show it as-is).
+ */
 export function refillHearts(token: string): Promise<HeartsState> {
   return apiRequest<HeartsState>('/hearts/refill', { method: 'POST', token });
 }

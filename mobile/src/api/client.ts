@@ -9,6 +9,12 @@
  */
 import Constants from 'expo-constants';
 import { t } from '../i18n';
+import {
+  clearPersistedCache,
+  loadPersistedCache,
+  schedulePersist,
+  type CacheEntry,
+} from './persistCache';
 
 // In dev, use the same host Expo is served from (your PC's LAN IP) so a real
 // device can reach the backend without hardcoding an IP in .env.
@@ -41,18 +47,36 @@ interface RequestOptions {
 // successful GET so useSWR can paint instantly then revalidate. Mutations and
 // logout wipe the cache so gamification data (XP/streak) never goes stale.
 const inflight = new Map<string, Promise<unknown>>();
-const cache = new Map<string, { t: number; v: unknown }>();
+const cache = new Map<string, CacheEntry>();
 
 const keyOf = (method: string, path: string) => `${method} ${path}`;
+
+// The cache is also written to disk (see persistCache.ts) so a cold start shows
+// the last good data instead of empty screens — the normal case on an unstable
+// connection. Hydration starts on import and finishes long before the user can
+// act; `cacheReady` lets callers (useSWR) repaint once it lands.
+export const cacheReady: Promise<void> = loadPersistedCache()
+  .then((stored) => {
+    // Anything fetched during hydration is newer than the disk copy, so live
+    // entries win.
+    for (const [key, entry] of stored) {
+      if (!cache.has(key)) cache.set(key, entry);
+    }
+  })
+  .catch(() => {});
 
 /** Last cached value for a GET path — used by useSWR for the instant paint. */
 export function getCached<T>(path: string): T | undefined {
   return cache.get(keyOf('GET', path))?.v as T | undefined;
 }
 
-/** Wipe the GET cache. Call on logout (avoid leaking the previous user's data). */
+/**
+ * Wipe the GET cache, on disk too. Call whenever the session changes (login and
+ * logout) so one user's cached reads can never show up in another's app.
+ */
 export function clearApiCache(): void {
   cache.clear();
+  void clearPersistedCache();
 }
 
 export async function apiRequest<T>(
@@ -99,7 +123,10 @@ export async function apiRequest<T>(
     // Side-effects on a detached chain so the caller still gets clean error
     // propagation (and we don't create an unhandled rejection here).
     void run.then(
-      (v) => cache.set(key, { t: Date.now(), v }),
+      (v) => {
+        cache.set(key, { t: Date.now(), v });
+        schedulePersist(cache); // debounced — a screen's six GETs write once
+      },
       () => {},
     ).finally(() => inflight.delete(key));
   } else {

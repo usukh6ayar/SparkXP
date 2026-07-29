@@ -209,6 +209,65 @@ QA хүснэгтийн (27 мөр) кодтой тулгасан шалгалт
 `src/components/BuddyChatSheet.tsx`. Мөн shared `TextField`-д `hint`/`error` prop
 **нэмсэн** (нэмэлт, хуучин хэрэглээг эвдэхгүй).
 
+#### ✅ Choi — Retention багц + зүрхний UI (2026-07-29) · ДАВХАРДУУЛАХГҮЙ
+
+Өсөхбаярын өгсөн retention жагсаалтын **№1 · №2 · №4** бүрэн, **№3** хэсэгчлэн.
+Нэмээд **зүрхний (hearts) бүх mobile тал** — энэ нь жагсаалтад байгаагүй ч
+Өсөхбаяр backend-ээ нэгтгэсэн тул mobile тал дутуу үлдсэн байсан.
+**Дахин хийх шаардлагагүй:**
+
+| Ажил | Юу хийгдсэн | Шинэ файл |
+| --- | --- | --- |
+| **Өдрийн зорилт + XP цагираг** (№1) | Home дээр Apple Fitness маягийн цагираг («Өнөөдөр 30/50 XP»), дарвал зорилт сонгох (Хөнгөн 20 / Дунд 50 / Ширүүн 100 → `PATCH /gamification/goal`). Байгаа `ProgressRing`-ийг ашигласан — шинээр зураагүй | `DailyGoalCard` · `DailyGoalSheet` |
+| **Streak freeze** (№2) | Home hero-гийн streak badge дарагдана → Sparks-аар мөстөлт авах (`POST /gamification/streak-freeze`), дэд мөрөнд `❄ N мөстөлт` | `StreakFreezeSheet` |
+| **Офлайн тэсвэр** (№4) | GET кэшийг AsyncStorage-д хадгална (7 хоног TTL · 60 бичлэг · 256KB хязгаар · 1.5с debounce). Cold start дээр хоосон дэлгэц гарахаа больсон. ⚠️ Кэш process-ийг даван үлддэг тул **нэвтрэх үед ч** `clearApiCache()` дуудна (өмнөх хэрэглэгчийн дата гоожихоос сэргийлэв) | `persistCache.ts` |
+| **Push** (№3) | API давхарга бэлэн: `registerPushToken` / `deletePushToken` / `setPushPrefs` + token regex. ⛔ Цааш нь **блоклогдсон** — доор | — |
+| **Зүрх (hearts) — бүх mobile тал** | Quiz толгойд + Home hero-д зүрх; буруу хариултад бүдгэрч сэгсэрнэ; дарвал дэлгэрэнгүй (үлдсэн тоо · дараагийн сэргэлт · бүгд дүүрэх · Sparks-аар дүүргэх); 0 болбол блоклох цонх; сэргэхэд автоматаар хаагдана | `hearts.ts` · `HeartsRow` · `HeartsSheet` · `countdown.ts` |
+| **Дундын цонхны бүрхүүл** | 3 цонх ижил backdrop/card давхардуулсныг `SheetModal` болгож гаргав (`dismissable` prop = блоклох горим). *(`BuddyUnlockSheet` мөн ижил давхардалтай — Boju-гийн файл тул хөндөөгүй)* | `SheetModal` |
+
+**Засварласан бодит алдаанууд** (кодоос батлагдсан, таамаг биш):
+
+1. **Home зөвхөн mount дээр л ачаалдаг байсан** (`useEffect`) → дасгалаас буцахад
+   XP · streak · зүрх · цагираг бүгд хуучин хэвээр үлддэг. `useFocusEffect` болгов.
+2. **`ProgressBar`-ын дотоод `width:'100%'`** нь `flex:1`-тэй зөрчилдөж зүрхийг
+   дэлгэцний гадна түлхэж байсан → wrapper-т оруулав.
+3. **Quiz `/check` унавал чимээгүй `proceed()` дуудаж байсан** → сүүлийн асуулт
+   дээр feedback огт үзүүлэлгүй шууд дүн рүү үсэрдэг. Одоо алдааг хэлээд зогсоно.
+4. **Reading-ийн явцын зурвас** (`progressTrack`) 0% үед саарал зураас болж,
+   буцах товч ба cover зургийн хооронд «хуваагч» мэт харагддаг байв → ил тод болгов.
+5. **Флашкартын XP хуурамч байсан** — `swipe.tsx` `+10`/`+2` гэж дотооддоо тоолж
+   «+300 XP» харуулдаг атал `POST /reviews/:wordId` **XP огт олгодоггүй**.
+   Хуурамч тоог устгаж, бодит үзүүлэлт (үзсэн карт) тавив.
+
+**Quiz урсгал өөрчлөгдсөн (Boju АНХААР — доор):** буруу хариулсан асуулт эгнээний
+ард буцаж **дахин ирнэ**; эхний удаад зөв хариу **задрахгүй** (зөвхөн «дахин ирнэ»
+сануулга); **2 дахь** удаад хариу гараад асуулт хасагдана → цааш / тест дуусна.
+Ингэснээр зүрх утга учиртай болж (давталтыг зүрх хязгаарлана), мухардах эрсдэлгүй.
+Тохируулга: `REVEAL_AFTER_TRIES = 2`.
+
+> ⛔ **Өсөхбаярт 4 хүсэлт** — `docs/REQUEST_choi_*.md` (тус бүр кодын хэсэгтэй):
+> 1. `push_notifications` — `expo-notifications` + `expo-device` dependency,
+>    `app.json` plugin, dev-client build. Expo Go нь SDK 53-аас хойш remote push
+>    дэмждэггүй тул Choi шалгаж ч чадахгүй.
+> 2. `review_xp_and_streak` — (a) `POST /reviews/:wordId` XP олгодоггүй
+>    (`XpSource.WORD_REVIEW` enum байгаа ч ашиглагдаагүй) → флашкарт XP ч streak ч
+>    өгөхгүй; (b) streak нь **өдрийн зорилтоос хамаардаггүй** — 1 XP олоход ахина.
+> 3. `streak_freeze_cost` — `GET /gamification` нь үнэ/дээд хязгаарыг буцаадаггүй
+>    (зүрхний `HeartsState` нь `refillCost` буцаадаг — freeze дээр л дутуу).
+>    Mobile тал optional талбараар бэлэн, ирвэл автоматаар хэрэглэнэ.
+> 4. `hearts_regen_tuning` — 4 цаг хэт удаан. **Илэрсэн цоорхой:** `plans` модуль
+>    ч, admin-д багцын хуудас ч байхгүй тул зүрх/freeze-ийн эдийн засгийг
+>    **deploy-гүйгээр тааруулах боломжгүй** (CLAUDE.md-ийн дүрэмтэй зөрчилддөг).
+
+⚠️ **Boju АНХААР** — энэ багцад чиний эзэмшлийн файл орсон:
+**`app/quiz/[id].tsx`** (зүрх + давтуулах урсгал — дээрх тайлбар харна уу).
+Merge хийхээсээ өмнө заавал pull хий. Мөн `soril.tsx`-д `DAILY_GOAL_FALLBACK = 50`
+гэсэн хиймэл тоо **үлдсэн** — чиний файл тул Choi хөндөөгүй, зассан нь дээр.
+
+ℹ️ **Өсөхбаярт тэмдэглэл:** Soril табын 4 тоглоом (`/game/*`) нь `/quizzes/:id/check`
+ашигладаггүй тул **зүрх огт зарцуулдаггүй** — сурагч хязгааргүй тоглох боломжтой.
+Backend-ийн зохиомж, бүтээгдэхүүний хувьд зөрчилтэй эсэхийг шийдэх шаардлагатай.
+
 ### Boju (Mobile — games & social)
 - ⚠️ **Choi `app/quiz/[id].tsx`-д IELTS-ийн жижиг нэмэлт хийсэн (2026-07-22)** —
       merge хийхээсээ өмнө pull хий: (1) `audioUrl` байвал сонсголын play/pause мөр,
@@ -299,8 +358,8 @@ QA хүснэгтийн (27 мөр) кодтой тулгасан шалгалт
 | **QPay төлбөр** | Өсөхбаяр | Premium багцын бодит төлбөр (Payment entity + QPay webhook + багц config) |
 | Багц/plan limit config | Өсөхбаяр | Voice/token/dictionary/Sparks limit-ийг admin/DB-ээс (апп шинэчлэлгүй) |
 | **Badge & Achievement** | Boju | Achievement badge систем + Profile дээр харуулах |
-| **Push Notification** | Өсөхбаяр (BE) + Choi/Boju (FE) | Streak сануулга, даалгавар, шинэ контент push |
-| Streak сайжруулалт | Choi | Streak freeze/reminder, өдрийн зорилго логик |
+| **Push Notification** | Өсөхбаяр (BE) + Choi/Boju (FE) | BE + cron ✅ · Choi-гийн API давхарга ✅ · ⛔ dependency + dev-client build хүлээж байна (`docs/REQUEST_choi_push_notifications.md`) |
+| Streak сайжруулалт | Choi | Freeze ✅ · өдрийн зорилго ✅ (2026-07-29, дээрх багц) · сануулга = push-тай хамт · ⛔ streak-ийн дүрэм BE-д (`docs/REQUEST_choi_review_xp_and_streak.md`) |
 
 ### 🌊 Update 2 — Speaking & Voice AI (2026 оны 8-р сар)
 > ⚠️ Хамгийн өндөр зардалтай хэсэг → **AI Gateway + guardrail** заавал (FUTURE_PLAN §4).

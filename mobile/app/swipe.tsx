@@ -56,7 +56,6 @@ export default function ReviewFlashcardsScreen() {
   const [streak, setStreak] = useState(0);
   const [known, setKnown] = useState(0);
   const [review, setReview] = useState(0);
-  const [xpEarned, setXpEarned] = useState(0);
 
   const player = useAudioPlayer();
   const audioStatus = useAudioPlayerStatus(player);
@@ -137,11 +136,9 @@ export default function ReviewFlashcardsScreen() {
     if (kind === 'know') {
       if (token) submitReview(token, w.id, 5).catch(() => {});
       setKnown((k) => k + 1);
-      setXpEarned((x) => x + 10);
     } else if (kind === 'review') {
       if (token) submitReview(token, w.id, 1).catch(() => {});
       setReview((r) => r + 1);
-      setXpEarned((x) => x + 2);
     } else if (kind === 'favorite') {
       if (token && !w.saved) toggleSave(token, w.id).catch(() => {});
       setQueue((q) => q.map((x, i) => (i === stateRef.current.index ? { ...x, saved: true } : x)));
@@ -287,7 +284,7 @@ export default function ReviewFlashcardsScreen() {
           <AppText variant="body" center color={c.textSecondary} style={{ marginTop: 4 }}>{t('noReviewsHint')}</AppText>
         </View>
       ) : done ? (
-        <ReviewStats known={known} review={review} xpEarned={xpEarned} streak={streak} onContinue={() => router.back()} />
+        <ReviewStats known={known} review={review} streak={streak} onContinue={() => router.back()} />
       ) : (
         <>
         <View style={styles.deck}>
