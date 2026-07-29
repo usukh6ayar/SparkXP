@@ -10,7 +10,9 @@ import {
   RefreshControl,
   useWindowDimensions,
 } from 'react-native';
-import Animated, { ZoomIn } from 'react-native-reanimated';
+import Animated, {
+  ZoomIn, useSharedValue, useAnimatedStyle, withRepeat, withSequence, withTiming,
+} from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -98,12 +100,27 @@ const LOCKED_AHEAD = 1;     // just the single "Next" node past the real lessons
 const MIN_NODES = 4;        // always show at least this many slots
 const BEAD = 11;            // golden trail bead diameter
 const BEAD_GAP = 22;        // spacing between beads along the trail
-const NEXT_XP = 10;         // hinted XP shown on the "Next" locked node
 
 /** Gentle serpentine wave — node x as a fraction of width, clamped on-screen. */
 function nodeXFrac(i: number): number {
   const f = 0.5 + 0.26 * Math.sin(i * 0.9 + 0.6);
   return Math.max(0.2, Math.min(0.8, f));
+}
+
+/** The current node's glow ring — softly pulses (§3.2b: exactly one node pulses).
+ *  Frozen when Reduce Motion is on. */
+function CurrentRing({ left, top, reduce }: { left: number; top: number; reduce: boolean }) {
+  const s = useSharedValue(1);
+  useEffect(() => {
+    if (reduce) { s.value = 1; return; }
+    s.value = withRepeat(
+      withSequence(withTiming(1.12, { duration: 1200 }), withTiming(1, { duration: 1200 })),
+      -1,
+      false,
+    );
+  }, [reduce, s]);
+  const anim = useAnimatedStyle(() => ({ transform: [{ scale: s.value }] }));
+  return <Animated.View pointerEvents="none" style={[styles.ring, styles.ringCurrent, { left, top }, anim]} />;
 }
 
 export default function LevelScreen() {
@@ -165,6 +182,8 @@ export default function LevelScreen() {
   const done = levelProg?.done ?? 0;
   const total = levelProg?.total ?? 0;
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  // The first `done` lessons of this level are completed; the next is "current".
+  const completedCount = Math.min(done, lessons.length);
 
   // One node per lesson + a few locked "coming soon" nodes. The path is tall
   // enough to hold them all and scrolls; node 1 sits at the very bottom.
@@ -181,24 +200,19 @@ export default function LevelScreen() {
 
   // Beaded golden trail: sample dots evenly along the polyline between nodes
   // (a bead every BEAD_GAP px), so it curves nicely for any number of nodes.
-  const beads: { x: number; y: number; key: string }[] = [];
+  // Segments at/above the current node are "ahead" (not yet earned) → rendered
+  // muted, so travelled-vs-ahead reads at a glance like the island trail (§3.2b).
+  const beads: { x: number; y: number; key: string; ahead: boolean }[] = [];
   for (let i = 0; i < nodeCount - 1; i++) {
     const a = nodeCenter(i);
     const b = nodeCenter(i + 1);
+    const ahead = i >= completedCount;
     const steps = Math.max(1, Math.round(Math.hypot(b.x - a.x, b.y - a.y) / BEAD_GAP));
     for (let k = 0; k < steps; k++) {
       const t = k / steps;
-      beads.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, key: `${i}-${k}` });
+      beads.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, key: `${i}-${k}`, ahead });
     }
   }
-
-  // The first `done` lessons of this level count as completed (green + stars);
-  // the next unlocked one is "current"; anything past the real lessons is locked.
-  const completedCount = Math.min(done, lessons.length);
-  const lessonXp = (l?: Lesson) => {
-    const xp = (l?.content as { xp?: number } | undefined)?.xp;
-    return typeof xp === 'number' ? xp : 20;
-  };
 
   return (
     <View style={[styles.root, { backgroundColor: isLight ? '#DCEAF5' : '#06101C' }]}>
@@ -223,42 +237,38 @@ export default function LevelScreen() {
       >
         <View style={{ height: pathHeight }}>
           {!loading &&
-            // Beaded golden trail (behind the nodes).
+            // Beaded golden trail (behind the nodes); ahead segments run muted.
             beads.map((p) => (
-              <View key={`bead-${p.key}`} style={[styles.bead, { left: p.x - BEAD / 2, top: p.y - BEAD / 2 }]} />
+              <View
+                key={`bead-${p.key}`}
+                style={[styles.bead, p.ahead && styles.beadAhead, { left: p.x - BEAD / 2, top: p.y - BEAD / 2 }]}
+              />
             ))}
 
           {!loading &&
             Array.from({ length: nodeCount }).map((_, i) => {
               const lesson = lessons[i];
               const c = nodeCenter(i);
+              // Four node states (§3.2b): mastered (done) · current (the one that
+              // pulses) · unlocked (a real lesson ahead) · locked (coming soon).
               const completed = i < completedCount;
               const current = i === completedCount && i < lessons.length;
               const locked = i >= lessons.length;
-              const isFirstLocked = i === lessons.length;
-              const ringColor = locked ? islandMap.purple : meta.color;
-              // Label bubble sits on the side the node leans away from.
-              const leftLean = nodeXFrac(i) < 0.5;
-              const bubbleSide = leftLean
-                ? { left: c.x + NODE / 2 + 14 }
-                : { right: width - (c.x - NODE / 2 - 14) };
+              const unlocked = !completed && !current && !locked;
               return (
                 <Fragment key={i}>
-                  {/* Glowing ring around the node */}
-                  <View
-                    pointerEvents="none"
-                    style={[
-                      styles.ring,
-                      {
-                        left: c.x - RING / 2,
-                        top: c.y - RING / 2,
-                        borderColor: locked ? 'rgba(150,130,255,0.5)' : ringColor,
-                        shadowColor: ringColor,
-                        shadowOpacity: locked ? 0 : 0.9, // no glow on locked rings → no bleed behind header
-                      },
-                    ]}
-                  />
-                  {/* Node circle (number or lock) — pops in as the trail builds */}
+                  {/* Rings: current pulses (glow); unlocked gets a quiet outline;
+                      mastered + locked have none. */}
+                  {current ? (
+                    <CurrentRing left={c.x - RING / 2} top={c.y - RING / 2} reduce={reduceMotion} />
+                  ) : unlocked ? (
+                    <View
+                      pointerEvents="none"
+                      style={[styles.ring, styles.ringUnlocked, { left: c.x - RING / 2, top: c.y - RING / 2 }]}
+                    />
+                  ) : null}
+
+                  {/* Node — fill + glyph vary by state. */}
                   <Animated.View
                     style={[styles.nodeWrap, { left: c.x - NODE / 2, top: c.y - NODE / 2 }]}
                     entering={reduceMotion ? undefined : ZoomIn.delay(i * 45).springify()}
@@ -267,44 +277,37 @@ export default function LevelScreen() {
                       onPress={lesson ? () => { haptics.tap(); router.push(`/lesson/${lesson.id}`); } : undefined}
                       style={({ pressed }) => [
                         styles.node,
+                        completed && styles.nodeMastered,
+                        current && styles.nodeCurrent,
+                        unlocked && styles.nodeUnlocked,
+                        locked && styles.nodeLocked,
                         pressed && lesson && { transform: [{ scale: 0.94 }] },
                       ]}
                     >
-                      {locked ? (
-                        <Ionicons name="lock-closed" size={22} color="rgba(255,255,255,0.75)" />
+                      {current ? (
+                        <LinearGradient
+                          colors={colors.primaryGradient}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 1 }}
+                          style={styles.nodeFill}
+                        />
+                      ) : null}
+                      {completed ? (
+                        <Ionicons name="checkmark" size={28} color={colors.white} />
+                      ) : locked ? (
+                        <Ionicons name="lock-closed" size={22} color={colors.lockedInk} />
                       ) : (
                         <AppText variant="h3" color={colors.white}>{i + 1}</AppText>
                       )}
                     </Pressable>
                   </Animated.View>
-                  {/* Three stars sitting on the lower rim of a completed node */}
-                  {completed && (
-                    <View style={[styles.starRow, { left: c.x - 33, top: c.y + NODE / 2 - 14 }]} pointerEvents="none">
-                      {[0, 1, 2].map((s) => (
-                        <Ionicons key={s} name="star" size={17} color={islandMap.gold} style={s === 1 ? styles.starMid : styles.star} />
-                      ))}
+
+                  {/* "ЭНД" flag above the current node. */}
+                  {current ? (
+                    <View pointerEvents="none" style={[styles.endFlag, { left: c.x - 26, top: c.y - RING / 2 - 22 }]}>
+                      <AppText variant="overline" color={colors.white}>{t('youAreHereShort')}</AppText>
                     </View>
-                  )}
-                  {/* Side label bubble (Great job / Start / Next) */}
-                  {(completed || current || isFirstLocked) && (
-                    <View
-                      style={[styles.bubble, bubbleSide, { top: c.y - 24, backgroundColor: C.card, borderColor: C.cardBorder }]}
-                      pointerEvents="none"
-                    >
-                      {isFirstLocked ? (
-                        <>
-                          <AppText variant="bodyStrong" color={C.text}>Next</AppText>
-                          <AppText variant="caption" color={C.textDim}>New words</AppText>
-                          <AppText variant="label" color={islandMap.gold}>+{NEXT_XP} XP</AppText>
-                        </>
-                      ) : (
-                        <>
-                          <AppText variant="bodyStrong" color={meta.color}>{current ? 'Start' : 'Great job!'}</AppText>
-                          <AppText variant="label" color={islandMap.gold}>+{lessonXp(lesson)} XP</AppText>
-                        </>
-                      )}
-                    </View>
-                  )}
+                  ) : null}
                 </Fragment>
               );
             })}
@@ -509,30 +512,39 @@ const styles = StyleSheet.create({
     borderRadius: RING / 2,
     borderWidth: 4,
     backgroundColor: 'transparent',
-    shadowOpacity: 0.9,
-    shadowRadius: 8,
     shadowOffset: { width: 0, height: 0 },
   },
-  starRow: {
-    position: 'absolute',
-    width: 66,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'flex-end',
+  // Current node — glowing violet halo (pulses via CurrentRing).
+  ringCurrent: {
+    borderColor: colors.glow,
+    shadowColor: colors.glow,
+    shadowOpacity: 0.9,
+    shadowRadius: 10,
   },
-  star: { marginHorizontal: -1 },
-  starMid: { marginHorizontal: -1, marginBottom: 5 },
-  bubble: {
+  // Unlocked node — a quiet outline, no glow.
+  ringUnlocked: {
+    borderWidth: 2,
+    borderColor: colors.borderStrong,
+    shadowOpacity: 0,
+  },
+  // Ahead-of-you trail beads run muted + smaller (not yet earned).
+  beadAhead: {
+    backgroundColor: 'rgba(167,155,208,0.45)',
+    shadowOpacity: 0,
+    transform: [{ scale: 0.7 }],
+  },
+  // "ЭНД" flag above the current node.
+  endFlag: {
     position: 'absolute',
-    maxWidth: 150,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 14,
-    borderWidth: 1,
-    shadowColor: '#000',
-    shadowOpacity: 0.25,
+    width: 52,
+    alignItems: 'center',
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: colors.primary,
+    shadowColor: colors.glow,
+    shadowOpacity: 0.5,
     shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 2 },
     elevation: 5,
   },
   nodeWrap: { position: 'absolute', width: NODE, height: NODE },
@@ -544,6 +556,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: 'rgba(10,14,30,0.78)',
     borderWidth: 3,
+    borderColor: 'transparent',
     // soft glow
     shadowColor: '#000',
     shadowOpacity: 0.5,
@@ -551,4 +564,11 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
     elevation: 8,
   },
+  // The gradient fill inside the current node (matches the circle via radius).
+  nodeFill: { ...StyleSheet.absoluteFillObject, borderRadius: NODE / 2 },
+  // Per-state fills (§3.2b).
+  nodeMastered: { backgroundColor: islandMap.green, borderColor: 'rgba(255,255,255,0.5)' },
+  nodeCurrent: { borderColor: colors.glow },
+  nodeUnlocked: { backgroundColor: colors.surface, borderColor: colors.borderStrong },
+  nodeLocked: { backgroundColor: colors.lockedSurface, borderColor: 'rgba(139,130,173,0.25)' },
 });

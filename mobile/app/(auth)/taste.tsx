@@ -13,7 +13,7 @@ import { markTasteCompleted } from '../../src/lib/tasteTask';
 import { haptics } from '../../src/lib/haptics';
 import { t, tf } from '../../src/i18n';
 import { useColors } from '../../src/settings/SettingsContext';
-import { spacing, radius, fontSize, type AppColors } from '../../src/theme/theme';
+import { spacing, radius, fontSize, progressGradients, type AppColors } from '../../src/theme/theme';
 
 const COUNT = 3;
 /** Server-fixed onboarding bonus (backend `ONBOARDING_XP`), shown as a promise. */
@@ -109,7 +109,7 @@ export default function TasteScreen() {
       <View style={styles.head}>
         <AppText variant="h2">{t('tasteTitle')}</AppText>
         <AppText variant="body" color={c.textSecondary}>{t('tasteSubtitle')}</AppText>
-        <ProgressBar value={(index + (answered ? 1 : 0)) / questions.length} />
+        <ProgressBar value={(index + (answered ? 1 : 0)) / questions.length} gradient={progressGradients.primary} />
         <AppText variant="caption" color={c.textMuted}>
           {tf('tasteProgress', { n: index + 1, total: questions.length })}
         </AppText>

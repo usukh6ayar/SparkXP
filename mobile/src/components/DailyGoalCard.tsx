@@ -7,7 +7,7 @@ import { ProgressRing } from './ProgressRing';
 import { PressableScale } from './PressableScale';
 import { useColors } from '../settings/SettingsContext';
 import { t, tf } from '../i18n';
-import { spacing, radius, type AppColors } from '../theme/theme';
+import { spacing, radius, progressGradients, type AppColors } from '../theme/theme';
 
 /**
  * Today's XP against the student's chosen daily target — an Apple Fitness style
@@ -44,7 +44,7 @@ export function DailyGoalCard({
         progress={progress}
         size={78}
         stroke={8}
-        color={done ? c.success : c.xp}
+        gradient={done ? progressGradients.success : progressGradients.xp}
         track={c.surfaceAlt}
       >
         {done ? (

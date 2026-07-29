@@ -11,7 +11,7 @@ import { AppText } from '../../src/components/Text';
 import { ProgressRing } from '../../src/components/ProgressRing';
 import { CategoryBrowser, type BrowserItem } from '../../src/components/CategoryBrowser';
 import { t, tf } from '../../src/i18n';
-import { spacing, radius, elevation, tints, type AppColors } from '../../src/theme/theme';
+import { spacing, radius, elevation, type AppColors, progressGradients } from '../../src/theme/theme';
 import { useColors } from '../../src/settings/SettingsContext';
 
 /**
@@ -86,7 +86,7 @@ export default function ReadingListScreen() {
   const hero =
     !selectedCat && passages.length > 0 ? (
       <View style={styles.hero}>
-        <ProgressRing progress={doneCount / passages.length} size={62} stroke={6} color={tints.green.fg}>
+        <ProgressRing progress={doneCount / passages.length} size={62} stroke={6} gradient={progressGradients.success}>
           <AppText variant="label" color={c.text} style={styles.heroPct}>
             {Math.round((doneCount / passages.length) * 100)}%
           </AppText>

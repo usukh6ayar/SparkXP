@@ -15,7 +15,7 @@ import { IELTS_MODULES } from '../../src/constants/ielts';
 import { t, tf, type TranslationKey } from '../../src/i18n';
 import { useColors } from '../../src/settings/SettingsContext';
 import { haptics } from '../../src/lib/haptics';
-import { spacing, radius, skillGradients, type AppColors } from '../../src/theme/theme';
+import { spacing, radius, skillGradients, progressGradients, type AppColors } from '../../src/theme/theme';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -128,7 +128,7 @@ export default function SkillScreen() {
         </AppText>
         <ProgressBar
           value={items.length ? doneCount / items.length : 0}
-          color={c.white}
+          gradient={progressGradients.onHero}
           track="rgba(255,255,255,0.28)"
           height={8}
           style={styles.heroBar}

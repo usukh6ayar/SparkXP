@@ -10,18 +10,22 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
+import Animated, {
+  useSharedValue, useAnimatedStyle, withRepeat, withSequence, withTiming,
+} from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/auth/AuthContext';
 import { useSettings } from '../../src/settings/SettingsContext';
 import { haptics } from '../../src/lib/haptics';
+import { useReduceMotion } from '../../src/lib/motion';
 import { tf } from '../../src/i18n';
 import { getLessons, type Lesson } from '../../src/api/lessons';
 import { getGamification, type Gamification } from '../../src/api/gamification';
 import { AppText } from '../../src/components/Text';
 import { AppIcon } from '../../src/components/AppIcon';
 import { type AppIconName } from '../../src/constants/appIcons';
-import { islandMap } from '../../src/theme/theme';
+import { islandMap, colors } from '../../src/theme/theme';
 import { bounded } from '../../src/theme/responsive';
 
 /**
@@ -119,6 +123,23 @@ function fmt(n: number): string {
   return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
+/** The "you are here" halo — one softly pulsing glow behind the current island
+ *  (§3.2: exactly one thing on the map pulses). Still when Reduce Motion is on. */
+function HerePulse({ style }: { style: object }) {
+  const reduce = useReduceMotion();
+  const s = useSharedValue(1);
+  useEffect(() => {
+    if (reduce) { s.value = 1; return; }
+    s.value = withRepeat(
+      withSequence(withTiming(1.16, { duration: 1200 }), withTiming(1, { duration: 1200 })),
+      -1,
+      false,
+    );
+  }, [reduce, s]);
+  const anim = useAnimatedStyle(() => ({ transform: [{ scale: s.value }] }));
+  return <Animated.View pointerEvents="none" style={[style, styles.hereGlow, anim]} />;
+}
+
 export default function LessonsScreen() {
   const { token, user } = useAuth();
   const { theme, t } = useSettings();
@@ -172,6 +193,16 @@ export default function LessonsScreen() {
   const userLevel = Math.floor(xp / 100);
   const streak = gam?.currentStreak ?? 0;
 
+  // Four island states (§3.2). Locked = XP-gated; mastered = every lesson done;
+  // "current" = the lowest unlocked island you have not finished — the one that
+  // pulses and owns the initial scroll. Everything else is unlocked-not-started.
+  const isLocked = (n: LevelNode) => n.unlockAt != null && userLevel < n.unlockAt;
+  const isMastered = (n: LevelNode) => {
+    const pr = gam?.progressByLevel?.[n.code.toLowerCase()];
+    return !!pr && pr.total > 0 && pr.done >= pr.total;
+  };
+  const currentCode = LEVELS.find((n) => !isLocked(n) && !isMastered(n))?.code ?? null;
+
   // Tapping an island opens that level's lesson journey (path of nodes).
   const openLevel = useCallback(
     (node: LevelNode) => {
@@ -184,6 +215,11 @@ export default function LessonsScreen() {
   const sceneW = width;
   const sceneH = sceneW * SCENE_RATIO;
   const CARD_W = Math.min(sceneW * 0.44, 200);
+  // Y (px) of the current island — drives the "ahead" trail scrim + initial scroll.
+  const currentTop = (() => {
+    const n = LEVELS.find((l) => l.code === currentCode);
+    return n ? n.isl.top * sceneH : null;
+  })();
 
   return (
     <View style={[styles.root, isLight && { backgroundColor: '#C7E4FB' }]}>
@@ -241,10 +277,16 @@ export default function LessonsScreen() {
           contentContainerStyle={[styles.scroll, bounded]}
           showsVerticalScrollIndicator={false}
           onContentSizeChange={(_w, h) => {
-            // Start at the bottom island (A1) the first time the map lays out.
+            // Open scrolled to the "you are here" island (§3.2), ~180pt above it
+            // so it sits in view. Falls back to the bottom (A1) until progress
+            // loads, so a new/offline session still starts at the beginning.
             if (!didInitialScroll.current && h > 0) {
               didInitialScroll.current = true;
-              scrollRef.current?.scrollToEnd({ animated: false });
+              if (currentTop != null) {
+                scrollRef.current?.scrollTo({ y: Math.max(0, currentTop - 180), animated: false });
+              } else {
+                scrollRef.current?.scrollToEnd({ animated: false });
+              }
             }
           }}
           refreshControl={
@@ -263,17 +305,19 @@ export default function LessonsScreen() {
               style={{ position: 'absolute', left: 0, top: sceneH * 0.06, width: sceneW, height: sceneH * 0.84 }}
               resizeMode="stretch"
             />
-
             {LEVELS.map((node) => {
               // Real per-level lesson progress, or null until it loads.
               const progress: LevelProgress = gam?.progressByLevel?.[node.code.toLowerCase()] ?? null;
-              const locked = node.unlockAt != null && userLevel < node.unlockAt;
+              const locked = isLocked(node);
+              const mastered = isMastered(node);
+              const isCurrent = node.code === currentCode;
               const onPress = locked ? undefined : () => openLevel(node);
 
               const islLeft = node.isl.left * sceneW;
               const islTop = node.isl.top * sceneH;
               const islW = node.isl.w * sceneW;
               const islH = islW * ISLAND_ASPECT;
+              const glowSize = islW * 1.08;
 
               // Label card centered under the island, clamped to the scene.
               const cardLeft = Math.max(4, Math.min(islLeft + islW / 2 - CARD_W / 2, sceneW - CARD_W - 4));
@@ -281,6 +325,19 @@ export default function LessonsScreen() {
 
               return (
                 <Fragment key={node.code}>
+                  {/* "You are here" — one pulsing halo behind the current island. */}
+                  {isCurrent ? (
+                    <HerePulse
+                      style={{
+                        position: 'absolute',
+                        left: islLeft + islW / 2 - glowSize / 2,
+                        top: islTop + islH / 2 - glowSize / 2,
+                        width: glowSize,
+                        height: glowSize,
+                      }}
+                    />
+                  ) : null}
+
                   {/* Island artwork — the whole image is the tap target */}
                   <Pressable
                     onPress={onPress}
@@ -291,18 +348,36 @@ export default function LessonsScreen() {
                       style={[styles.island, locked && styles.islandLocked]}
                       resizeMode="contain"
                     />
-                    {locked && (
+                    {locked ? (
                       <View style={styles.islandLock}>
                         <Ionicons name="lock-closed" size={26} color="#FFFFFF" />
                       </View>
-                    )}
+                    ) : null}
                   </Pressable>
-                  {/* Floating label card */}
+
+                  {/* "ЭНД БАЙНА" waypoint chip above the current island. */}
+                  {isCurrent ? (
+                    <View
+                      pointerEvents="none"
+                      style={{ position: 'absolute', left: cardLeft, top: islTop - 16, width: CARD_W, alignItems: 'center' }}
+                    >
+                      <View style={styles.hereChip}>
+                        <AppText variant="overline" color="#FFFFFF">{t('youAreHere')}</AppText>
+                      </View>
+                    </View>
+                  ) : null}
+
+                  {/* Floating label card — ringed when current, lockedSurface when locked */}
                   <Pressable
                     onPress={onPress}
-                    style={[styles.card, { width: CARD_W, left: cardLeft, top: cardTop }]}
+                    style={[
+                      styles.card,
+                      isCurrent && styles.cardCurrent,
+                      locked && styles.cardLocked,
+                      { width: CARD_W, left: cardLeft, top: cardTop },
+                    ]}
                   >
-                    <Label node={node} locked={locked} progress={progress} />
+                    <Label node={node} locked={locked} mastered={mastered} progress={progress} />
                   </Pressable>
                 </Fragment>
               );
@@ -341,37 +416,44 @@ function StatPill({
   );
 }
 
-/** Label-card contents: badge + name, then progress or a lock. */
-function Label({ node, locked, progress }: { node: LevelNode; locked: boolean; progress: LevelProgress }) {
+/** Label-card contents: badge + name, then progress or a lock. Four states:
+ *  mastered (gold star + success count), current/unlocked (level badge + track),
+ *  locked (lockedInk badge + unlock condition). */
+function Label({ node, locked, mastered, progress }: { node: LevelNode; locked: boolean; mastered: boolean; progress: LevelProgress }) {
   const pct = progress && progress.total > 0 ? progress.done / progress.total : 0;
+  const badgeBg = mastered ? SKY.gold : locked ? colors.lockedInk : node.color;
   return (
     <>
       <View style={styles.labelTop}>
-        <View style={[styles.badge, { backgroundColor: node.color }]}>
-          <AppText variant="overline" color="#FFFFFF">{node.code}</AppText>
+        <View style={[styles.badge, { backgroundColor: badgeBg }]}>
+          {mastered ? (
+            <Ionicons name="star" size={14} color="#FFFFFF" />
+          ) : (
+            <AppText variant="overline" color="#FFFFFF">{node.code}</AppText>
+          )}
         </View>
-        <AppText variant="h3" color="#FFFFFF" numberOfLines={1} style={{ flexShrink: 1 }}>
+        <AppText variant="h3" color={locked ? colors.lockedInk : '#FFFFFF'} numberOfLines={1} style={{ flexShrink: 1 }}>
           {node.name}
         </AppText>
       </View>
 
       {locked ? (
         <View style={styles.lockRow}>
-          <Ionicons name="lock-closed" size={18} color={SKY.textDim} />
-          <AppText variant="caption" color={SKY.textDim} center style={{ marginTop: 4 }}>
+          <Ionicons name="lock-closed" size={18} color={colors.lockedInk} />
+          <AppText variant="caption" color={colors.lockedInk} center style={{ marginTop: 4 }}>
             {tf('unlockAtLevel', { n: node.unlockAt ?? 0 })}
           </AppText>
         </View>
       ) : (
         <>
           <View style={styles.progRow}>
-            <Ionicons name="leaf" size={13} color={node.color} />
-            <AppText variant="caption" color="#FFFFFF">
+            <Ionicons name={mastered ? 'checkmark-circle' : 'leaf'} size={13} color={mastered ? islandMap.green : node.color} />
+            <AppText variant="caption" color={mastered ? islandMap.green : '#FFFFFF'}>
               {progress ? `${progress.done}/${progress.total}` : '—'}
             </AppText>
           </View>
           <View style={styles.track}>
-            <View style={[styles.fill, { width: `${Math.round(pct * 100)}%`, backgroundColor: node.color }]} />
+            <View style={[styles.fill, { width: `${Math.round(pct * 100)}%`, backgroundColor: mastered ? islandMap.green : node.color }]} />
           </View>
         </>
       )}
@@ -414,6 +496,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // "You are here": soft violet halo (pulses) + a waypoint chip above the island.
+  hereGlow: { borderRadius: 999, backgroundColor: 'rgba(157,123,255,0.30)' },
+  hereChip: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    shadowColor: colors.glow,
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
+  },
   card: {
     position: 'absolute',
     paddingHorizontal: 12,
@@ -422,6 +517,21 @@ const styles = StyleSheet.create({
     backgroundColor: SKY.card,
     borderWidth: 1,
     borderColor: SKY.cardBorder,
+  },
+  // Current island's label sits forward — a glow ring + lift.
+  cardCurrent: {
+    borderColor: colors.glow,
+    borderWidth: 2,
+    shadowColor: colors.glow,
+    shadowOpacity: 0.55,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
+  },
+  // Locked label uses the lockedSurface pair instead of dimming (keeps contrast).
+  cardLocked: {
+    backgroundColor: colors.lockedSurface,
+    borderColor: 'rgba(139,130,173,0.30)',
   },
   labelTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   badge: { width: 28, height: 28, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },

@@ -14,7 +14,7 @@ import { ProgressRing } from '../../src/components/ProgressRing';
 import { SkeletonRows } from '../../src/components/SkeletonRows';
 import { EmptyState } from '../../src/components/EmptyState';
 import { t, tf } from '../../src/i18n';
-import { spacing, radius, elevation, tints, type AppColors } from '../../src/theme/theme';
+import { spacing, radius, elevation, tints, type AppColors, progressGradients } from '../../src/theme/theme';
 import { useColors } from '../../src/settings/SettingsContext';
 import { bounded } from '../../src/theme/responsive';
 
@@ -92,7 +92,7 @@ export default function IdiomsScreen() {
           <>
             {/* Progress summary */}
             <View style={styles.hero}>
-              <ProgressRing progress={doneCount / idioms.length} size={62} stroke={6} color={tints.green.fg}>
+              <ProgressRing progress={doneCount / idioms.length} size={62} stroke={6} gradient={progressGradients.success}>
                 <AppText variant="label" color={colors.text} style={styles.heroPct}>
                   {Math.round((doneCount / idioms.length) * 100)}%
                 </AppText>
