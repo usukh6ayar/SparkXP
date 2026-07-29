@@ -1,10 +1,32 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import type Redis from 'ioredis';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThanOrEqual, MoreThanOrEqual, In } from 'typeorm';
 import { WordReview } from '../entities/word-review.entity';
 import { Word } from '../entities/word.entity';
 import { RecallStatus, WordStatus } from '../common/enums';
 import { computeSm2, initialSm2State, PASS_THRESHOLD } from './sm2';
+import { XpService } from '../xp/xp.service';
+import { XpSource } from '../common/enums';
+import { REDIS_CLIENT } from '../redis/redis.module';
+import { dayKeyUB } from '../xp/gamification';
+
+/**
+ * XP for a flashcard review. Small on purpose — reviewing is meant to be a
+ * light, frequent habit, not an XP farm.
+ */
+const REVIEW_XP_PASS = 10;
+const REVIEW_XP_FAIL = 2; // trying still counts for something
+
+/**
+ * A word may only earn XP ONCE PER DAY, however many times it is swiped.
+ *
+ * `awardOnce(user, source, wordId)` would have been wrong here: SRS means
+ * legitimately reviewing the same word many times over weeks, and that should
+ * keep earning. Capping per-day keeps the habit rewarding while making the
+ * "swipe one card back and forth" farm worthless.
+ */
+const REVIEW_XP_TTL_SECONDS = 26 * 60 * 60;
 
 /** Safety cap so the daily due queue never returns a huge payload. */
 const DUE_LIMIT = 100;
@@ -19,6 +41,8 @@ export class ReviewsService {
     private readonly reviews: Repository<WordReview>,
     @InjectRepository(Word)
     private readonly words: Repository<Word>,
+    private readonly xp: XpService,
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
 
   /**
@@ -46,7 +70,7 @@ export class ReviewsService {
     userId: string,
     wordId: string,
     quality: number,
-  ): Promise<WordReview> {
+  ): Promise<WordReview & { xpEarned?: number }> {
     // The word must exist before we schedule reviews for it.
     const word = await this.words.findOne({ where: { id: wordId } });
     if (!word) {
@@ -62,6 +86,14 @@ export class ReviewsService {
         userId,
         wordId,
         ...initialSm2State(),
+        // The progress counters need explicit zeros for the same reason as the
+        // SM-2 fields: `create()` does NOT apply `@Column({ default: 0 })`,
+        // that only happens on a DB insert. Without these, the `+= 1` below
+        // evaluated `undefined + 1` → NaN → Postgres rejected the insert, so
+        // the FIRST-EVER review of any word failed with a 500.
+        reviewCount: 0,
+        correctCount: 0,
+        wrongCount: 0,
       });
     }
 
@@ -94,7 +126,44 @@ export class ReviewsService {
       review.recallStatus = RecallStatus.FORGOT;
     }
 
-    return this.reviews.save(review);
+    const saved = await this.reviews.save(review);
+
+    // XP is awarded AFTER the schedule is safely persisted: a failure to award
+    // must never cost the learner their review progress.
+    const xpEarned = await this.awardReviewXp(userId, wordId, passed);
+    return Object.assign(saved, { xpEarned });
+  }
+
+  /**
+   * Grants review XP at most once per (user, word, day).
+   *
+   * Returns the XP actually granted so the client can show a truthful number —
+   * the mobile app previously invented "+300 XP" locally because the API told
+   * it nothing.
+   */
+  private async awardReviewXp(
+    userId: string,
+    wordId: string,
+    passed: boolean,
+  ): Promise<number> {
+    const key = `reviewxp:${userId}:${wordId}:${dayKeyUB()}`;
+    try {
+      const claimed = await this.redis.set(key, '1', 'EX', REVIEW_XP_TTL_SECONDS, 'NX');
+      if (claimed === null) return 0; // already earned for this word today
+    } catch {
+      // Redis down → skip the award rather than risk uncapped farming.
+      return 0;
+    }
+
+    const amount = passed ? REVIEW_XP_PASS : REVIEW_XP_FAIL;
+    await this.xp.award({
+      userId,
+      amount,
+      source: XpSource.WORD_REVIEW,
+      referenceId: wordId,
+      metadata: { passed },
+    });
+    return amount;
   }
 
   /**

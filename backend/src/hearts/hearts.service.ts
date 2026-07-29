@@ -5,20 +5,36 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { Inject } from '@nestjs/common';
+import type Redis from 'ioredis';
 import { User } from '../entities/user.entity';
 import { SparksSource } from '../common/enums';
 import { SparksService } from '../sparks/sparks.service';
+import { REDIS_CLIENT } from '../redis/redis.module';
 
 /**
- * Free-tier defaults, used when the user has no plan (or the plan leaves the
- * field null). Plan columns override these so the economy is tunable from
- * admin without shipping an app update.
+ * Free-tier defaults.
+ *
+ * These are what MOST users get: a user with no plan has no plan columns to
+ * override them. So "the plan columns make it configurable" was not actually
+ * true for the free tier — and there is no admin UI to edit plans yet either.
+ *
+ * They are therefore overridable at runtime from the Redis key
+ * `hearts:defaults`, exactly like `ai:limits:default` in the AI gateway:
+ *
+ *     redis-cli set hearts:defaults '{"regenMinutes":5}'
+ *
+ * No deploy, no app update — which is what CLAUDE.md's core rule requires.
+ * A plan's own columns still win over these when the user has an active plan.
  */
 const DEFAULTS = {
   maxHearts: 5,
   regenMinutes: 240, // one heart per 4 hours
   refillSparks: 50,
 };
+
+/** Redis key holding a partial JSON override of DEFAULTS. */
+const DEFAULTS_KEY = 'hearts:defaults';
 
 /** Hearts state as the client sees it. */
 export interface HeartsState {
@@ -42,10 +58,27 @@ export class HeartsService {
     @InjectRepository(User)
     private readonly users: Repository<User>,
     private readonly sparks: SparksService,
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
 
-  /** Per-plan config with the free-tier defaults folded in. */
-  private configOf(user: User) {
+  /**
+   * DEFAULTS with any runtime override from Redis folded in. Falls back to the
+   * code defaults if Redis is unreachable or the blob is malformed — tuning
+   * must never be able to break hearts entirely.
+   */
+  private async runtimeDefaults(): Promise<typeof DEFAULTS> {
+    try {
+      const raw = await this.redis.get(DEFAULTS_KEY);
+      if (raw) return { ...DEFAULTS, ...JSON.parse(raw) };
+    } catch {
+      // Ignored on purpose — see above.
+    }
+    return DEFAULTS;
+  }
+
+  /** Per-plan config with the (runtime-tunable) free-tier defaults folded in. */
+  private async configOf(user: User) {
+    const defaults = await this.runtimeDefaults();
     const plan = user.plan;
     // An expired plan is treated as no plan.
     const active =
@@ -55,9 +88,9 @@ export class HeartsService {
 
     return {
       unlimited: active?.unlimitedHearts ?? false,
-      max: active?.maxHearts ?? DEFAULTS.maxHearts,
-      regenMinutes: active?.heartRegenMinutes ?? DEFAULTS.regenMinutes,
-      refillSparks: active?.heartRefillSparks ?? DEFAULTS.refillSparks,
+      max: active?.maxHearts ?? defaults.maxHearts,
+      regenMinutes: active?.heartRegenMinutes ?? defaults.regenMinutes,
+      refillSparks: active?.heartRefillSparks ?? defaults.refillSparks,
     };
   }
 
@@ -95,7 +128,7 @@ export class HeartsService {
   private toState(
     hearts: number,
     anchor: Date | null,
-    cfg: ReturnType<HeartsService['configOf']>,
+    cfg: Awaited<ReturnType<HeartsService['configOf']>>,
   ): HeartsState {
     if (cfg.unlimited) {
       return {
@@ -139,7 +172,7 @@ export class HeartsService {
    */
   async get(userId: string): Promise<HeartsState> {
     const user = await this.load(userId);
-    const cfg = this.configOf(user);
+    const cfg = await this.configOf(user);
     if (cfg.unlimited) return this.toState(cfg.max, null, cfg);
 
     const { hearts, anchor } = this.regenerate(user, cfg.max, cfg.regenMinutes);
@@ -159,7 +192,7 @@ export class HeartsService {
    */
   async lose(userId: string): Promise<HeartsState> {
     const user = await this.load(userId);
-    const cfg = this.configOf(user);
+    const cfg = await this.configOf(user);
     if (cfg.unlimited) return this.toState(cfg.max, null, cfg);
 
     const current = this.regenerate(user, cfg.max, cfg.regenMinutes);
@@ -178,7 +211,7 @@ export class HeartsService {
   /** Refills to full by spending Sparks. */
   async refill(userId: string): Promise<HeartsState> {
     const user = await this.load(userId);
-    const cfg = this.configOf(user);
+    const cfg = await this.configOf(user);
     if (cfg.unlimited) return this.toState(cfg.max, null, cfg);
 
     const { hearts } = this.regenerate(user, cfg.max, cfg.regenMinutes);

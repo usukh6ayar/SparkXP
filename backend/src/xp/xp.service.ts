@@ -4,6 +4,7 @@ import { Repository, DataSource, MoreThanOrEqual } from 'typeorm';
 import { XpLog } from '../entities/xp-log.entity';
 import { User } from '../entities/user.entity';
 import { Lesson } from '../entities/lesson.entity';
+import { Plan } from '../entities/plan.entity';
 import { SparksService } from '../sparks/sparks.service';
 import { XpSource, ContentLevel, SparksSource } from '../common/enums';
 import {
@@ -31,6 +32,14 @@ export interface GamificationSummary extends LevelInfo {
   longestStreak: number;
   /** Unused streak freezes the learner owns. */
   streakFreezes: number;
+  /**
+   * Sparks price of one freeze, resolved from the user's plan.
+   * Sent so the app never hard-codes a price that admin can change — the same
+   * reason `HeartsState` carries `refillCost`.
+   */
+  streakFreezeCost: number;
+  /** Most freezes that may be held at once. */
+  maxStreakFreezes: number;
   todayXp: number;
   dailyGoal: number;
   cefrLevel: string | null;
@@ -82,7 +91,12 @@ export class XpService {
       // Increment the denormalized cache on User — safe inside the transaction.
       await manager.increment(User, { id: opts.userId }, 'xp', opts.amount);
 
-      // Advance the streak (first activity of the day only).
+      // Advance the streak — but only once the DAILY GOAL is met, not on the
+      // first XP of the day.
+      //
+      // Previously a single correct answer (1 XP) advanced the streak, which
+      // made the number meaningless: "I opened the app" rather than "I did my
+      // practice". Duolingo ties the streak to the goal for the same reason.
       const user = await manager.findOne(User, {
         where: { id: opts.userId },
         select: {
@@ -91,11 +105,22 @@ export class XpService {
           longestStreak: true,
           lastActiveDate: true,
           streakFreezes: true,
+          dailyGoalXp: true,
         },
       });
       if (user) {
         const today = dayKeyUB();
-        if (user.lastActiveDate !== today) {
+        // Sum today's XP INSIDE the transaction so the row just written counts.
+        const todayRow = await manager
+          .createQueryBuilder(XpLog, 'x')
+          .select('COALESCE(SUM(x.amount), 0)', 'sum')
+          .where('x.user_id = :userId', { userId: opts.userId })
+          .andWhere('x.created_at >= :start', { start: startOfUBDay() })
+          .getRawOne<{ sum: string }>();
+        const todayXp = Number(todayRow?.sum ?? 0);
+        const goal = user.dailyGoalXp ?? DAILY_GOAL;
+
+        if (user.lastActiveDate !== today && todayXp >= goal) {
           const next = resolveStreak({
             lastActiveDate: user.lastActiveDate,
             currentStreak: user.currentStreak ?? 0,
@@ -138,6 +163,17 @@ export class XpService {
    * Capped at MAX_HELD_FREEZES so it can't be stockpiled into permanent streak
    * immunity — the streak has to still mean something.
    */
+  /**
+   * The user's plan, or null if they have none / it lapsed. Shared so
+   * `buyStreakFreeze` and `getGamification` can never disagree about the price.
+   */
+  private activePlanOf(user: User): Plan | null {
+    return user.plan &&
+      (!user.planExpiresAt || user.planExpiresAt.getTime() > Date.now())
+      ? user.plan
+      : null;
+  }
+
   async buyStreakFreeze(userId: string) {
     const user = await this.users.findOne({
       where: { id: userId },
@@ -145,11 +181,8 @@ export class XpService {
     });
     if (!user) throw new NotFoundException('Хэрэглэгч олдсонгүй');
 
-    const activePlan =
-      user.plan && (!user.planExpiresAt || user.planExpiresAt.getTime() > Date.now())
-        ? user.plan
-        : null;
-    const cost = activePlan?.streakFreezeSparks ?? STREAK_FREEZE_SPARKS;
+    const cost =
+      this.activePlanOf(user)?.streakFreezeSparks ?? STREAK_FREEZE_SPARKS;
     const held = user.streakFreezes ?? 0;
 
     if (held >= MAX_HELD_FREEZES) {
@@ -181,7 +214,15 @@ export class XpService {
   async getGamification(userId: string): Promise<GamificationSummary> {
     const user = await this.users.findOne({
       where: { id: userId },
+      // `plan` (+ planExpiresAt) are needed to price a streak freeze. Without
+      // the relation `activePlanOf` would always see undefined and silently
+      // report the free-tier price to paying users.
+      relations: { plan: true },
       select: {
+        // `id` is REQUIRED once `relations` is used: TypeORM builds a DISTINCT
+        // sub-query on the primary key, and omitting it fails at runtime with
+        // "column distinctAlias.User_id does not exist".
+        id: true,
         xp: true,
         currentStreak: true,
         longestStreak: true,
@@ -189,6 +230,7 @@ export class XpService {
         level: true,
         dailyGoalXp: true,
         streakFreezes: true,
+        planExpiresAt: true,
       },
     });
     const xp = user?.xp ?? 0;
@@ -247,6 +289,9 @@ export class XpService {
       currentStreak,
       longestStreak: user?.longestStreak ?? 0,
       streakFreezes: user?.streakFreezes ?? 0,
+      streakFreezeCost:
+        (user && this.activePlanOf(user)?.streakFreezeSparks) ?? STREAK_FREEZE_SPARKS,
+      maxStreakFreezes: MAX_HELD_FREEZES,
       todayXp: Number(todayRow?.sum ?? 0),
       dailyGoal: user?.dailyGoalXp ?? DAILY_GOAL,
       cefrLevel: user?.level ?? null,
