@@ -12,6 +12,13 @@ import { entities } from '../entities';
  *   - Prod: DB_SYNCHRONIZE=false + DB_MIGRATIONS_RUN=true runs the SQL
  *           migrations in src/migrations on boot. Never enable synchronize in
  *           production — it can drop/alter columns and lose data.
+ *
+ * Connection pool:
+ *   node-postgres defaults to `min: 0` + `idleTimeoutMillis: 10000`, so on a
+ *   low-traffic API every connection is closed 10s after it goes idle and the
+ *   next request pays a full reconnect (DNS + TCP + TLS + SCRAM auth). Measured
+ *   on Railway prod 2026-07-29 that was ~170ms of dead time on EVERY query.
+ *   Keeping a few warm connections removes it. See docs/INFRA_COST_MODEL.md §12.
  */
 export function buildTypeOrmOptions(
   config: ConfigService,
@@ -32,6 +39,22 @@ export function buildTypeOrmOptions(
     logging: config.get<string>('DB_LOGGING') === 'true',
     // Neon / Supabase / cloud PostgreSQL requires SSL
     ssl: config.get<string>('DB_SSL') === 'true' ? { rejectUnauthorized: false } : false,
+    // Passed straight through to the node-postgres Pool.
+    extra: {
+      // Per instance. Postgres allows ~100 total, so stay well under it once
+      // several replicas connect: 20 x 3 replicas = 60.
+      max: config.get<number>('DB_POOL_MAX', 20),
+      // Warm connections that are never closed for being idle. This is the fix
+      // for the reconnect-per-request problem described above.
+      min: config.get<number>('DB_POOL_MIN', 2),
+      // 10 minutes instead of the 10s default — connections above `min` survive
+      // normal traffic gaps instead of churning.
+      idleTimeoutMillis: 600_000,
+      // Fail fast instead of hanging a request when the pool is exhausted.
+      connectionTimeoutMillis: 5_000,
+      // Stop idle TCP sockets being dropped silently by the network in between.
+      keepAlive: true,
+    },
   };
 
   if (databaseUrl) {
