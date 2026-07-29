@@ -31,7 +31,7 @@ import { ReviewStats } from '../src/components/ReviewStats';
 import { IconButton } from '../src/components/IconButton';
 import { t } from '../src/i18n';
 import { useColors } from '../src/settings/SettingsContext';
-import { spacing, radius, elevation, type AppColors } from '../src/theme/theme';
+import { spacing, radius, elevation, progressGradients, type AppColors } from '../src/theme/theme';
 import { bounded } from '../src/theme/responsive';
 
 const SCREEN_W = Dimensions.get('window').width;
@@ -273,7 +273,7 @@ export default function ReviewFlashcardsScreen() {
       </View>
       {!done ? (
         <View style={styles.progressWrap}>
-          <ProgressBar value={total > 0 ? index / total : 0} color={c.primary} />
+          <ProgressBar value={total > 0 ? index / total : 0} gradient={progressGradients.primary} />
         </View>
       ) : null}
 

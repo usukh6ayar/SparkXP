@@ -1,13 +1,16 @@
-import { useEffect } from 'react';
+import { useEffect, useId } from 'react';
 import { View, type ViewStyle } from 'react-native';
-import Svg, { Circle } from 'react-native-svg';
+import Svg, { Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
 import Animated, {
   useAnimatedProps,
+  useAnimatedStyle,
   useSharedValue,
+  withSequence,
+  withSpring,
   withTiming,
 } from 'react-native-reanimated';
 import { useColors } from '../settings/SettingsContext';
-import { DURATION, useReduceMotion } from '../lib/motion';
+import { DURATION, SPRING, useReduceMotion } from '../lib/motion';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
@@ -24,6 +27,7 @@ export function ProgressRing({
   size = 108,
   stroke = 5,
   color,
+  gradient,
   track,
   children,
   style,
@@ -33,6 +37,8 @@ export function ProgressRing({
   size?: number;
   stroke?: number;
   color?: string;
+  /** Two stops for the arc (e.g. `colors.primaryGradient`). Beats a flat ring. */
+  gradient?: readonly string[];
   track?: string;
   children?: React.ReactNode;
   style?: ViewStyle;
@@ -43,6 +49,14 @@ export function ProgressRing({
   const r = (size - stroke) / 2;
   const circumference = 2 * Math.PI * r;
 
+  const stops = gradient && gradient.length >= 2 ? gradient : null;
+  // SVG gradient ids are document-global: two rings on one screen sharing an id
+  // would make the second inherit the first's colours.
+  // React's useId() yields ":r0:"-style values. Colons are not safe inside an
+  // SVG `url(#...)` reference, so strip them — otherwise the arc silently
+  // falls back to no stroke on some renderers.
+  const gradientId = `pr${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
+
   const fill = useSharedValue(pct);
   useEffect(() => {
     fill.value = reduce ? pct : withTiming(pct, { duration: DURATION.slow });
@@ -52,15 +66,46 @@ export function ProgressRing({
     strokeDashoffset: circumference * (1 - fill.value),
   }));
 
+  // A single celebratory pop the moment the goal is reached. Fires on the
+  // 0→1 crossing only, so a ring that loads already-complete stays still
+  // rather than bouncing on every screen entry.
+  const pop = useSharedValue(1);
+  const wasDone = useSharedValue(pct >= 1);
+  useEffect(() => {
+    const done = pct >= 1;
+    if (done && !wasDone.value && !reduce) {
+      pop.value = withSequence(
+        withSpring(1.08, { ...SPRING, damping: 8 }),
+        withSpring(1, SPRING),
+      );
+    }
+    wasDone.value = done;
+  }, [pct, reduce]);
+  const popStyle = useAnimatedStyle(() => ({ transform: [{ scale: pop.value }] }));
+
   return (
-    <View style={[{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }, style]}>
+    <Animated.View
+      style={[
+        { width: size, height: size, alignItems: 'center', justifyContent: 'center' },
+        popStyle,
+        style,
+      ]}
+    >
       <Svg width={size} height={size} style={{ position: 'absolute', transform: [{ rotate: '-90deg' }] }}>
+        {stops ? (
+          <Defs>
+            <LinearGradient id={gradientId} x1="0" y1="0" x2="1" y2="1">
+              <Stop offset="0" stopColor={stops[0]} />
+              <Stop offset="1" stopColor={stops[stops.length - 1]} />
+            </LinearGradient>
+          </Defs>
+        ) : null}
         <Circle cx={size / 2} cy={size / 2} r={r} stroke={track ?? c.border} strokeWidth={stroke} fill="none" />
         <AnimatedCircle
           cx={size / 2}
           cy={size / 2}
           r={r}
-          stroke={color ?? c.primary}
+          stroke={stops ? `url(#${gradientId})` : (color ?? c.primary)}
           strokeWidth={stroke}
           fill="none"
           strokeLinecap="round"
@@ -69,6 +114,6 @@ export function ProgressRing({
         />
       </Svg>
       {children}
-    </View>
+    </Animated.View>
   );
 }

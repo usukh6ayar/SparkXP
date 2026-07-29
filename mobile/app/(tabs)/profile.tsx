@@ -24,7 +24,7 @@ import { useAvatarPicker } from '../../src/lib/useAvatarPicker';
 import { useLogoutConfirm, useComingSoon } from '../../src/lib/useLogoutConfirm';
 import { tf, type TranslationKey } from '../../src/i18n';
 import { ROLE_TKEY } from '../../src/constants/roles';
-import { colors, spacing, radius, tints, elevation, type PremiumPalette } from '../../src/theme/theme';
+import { colors, spacing, radius, tints, elevation, type PremiumPalette, progressGradients } from '../../src/theme/theme';
 import { bounded } from '../../src/theme/responsive';
 
 type IconName = keyof typeof Ionicons.glyphMap;
@@ -205,7 +205,7 @@ export default function ProfileScreen() {
             <View style={styles.avatarOuter}>
               <View style={styles.avatarGlow} />
               {/* Level progress ring hugging the avatar (replaces a flat bar). */}
-              <ProgressRing progress={pct / 100} size={108} stroke={5} color={colors.xp} track={p.track}>
+              <ProgressRing progress={pct / 100} size={108} stroke={5} gradient={progressGradients.xp} track={p.track}>
                 <Pressable onPress={pickPhoto} disabled={avatarBusy}>
                   <LinearGradient colors={[p.primaryLight, p.primary]} style={styles.avatarRing}>
                     <AppImage source={resolveAvatar(user?.avatarUrl) ?? avatarImg} width={200} style={styles.avatar} contentFit="cover" />

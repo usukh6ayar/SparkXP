@@ -315,3 +315,28 @@ export const skillGradients: Record<string, readonly [string, string]> = {
   grammar: ['#6C3BFF', '#2E1470'],
   fill: ['#E0517A', '#6B1636'],
 };
+
+/**
+ * Fill ramps for `<ProgressBar>` / `<ProgressRing>`.
+ *
+ * A progress bar is the most-repeated reward surface in the app, and a single
+ * flat colour made earned progress read like a loading indicator. Each ramp
+ * goes light → deep in the SAME hue as its semantic colour above, so the bar
+ * gains depth without inventing a new palette.
+ *
+ * Screens must use these rather than inlining hex (CODING_RULES §2).
+ */
+export const progressGradients = {
+  /** Default / lessons / quizzes — the brand violet. */
+  primary: colors.primaryGradient,
+  /** Daily goal met, lesson complete. */
+  success: ['#5EEAD4', '#34D399', '#15926B'] as const,
+  /** XP and level progress — gold. */
+  xp: ['#FFE07A', '#FFC93C', '#E09B12'] as const,
+  /** Streak — orange. */
+  streak: ['#FFB067', '#FF8A3D', '#E4620E'] as const,
+  /** Timers running out. */
+  danger: ['#FCA5A5', '#F87171', '#DC2626'] as const,
+  /** On a coloured hero where the track is translucent white. */
+  onHero: ['#FFFFFF', '#E6DBFF'] as const,
+} as const;

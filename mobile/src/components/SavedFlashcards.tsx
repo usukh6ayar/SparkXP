@@ -12,7 +12,7 @@ import { ProgressBar } from './ProgressBar';
 import { haptics } from '../lib/haptics';
 import { t } from '../i18n';
 import { useColors } from '../settings/SettingsContext';
-import { spacing, radius, type AppColors } from '../theme/theme';
+import { spacing, radius, type AppColors, progressGradients } from '../theme/theme';
 import type { LearnWord } from '../api/reviews';
 
 /** Fisher–Yates shuffle (returns a new array). */
@@ -89,7 +89,7 @@ export function SavedFlashcards({
           </AppText>
         </View>
         <View style={styles.progressWrap}>
-          <ProgressBar value={total > 0 ? doneCount / total : 0} color={c.primary} />
+          <ProgressBar value={total > 0 ? doneCount / total : 0} gradient={progressGradients.primary} />
         </View>
 
         {card ? (
