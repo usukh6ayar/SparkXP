@@ -96,8 +96,10 @@ export interface CheckResult {
   correctAnswer?: number | string | { left: string; right: string }[];
   /**
    * Hearts remaining after this answer — a wrong one costs one, charged
-   * server-side. Optional because a JS-only OTA update can reach a phone before
-   * the backend that returns it; screens fall back to their last known state.
+   * server-side. Optional for two reasons: a JS-only OTA update can reach a
+   * phone before the backend that returns it, and the backend omits it if
+   * Redis is down. Either way the caller falls back to its last known state
+   * or reconciles via `GET /hearts`.
    */
   hearts?: HeartsState;
 }

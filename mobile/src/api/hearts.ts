@@ -1,21 +1,21 @@
 import { apiRequest } from './client';
 
 /**
- * Quiz "lives". Mirrors the backend `HeartsState`
- * (`backend/src/hearts/hearts.service.ts`).
+ * Duolingo-style "hearts" (lives). Mirrors the backend `HeartsState`
+ * (`backend/src/hearts/hearts.service.ts`, documented in API.md §6a).
  *
- * Hearts are ONLY ever spent server-side, inside `POST /quizzes/:id/check` —
- * there is deliberately no "lose a heart" endpoint. So the client never
- * decrements anything itself: it renders whatever the server last returned.
- * Regeneration is lazy (no cron), which is why the stored count is meaningless
- * without going through this API.
+ * The server is the ONLY source of truth — never count hearts locally. A wrong
+ * answer is charged inside `POST /quizzes/:id/check` (there is deliberately no
+ * "lose a heart" endpoint), so the check response already carries a fresh
+ * `HeartsState`. Regeneration is lazy on the server, so a stored count is
+ * meaningless without going through this API.
  */
 export interface HeartsState {
   /** Hearts available right now (regeneration already folded in). */
   hearts: number;
   /** Cap for this user's plan. */
   max: number;
-  /** True on premium plans — hearts are cosmetic and never decrement. */
+  /** True on premium plans — hearts never decrement and the UI hides them. */
   unlimited: boolean;
   /** ISO time the NEXT heart regenerates; null when full or unlimited. */
   nextHeartAt: string | null;

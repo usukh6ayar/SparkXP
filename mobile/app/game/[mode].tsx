@@ -9,6 +9,7 @@ import { useAudioPlayer } from "expo-audio";
 import * as Speech from "expo-speech";
 import { useAuth } from "../../src/auth/AuthContext";
 import { getMe } from "../../src/api/auth";
+import { sound } from "../../src/lib/sound";
 import {
   getQuiz,
   submitQuiz,
@@ -120,6 +121,7 @@ function VocabGame({ mode }: { mode: McMode }) {
       try {
         const res = await submitQuiz(token, answers);
         setResult(res);
+        if (res.xpAwarded > 0) sound.xp(); // win chime (per-question sound needs BE — answer is hidden)
         getMe(token).then(updateUser).catch(() => {});
       } catch {
         setError(true);

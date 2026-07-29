@@ -3,7 +3,13 @@ import {
   View, Text, StyleSheet, ScrollView, TextInput,
   Pressable,
 } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, {
+  FadeInDown,
+  useSharedValue,
+  useAnimatedStyle,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -29,6 +35,7 @@ import { RewardBurst } from '../../src/components/RewardBurst';
 import { CountUp } from '../../src/components/CountUp';
 import { AppText } from '../../src/components/Text';
 import { haptics } from '../../src/lib/haptics';
+import { sound } from '../../src/lib/sound';
 import { markExerciseCompleted } from '../../src/lib/exerciseProgress';
 import { showXpToast } from '../../src/lib/xpToast';
 import { alertError } from '../../src/lib/alerts';
@@ -147,6 +154,23 @@ export default function QuizScreen() {
   const [hearts, setHearts] = useState<HeartsState | null>(null);
   const [sparks, setSparks] = useState(0);
   const [heartsSheet, setHeartsSheet] = useState(false);
+
+  // Wrong-answer shake: a quick left/right wobble of the answer area. Pairs
+  // with haptics.error() + sound.wrong() so a mistake registers through three
+  // senses at once (kept from Boju's #184 when the two quiz reworks merged).
+  const shakeX = useSharedValue(0);
+  const shakeStyle = useAnimatedStyle(() => ({ transform: [{ translateX: shakeX.value }] }));
+  function triggerShake() {
+    shakeX.value = withSequence(
+      withTiming(-12, { duration: 40 }),
+      withTiming(12, { duration: 40 }),
+      withTiming(-10, { duration: 40 }),
+      withTiming(10, { duration: 40 }),
+      withTiming(-6, { duration: 40 }),
+      withTiming(6, { duration: 40 }),
+      withTiming(0, { duration: 40 }),
+    );
+  }
   const [rewardFlash, setRewardFlash] = useState<RewardFlash | null>(null);
   const rewardTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // IELTS Reading passage panel + Listening playback.
@@ -227,7 +251,7 @@ export default function QuizScreen() {
     if (phase !== 'result' || !result) return;
     if (quiz?.audioUrl) audio.pause(); // the IELTS recording shouldn't outlive the test
     if (result.passed) {
-      if (result.xpEarned > 0) showXpToast(result.xpEarned);
+      if (result.xpEarned > 0) { showXpToast(result.xpEarned); sound.xp(); }
       else haptics.success();
     } else {
       haptics.error();
@@ -304,6 +328,7 @@ export default function QuizScreen() {
           setCorrectRun((run) => {
             const nextRun = run + 1;
             haptics.combo(nextRun);
+            sound.correct();
             setRewardFlash({ id: Date.now(), run: nextRun, titleKey: praiseKey(nextRun) });
             if (rewardTimer.current) clearTimeout(rewardTimer.current);
             rewardTimer.current = setTimeout(() => setRewardFlash(null), 1250);
@@ -313,6 +338,8 @@ export default function QuizScreen() {
           setCorrectRun(0);
           setRewardFlash(null);
           haptics.error();
+          sound.wrong();
+          triggerShake();
           setWrongTries((w) => ({
             ...w,
             [currentIndex]: (w[currentIndex] ?? 0) + 1,
@@ -585,6 +612,8 @@ export default function QuizScreen() {
           />
         ) : null}
 
+        {/* Answer area — wobbles on a wrong answer (from Boju's #184). */}
+        <Animated.View style={shakeStyle}>
         {currentQ!.type === 'multiple_choice' && (
           <View style={styles.optionsContainer}>
             {currentQ!.options!.map((opt, i) => {
@@ -656,6 +685,7 @@ export default function QuizScreen() {
             }}
           />
         )}
+        </Animated.View>
 
         {/* Instant ✓/✗ feedback banner (all question types). A wrong answer
             gets a nudge, not the solution — the question is coming back. After
