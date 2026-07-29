@@ -309,6 +309,22 @@ Controller-level: JWT. Бүгд student-ийн өөрийн давталтын �
 | --- | --- | --- | --- |
 | GET `/gamification` | JWT | Streak, level, өнөөдрийн XP, зорилго + `progressByLevel` (CEFR island бүрийн `done/total`) | — |
 
+### Давталт (SRS) XP — `POST /reviews/:wordId`
+
+Флашкарт давтахад **XP олгодог боллоо** (өмнө нь огт олгодоггүй байсан ч
+`XpSource.WORD_REVIEW` enum нь бэлэн байсан). Хариунд **`xpEarned`** нэмэгдэв.
+
+| Тохиолдол | XP |
+| --- | --- |
+| Зөв санасан (`quality >= PASS_THRESHOLD`) | **10** |
+| Санаагүй | **2** (оролдсон нь ч тоологдоно) |
+
+**Anti-abuse:** нэг үг **өдөрт нэг л удаа** XP өгнө (Redis
+`reviewxp:<user>:<word>:<өдөр>`). `awardOnce`-оор үг тус бүрт нэг удаа гэвэл
+буруу байх байсан — SRS гэдэг нь яг тэр үгийг долоо хоног/сараар дахин давтах
+тухай, тэр нь XP авсаар байх ёстой. Өдрөөр таглах нь дадлыг урамшуулж,
+"нэг картыг нааш цааш шудрах" фармыг утгагүй болгоно.
+
 ## 13a. Push мэдэгдэл — `/api/notifications`
 
 | Method + Path | Auth | Зорилго | Body |
@@ -336,6 +352,15 @@ Controller-level: JWT. Бүгд student-ийн өөрийн давталтын �
 | --- | --- | --- | --- |
 | PATCH `/gamification/goal` | JWT | Өдрийн XP зорилт тавих. Зөвхөн **20 / 50 / 100** (өөр утга → **400**). Хариу нь шинэчилсэн gamification summary | `{ dailyGoalXp: 20\|50\|100 }` |
 | POST `/gamification/streak-freeze` | JWT | **Streak freeze** худалдаж авах (100 Sparks, багцаас хамаарна). Хамгийн ихдээ **2** хадгална → давсан бол **400**; Sparks дутуу → **400** | — |
+
+`GET /gamification` хариунд одоо **`streakFreezeCost`** (тухайн хэрэглэгчийн
+багцаар шийдэгдсэн үнэ) ба **`maxStreakFreezes`** бас орно — апп үнийг
+hardcode хийхгүйн тулд (`HeartsState.refillCost`-тэй ижил зарчим).
+
+**Streak нь ӨДРИЙН ЗОРИЛТ биелэхэд ахина** (2026-07-29-нөөс). Өмнө нь өдрийн
+**анхны XP** дээр ахидаг байсан тул 1 XP олоход л streak нэмэгддэг байв —
+"апп нээсэн" гэсэн утгатай болж, хэмжүүр сул байсан. Одоо `todayXp >= dailyGoal`
+болмогц ахина (Duolingo яг ингэдэг). Freeze-ийн логик хэвээр.
 
 `GET /gamification`-ийн `dailyGoal` нь одоо хатуу 50 биш, **хэрэглэгчийн сонголт**
 (`users.daily_goal_xp`). Хариунд **`streakFreezes`** (үлдсэн freeze) бас орно.

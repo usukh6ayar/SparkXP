@@ -11,7 +11,7 @@ import { Plan } from '../entities/plan.entity';
 const HOUR = 60 * 60 * 1000;
 
 /** Minimal fake repo — `get()` persists, so we capture what it would write. */
-function makeService(user: Partial<User>) {
+function makeService(user: Partial<User>, redisBlob: string | null = null) {
   const updates: Record<string, unknown>[] = [];
   const users = {
     findOne: async () => user as User,
@@ -21,7 +21,9 @@ function makeService(user: Partial<User>) {
     },
   };
   const sparks = { change: async () => undefined };
-  const svc = new HeartsService(users as never, sparks as never);
+  // No runtime override configured → the service falls back to code DEFAULTS.
+  const redis = { get: async () => redisBlob };
+  const svc = new HeartsService(users as never, sparks as never, redis as never);
   return { svc, updates };
 }
 
@@ -130,5 +132,29 @@ describe('HeartsService — plans', () => {
     expect(s.max).toBe(10);
     expect(s.hearts).toBe(7); // 3h at 1 heart/hour
     expect(s.refillCost).toBe(25);
+  });
+});
+
+describe('HeartsService — runtime tuning (Redis `hearts:defaults`)', () => {
+  it('honours a regen override so hearts can be tuned without a deploy', async () => {
+    // 30 min elapsed. Default regen is 240 min → 0 hearts back. With the
+    // override at 5 min it should be capped back up to max instead.
+    const user = freeUser({ hearts: 1, heartsUpdatedAt: new Date(Date.now() - 30 * 60_000) });
+    const { svc } = makeService(user, JSON.stringify({ regenMinutes: 5 }));
+    expect((await svc.get('u1')).hearts).toBe(5);
+  });
+
+  it('honours a maxHearts override', async () => {
+    const { svc } = makeService(freeUser({ hearts: 8 }), JSON.stringify({ maxHearts: 10 }));
+    const s = await svc.get('u1');
+    expect(s.max).toBe(10);
+    expect(s.hearts).toBe(8);
+  });
+
+  it('falls back to code defaults when the blob is malformed', async () => {
+    // Bad JSON must never take hearts down with it.
+    const { svc } = makeService(freeUser(), 'not-json{');
+    const s = await svc.get('u1');
+    expect(s.max).toBe(5);
   });
 });
