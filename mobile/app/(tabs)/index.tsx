@@ -56,6 +56,7 @@ import {
   tints,
   elevation,
   type AppColors,
+  progressGradients,
 } from "../../src/theme/theme";
 import { bounded } from '../../src/theme/responsive';
 
@@ -468,7 +469,7 @@ export default function HomeScreen() {
                   <View style={styles.continueProgress}>
                     <ProgressBar
                       value={cont.done / cont.total}
-                      color={c.white}
+                      gradient={progressGradients.onHero}
                       track={c.glassBorder}
                       height={6}
                     />

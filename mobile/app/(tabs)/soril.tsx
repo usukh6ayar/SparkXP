@@ -28,6 +28,7 @@ import {
   tints,
   elevation,
   type AppColors,
+  progressGradients,
 } from "../../src/theme/theme";
 import { bounded } from '../../src/theme/responsive';
 
@@ -195,7 +196,7 @@ export default function SorilScreen() {
             </AppText>
             <ProgressBar
               value={Math.min(1, dailyDone / dailyGoal)}
-              color={c.success}
+              gradient={progressGradients.success}
               track="rgba(255,255,255,0.3)"
               height={8}
             />
