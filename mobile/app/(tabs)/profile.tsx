@@ -16,14 +16,11 @@ import { AppIcon } from '../../src/components/AppIcon';
 import { type AppIconName } from '../../src/constants/appIcons';
 import { CountUp } from '../../src/components/CountUp';
 import { ProgressRing } from '../../src/components/ProgressRing';
-import { Pill } from '../../src/components/Pill';
-import { Button } from '../../src/components/Button';
 import { EditProfileModal } from '../../src/components/EditProfileModal';
 import { resolveAvatar } from '../../src/lib/avatar';
 import { useAvatarPicker } from '../../src/lib/useAvatarPicker';
 import { useLogoutConfirm, useComingSoon } from '../../src/lib/useLogoutConfirm';
 import { tf, type TranslationKey } from '../../src/i18n';
-import { ROLE_TKEY } from '../../src/constants/roles';
 import { colors, spacing, radius, tints, elevation, type PremiumPalette, progressGradients } from '../../src/theme/theme';
 import { bounded } from '../../src/theme/responsive';
 
@@ -127,6 +124,8 @@ export default function ProfileScreen() {
 
   // CEFR level (B1/B2…) chosen at registration; fall back to the graded level.
   const cefr = (user?.level ?? gam?.cefrLevel ?? '').toUpperCase();
+  // Place chip on the status card (§3.3): province · district, omitted if unset.
+  const place = [user?.province, user?.district].filter(Boolean).join(' · ');
 
   // Share a short "come learn with me" blurb via the OS share sheet.
   const shareProfile = () =>
@@ -137,8 +136,6 @@ export default function ProfileScreen() {
   // Real gamification (backend curve) with a local fallback until it loads.
   const level = gam?.level ?? Math.floor(xp / LEVEL_SIZE) + 1;
   const pct = gam ? Math.round(gam.progress * 100) : Math.round(((xp % LEVEL_SIZE) / LEVEL_SIZE) * 100);
-  const levelXp = gam?.levelXp ?? xp % LEVEL_SIZE;
-  const levelTarget = gam?.levelTarget ?? LEVEL_SIZE;
   const streak = gam?.currentStreak ?? STREAK;
   const longestStreak = gam?.longestStreak ?? 0;
   const lessonsDone = gam?.lessonsDone ?? 0;
@@ -199,69 +196,66 @@ export default function ProfileScreen() {
             </View>
           </View>
 
-          {/* Profile hero — panel + glowing avatar. Tapping the avatar / camera
-              changes the photo directly (no separate default-avatars screen). */}
-          <View style={styles.hero}>
-            <View style={styles.avatarOuter}>
-              <View style={styles.avatarGlow} />
-              {/* Level progress ring hugging the avatar (replaces a flat bar). */}
-              <ProgressRing progress={pct / 100} size={108} stroke={5} gradient={progressGradients.xp} track={p.track}>
-                <Pressable onPress={pickPhoto} disabled={avatarBusy}>
-                  <LinearGradient colors={[p.primaryLight, p.primary]} style={styles.avatarRing}>
-                    <AppImage source={resolveAvatar(user?.avatarUrl) ?? avatarImg} width={200} style={styles.avatar} contentFit="cover" />
-                  </LinearGradient>
-                </Pressable>
-              </ProgressRing>
-              <Pressable
-                style={styles.editBtn}
-                onPress={pickPhoto}
-                disabled={avatarBusy}
-                hitSlop={6}
-                accessibilityRole="button"
-                accessibilityLabel={t('editProfile')}
-              >
-                <Ionicons name="camera" size={13} color={colors.white} />
-              </Pressable>
-            </View>
+          {/* Status card (§3.3) — identity + the four stats in ONE radius.xl card
+              with a crown gradient. The avatar (tap to change) carries the XP ring
+              and level badge; edit + share sit top-right; the four stats sit below
+              on the card surface, inside the same border. */}
+          <View style={styles.statusCard}>
+            <LinearGradient colors={colors.primaryGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.crownGrad}>
+              <View style={styles.crownTop}>
+                <View style={styles.avatarWrap}>
+                  <ProgressRing progress={pct / 100} size={88} stroke={4} gradient={progressGradients.xp} track="rgba(255,255,255,0.28)">
+                    <Pressable onPress={pickPhoto} disabled={avatarBusy}>
+                      <AppImage source={resolveAvatar(user?.avatarUrl) ?? avatarImg} width={200} style={styles.avatar} contentFit="cover" />
+                    </Pressable>
+                  </ProgressRing>
+                  <View style={styles.levelBadgeWrap} pointerEvents="none">
+                    <View style={styles.levelBadge}>
+                      <AppText variant="label" color={colors.white}>{level}</AppText>
+                    </View>
+                  </View>
+                </View>
+                <View style={styles.crownActions}>
+                  <Pressable onPress={() => setEditing(true)} hitSlop={8} style={styles.crownIcon} accessibilityRole="button" accessibilityLabel={t('editProfile')}>
+                    <Ionicons name="pencil" size={15} color={colors.white} />
+                  </Pressable>
+                  <Pressable onPress={shareProfile} hitSlop={8} style={styles.crownShare} accessibilityRole="button" accessibilityLabel={t('shareProfile')}>
+                    <Ionicons name="share-social" size={14} color={colors.white} />
+                    <AppText variant="label" color={colors.white}>{t('shareProfile')}</AppText>
+                  </Pressable>
+                </View>
+              </View>
 
-            <View style={styles.heroInfo}>
-              <View style={styles.nameRow}>
-                <AppText variant="h2" color={p.text} numberOfLines={1} style={styles.name}>{user?.fullName}</AppText>
-                <Ionicons name="checkmark-circle" size={18} color={p.primaryLight} />
-                {cefr ? (
-                  <View style={styles.cefrBadge}>
-                    <AppText variant="label" color={p.primaryLight}>{cefr}</AppText>
+              <AppText variant="h2" color={colors.white} numberOfLines={1} style={styles.crownName}>{user?.fullName}</AppText>
+              {user?.username ? (
+                <AppText variant="caption" color="rgba(255,255,255,0.85)">@{user.username}</AppText>
+              ) : null}
+
+              <View style={styles.crownChips}>
+                <View style={styles.crownChip}>
+                  <AppText variant="label" color={colors.white}>
+                    {cefr || `${t('levelLabel')} ${level}`}
+                  </AppText>
+                </View>
+                {place ? (
+                  <View style={styles.crownChip}>
+                    <Ionicons name="location" size={12} color="rgba(255,255,255,0.9)" />
+                    <AppText variant="label" color={colors.white}>{place}</AppText>
                   </View>
                 ) : null}
               </View>
-              <Pill label={t(ROLE_TKEY[user?.role ?? 'student'] ?? 'roleStudent')} bg={alpha(p.primary, 0.22)} fg={p.primaryLight} />
-              <View style={styles.levelRow}>
-                <Ionicons name="star" size={15} color={colors.xp} />
-                <AppText variant="bodyStrong" color={p.text}>{t('levelLabel')} {level}</AppText>
-              </View>
-              {/* Exact XP numbers (the ring around the avatar shows progress). */}
-              <View style={styles.xpNumRow}>
-                <AppIcon name="xp" size={17} />
-                <AppText variant="caption" color={p.textMuted}>{levelXp} / {levelTarget} XP</AppText>
-              </View>
+            </LinearGradient>
+
+            {/* Four stats, on the card surface, inside the same border. */}
+            <View style={styles.statsRow}>
+              {STATS.map((s, i) => (
+                <View key={s.label} style={[styles.statCell, i > 0 && styles.statCellBorder]}>
+                  <AppIcon name={s.icon} size={28} />
+                  <CountUp value={s.value} variant="h3" color={p.text} style={styles.statValue} />
+                  <AppText variant="caption" color={p.textMuted} center numberOfLines={1}>{s.label}</AppText>
+                </View>
+              ))}
             </View>
-          </View>
-
-          {/* Edit / Share profile — Instagram-style action row */}
-          <View style={styles.profileActions}>
-            <Button label={t('editProfile')} variant="secondary" size="md" fullWidth={false} onPress={() => setEditing(true)} style={styles.actionBtn} />
-            <Button label={t('shareProfile')} variant="secondary" size="md" fullWidth={false} onPress={shareProfile} style={styles.actionBtn} />
-          </View>
-
-          {/* Stats — one card, four divided columns */}
-          <View style={styles.statsCard}>
-            {STATS.map((s, i) => (
-              <View key={s.label} style={[styles.statCell, i > 0 && styles.statCellBorder]}>
-                <AppIcon name={s.icon} size={40} />
-                <CountUp value={s.value} variant="h3" color={p.text} style={styles.statValue} />
-                <AppText variant="caption" color={p.textMuted} center numberOfLines={2}>{s.label}</AppText>
-              </View>
-            ))}
           </View>
 
           {/* Plan / limits */}
@@ -429,41 +423,37 @@ const makeStyles = (p: PremiumPalette, isDark: boolean) => {
     ...cardEdge,
   },
 
-  // Hero
-  hero: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.lg,
-    borderRadius: radius.xl, padding: spacing.lg, marginTop: spacing.lg,
+  // Status card (§3.3) — one radius.xl card: crown gradient + stats below.
+  statusCard: {
+    borderRadius: radius.xl, marginTop: spacing.lg, overflow: 'hidden',
     backgroundColor: p.card, ...cardEdge,
   },
-  avatarOuter: { width: 108, height: 108, alignItems: 'center', justifyContent: 'center' },
-  // Centered halo: 116 in a 108 box → inset (108-116)/2 = -4 on each side, so
-  // the glow sits symmetrically behind the avatar (was -8, which skewed it).
-  avatarGlow: {
-    position: 'absolute', top: -4, left: -4, width: 116, height: 116, borderRadius: 58,
-    backgroundColor: 'rgba(124,77,255,0.35)',
+  crownGrad: { padding: spacing.lg },
+  crownTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
+  avatarWrap: { width: 88, height: 88 },
+  avatar: { width: 76, height: 76, borderRadius: 38, backgroundColor: 'rgba(255,255,255,0.20)' },
+  levelBadgeWrap: { position: 'absolute', bottom: -4, left: 0, right: 0, alignItems: 'center' },
+  levelBadge: {
+    minWidth: 24, paddingHorizontal: 6, height: 22, borderRadius: radius.full,
+    backgroundColor: colors.primaryDark, borderWidth: 2, borderColor: colors.white,
+    alignItems: 'center', justifyContent: 'center',
   },
-  avatarRing: {
-    width: 100, height: 100, borderRadius: 50, alignItems: 'center', justifyContent: 'center', padding: 4,
+  crownActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  crownIcon: {
+    width: 34, height: 34, borderRadius: radius.full,
+    backgroundColor: 'rgba(255,255,255,0.20)', alignItems: 'center', justifyContent: 'center',
   },
-  avatar: { width: 92, height: 92, borderRadius: 46, backgroundColor: p.track },
-  editBtn: {
-    position: 'absolute', right: -2, bottom: -2, width: 30, height: 30, borderRadius: 15,
-    backgroundColor: p.primary, alignItems: 'center', justifyContent: 'center',
-    borderWidth: 3, borderColor: p.card,
+  crownShare: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, height: 34, paddingHorizontal: spacing.md,
+    borderRadius: radius.full, backgroundColor: 'rgba(255,255,255,0.20)',
   },
-  heroInfo: { flex: 1, gap: spacing.xs },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  name: { flexShrink: 1 },
-  cefrBadge: {
-    paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radius.full,
-    backgroundColor: alpha(p.primary, 0.22),
+  crownName: { marginTop: spacing.md },
+  crownChips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.sm },
+  crownChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: spacing.sm, paddingVertical: 5, borderRadius: radius.full,
+    backgroundColor: 'rgba(255,255,255,0.20)',
   },
-  levelRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
-  xpNumRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
-
-  // Edit / Share action row
-  profileActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
-  actionBtn: { flex: 1 },
 
   section: { marginTop: spacing.xxl },
 
@@ -497,13 +487,12 @@ const makeStyles = (p: PremiumPalette, isDark: boolean) => {
     alignItems: 'center', justifyContent: 'center',
   },
 
-  // Stats
-  statsCard: {
-    flexDirection: 'row', backgroundColor: p.card,
-    borderRadius: radius.xl, paddingVertical: spacing.lg, marginTop: spacing.lg,
-    ...cardEdge,
+  // Stats — a row INSIDE the status card (top divider separates it from the crown).
+  statsRow: {
+    flexDirection: 'row', paddingVertical: spacing.lg,
+    borderTopWidth: 1, borderTopColor: p.divider,
   },
-  statCell: { flex: 1, alignItems: 'center', gap: 5, paddingHorizontal: 4 },
+  statCell: { flex: 1, alignItems: 'center', gap: 4, paddingHorizontal: 4 },
   statCellBorder: { borderLeftWidth: 1, borderLeftColor: p.divider },
   statValue: { marginTop: 2 },
 

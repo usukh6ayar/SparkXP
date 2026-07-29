@@ -28,7 +28,6 @@ import { HeartsRow } from "../../src/components/HeartsRow";
 import { HeartsSheet } from "../../src/components/HeartsSheet";
 import { DailyGoalCard } from "../../src/components/DailyGoalCard";
 import { DailyGoalSheet } from "../../src/components/DailyGoalSheet";
-import { StreakFreezeSheet } from "../../src/components/StreakFreezeSheet";
 import { getDue } from "../../src/api/reviews";
 import { getContinue } from "../../src/api/lessons";
 import { getExercises } from "../../src/api/quizzes";
@@ -43,7 +42,6 @@ import { AppIcon } from "../../src/components/AppIcon";
 import { type AppIconName } from "../../src/constants/appIcons";
 import { IconButton } from "../../src/components/IconButton";
 import { PressableScale } from "../../src/components/PressableScale";
-import { Button } from "../../src/components/Button";
 import { Skeleton } from "../../src/components/Skeleton";
 import { ProgressBar } from "../../src/components/ProgressBar";
 import { useColors, useSettings } from "../../src/settings/SettingsContext";
@@ -57,6 +55,7 @@ import {
   elevation,
   type AppColors,
   progressGradients,
+  skillGradients,
 } from "../../src/theme/theme";
 import { bounded } from '../../src/theme/responsive';
 
@@ -76,9 +75,10 @@ const GRASS = 0.6; // grass surface ≈ 60% down the composite (where feet rest)
 
 const { width: SCREEN_W } = Dimensions.get("window");
 
-// Space reserved at the top for the greeting + badges, so the fox is parked
-// BELOW the header and never covers the user's name. (Tune for header height.)
-const HEADER_RESERVE = 106;
+// Space reserved at the top for the greeting + the stat-card row, so the fox is
+// parked BELOW them and never overlaps the cards (the hearts pill still floats
+// over the fox's upper sky on purpose). (Tune for header height.)
+const HEADER_RESERVE = 200;
 
 // The fox+island scene spans the full width and sits just under the header.
 const SCENE_W = SCREEN_W;
@@ -142,7 +142,7 @@ function StreakFlame({ streak }: { streak: number }) {
 
   return (
     <Animated.View style={style}>
-      <AppIcon name="streak" size={32} />
+      <AppIcon name="streak" size={34} />
     </Animated.View>
   );
 }
@@ -187,7 +187,6 @@ export default function HomeScreen() {
   // they have BEFORE starting — otherwise the limit is invisible until it bites.
   const [hearts, setHearts] = useState<HeartsState | null>(null);
   const [goalSheet, setGoalSheet] = useState(false);
-  const [freezeSheet, setFreezeSheet] = useState(false);
   const [heartsSheet, setHeartsSheet] = useState(false);
   // Whether the student has joined a class — assignments come from a teacher's
   // class, so the "My assignments" card only shows for enrolled students.
@@ -293,9 +292,6 @@ export default function HomeScreen() {
   };
 
   const streak = gam?.currentStreak ?? 0;
-  const freezes = gam?.streakFreezes ?? 0;
-  // Total published exercises across all skills (header count pill).
-  const totalExercises = Object.values(taskCounts).reduce((a, b) => a + b, 0);
 
   return (
     <View style={styles.root}>
@@ -352,13 +348,6 @@ export default function HomeScreen() {
               <View style={styles.headerText}>
                 {/* On the dark sky hero — always light text, both themes. */}
                 <AppText variant="h1" color={c.white}>{t("greeting")}, {firstName} 👋</AppText>
-                <AppText
-                  variant="body"
-                  color={c.textOnDarkMuted}
-                  style={styles.sub}
-                >
-                  {t("homeSubtitle")}
-                </AppText>
               </View>
               <View style={styles.headerIcons}>
                 <IconButton icon="notifications-outline" dot={hasUnread} size={44} style={styles.headerIconBtn} accessibilityLabel={t('notifications')} onPress={() => router.push('/notifications')} />
@@ -367,65 +356,59 @@ export default function HomeScreen() {
               </View>
             </View>
 
-            {/* Streak / gem / XP badges over the scene */}
-            <View style={styles.heroTop}>
-              {/* Tapping the streak opens the freeze shop — the sub-line says
-                  how many are banked, so the offer appears where the thing it
-                  protects is already on screen. */}
-              <PressableScale
-                style={styles.streakBadge}
-                onPress={() => { haptics.tap(); setFreezeSheet(true); }}
-                accessibilityLabel={t("streakFreezeTitle")}
-              >
-                <StreakFlame streak={streak} />
-                <AppText variant="h2" color={c.white}>{streak}</AppText>
-                <View>
-                  <AppText variant="caption" color={c.textOnDark}>
-                    {t("statStreak")}
-                  </AppText>
-                  <AppText variant="caption" color={c.textOnDarkMuted}>
-                    {freezes > 0
-                      ? `❄ ${tf("streakFreezeBadge", { n: freezes })}`
-                      : t("keepGoing")}
-                  </AppText>
+            {/* Stat pills in ONE row over the scene: streak · XP · gems · hearts.
+                Each is a compact dark pill (icon + label + value); the row wraps
+                if it runs out of width so nothing is ever clipped. */}
+            {/* Stat cards: streak · XP · gems in a row under the greeting, each a
+                tinted card with an icon tile on the left. */}
+            <View style={styles.heroStatsRow}>
+              <View style={[styles.statCard, { borderColor: tints.orange.fg }]} accessibilityLabel={`${t("statStreak")}: ${streak}`}>
+                <View style={[styles.statCardIcon, { backgroundColor: tints.orange.bg, shadowColor: tints.orange.fg }]}>
+                  <StreakFlame streak={streak} />
                 </View>
-              </PressableScale>
-              <View style={styles.heroPillCol}>
-                <View style={styles.heroPill}>
-                  <AppIcon name="sparks" size={30} />
-                  <AppText variant="label" color={c.white}>
-                    {sparks} {t("sparks")}
-                  </AppText>
+                <AppText variant="h1" color={c.white} numberOfLines={1} style={styles.statValue}>{streak}</AppText>
+              </View>
+
+              <View style={[styles.statCard, { borderColor: tints.amber.fg }]} accessibilityLabel={`XP: ${xp}`}>
+                <View style={[styles.statCardIcon, { backgroundColor: tints.amber.bg, shadowColor: tints.amber.fg }]}>
+                  <AppIcon name="xp" size={34} />
                 </View>
-                <View style={styles.heroPill}>
-                  <AppIcon name="xp" size={30} />
-                  <AppText variant="label" color={c.white}>
-                    {xp.toLocaleString()} XP
-                  </AppText>
+                <AppText variant="h1" color={c.white} numberOfLines={1} style={styles.statValue}>{xp.toLocaleString()}</AppText>
+              </View>
+
+              <View style={[styles.statCard, { borderColor: tints.blue.fg }]} accessibilityLabel={`${t("sparks")}: ${sparks}`}>
+                <View style={[styles.statCardIcon, { backgroundColor: tints.blue.bg, shadowColor: tints.blue.fg }]}>
+                  <AppIcon name="sparks" size={34} />
                 </View>
-                {/* Quiz lives — visible before a quiz starts, not just inside
-                    one. No countdown here: it made the pill much wider than its
-                    siblings, and tapping opens the sheet that spells it out.
-                    Turns red when empty — the one state the student has to act
-                    on shouldn't look like the others. */}
-                {hearts ? (
-                  <View
-                    style={[
-                      styles.heroPill,
-                      !hearts.unlimited && hearts.hearts === 0 && styles.heroPillEmpty,
-                    ]}
-                  >
-                    <HeartsRow
-                      state={hearts}
-                      size={22}
-                      onDark
-                      onRegen={load}
-                      onPress={() => { haptics.tap(); setHeartsSheet(true); }}
-                    />
-                  </View>
-                ) : null}
+                <AppText variant="h1" color={c.white} numberOfLines={1} style={styles.statValue}>{sparks}</AppText>
               </View>
             </View>
+
+            {/* Hearts — floats to the right, over the top of the fox scene. */}
+            {hearts ? (
+              <Pressable
+                onPress={() => { haptics.tap(); setHeartsSheet(true); }}
+                style={({ pressed }) => [
+                  styles.heartsFloat,
+                  !hearts.unlimited && hearts.hearts === 0 && styles.heroPillEmpty,
+                  pressed && styles.pressed,
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel={t("heartsLabel")}
+              >
+                {/* Row 1 — the hearts (shake + lazy regen kept from HeartsRow). */}
+                <HeartsRow state={hearts} size={24} onDark onRegen={load} />
+                {/* Row 2 — count + "Зүрх" + info, like the mockup. */}
+                <View style={styles.heartsMeta}>
+                  <Ionicons name="sparkles" size={12} color={c.textOnDarkMuted} />
+                  <AppText variant="bodyStrong" color={c.white}>
+                    {hearts.unlimited ? "∞" : `${hearts.hearts}/${hearts.max}`}
+                  </AppText>
+                  <AppText variant="caption" color={c.textOnDarkMuted}>{t("heartsLabel")}</AppText>
+                  <Ionicons name="information-circle-outline" size={15} color={c.textOnDarkMuted} />
+                </View>
+              </Pressable>
+            ) : null}
           </SafeAreaView>
         </View>
 
@@ -512,131 +495,93 @@ export default function HomeScreen() {
             />
           ) : null}
 
-          {/* Review reminder */}
-          <View style={styles.reviewCard}>
-            <View style={styles.reviewHead}>
-              <View style={styles.reviewIcon}>
-                <Ionicons name="alarm" size={26} color={tints.purple.fg} />
+          {/* SECONDARY — two next steps as equal half-width tiles: review +
+              assignments (assignments only when enrolled; review then goes wide). */}
+          <View style={styles.nextRow}>
+            <PressableScale style={styles.nextTile} onPress={() => { haptics.tap(); router.push("/swipe"); }}>
+              <View style={[styles.nextIcon, { backgroundColor: tints.purple.bg, borderColor: tints.purple.fg }]}>
+                <Ionicons name="albums" size={22} color={tints.purple.fg} />
+                {due > 0 ? (
+                  <View style={styles.dueBadge}><AppText variant="caption" color={c.white}>{due}</AppText></View>
+                ) : null}
               </View>
-              <View style={styles.reviewBody}>
-                <AppText variant="h3">{t("reviewWords")}</AppText>
-                <AppText variant="caption" color={c.textSecondary}>
-                  {due > 0 ? tf("wordsDueCount", { n: due }) : t("noWordsDue")}
-                </AppText>
-              </View>
-              {due > 0 ? (
-                <View style={styles.reviewDueBadge}>
-                  <AppText variant="label" color={c.white} style={styles.reviewDueText}>
-                    {due}
-                  </AppText>
-                </View>
-              ) : null}
-            </View>
-            <Button
-              label={t("startReview")}
-              icon="play"
-              size="md"
-              onPress={() => router.push("/swipe")}
-            />
-          </View>
-
-          {/* My assignments — only for students enrolled in a class (that's
-              where assignments come from). */}
-          {enrolled ? (
-            <Pressable
-              style={({ pressed }) => [styles.joinCard, pressed && styles.pressed]}
-              onPress={() => router.push("/assignments")}
-            >
-              <View style={[styles.joinIcon, { backgroundColor: tints.green.bg, borderColor: tints.green.fg }]}>
-                <Ionicons name="clipboard" size={24} color={tints.green.fg} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <AppText variant="h3">{t("myAssignments")}</AppText>
-                <AppText variant="caption">{t("assignmentsSubtitle")}</AppText>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={c.borderStrong} />
-            </Pressable>
-          ) : null}
-
-          {/* IELTS prep — exam vertical, its own hub (no extra tab: the bar is full) */}
-          <Pressable
-            style={({ pressed }) => [styles.joinCard, pressed && styles.pressed]}
-            onPress={() => router.push("/ielts")}
-          >
-            <View style={[styles.joinIcon, { backgroundColor: tints.amber.bg, borderColor: tints.amber.fg }]}>
-              <Ionicons name="school" size={24} color={tints.amber.fg} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <AppText variant="h3">{t("ieltsHomeCard")}</AppText>
-              <AppText variant="caption">{t("ieltsHomeHint")}</AppText>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={c.borderStrong} />
-          </Pressable>
-
-          {/* Idioms (Хэлц үг) — self-contained vocabulary feature, its own hub */}
-          <Pressable
-            style={({ pressed }) => [styles.joinCard, pressed && styles.pressed]}
-            onPress={() => router.push("/idioms")}
-          >
-            <View style={[styles.joinIcon, { backgroundColor: tints.purple.bg, borderColor: tints.purple.fg }]}>
-              <Ionicons name="chatbubbles" size={24} color={tints.purple.fg} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <AppText variant="h3">{t("idiomsTitle")}</AppText>
-              <AppText variant="caption">{t("idiomsSubtitle")}</AppText>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={c.borderStrong} />
-          </Pressable>
-
-          {/* Exercises — each tile opens its skill screen of exercises */}
-          <View style={styles.sectionRow}>
-            <AppText variant="h2">{t("exercisesTitle")}</AppText>
-            <View style={styles.countPill}>
-              <AppText variant="label" color={c.textSecondary}>
-                {tf("exerciseCount", { n: totalExercises })}
+              <AppText variant="h3" numberOfLines={1}>{t("reviewWords")}</AppText>
+              <AppText variant="caption" color={c.textSecondary} numberOfLines={1}>
+                {due > 0 ? tf("wordsDueCount", { n: due }) : t("noWordsDue")}
               </AppText>
-            </View>
+            </PressableScale>
+
+            {enrolled ? (
+              <PressableScale style={styles.nextTile} onPress={() => { haptics.tap(); router.push("/assignments"); }}>
+                <View style={[styles.nextIcon, { backgroundColor: tints.green.bg, borderColor: tints.green.fg }]}>
+                  <Ionicons name="clipboard" size={22} color={tints.green.fg} />
+                </View>
+                <AppText variant="h3" numberOfLines={1}>{t("myAssignments")}</AppText>
+                <AppText variant="caption" color={c.textSecondary} numberOfLines={1}>{t("assignmentsSubtitle")}</AppText>
+              </PressableScale>
+            ) : null}
           </View>
-          <View style={styles.grid}>
+
+          {/* BROWSE — the skill menu as 2×2 gradient tiles ("Юу сурах вэ?"). */}
+          <View style={styles.learnHead}>
+            <AppText variant="overline" color={c.textMuted}>{t("learnEyebrow")}</AppText>
+            <AppText variant="h2">{t("whatToLearn")}</AppText>
+          </View>
+          <View style={styles.skillGrid}>
             {loading
               ? TASKS.map((task) => (
-                  <Skeleton key={task.key} width="23%" height={92} radius={radius.md} />
+                  <Skeleton key={task.key} width="48.5%" height={116} radius={radius.lg} />
                 ))
               : TASKS.map((task, i) => {
                   const count = taskCounts[task.key] ?? 0;
+                  const grad = skillGradients[task.key] ?? skillGradients.reading;
+                  const countLabel =
+                    task.key === "reading"
+                      ? tf("materialCount", { n: count })
+                      : tf("exerciseCount", { n: count });
                   return (
                     <Animated.View
                       key={task.key}
-                      style={styles.taskWrap}
+                      style={styles.skillWrap}
                       entering={reduceMotion ? undefined : FadeInDown.delay(i * 60).springify()}
                     >
-                      <Pressable
-                        style={({ pressed }) => [styles.task, pressed && styles.pressed]}
+                      <PressableScale
+                        style={styles.skillTile}
                         // Reading = passages grouped by сэдэв (own screen); the other
                         // skills are quiz-based exercise lists.
-                        onPress={() => router.push(task.key === 'reading' ? '/reading' : `/skill/${task.key}`)}
+                        onPress={() => { haptics.tap(); router.push(task.key === "reading" ? "/reading" : `/skill/${task.key}`); }}
                       >
-                        <View style={[styles.taskIcon, { backgroundColor: task.tint.bg, borderColor: task.tint.fg }]}>
-                          {task.appIcon ? (
-                            <AppIcon name={task.appIcon} size={30} />
-                          ) : (
-                            <Ionicons name={task.icon} size={22} color={task.tint.fg} />
-                          )}
-                        </View>
-                        <AppText variant="caption" color={c.text} numberOfLines={1} style={styles.taskLabel}>
-                          {t(task.labelKey)}
-                        </AppText>
-                        <View style={styles.taskCount}>
-                          <Ionicons name="ribbon" size={10} color={c.xp} />
-                          <AppText variant="caption" numberOfLines={1}>
-                            {count}
-                          </AppText>
-                        </View>
-                      </Pressable>
+                        <LinearGradient colors={grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
+                        <Ionicons name={task.icon} size={26} color="rgba(255,255,255,0.92)" />
+                        <View style={styles.skillSpacer} />
+                        <AppText variant="bodyStrong" color={c.white} numberOfLines={1}>{t(task.labelKey)}</AppText>
+                        <AppText variant="caption" color="rgba(255,255,255,0.9)" numberOfLines={1}>{countLabel}</AppText>
+                      </PressableScale>
                     </Animated.View>
                   );
                 })}
           </View>
+
+          {/* Occasional verticals drop into a horizontal rail ("Бас үзээрэй"). */}
+          <View style={styles.learnHead}>
+            <AppText variant="h2">{t("alsoTry")}</AppText>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>
+            <PressableScale style={styles.railCard} onPress={() => { haptics.tap(); router.push("/ielts"); }}>
+              <View style={[styles.railIcon, { backgroundColor: tints.amber.bg, borderColor: tints.amber.fg }]}>
+                <Ionicons name="school" size={24} color={tints.amber.fg} />
+              </View>
+              <AppText variant="h3" numberOfLines={1}>{t("ieltsHomeCard")}</AppText>
+              <AppText variant="caption" color={c.textSecondary} numberOfLines={2}>{t("ieltsHomeHint")}</AppText>
+            </PressableScale>
+            <PressableScale style={styles.railCard} onPress={() => { haptics.tap(); router.push("/idioms"); }}>
+              <View style={[styles.railIcon, { backgroundColor: tints.purple.bg, borderColor: tints.purple.fg }]}>
+                <Ionicons name="chatbubbles" size={24} color={tints.purple.fg} />
+              </View>
+              <AppText variant="h3" numberOfLines={1}>{t("idiomsTitle")}</AppText>
+              <AppText variant="caption" color={c.textSecondary} numberOfLines={2}>{t("idiomsSubtitle")}</AppText>
+            </PressableScale>
+          </ScrollView>
 
           <View style={{ height: 110 }} />
         </View>
@@ -649,16 +594,6 @@ export default function HomeScreen() {
         current={gam?.dailyGoal ?? 0}
         onClose={() => setGoalSheet(false)}
         onSaved={setGam}
-      />
-
-      {/* Buying spends Sparks, so refresh the balance from the same load that
-          feeds the hero pills — the summary itself comes back in the response. */}
-      <StreakFreezeSheet
-        visible={freezeSheet}
-        gam={gam}
-        sparksBalance={sparks}
-        onClose={() => setFreezeSheet(false)}
-        onBought={(next) => { setGam(next); load(); }}
       />
 
       {/* Info only here — there is no quiz to leave, so no `onExit`. */}
@@ -692,10 +627,12 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
     top: SCENE_TOP,
   },
   // Header + badges stack near the top; the fox fills the space below them.
+  // Tighter gap keeps the one-row stat pills up near the greeting, clear of
+  // the fox's head below.
   topInner: {
     flex: 1,
     paddingHorizontal: spacing.lg,
-    gap: spacing.lg,
+    gap: spacing.xs,
   },
   // Everything below the hero keeps the normal screen gutter. It is pulled up
   // over the hero's faded bottom (zIndex above it) so the first cards sit in
@@ -721,35 +658,58 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
 
   header: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm },
   headerText: { flex: 1, paddingTop: 2 },
-  sub: { marginTop: 4 },
   headerIcons: { flexDirection: "row", gap: spacing.sm },
   headerIconBtn: { borderWidth: 1, borderColor: c.border },
 
-  // Hero overlay badges
-  heroTop: {
+  // Hero stat cards — streak · XP · gems in a row under the greeting; each a
+  // tinted card (icon tile + label/value/unit). Hearts floats right, below.
+  heroStatsRow: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
+    gap: spacing.sm,
   },
-  streakBadge: {
+  statCard: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: spacing.sm,
+    backgroundColor: HERO_PILL,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+  },
+  statCardIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.md,
+    alignItems: "center",
+    justifyContent: "center",
+    // Coloured glow so the icon radiates like the mockup (iOS; Android keeps the
+    // tinted tile). shadowColor is set per-card inline to the stat's colour.
+    shadowOpacity: 0.9,
+    shadowRadius: 9,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 6,
+  },
+  statValue: { minWidth: 0 },
+  heartsFloat: {
+    alignSelf: "flex-end",
+    alignItems: "flex-start",
+    gap: spacing.xs,
+    marginTop: spacing.xxl,
     backgroundColor: HERO_PILL,
     borderRadius: radius.lg,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
+    // Soft red glow so the lives read as bright as the mockup's hearts.
+    shadowColor: c.danger,
+    shadowOpacity: 0.5,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 4,
   },
-  heroPillCol: { gap: spacing.sm, alignItems: "flex-end" },
-  heroPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    backgroundColor: HERO_PILL,
-    borderRadius: radius.full,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 10,
-  },
+  heartsMeta: { flexDirection: "row", alignItems: "center", gap: 5 },
   // Out of hearts — a warm tint + border so it reads as "needs attention"
   // rather than as one more neutral stat.
   heroPillEmpty: {
@@ -767,7 +727,8 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
     padding: spacing.lg,
     marginTop: spacing.lg,
     backgroundColor: c.primary,
-    ...(elevation.md as object),
+    // The one glowing element on Home (§3.1) — the only elevation.float.
+    ...(elevation.float as object),
   },
   continueBody: { flex: 1, gap: 6 },
   continueProgress: { gap: 4, marginTop: 2 },
@@ -790,110 +751,83 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   },
   continueThumb: { width: "100%", height: "100%" },
 
-  // Review reminder
-  reviewCard: {
-    gap: spacing.md,
+  // Two next-step tiles (review + assignments), equal half-width.
+  nextRow: { flexDirection: "row", gap: spacing.md, marginTop: spacing.md },
+  nextTile: {
+    flex: 1,
+    gap: spacing.xs,
     backgroundColor: c.surface,
-    borderRadius: radius.xl,
+    borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: c.border,
-    padding: spacing.lg,
-    marginTop: spacing.lg,
+    padding: spacing.md,
     ...(elevation.sm as object),
   },
-  reviewHead: { flexDirection: "row", alignItems: "center", gap: spacing.md },
-  // Shared premium icon chip — rounded square with a soft tint + matching
-  // outline so every feature icon reads as one consistent, vivid set.
-  reviewIcon: {
-    width: 52,
-    height: 52,
+  nextIcon: {
+    width: 44,
+    height: 44,
     borderRadius: radius.md,
-    backgroundColor: tints.purple.bg,
     borderWidth: 1,
-    borderColor: tints.purple.fg,
     alignItems: "center",
     justifyContent: "center",
+    marginBottom: spacing.xs,
   },
-  reviewBody: { flex: 1, gap: 2 },
-  reviewDueBadge: {
-    minWidth: 30,
-    height: 30,
-    paddingHorizontal: 8,
+  dueBadge: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: 5,
     borderRadius: radius.full,
     backgroundColor: c.primary,
     alignItems: "center",
     justifyContent: "center",
-  },
-  reviewDueText: { fontWeight: "800" },
-
-  // My assignments
-  joinCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    backgroundColor: c.surface,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    marginTop: spacing.md,
-    ...(elevation.sm as object),
-  },
-  joinIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: c.surface,
   },
 
-  // Exercises
-  sectionRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: spacing.xl,
-    marginBottom: spacing.md,
-  },
-  countPill: {
-    backgroundColor: c.surfaceAlt,
-    borderRadius: radius.full,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 4,
-  },
-  grid: {
+  // Section eyebrow + title (skill grid / rail).
+  learnHead: { marginTop: spacing.xl, marginBottom: spacing.md, gap: 2 },
+
+  // Skill menu — 2×2 large gradient tiles.
+  skillGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
     rowGap: spacing.md,
   },
-  // Compact secondary "quick-row": 4 flat tiles in a single row, lighter than
-  // the primary Continue hero above so there is one clear primary action (C1).
-  // 23% × 4 + space-between leaves even gaps.
-  taskWrap: { width: "23%" },
-  task: {
-    width: "100%",
-    borderRadius: radius.md,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: 4,
-    alignItems: "center",
-    gap: 5,
-    backgroundColor: c.surface,
-    borderWidth: 1,
-    borderColor: c.border, // flat outline instead of a shadow → reads as secondary
+  skillWrap: { width: "48.5%" },
+  skillTile: {
+    height: 116,
+    borderRadius: radius.lg,
+    overflow: "hidden",
+    padding: spacing.md,
+    justifyContent: "flex-start",
+    ...(elevation.sm as object),
   },
-  taskIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.sm,
+  skillSpacer: { flex: 1 },
+
+  // "Бас үзээрэй" horizontal rail.
+  rail: { gap: spacing.md, paddingRight: spacing.lg },
+  railCard: {
+    width: 232,
+    gap: spacing.xs,
+    backgroundColor: c.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: c.border,
+    padding: spacing.md,
+    ...(elevation.sm as object),
+  },
+  railIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: radius.md,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
-  },
-  taskLabel: { fontWeight: "600" },
-  taskCount: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
+    marginBottom: spacing.xs,
   },
 
   pressed: { opacity: 0.9, transform: [{ scale: 0.99 }] },

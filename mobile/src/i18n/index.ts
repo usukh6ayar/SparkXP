@@ -468,6 +468,7 @@ const mn = {
   // Profile
   levelLabel: 'Түвшин',
   statStreak: 'Өдөр дараалал',
+  unitDays: 'өдөр',
   statQuizzes: 'Сорил',
   statLessons: 'Хичээл',
   myPlan: 'Миний багц',
@@ -522,11 +523,17 @@ const mn = {
   assignmentsSubtitle: 'Багшийн оноосон хичээл, сорил',
   exercisesTitle: 'Дасгалууд',
   exerciseCount: '{n} дасгал',
+  learnEyebrow: 'СУРАЛЦАХ',
+  whatToLearn: 'Юу сурах вэ?',
+  alsoTry: 'Бас үзээрэй',
+  materialCount: '{n} материал',
   questionCount: '{n} асуулт',
 
   // Lessons world
   lessonsWorldTitle: 'Хичээлийн ертөнц',
   lessonsWorldSubtitle: 'Адал явдлаар дамжуулж англи хэлээ эзэмш!',
+  youAreHere: 'ЭНД БАЙНА',
+  youAreHereShort: 'ЭНД',
   xpPoints: 'XP оноо',
   unlockAtLevel: 'Түвшин {n}-д\nнээгдэнэ',
   levelNoLessons: 'Энэ түвшинд хичээл удахгүй нэмэгдэнэ.',
@@ -632,6 +639,7 @@ const mn = {
   // Hearts (зүрх / амь) — buruu hariult бүр 1 зүрх авна
   heartsCountA11y: 'Зүрх {n} / {max}',
   heartsUnlimitedA11y: 'Хязгааргүй зүрх',
+  heartsLabel: 'Зүрх',
   heartsNextIn: 'Дараагийн зүрх {time}',
   heartsEmptyTitle: 'Зүрх дууслаа',
   heartsEmptyBody: 'Зүрх сэргэхийг хүлээх эсвэл Sparks-аар дүүргэнэ үү.',
@@ -1301,6 +1309,7 @@ const en: Record<TranslationKey, string> = {
   // Profile
   levelLabel: 'Level',
   statStreak: 'Day streak',
+  unitDays: 'days',
   statQuizzes: 'Quizzes',
   statLessons: 'Lessons',
   myPlan: 'My plan',
@@ -1355,11 +1364,17 @@ const en: Record<TranslationKey, string> = {
   assignmentsSubtitle: 'Lessons and quizzes from your teacher',
   exercisesTitle: 'Exercises',
   exerciseCount: '{n} exercises',
+  learnEyebrow: 'LEARN',
+  whatToLearn: 'What to learn?',
+  alsoTry: 'Also try',
+  materialCount: '{n} materials',
   questionCount: '{n} questions',
 
   // Lessons world
   lessonsWorldTitle: 'Lesson world',
   lessonsWorldSubtitle: 'Master English through adventure!',
+  youAreHere: 'YOU ARE HERE',
+  youAreHereShort: 'HERE',
   levelNoLessons: 'Lessons for this level are coming soon.',
   xpPoints: 'XP',
   unlockAtLevel: 'Unlocks at\nlevel {n}',
@@ -1465,6 +1480,7 @@ const en: Record<TranslationKey, string> = {
   // Hearts
   heartsCountA11y: '{n} of {max} hearts',
   heartsUnlimitedA11y: 'Unlimited hearts',
+  heartsLabel: 'Hearts',
   heartsNextIn: 'Next heart {time}',
   heartsEmptyTitle: 'Out of hearts',
   heartsEmptyBody: 'Wait for a heart to regenerate, or refill with Sparks.',
