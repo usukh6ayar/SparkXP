@@ -13,9 +13,19 @@ import { TROPHY_CATALOG, TROPHY_TIERS, Trophy } from './catalog';
 const FALLBACK_MEDIA_BASE =
   'https://pub-6b9eaedaf87348b0ab542274f72b5c96.r2.dev';
 
-/** The catalog stores R2 keys; the API still returns a ready-to-use `image`. */
+/**
+ * Thumbnails live in a flat folder keyed by slug, so they need no catalog entry.
+ * They matter a lot: a full badge PNG is ~1.7MB but its WebP thumb is ~19KB, so
+ * rendering the 100-trophy grid from `image` would pull ~171MB instead of 2.4MB.
+ */
+const THUMB_FOLDER = 'englishxp/media/trophy-thumb';
+
+/** The catalog stores R2 keys; the API returns ready-to-use URLs. */
 export interface UserTrophy extends Omit<Trophy, 'imagePath'> {
+  /** Full-size badge (~1.7MB) — detail view / unlock celebration only. */
   image: string;
+  /** ~19KB WebP — use this for grids and lists. */
+  thumb: string;
   earned: boolean;
 }
 
@@ -54,6 +64,7 @@ export class AchievementsService {
     const trophies: UserTrophy[] = TROPHY_CATALOG.map(({ imagePath, ...t }) => ({
       ...t,
       image: `${this.mediaBase}/${imagePath}`,
+      thumb: `${this.mediaBase}/${THUMB_FOLDER}/${t.slug}.webp`,
       earned: earnedSet.has(t.slug),
     }));
     return {
