@@ -6,6 +6,7 @@ import { User } from '../entities/user.entity';
 import { Lesson } from '../entities/lesson.entity';
 import { Plan } from '../entities/plan.entity';
 import { SparksService } from '../sparks/sparks.service';
+import { AchievementsService } from '../achievements/achievements.service';
 import { XpSource, ContentLevel, SparksSource } from '../common/enums';
 import {
   computeLevel,
@@ -69,6 +70,7 @@ export class XpService {
     private readonly lessons: Repository<Lesson>,
     private readonly dataSource: DataSource,
     private readonly sparks: SparksService,
+    private readonly achievements: AchievementsService,
   ) {}
 
   /**
@@ -78,7 +80,7 @@ export class XpService {
   async award(opts: AwardXpOptions): Promise<XpLog> {
     if (opts.amount <= 0) return null as unknown as XpLog;
 
-    return this.dataSource.transaction(async (manager) => {
+    const log = await this.dataSource.transaction(async (manager) => {
       const log = manager.create(XpLog, {
         userId: opts.userId,
         amount: opts.amount,
@@ -138,6 +140,14 @@ export class XpService {
 
       return log;
     });
+
+    // Fire-and-forget, and only once the transaction has COMMITTED: the check
+    // reads users.xp and the streak this award just changed. Hooked here rather
+    // than in awardOnce() because words.service.ts and reviews.service.ts call
+    // award() directly. checkAfterXp swallows its own errors.
+    void this.achievements.checkAfterXp(opts.userId, opts.source);
+
+    return log;
   }
 
   /**

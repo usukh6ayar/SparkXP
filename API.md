@@ -483,11 +483,29 @@ Controller-level: admin, super_admin.
 
 | Method + Path | Auth | Зорилго | Params / Body |
 | --- | --- | --- | --- |
-| GET `/achievements` | JWT | Trophy catalog (100 badge, 10 тир, Cloudflare R2 зурагтай) + өөрийн авсан төлөв → `{ tiers[], total, earned, trophies: [{slug, tier, name, image, earned}] }` | — |
+| GET `/achievements` | JWT | Trophy catalog + өөрийн авсан төлөв → `{ tiers[], total, earned, unseen[], trophies: [{slug, tier, name, image, thumb, condition, earned, earnedAt}] }` | — |
+| POST `/achievements/seen` | JWT | Баярлах цонх үзүүлсний дараа тэмдэглэнэ → `{ updated }` | `{ slugs?: string[] }` — хоосон бол бүх үзээгүйг |
 
-Catalog нь `src/achievements/catalog.ts` (R2-аас generate). `earned` = `User.trophies`
-(jsonb slug list) дотор байгаа эсэх. **Award логик тусдаа** (одоо зөвхөн харагдац).
-⚠️ Зураг тус бүр ~2MB — mobile-д resize (Cloudflare Image Transformations) хэрэгтэй.
+**Зураг:** `thumb` = 256px WebP ~19KB · `image` = 640px WebP ~87KB.
+**Grid-д заавал `thumb` ашиглана** — 100 трофейг `image`-ээр зурвал 2.4MB биш 8.7MB татна.
+
+**Олголт автомат.** `XpService.award()` транзакц commit хийсний дараа
+`AchievementsService.checkAfterXp()` дуудагдана (fire-and-forget, алдаагаа өөрөө
+залгина). Тухайн `XpSource`-той холбоотой нөхцөлүүд + XP/streak/sparks/трофейн тоо
+(эдгээр нь эх сурвалжаас үл хамааран өөрчлөгддөг) л шалгагдана.
+
+Авсан трофей `user_trophies` хүснэгтэд (`UNIQUE(user_id, slug)`); `created_at` = авсан
+огноо, `seen_at = null` = баярлах цонх хараахан гараагүй. Хуучин `users.trophies` jsonb
+багана **ашиглагдахаа больсон**.
+
+**Нөхцөл:** `catalog.ts` дотор өгөгдөл хэлбэрээр (`{ type, value }`), логик нь
+`conditions.ts`-д. 96 трофей нөхцөлтэй; 4 CEFR Finisher `condition: null` (UI-д
+"удахгүй"). Grammar цуврал нь `quiz_count{skill:'fill'}` — `fill` контент нэмэгдэх
+хүртэл түр идэвхгүй.
+
+Шинэ prod хүснэгт: migration `CreateUserTrophies1786100000000`.
+Deploy хийсний дараа нэг удаа `src/scripts/backfill-trophies.ts` ажиллуулна
+(`--dry-run`-тай) — байгаа хэрэглэгчдийн түүхийг чимээгүй (`seen_at = now()`) олгоно.
 
 ---
 
