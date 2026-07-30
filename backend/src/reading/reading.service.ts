@@ -349,6 +349,7 @@ export class ReadingService {
           text: sentence.text,
           userId,
           filenameBase: `reading-${passageId}-${sentence.index}`,
+          folder: this.config.get<string>('READING_AUDIO_FOLDER', 'reading/audio'),
         });
         sentence.audioUrl = audioUrl;
       } catch (e) {
@@ -377,6 +378,7 @@ export class ReadingService {
       text: sentence.text,
       userId,
       filenameBase: `reading-${passageId}-${index}`,
+      folder: this.config.get<string>('READING_AUDIO_FOLDER', 'reading/audio'),
     });
     sentence.audioUrl = audioUrl;
     await this.passages.save(passage);

@@ -97,7 +97,7 @@ export class ImageStorageService {
     const endpoint = this.config.getOrThrow<string>('R2_ENDPOINT');
     const bucket = this.config.getOrThrow<string>('R2_BUCKET');
     const publicBase = this.config.getOrThrow<string>('R2_PUBLIC_BASE_URL');
-    const folder = input.folder ?? this.config.get<string>('R2_FOLDER', 'englishxp/models');
+    const folder = input.folder ?? this.config.get<string>('R2_FOLDER', 'buddy/models');
     const key = `${folder}/${input.filename}`;
 
     const client = new S3Client({
@@ -141,7 +141,7 @@ export class ImageStorageService {
     const apiSecret = this.config.getOrThrow<string>('CLOUDINARY_API_SECRET');
     const assetFolder =
       input.folder ??
-      this.config.get<string>('CLOUDINARY_FOLDER', 'englishxp/generated');
+      this.config.get<string>('CLOUDINARY_FOLDER', 'words/img');
     const publicId = input.filename.replace(/\.[^.]+$/, '');
     // Cloudinary has no 'audio' resource type — it serves audio under 'video'.
     const resourceType = input.resourceType === 'audio' ? 'video' : (input.resourceType ?? 'image');

@@ -557,7 +557,7 @@ export class BuddyService {
         filename: `${textHash.slice(0, 24)}.mp3`,
         mimeType: 'audio/mpeg',
         resourceType: 'audio', // → R2 when configured, else Cloudinary
-        folder: 'englishxp/ai-buddy',
+        folder: 'buddy/voice',
         localSubdir: 'audio',
       });
       await this.voiceCache.save(

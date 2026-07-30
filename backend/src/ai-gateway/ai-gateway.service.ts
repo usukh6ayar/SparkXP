@@ -178,6 +178,9 @@ export interface VocabularyImageRequest {
   /** When set, this exact prompt is used instead of the vocabulary template
    *  (e.g. idioms supply their own idiom-specific prompt). */
   prompt?: string;
+  /** Storage prefix. Defaults to the word-image folder, so callers that store
+   *  something else (idioms) must say so or their files land under words/. */
+  folder?: string;
 }
 
 export interface VocabularyImageResponse {
@@ -459,7 +462,8 @@ export class AiGatewayService implements OnModuleInit {
       // image in Cloudinary instead of leaving orphaned copies behind.
       filename: `${this.safeFilename(input.english)}.png`,
       mimeType: 'image/png',
-      folder: this.config.get<string>('CLOUDINARY_WORD_IMAGES_FOLDER'),
+      folder:
+        input.folder ?? this.config.get<string>('CLOUDINARY_WORD_IMAGES_FOLDER'),
     });
     this.logger.log(`[AI][image] stored on Cloudinary → ${imageUrl}`);
 
@@ -502,7 +506,7 @@ export class AiGatewayService implements OnModuleInit {
       filename: `${this.safeFilename(input.english)}-${Date.now()}.mp3`,
       mimeType: 'audio/mpeg',
       resourceType: 'audio', // → R2 when configured, else Cloudinary (video type)
-      folder: this.config.get<string>('CLOUDINARY_AUDIO_FOLDER', 'englishxp/audio'),
+      folder: this.config.get<string>('CLOUDINARY_AUDIO_FOLDER', 'words/audio'),
       localSubdir: 'audio',
     });
     if (dev) this.logger.log(`[AI] ElevenLabs audio stored → ${audioUrl}`);
@@ -549,7 +553,7 @@ export class AiGatewayService implements OnModuleInit {
       resourceType: 'audio', // → R2 when configured, else Cloudinary (video type)
       folder:
         input.folder ??
-        this.config.get<string>('CLOUDINARY_AUDIO_FOLDER', 'englishxp/audio'),
+        this.config.get<string>('CLOUDINARY_AUDIO_FOLDER', 'words/audio'),
       localSubdir: 'audio',
     });
 
