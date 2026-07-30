@@ -52,23 +52,82 @@ interface Move {
  * that; they are no-ops on a bucket that never saw the intermediate state.
  */
 const MOVES: Move[] = [
-  { table: 'words', column: 'image_url', from: 'englishxp/media/img/', to: 'words/img/' },
-  { table: 'words', column: 'image_url', from: 'englishxp/words/', to: 'words/img/' },
-  { table: 'words', column: 'audio_url', from: 'englishxp/media/audio/', to: 'words/audio/' },
-  { table: 'idioms', column: 'image_url', from: 'englishxp/media/img/', to: 'idioms/img/' },
-  { table: 'idioms', column: 'audio_url', from: 'englishxp/media/audio/', to: 'idioms/audio/' },
-  { table: 'reading_passages', column: 'cover_image_url', from: 'englishxp/media/img/', to: 'reading/cover/' },
-  { table: 'users', column: 'avatar_url', from: 'englishxp/avatars/', to: 'users/avatars/' },
-  { table: 'ai_buddies', column: 'avatar_asset_url', from: 'buddy/', to: 'buddy/models/' },
+  {
+    table: 'words',
+    column: 'image_url',
+    from: 'englishxp/media/img/',
+    to: 'words/img/',
+  },
+  {
+    table: 'words',
+    column: 'image_url',
+    from: 'englishxp/words/',
+    to: 'words/img/',
+  },
+  {
+    table: 'words',
+    column: 'audio_url',
+    from: 'englishxp/media/audio/',
+    to: 'words/audio/',
+  },
+  {
+    table: 'idioms',
+    column: 'image_url',
+    from: 'englishxp/media/img/',
+    to: 'idioms/img/',
+  },
+  {
+    table: 'idioms',
+    column: 'audio_url',
+    from: 'englishxp/media/audio/',
+    to: 'idioms/audio/',
+  },
+  {
+    table: 'reading_passages',
+    column: 'cover_image_url',
+    from: 'englishxp/media/img/',
+    to: 'reading/cover/',
+  },
+  {
+    table: 'users',
+    column: 'avatar_url',
+    from: 'englishxp/avatars/',
+    to: 'users/avatars/',
+  },
+  {
+    table: 'ai_buddies',
+    column: 'avatar_asset_url',
+    from: 'buddy/',
+    to: 'buddy/models/',
+  },
   // Flatten the doubled segment left by the parent-prefix mapping above.
-  { table: 'words', column: 'image_url', from: 'words/img/words/', to: 'words/img/' },
-  { table: 'idioms', column: 'image_url', from: 'idioms/img/idioms/', to: 'idioms/img/' },
-  { table: 'reading_passages', column: 'cover_image_url', from: 'reading/cover/reading/', to: 'reading/cover/' },
+  {
+    table: 'words',
+    column: 'image_url',
+    from: 'words/img/words/',
+    to: 'words/img/',
+  },
+  {
+    table: 'idioms',
+    column: 'image_url',
+    from: 'idioms/img/idioms/',
+    to: 'idioms/img/',
+  },
+  {
+    table: 'reading_passages',
+    column: 'cover_image_url',
+    from: 'reading/cover/reading/',
+    to: 'reading/cover/',
+  },
 ];
 
 /** Trophy badges are referenced from catalog.ts, so they get their own pass. */
 const TROPHY_MOVES = [
-  { from: 'englishxp/media/trophy-thumb/', to: 'trophies/thumb/', ext: '.webp' },
+  {
+    from: 'englishxp/media/trophy-thumb/',
+    to: 'trophies/thumb/',
+    ext: '.webp',
+  },
   { from: 'englishxp/media/trophy/', to: 'trophies/full/', ext: '.webp' },
   // The 1254px PNG masters are kept, just parked out of the serving path.
   { from: 'englishxp/media/trophy/', to: 'trophies/_src/', ext: '.png' },
@@ -121,7 +180,10 @@ const keyFromUrl = (url: string): string =>
   decodeURIComponent(url.slice(publicBase.length + 1));
 
 /** Runs `worker` over `items` with a fixed number of workers in flight. */
-async function pooled<T>(items: T[], worker: (item: T) => Promise<void>): Promise<void> {
+async function pooled<T>(
+  items: T[],
+  worker: (item: T) => Promise<void>,
+): Promise<void> {
   let next = 0;
   await Promise.all(
     Array.from({ length: Math.min(CONCURRENCY, items.length) }, async () => {
@@ -162,7 +224,8 @@ async function copyReferenced(): Promise<number> {
   for (const m of MOVES) {
     const rows: { url: string }[] = await ds.query(
       `SELECT DISTINCT ${m.column} AS url FROM ${m.table}
-        WHERE ${m.column} LIKE $1` + (guarded(m) ? ` AND ${m.column} NOT LIKE $2` : ''),
+        WHERE ${m.column} LIKE $1` +
+        (guarded(m) ? ` AND ${m.column} NOT LIKE $2` : ''),
       guarded(m)
         ? [`${publicBase}/${m.from}%`, `${publicBase}/${m.to}%`]
         : [`${publicBase}/${m.from}%`],
@@ -194,9 +257,12 @@ async function copyReferenced(): Promise<number> {
 
     console.log(
       `  ${m.table}.${m.column}  ${m.from} → ${m.to}: ${rows.length} мөр` +
-        (dryRun ? '' : ` · хуулсан ${copied} · байсан ${skipped} · алдаа ${failed.length}`),
+        (dryRun
+          ? ''
+          : ` · хуулсан ${copied} · байсан ${skipped} · алдаа ${failed.length}`),
     );
-    if (failed.length) console.error(`    ${failed.slice(0, 3).join('\n    ')}`);
+    if (failed.length)
+      console.error(`    ${failed.slice(0, 3).join('\n    ')}`);
     totalFailed += failed.length;
   }
 
@@ -217,18 +283,29 @@ async function repointDatabase(): Promise<void> {
       const g = guarded(m);
       const [{ n }]: { n: string }[] = await qr.query(
         `SELECT count(*)::int AS n FROM ${m.table}
-          WHERE ${m.column} LIKE $1` + (g ? ` AND ${m.column} NOT LIKE $2` : ''),
-        g ? [`${publicBase}/${m.from}%`, `${publicBase}/${m.to}%`] : [`${publicBase}/${m.from}%`],
+          WHERE ${m.column} LIKE $1` +
+          (g ? ` AND ${m.column} NOT LIKE $2` : ''),
+        g
+          ? [`${publicBase}/${m.from}%`, `${publicBase}/${m.to}%`]
+          : [`${publicBase}/${m.from}%`],
       );
       await qr.query(
         `UPDATE ${m.table}
             SET ${m.column} = replace(${m.column}, $1, $2)
-          WHERE ${m.column} LIKE $3` + (g ? ` AND ${m.column} NOT LIKE $4` : ''),
+          WHERE ${m.column} LIKE $3` +
+          (g ? ` AND ${m.column} NOT LIKE $4` : ''),
         g
-          ? [`/${m.from}`, `/${m.to}`, `${publicBase}/${m.from}%`, `${publicBase}/${m.to}%`]
+          ? [
+              `/${m.from}`,
+              `/${m.to}`,
+              `${publicBase}/${m.from}%`,
+              `${publicBase}/${m.to}%`,
+            ]
           : [`/${m.from}`, `/${m.to}`, `${publicBase}/${m.from}%`],
       );
-      console.log(`  ${m.table}.${m.column}: ${n} мөр${dryRun ? ' (DRY RUN)' : ''}`);
+      console.log(
+        `  ${m.table}.${m.column}: ${n} мөр${dryRun ? ' (DRY RUN)' : ''}`,
+      );
     }
     if (dryRun) {
       await qr.rollbackTransaction();
@@ -252,7 +329,11 @@ async function moveTrophies(): Promise<void> {
     const keys: string[] = [];
     do {
       const r = await s3.send(
-        new ListObjectsV2Command({ Bucket: bucket, Prefix: t.from, ContinuationToken: token }),
+        new ListObjectsV2Command({
+          Bucket: bucket,
+          Prefix: t.from,
+          ContinuationToken: token,
+        }),
       );
       for (const o of r.Contents ?? []) {
         // `trophy/` also contains the thumb folder's siblings — filter by ext.
@@ -294,9 +375,12 @@ async function verify(): Promise<void> {
   const bad: string[] = [];
 
   for (const m of MOVES) {
+    // Postgres rejects ORDER BY random() alongside SELECT DISTINCT, so the
+    // dedupe happens in a subquery and the sampling wraps it.
     const rows: { url: string }[] = await ds.query(
-      `SELECT DISTINCT ${m.column} AS url FROM ${m.table}
-        WHERE ${m.column} LIKE $1 ORDER BY random() LIMIT ${SAMPLE}`,
+      `SELECT url FROM (
+         SELECT DISTINCT ${m.column} AS url FROM ${m.table} WHERE ${m.column} LIKE $1
+       ) s ORDER BY random() LIMIT ${SAMPLE}`,
       [`${publicBase}/${m.to}%`],
     );
     for (const { url } of rows) {
@@ -308,7 +392,9 @@ async function verify(): Promise<void> {
         bad.push(`${(err as Error).message} ${url}`);
       }
     }
-    console.log(`  ${m.table}.${m.column} → ${m.to}: ${rows.length} түүвэр шалгав`);
+    console.log(
+      `  ${m.table}.${m.column} → ${m.to}: ${rows.length} түүвэр шалгав`,
+    );
   }
 
   console.log(`\n200 буцаасан: ${ok} · алдаатай: ${bad.length}`);
