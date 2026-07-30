@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect } from 'react';
-import { View, Image, StyleSheet, type ImageSourcePropType } from 'react-native';
+import { View, StyleSheet, type ImageSourcePropType } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   Easing,

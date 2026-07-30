@@ -80,19 +80,21 @@ export function BuddyUnlockSheet({
             {t('buddyUnlockSubtitle')}
           </AppText>
 
+          {/* Sparks row wears the Sparks gem, not a streak flame — the flame
+              said "this costs streak", which is not a currency at all. */}
           <OptionRow
-            icon="flame"
-            iconColor={staticColors.streak}
+            icon="diamond"
+            iconColor={staticColors.sparks}
             label={t('buddyUnlockWithSparks')}
-            sublabel={`${cost} · ${tf('buddyUnlockBalance', { n: sparksBalance })}`}
+            sublabel={`${tf('sparksAmount', { n: cost })} · ${tf('buddyUnlockBalance', { n: sparksBalance })}`}
             selected={method === 'sparks'}
             disabled={!canAffordSparks}
             onPress={() => setMethod('sparks')}
             colors={c}
           />
           <OptionRow
-            icon="diamond"
-            iconColor={staticColors.sparks}
+            icon="star"
+            iconColor={staticColors.xp}
             label={t('buddyUnlockPremium')}
             sublabel={t('buddyUnlockPremiumBody')}
             selected={method === 'premium'}

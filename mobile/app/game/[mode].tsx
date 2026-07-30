@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState, useMemo, useRef } from "react";
 import { View, StyleSheet, Pressable, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useLocalSearchParams } from "expo-router";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { AppIcon } from "../../src/components/AppIcon";
 import { useAudioPlayer } from "expo-audio";

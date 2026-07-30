@@ -5,10 +5,8 @@ import Animated, {
   FadeIn,
   useAnimatedStyle,
   useSharedValue,
-  withDelay,
   withSequence,
   withSpring,
-  withTiming,
 } from 'react-native-reanimated';
 import { AppText } from './Text';
 import { Button } from './Button';

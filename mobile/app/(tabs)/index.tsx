@@ -28,6 +28,7 @@ import { HeartsRow } from "../../src/components/HeartsRow";
 import { HeartsSheet } from "../../src/components/HeartsSheet";
 import { DailyGoalCard } from "../../src/components/DailyGoalCard";
 import { DailyGoalSheet } from "../../src/components/DailyGoalSheet";
+import { StreakFreezeSheet } from "../../src/components/StreakFreezeSheet";
 import { getDue } from "../../src/api/reviews";
 import { getContinue } from "../../src/api/lessons";
 import { getExercises } from "../../src/api/quizzes";
@@ -57,9 +58,7 @@ import {
   progressGradients,
   skillGradients,
 } from "../../src/theme/theme";
-import { bounded } from '../../src/theme/responsive';
-
-type IconName = keyof typeof Ionicons.glyphMap;
+import { bounded, s } from '../../src/theme/responsive';
 
 // Hero = two layers only: an on-brand purple night-sky background, and the fox
 // pre-composited onto the island as ONE image. Baking the fox + island together
@@ -72,17 +71,47 @@ const sceneImg = require("../../assets/fox-island.webp");
 
 const SCENE_RATIO = 1081 / 963; // h / w of fox-island.png
 const GRASS = 0.6; // grass surface ≈ 60% down the composite (where feet rest)
+const FOX_EARS = 0.16; // empty sky above his ears, as a fraction of the composite
 
 const { width: SCREEN_W } = Dimensions.get("window");
-
-// Space reserved at the top for the greeting + the stat-card row, so the fox is
-// parked BELOW them and never overlaps the cards (the hearts pill still floats
-// over the fox's upper sky on purpose). (Tune for header height.)
-const HEADER_RESERVE = 200;
 
 // The fox+island scene spans the full width and sits just under the header.
 const SCENE_W = SCREEN_W;
 const SCENE_H = Math.round(SCENE_W * SCENE_RATIO);
+
+// Hero stat pills (see `StatPill`). One fixed height for all four, so a pill
+// with five small hearts lines up with one holding a single big icon.
+// Sized so each 3D icon is readable as *what it is* at a glance (a flame vs a
+// gem vs a bolt) — below ~24pt they all reduce to a coloured smudge. Still well
+// under the source PNGs' 166–234px, so nothing softens.
+const STAT_PILL_H = 44;
+const STAT_ICON = 28;
+/**
+ * Hearts show as five separate icons, so each stays smaller than a lone stat
+ * icon — but not by much: heart.png is wider than it is tall (166×125), so at
+ * `size` the shape only fills three quarters of that height and reads smaller
+ * than the number it replaces.
+ */
+const HEART_ICON = 22;
+/** The tallest side: the right-hand column of three (Sparks · XP · hearts). */
+const STAT_STACK_H = STAT_PILL_H * 3 + spacing.sm * 2;
+
+// Typical safe-area top and the header row (a 44pt IconButton). Estimates on
+// purpose: the scene is positioned at module scope, before any inset is known,
+// and being a few points out only shifts empty sky.
+const SAFE_TOP_EST = 44;
+const HEADER_ROW_H = 44;
+
+// Space reserved at the top, so the fox parks BELOW the greeting and the stat
+// stack instead of behind them. Derived from the stack rather than hardcoded —
+// the stack's height is what actually moves this, and a magic number is exactly
+// what would put the fox back under the pills next time they change. The
+// composite's own empty sky is subtracted back out (the pills may reach into
+// it — nothing is drawn there), and `spacing.md` keeps a gap above his ears.
+const HEADER_RESERVE =
+  SAFE_TOP_EST + HEADER_ROW_H + spacing.xs + spacing.sm + STAT_STACK_H + spacing.md
+  - Math.round(SCENE_H * FOX_EARS);
+
 const SCENE_TOP = HEADER_RESERVE;
 const GRASS_Y = Math.round(SCENE_TOP + GRASS * SCENE_H);
 
@@ -100,18 +129,32 @@ const HERO_PILL = "rgba(18,10,40,0.45)";
 // standalone exercises (quizzes with standalone=true) from the SAME database
 // admins author them in. `key` must match the backend quiz `category`
 // (listening/reading/writing/speaking). The per-tile count is fetched live.
+
+// Skill tile — the 3D icon is the thing students actually aim at, so it gets a
+// glass disc and most of the tile. Sizes are derived from ONE number so the
+// disc can never outgrow the tile on a narrow phone.
+//
+// `s()` keeps the disc proportional to the screen (46pt on a 320pt SE → 54 at
+// the 375 baseline → 68 on a tablet). The icon stays ~40pt at baseline, which
+// is the ceiling the source PNGs (210–400px) can take before they soften.
+const SKILL_ART = s(54);
+const SKILL_ICON = Math.round(SKILL_ART * 0.74);
+/** Disc + name + count + padding. Derived so a bigger disc grows the tile. */
+const SKILL_TILE_H = SKILL_ART + 64;
+
 const TASKS: {
   key: string;
   labelKey: TranslationKey;
-  icon: IconName;
-  // Brand 3D icon when one exists (speaking has no PNG → falls back to `icon`).
-  appIcon?: AppIconName;
+  // Brand 3D icon (assets/icons via `appIcons`) — every skill has one, so there
+  // is no vector fallback: the tiles always show the same picture as the rest
+  // of the app uses for that skill.
+  appIcon: AppIconName;
   tint: { bg: string; fg: string };
 }[] = [
-  { key: "reading", labelKey: "catReading", icon: "book", appIcon: "reading", tint: tints.green },
-  { key: "listening", labelKey: "catListening", icon: "headset", appIcon: "listening", tint: tints.blue },
-  { key: "speaking", labelKey: "catSpeaking", icon: "mic", appIcon: "speaking", tint: tints.pink },
-  { key: "writing", labelKey: "catWriting", icon: "create", appIcon: "writing", tint: tints.orange },
+  { key: "reading", labelKey: "catReading", appIcon: "reading", tint: tints.green },
+  { key: "listening", labelKey: "catListening", appIcon: "listening", tint: tints.blue },
+  { key: "speaking", labelKey: "catSpeaking", appIcon: "speaking", tint: tints.pink },
+  { key: "writing", labelKey: "catWriting", appIcon: "writing", tint: tints.orange },
 ];
 
 /**
@@ -136,16 +179,118 @@ function StreakFlame({ streak }: { streak: number }) {
     } else {
       scale.value = withTiming(1);
     }
-  }, [streak, reduce]);
+  }, [streak, reduce, scale]);
 
   const style = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
 
   return (
     <Animated.View style={style}>
-      <AppIcon name="streak" size={34} />
+      <AppIcon name="streak" size={STAT_ICON} />
     </Animated.View>
   );
 }
+
+/**
+ * One hero stat: its icon and value in a frosted capsule that glows in the
+ * stat's own colour.
+ *
+ * Deliberately small. These float ON the fox scene, so anything with the mass
+ * of a card stops being a badge and becomes a lid over the artwork — the glow
+ * and the tinted hairline carry the colour instead of a big filled icon tile.
+ * All four stats are the same object with different contents, so the shell is
+ * written once here; `children` is the icon (an `<AppIcon>`, the animated flame,
+ * or the hearts row, each of which owns its own behaviour).
+ */
+function StatPill({
+  tint,
+  value,
+  children,
+  onPress,
+  accessibilityLabel,
+  alert = false,
+  badge,
+}: {
+  /** The stat's brand pair — `fg` tints the hairline and the glow. */
+  tint: { bg: string; fg: string };
+  /** Omit where the icon IS the value (five hearts need no "5/5" beside them). */
+  value?: string;
+  children: React.ReactNode;
+  /** Omit for a display-only stat — it then reads as text, not a button. */
+  onPress?: () => void;
+  accessibilityLabel: string;
+  /** Warm tint for a stat that needs attention (hearts at zero). */
+  alert?: boolean;
+  /** Small overhanging chip, e.g. the banked streak-freeze count. */
+  badge?: React.ReactNode;
+}) {
+  const c = useColors();
+  const shell = [
+    pillStyles.pill,
+    { borderColor: alert ? c.danger : tint.fg, shadowColor: alert ? c.danger : tint.fg },
+    alert && pillStyles.alert,
+  ];
+  const inner = (
+    <>
+      {children}
+      {value ? (
+        // Shrinks rather than clips — XP only ever grows.
+        <AppText
+          variant="h3"
+          color={c.white}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.7}
+          style={pillStyles.value}
+        >
+          {value}
+        </AppText>
+      ) : null}
+      {badge}
+    </>
+  );
+
+  if (!onPress) {
+    return (
+      <View style={shell} accessibilityLabel={accessibilityLabel}>
+        {inner}
+      </View>
+    );
+  }
+  return (
+    <Pressable
+      style={({ pressed }) => [...shell, pressed && pillStyles.pressed]}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+    >
+      {inner}
+    </Pressable>
+  );
+}
+
+// Static: the hero artwork is dark in BOTH themes, so these never change with
+// the palette (the two values that do — the tint and the alert colour — are
+// applied inline above).
+const pillStyles = StyleSheet.create({
+  pill: {
+    height: STAT_PILL_H,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: spacing.md,
+    backgroundColor: HERO_PILL,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    // Soft halo in the stat's colour — the whole pill radiates instead of a
+    // filled tile inside it. iOS only; on Android the tinted hairline carries it.
+    shadowOpacity: 0.45,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 0 },
+  },
+  value: { flexShrink: 1 },
+  alert: { backgroundColor: "rgba(248,113,113,0.28)" },
+  pressed: { opacity: 0.9, transform: [{ scale: 0.97 }] },
+});
 
 export default function HomeScreen() {
   const { user, token } = useAuth();
@@ -188,6 +333,7 @@ export default function HomeScreen() {
   const [hearts, setHearts] = useState<HeartsState | null>(null);
   const [goalSheet, setGoalSheet] = useState(false);
   const [heartsSheet, setHeartsSheet] = useState(false);
+  const [freezeSheet, setFreezeSheet] = useState(false);
   // Whether the student has joined a class — assignments come from a teacher's
   // class, so the "My assignments" card only shows for enrolled students.
   const [enrolled, setEnrolled] = useState(false);
@@ -292,6 +438,7 @@ export default function HomeScreen() {
   };
 
   const streak = gam?.currentStreak ?? 0;
+  const freezes = gam?.streakFreezes ?? 0;
 
   return (
     <View style={styles.root}>
@@ -356,59 +503,60 @@ export default function HomeScreen() {
               </View>
             </View>
 
-            {/* Stat pills in ONE row over the scene: streak · XP · gems · hearts.
-                Each is a compact dark pill (icon + label + value); the row wraps
-                if it runs out of width so nothing is ever clipped. */}
-            {/* Stat cards: streak · XP · gems in a row under the greeting, each a
-                tinted card with an icon tile on the left. */}
-            <View style={styles.heroStatsRow}>
-              <View style={[styles.statCard, { borderColor: tints.orange.fg }]} accessibilityLabel={`${t("statStreak")}: ${streak}`}>
-                <View style={[styles.statCardIcon, { backgroundColor: tints.orange.bg, shadowColor: tints.orange.fg }]}>
-                  <StreakFlame streak={streak} />
-                </View>
-                <AppText variant="h1" color={c.white} numberOfLines={1} style={styles.statValue}>{streak}</AppText>
-              </View>
+            {/* Streak alone on the left, the other three stacked on the right —
+                so the middle of the frame, where the fox stands, stays empty.
+                The right column is right-aligned and each pill is only as wide
+                as its contents, which leaves a ragged inner edge: the stats read
+                as badges floating over the scene rather than a panel bolted on
+                top of it. The whole block also sits ABOVE the fox (see
+                HEADER_RESERVE) — nothing covers him. */}
+            <View style={styles.statFrame}>
+              {/* Tapping the streak opens the freeze shop — the offer appears
+                  where the thing it protects is already on screen. The ❄ badge
+                  shows how many freezes are banked. */}
+              <StatPill
+                tint={tints.orange}
+                value={String(streak)}
+                onPress={() => { haptics.tap(); setFreezeSheet(true); }}
+                accessibilityLabel={`${t("statStreak")}: ${streak} — ${t("streakFreezeTitle")}`}
+                badge={freezes > 0 ? (
+                  <View style={styles.freezeBadge}>
+                    <Ionicons name="snow" size={9} color={c.sparks} />
+                    <AppText variant="caption" color={c.white}>{freezes}</AppText>
+                  </View>
+                ) : null}
+              >
+                <StreakFlame streak={streak} />
+              </StatPill>
 
-              <View style={[styles.statCard, { borderColor: tints.amber.fg }]} accessibilityLabel={`XP: ${xp}`}>
-                <View style={[styles.statCardIcon, { backgroundColor: tints.amber.bg, shadowColor: tints.amber.fg }]}>
-                  <AppIcon name="xp" size={34} />
-                </View>
-                <AppText variant="h1" color={c.white} numberOfLines={1} style={styles.statValue}>{xp.toLocaleString()}</AppText>
-              </View>
+              {/* Hearts first: they are the only stat that gates play, so they
+                  get the position closest to the greeting. Sparks and XP are
+                  scoreboard, not permission, and read below it. */}
+              <View style={styles.statRight}>
+                {/* Five actual hearts, not "5/5" — a student counts what is left
+                    at a glance and sees one go dim when it is spent, which a
+                    fraction cannot show. No `value` for the same reason: the
+                    icons already ARE the number. */}
+                <StatPill
+                  tint={tints.coral}
+                  onPress={() => { haptics.tap(); setHeartsSheet(true); }}
+                  accessibilityLabel={t("heartsLabel")}
+                  alert={!!hearts && !hearts.unlimited && hearts.hearts === 0}
+                >
+                  <HeartsRow state={hearts} size={HEART_ICON} onDark onRegen={load} />
+                  {/* HeartsRow renders nothing until the fetch lands. */}
+                  {!hearts ? <AppText variant="h3" color={c.textOnDarkMuted}>—</AppText> : null}
+                </StatPill>
 
-              <View style={[styles.statCard, { borderColor: tints.blue.fg }]} accessibilityLabel={`${t("sparks")}: ${sparks}`}>
-                <View style={[styles.statCardIcon, { backgroundColor: tints.blue.bg, shadowColor: tints.blue.fg }]}>
-                  <AppIcon name="sparks" size={34} />
-                </View>
-                <AppText variant="h1" color={c.white} numberOfLines={1} style={styles.statValue}>{sparks}</AppText>
+                <StatPill tint={tints.blue} value={String(sparks)} accessibilityLabel={`${t("sparks")}: ${sparks}`}>
+                  <AppIcon name="sparks" size={STAT_ICON} />
+                </StatPill>
+
+                <StatPill tint={tints.amber} value={xp.toLocaleString()} accessibilityLabel={`XP: ${xp}`}>
+                  <AppIcon name="xp" size={STAT_ICON} />
+                </StatPill>
               </View>
             </View>
-
-            {/* Hearts — floats to the right, over the top of the fox scene. */}
-            {hearts ? (
-              <Pressable
-                onPress={() => { haptics.tap(); setHeartsSheet(true); }}
-                style={({ pressed }) => [
-                  styles.heartsFloat,
-                  !hearts.unlimited && hearts.hearts === 0 && styles.heroPillEmpty,
-                  pressed && styles.pressed,
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel={t("heartsLabel")}
-              >
-                {/* Row 1 — the hearts (shake + lazy regen kept from HeartsRow). */}
-                <HeartsRow state={hearts} size={24} onDark onRegen={load} />
-                {/* Row 2 — count + "Зүрх" + info, like the mockup. */}
-                <View style={styles.heartsMeta}>
-                  <Ionicons name="sparkles" size={12} color={c.textOnDarkMuted} />
-                  <AppText variant="bodyStrong" color={c.white}>
-                    {hearts.unlimited ? "∞" : `${hearts.hearts}/${hearts.max}`}
-                  </AppText>
-                  <AppText variant="caption" color={c.textOnDarkMuted}>{t("heartsLabel")}</AppText>
-                  <Ionicons name="information-circle-outline" size={15} color={c.textOnDarkMuted} />
-                </View>
-              </Pressable>
-            ) : null}
           </SafeAreaView>
         </View>
 
@@ -522,7 +670,9 @@ export default function HomeScreen() {
             ) : null}
           </View>
 
-          {/* BROWSE — the skill menu as 2×2 gradient tiles ("Юу сурах вэ?"). */}
+          {/* BROWSE — the skill menu as ONE row of 4 gradient tiles ("Юу сурах
+              вэ?"). All four skills are peers, so a single row says that; the
+              old 2×2 made Унших/Сонсгол look like a tier above Ярих/Бичих. */}
           <View style={styles.learnHead}>
             <AppText variant="overline" color={c.textMuted}>{t("learnEyebrow")}</AppText>
             <AppText variant="h2">{t("whatToLearn")}</AppText>
@@ -530,7 +680,7 @@ export default function HomeScreen() {
           <View style={styles.skillGrid}>
             {loading
               ? TASKS.map((task) => (
-                  <Skeleton key={task.key} width="48.5%" height={116} radius={radius.lg} />
+                  <Skeleton key={task.key} height={SKILL_TILE_H} radius={radius.lg} style={styles.skillWrap} />
                 ))
               : TASKS.map((task, i) => {
                   const count = taskCounts[task.key] ?? 0;
@@ -550,12 +700,44 @@ export default function HomeScreen() {
                         // Reading = passages grouped by сэдэв (own screen); the other
                         // skills are quiz-based exercise lists.
                         onPress={() => { haptics.tap(); router.push(task.key === "reading" ? "/reading" : `/skill/${task.key}`); }}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${t(task.labelKey)}, ${countLabel}`}
                       >
                         <LinearGradient colors={grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
-                        <Ionicons name={task.icon} size={26} color="rgba(255,255,255,0.92)" />
+                        {/* Glass disc behind the 3D icon — it lifts the artwork
+                            off the gradient (several icons are light-coloured and
+                            washed out against their own stop) and gives all four
+                            tiles the same optical weight whatever the icon shape. */}
+                        <View style={styles.skillArt}>
+                          <AppIcon name={task.appIcon} size={SKILL_ICON} />
+                        </View>
                         <View style={styles.skillSpacer} />
-                        <AppText variant="bodyStrong" color={c.white} numberOfLines={1}>{t(task.labelKey)}</AppText>
-                        <AppText variant="caption" color="rgba(255,255,255,0.9)" numberOfLines={1}>{countLabel}</AppText>
+                        {/* A quarter-width tile leaves ~50pt of text on a small
+                            phone, and "Сонсгол" / "12 дасгал" are longer than
+                            that. Shrink-to-fit instead of truncating: a clipped
+                            skill name is what makes a tile row look broken. */}
+                        <AppText
+                          variant="label"
+                          color={c.white}
+                          center
+                          style={styles.skillText}
+                          numberOfLines={1}
+                          adjustsFontSizeToFit
+                          minimumFontScale={0.8}
+                        >
+                          {t(task.labelKey)}
+                        </AppText>
+                        <AppText
+                          variant="caption"
+                          color="rgba(255,255,255,0.9)"
+                          center
+                          style={styles.skillText}
+                          numberOfLines={1}
+                          adjustsFontSizeToFit
+                          minimumFontScale={0.75}
+                        >
+                          {countLabel}
+                        </AppText>
                       </PressableScale>
                     </Animated.View>
                   );
@@ -594,6 +776,16 @@ export default function HomeScreen() {
         current={gam?.dailyGoal ?? 0}
         onClose={() => setGoalSheet(false)}
         onSaved={setGam}
+      />
+
+      {/* Buying spends Sparks, so refresh the balance from the same load that
+          feeds the hero cards — the summary itself comes back in the response. */}
+      <StreakFreezeSheet
+        visible={freezeSheet}
+        gam={gam}
+        sparksBalance={sparks}
+        onClose={() => setFreezeSheet(false)}
+        onBought={(next) => { setGam(next); load(); }}
       />
 
       {/* Info only here — there is no quiz to leave, so no `onExit`. */}
@@ -661,61 +853,36 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   headerIcons: { flexDirection: "row", gap: spacing.sm },
   headerIconBtn: { borderWidth: 1, borderColor: c.border },
 
-  // Hero stat cards — streak · XP · gems in a row under the greeting; each a
-  // tinted card (icon tile + label/value/unit). Hearts floats right, below.
-  heroStatsRow: {
+  // 1 left (streak) · 3 stacked right. In normal flow (not absolutely placed)
+  // because the safe-area inset above varies by device, and a hardcoded y would
+  // drift between an iPhone notch and an Android status bar.
+  statFrame: {
     flexDirection: "row",
-    gap: spacing.sm,
-  },
-  statCard: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.sm,
-    backgroundColor: HERO_PILL,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.sm,
-  },
-  statCardIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.md,
-    alignItems: "center",
-    justifyContent: "center",
-    // Coloured glow so the icon radiates like the mockup (iOS; Android keeps the
-    // tinted tile). shadowColor is set per-card inline to the stat's colour.
-    shadowOpacity: 0.9,
-    shadowRadius: 9,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 6,
-  },
-  statValue: { minWidth: 0 },
-  heartsFloat: {
-    alignSelf: "flex-end",
+    justifyContent: "space-between",
     alignItems: "flex-start",
-    gap: spacing.xs,
-    marginTop: spacing.xxl,
-    backgroundColor: HERO_PILL,
-    borderRadius: radius.lg,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    // Soft red glow so the lives read as bright as the mockup's hearts.
-    shadowColor: c.danger,
-    shadowOpacity: 0.5,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 4,
+    gap: spacing.sm,
+    marginTop: spacing.sm,
   },
-  heartsMeta: { flexDirection: "row", alignItems: "center", gap: 5 },
-  // Out of hearts — a warm tint + border so it reads as "needs attention"
-  // rather than as one more neutral stat.
-  heroPillEmpty: {
-    backgroundColor: "rgba(248,113,113,0.28)",
+  // Right-aligned and content-width, NOT a fixed-width column: pinning the
+  // right edge keeps the stack tidy while the left edge stays ragged, which is
+  // what stops three pills from reading as one solid block.
+  statRight: { alignItems: "flex-end", gap: spacing.sm },
+  // Banked streak freezes — a corner badge so it never widens the pill.
+  freezeBadge: {
+    position: "absolute",
+    top: -8,
+    right: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: radius.full,
     borderWidth: 1,
-    borderColor: c.danger,
+    borderColor: c.sparks,
+    // Near-solid, unlike the bar itself: the badge overhangs the capsule onto
+    // the sky art, and a 45%-alpha chip there is unreadable.
+    backgroundColor: "rgba(18,10,40,0.92)",
   },
   // Continue learning
   continueCard: {
@@ -752,6 +919,8 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   continueThumb: { width: "100%", height: "100%" },
 
   // Two next-step tiles (review + assignments), equal half-width.
+  // Single source of the gap under the daily-goal strip (the strip itself has
+  // no bottom margin), so the two never stack into an obvious hole.
   nextRow: { flexDirection: "row", gap: spacing.md, marginTop: spacing.md },
   nextTile: {
     flex: 1,
@@ -790,23 +959,40 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   // Section eyebrow + title (skill grid / rail).
   learnHead: { marginTop: spacing.xl, marginBottom: spacing.md, gap: 2 },
 
-  // Skill menu — 2×2 large gradient tiles.
-  skillGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-    rowGap: spacing.md,
-  },
-  skillWrap: { width: "48.5%" },
+  // Skill menu — ONE row of 4 gradient tiles, never wrapping.
+  skillGrid: { flexDirection: "row", gap: spacing.sm },
+  // `flex: 1` (not a % width) so the four always divide whatever the row has,
+  // on a 320pt SE as well as a tablet. `minWidth: 0` lets a tile shrink below
+  // its text's natural width instead of pushing the last one off-screen.
+  skillWrap: { flex: 1, minWidth: 0 },
   skillTile: {
-    height: 116,
+    height: SKILL_TILE_H,
     borderRadius: radius.lg,
     overflow: "hidden",
-    padding: spacing.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.xs,
+    // Centred, not left-aligned: at a quarter of the row the disc and the label
+    // are near the same width, so anything off-centre reads as a mistake.
+    alignItems: "center",
     justifyContent: "flex-start",
     ...(elevation.sm as object),
   },
-  skillSpacer: { flex: 1 },
+  // Frosted disc under the 3D icon.
+  skillArt: {
+    width: SKILL_ART,
+    height: SKILL_ART,
+    borderRadius: radius.full,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.18)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.26)",
+  },
+  skillSpacer: { flex: 1, minHeight: spacing.xs },
+  // `alignItems: "center"` on the tile shrink-wraps its children, and
+  // `adjustsFontSizeToFit` needs a real width to shrink against — so the two
+  // labels stretch to the tile and centre themselves with `textAlign` instead.
+  skillText: { alignSelf: "stretch" },
 
   // "Бас үзээрэй" horizontal rail.
   rail: { gap: spacing.md, paddingRight: spacing.lg },

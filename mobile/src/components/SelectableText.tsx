@@ -27,10 +27,16 @@ export function SelectableText({
   text,
   variant = 'body',
   style,
+  highlightRange,
 }: {
   text: string;
   variant?: React.ComponentProps<typeof AppText>['variant'];
   style?: TextStyle;
+  /**
+   * Character range of `text` to tint separately from the user's own selection
+   * — used by read-along to mark the sentence being spoken. `to` is exclusive.
+   */
+  highlightRange?: { from: number; to: number } | null;
 }) {
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -38,6 +44,17 @@ export function SelectableText({
 
   // Alternating [word, space, word, …] tokens; indices are stable render keys.
   const tokens = useMemo(() => text.split(/(\s+)/), [text]);
+  // Character offset of each token, so `highlightRange` can be resolved to tokens.
+  const offsets = useMemo(() => {
+    let at = 0;
+    return tokens.map((tok) => {
+      const start = at;
+      at += tok.length;
+      return start;
+    });
+  }, [tokens]);
+  const spoken = (i: number) =>
+    !!highlightRange && offsets[i] >= highlightRange.from && offsets[i] < highlightRange.to;
   const lastTap = useRef<{ key: number; time: number }>({ key: -1, time: 0 });
   // Selection = inclusive token-index range [a..b] (null = nothing selected).
   const [sel, setSel] = useState<{ a: number; b: number } | null>(null);
@@ -81,9 +98,10 @@ export function SelectableText({
       <AppText variant={variant} style={style}>
         {tokens.map((tok, i) => {
           if (!isWord(tok)) {
-            // Whitespace inside the range keeps the highlight continuous.
-            return i > lo && i < hi ? (
-              <AppText key={i} variant={variant} style={[style, styles.hl]}>
+            // Whitespace inside a range keeps that highlight continuous.
+            const inSel = i > lo && i < hi;
+            return inSel || spoken(i) ? (
+              <AppText key={i} variant={variant} style={[style, inSel ? styles.hl : styles.spoken]}>
                 {tok}
               </AppText>
             ) : (
@@ -95,7 +113,8 @@ export function SelectableText({
             <AppText
               key={i}
               variant={variant}
-              style={[style, highlighted && styles.hl]}
+              // The user's own selection wins over the read-along highlight.
+              style={[style, highlighted ? styles.hl : spoken(i) && styles.spoken]}
               onPress={(e: GestureResponderEvent) => onWordPress(i, tok, e)}
               onLongPress={() => setSel({ a: i, b: i })}
               suppressHighlighting
@@ -123,6 +142,9 @@ export function SelectableText({
 
 const makeStyles = (colors: AppColors) => StyleSheet.create({
   hl: { backgroundColor: colors.primarySoft },
+  // Read-along: a different tint from `hl` so "being spoken" never reads as
+  // "I selected this".
+  spoken: { backgroundColor: colors.successSoft },
   actions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.md },
   translateChip: {
     flexDirection: 'row', alignItems: 'center', gap: 6,

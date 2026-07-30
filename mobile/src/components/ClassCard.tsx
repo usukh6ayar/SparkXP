@@ -3,7 +3,6 @@ import { View, Pressable, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { AppText } from './Text';
-import { t } from '../i18n';
 import { spacing, radius, elevation, type AppColors } from '../theme/theme';
 import { useColors } from '../settings/SettingsContext';
 

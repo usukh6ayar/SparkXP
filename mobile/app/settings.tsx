@@ -276,7 +276,10 @@ export default function SettingsScreen() {
             <Row p={p} icon="help-circle" tint={tints.blue} label={t('helpFaq')} onPress={soon} />
             <Row p={p} icon="chatbubble-ellipses" tint={tints.pink} label={t('sendFeedback')} onPress={soon} />
             <Row p={p} icon="star" tint={tints.amber} label={t('rateApp')} onPress={soon} />
-            <Row p={p} icon="share-social" tint={tints.teal} label={t('shareApp')} onPress={soon} />
+            {/* Sharing the app IS the referral flow — `/invite` already carries
+                the code + reward copy, so this points there instead of the
+                bare OS share sheet (which gives the friend nothing to redeem). */}
+            <Row p={p} icon="share-social" tint={tints.teal} label={t('shareApp')} onPress={() => router.push('/invite')} />
           </Card>
 
           {/* Legal */}

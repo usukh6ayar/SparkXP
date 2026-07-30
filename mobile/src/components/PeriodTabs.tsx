@@ -1,9 +1,8 @@
 import { View, Pressable, StyleSheet, type ViewStyle } from 'react-native';
 import { AppText } from './Text';
 import type { TranslationKey } from '../i18n';
-import { useT } from '../settings/SettingsContext';
+import { useT, useColors } from '../settings/SettingsContext';
 import { colors, spacing, radius } from '../theme/theme';
-import { useColors } from '../settings/SettingsContext';
 
 /** Segmented control used for the leaderboard period switch (weekly/monthly/all-time). */
 export function PeriodTabs<T extends string>({

@@ -51,7 +51,9 @@ export interface ChatMessage {
  * as a sheet footer. A history button in the header opens past threads.
  */
 export function BuddyChatSheet({
-  open, onClose, messages, loading, onSend, onReplay, onOpenHistory,
+  // `open` is accepted but unused on purpose — the parent only mounts this
+  // while open (see the note below), so there is nothing to gate on here.
+  open: _open, onClose, messages, loading, onSend, onReplay, onOpenHistory,
 }: {
   open: boolean;
   onClose: () => void;
