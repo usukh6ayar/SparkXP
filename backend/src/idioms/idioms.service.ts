@@ -452,6 +452,8 @@ export class IdiomsService {
       partOfSpeech: 'idiom',
       exampleSentence: idiom.exampleSentence,
       prompt: this.buildImagePrompt(idiom),
+      // Without this idiom art would be stored under the word-image folder.
+      folder: this.config.get<string>('IDIOM_IMAGES_FOLDER', 'idioms/img'),
     });
     idiom.imageUrl = imageUrl;
     await this.idioms.save(idiom);
@@ -517,6 +519,7 @@ export class IdiomsService {
       text: idiom.phrase,
       userId,
       filenameBase: `idiom-${id}`,
+      folder: this.config.get<string>('IDIOM_AUDIO_FOLDER', 'idioms/audio'),
     });
     idiom.audioUrl = audioUrl;
     await this.idioms.save(idiom);

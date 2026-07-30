@@ -97,7 +97,7 @@ export class UploadController {
       // model/audio/video/image all go to R2 when configured (see ImageStorageService).
       resourceType: isModel ? 'model' : isImage ? 'image' : isAudio ? 'audio' : 'video',
       localSubdir: isModel ? 'models' : 'media',
-      folder: isModel ? 'englishxp/models' : 'englishxp/uploads',
+      folder: isModel ? 'buddy/models' : 'uploads',
     });
 
     return {

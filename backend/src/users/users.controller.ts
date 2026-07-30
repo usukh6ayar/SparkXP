@@ -84,7 +84,7 @@ export class UsersController {
       mimeType: file.mimetype,
       resourceType: 'image',
       localSubdir: 'avatars',
-      folder: 'englishxp/avatars',
+      folder: 'users/avatars',
     });
     return this.usersService.setAvatar(user.id, url);
   }
