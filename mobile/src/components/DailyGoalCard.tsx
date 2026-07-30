@@ -42,15 +42,15 @@ export function DailyGoalCard({
     >
       <ProgressRing
         progress={progress}
-        size={78}
-        stroke={8}
+        size={56}
+        stroke={7}
         gradient={done ? progressGradients.success : progressGradients.xp}
         track={c.surfaceAlt}
       >
         {done ? (
-          <Ionicons name="checkmark" size={30} color={c.success} />
+          <Ionicons name="checkmark" size={22} color={c.success} />
         ) : (
-          <AppIcon name="xp" size={30} />
+          <AppIcon name="xp" size={22} />
         )}
       </ProgressRing>
 
@@ -77,15 +77,19 @@ export function DailyGoalCard({
 
 const makeStyles = (c: AppColors) =>
   StyleSheet.create({
+    // Slim by design: this is a status strip, not a feature card — it sits
+    // between "continue learning" and the next-step tiles and should not
+    // out-weigh either. Spacing below is left to the following block, so the
+    // two margins cannot stack into a visible hole.
     card: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: spacing.lg,
+      gap: spacing.md,
       backgroundColor: c.surface,
       borderRadius: radius.lg,
-      padding: spacing.lg,
-      marginBottom: spacing.lg,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
     },
-    copy: { flex: 1, gap: 2 },
+    copy: { flex: 1, gap: 0 },
     editHint: { alignSelf: 'flex-start' },
   });

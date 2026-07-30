@@ -3,9 +3,8 @@ import { AppIcon } from './AppIcon';
 import { AppText } from './Text';
 import { PersonRow } from './PersonRow';
 import { MEDAL } from '../constants/leaderboard';
-import { useT } from '../settings/SettingsContext';
+import { useT, useColors } from '../settings/SettingsContext';
 import { colors, spacing, radius } from '../theme/theme';
-import { useColors } from '../settings/SettingsContext';
 
 /** One leaderboard entry: rank badge (medal for top 3), avatar, name, XP. */
 export function LeaderboardRow({

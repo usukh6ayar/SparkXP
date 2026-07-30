@@ -138,7 +138,6 @@ export function BuddySelector({
   const c = useColors();
   const { lang, t } = useSettings();
   const { user } = useAuth();
-  const styles = useMemo(() => makeStyles(c), [c]);
 
   // `t`'s function reference never changes (it just reads the current
   // language internally), so `lang` — not `t` — is what must drive these
@@ -315,7 +314,6 @@ export function BuddySelector({
                 buddy={item}
                 index={index}
                 scrollX={scrollX}
-                colors={c}
                 haloColor={HALO_COLORS[realIdx % HALO_COLORS.length]}
                 isCenter={index === (display.length > 1 ? centerIndex + 1 : centerIndex)}
                 isSpeaking={speakingSlug === item.slug}
@@ -387,7 +385,6 @@ export function BuddySelector({
             <UnlockCTAButton
               label={tf('buddyUnlockFor', { n: centerBuddy.unlockCostSparks ?? DEFAULT_UNLOCK_COST })}
               onPress={() => setUnlockTarget(centerBuddy)}
-              colors={c}
             />
           ) : (
             <ApplyBuddyButton label={t('buddyApply')} onPress={() => onApply(centerBuddy)} colors={c} />
@@ -426,17 +423,15 @@ const dotStyles = StyleSheet.create({
 });
 
 function BuddyCard({
-  buddy, index, scrollX, colors: c, haloColor, isCenter, isSpeaking,
+  buddy, index, scrollX, haloColor, isCenter, isSpeaking,
 }: {
   buddy: ReturnType<typeof withDefaults>;
   index: number;
   scrollX: SharedValue<number>;
-  colors: AppColors;
   haloColor: string;
   isCenter: boolean;
   isSpeaking: boolean;
 }) {
-  const styles = useMemo(() => makeStyles(c), [c]);
   const [imgFailed, setImgFailed] = useState(false);
   const cardStyle = useAnimatedStyle(() => {
     const pos = scrollX.value / SNAP - index;
@@ -511,7 +506,6 @@ function BuddyCard({
 
 /** Pill-shaped CTA with a trailing circular arrow badge (matches the reference mockup). */
 function ApplyBuddyButton({ label, onPress, colors: c }: { label: string; onPress: () => void; colors: AppColors }) {
-  const styles = useMemo(() => makeStyles(c), [c]);
   return (
     <PressableScale onPress={onPress} style={[styles.applyBtn, elevation.md]}>
       <LinearGradient
@@ -529,8 +523,7 @@ function ApplyBuddyButton({ label, onPress, colors: c }: { label: string; onPres
 }
 
 /** Gold pill CTA for locked buddies — sits where Apply Buddy goes, opens the unlock sheet. */
-function UnlockCTAButton({ label, onPress, colors: c }: { label: string; onPress: () => void; colors: AppColors }) {
-  const styles = useMemo(() => makeStyles(c), [c]);
+function UnlockCTAButton({ label, onPress }: { label: string; onPress: () => void }) {
   return (
     <PressableScale onPress={onPress} style={[styles.applyBtn, { backgroundColor: staticColors.xp }, elevation.md]}>
       <Ionicons name="lock-closed" size={18} color={UNLOCK_TEXT_COLOR} style={styles.unlockCtaIcon} />
@@ -562,7 +555,9 @@ const chipStyles = StyleSheet.create({
   label: { flexShrink: 1 },
 });
 
-const makeStyles = (c: AppColors) => StyleSheet.create({
+// No themed values in here (colours are applied inline from `useColors`), so
+// these are plain constants — no per-render rebuild in four components.
+const styles = StyleSheet.create({
   // No `justifyContent: 'center'`: on short phones that lets the centered group
   // overflow (RN default overflow is visible) and the Apply CTA renders below
   // the scene, under the tab bar. Instead the carousel row flexes (below) so the

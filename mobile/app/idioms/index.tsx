@@ -10,11 +10,11 @@ import { loadLearnedIdioms } from '../../src/lib/idiomProgress';
 import { TopBar } from '../../src/components/TopBar';
 import { AppText } from '../../src/components/Text';
 import { Card } from '../../src/components/Card';
-import { ProgressRing } from '../../src/components/ProgressRing';
+import { ProgressHero } from '../../src/components/ProgressHero';
 import { SkeletonRows } from '../../src/components/SkeletonRows';
 import { EmptyState } from '../../src/components/EmptyState';
-import { t, tf } from '../../src/i18n';
-import { spacing, radius, elevation, tints, type AppColors, progressGradients } from '../../src/theme/theme';
+import { t } from '../../src/i18n';
+import { spacing, radius, tints, type AppColors, skillGradients } from '../../src/theme/theme';
 import { useColors } from '../../src/settings/SettingsContext';
 import { bounded } from '../../src/theme/responsive';
 
@@ -90,20 +90,14 @@ export default function IdiomsScreen() {
           </AppText>
         ) : (
           <>
-            {/* Progress summary */}
-            <View style={styles.hero}>
-              <ProgressRing progress={doneCount / idioms.length} size={62} stroke={6} gradient={progressGradients.success}>
-                <AppText variant="label" color={colors.text} style={styles.heroPct}>
-                  {Math.round((doneCount / idioms.length) * 100)}%
-                </AppText>
-              </ProgressRing>
-              <View style={{ flex: 1 }}>
-                <AppText variant="h3">{t('readingProgressTitle')}</AppText>
-                <AppText variant="caption" color={colors.textSecondary}>
-                  {tf('idiomsProgressSub', { done: doneCount, total: idioms.length })}
-                </AppText>
-              </View>
-            </View>
+            {/* Same gradient banner as the skill/reading screens. */}
+            <ProgressHero
+              eyebrow={t('idiomsTitle')}
+              done={doneCount}
+              total={idioms.length}
+              gradient={skillGradients.grammar}
+              icon="chatbubbles"
+            />
 
             {idioms.map((it) => {
               const isDone = learned.has(it.id);
@@ -140,19 +134,6 @@ export default function IdiomsScreen() {
 const makeStyles = (colors: AppColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   container: { paddingHorizontal: spacing.lg, paddingTop: spacing.xs },
-  hero: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: radius.xl,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.lg,
-    marginBottom: spacing.lg,
-    ...(elevation.sm as object),
-  },
-  heroPct: { fontWeight: '800', fontSize: 13 },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.md },
   thumb: { width: 52, height: 52, borderRadius: radius.md, backgroundColor: colors.surfaceAlt },
   thumbFallback: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primarySoft },

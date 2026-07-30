@@ -1,5 +1,5 @@
 import { useEffect, useId } from 'react';
-import { View, type ViewStyle } from 'react-native';
+import { type ViewStyle } from 'react-native';
 import Svg, { Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
 import Animated, {
   useAnimatedProps,

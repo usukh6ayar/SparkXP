@@ -1,11 +1,17 @@
 import { memo, useEffect, useState, useCallback, useMemo } from 'react';
-import { View, StyleSheet, FlatList, Pressable, RefreshControl } from 'react-native';
+import { View, StyleSheet, FlatList, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppImage } from '../src/components/AppImage';
 import { useAudioPlayer } from 'expo-audio';
 import * as Speech from 'expo-speech';
 import { useAuth } from '../src/auth/AuthContext';
-import { getSaved, toggleSave, type LearnWord } from '../src/api/reviews';
+import {
+  getSaved,
+  toggleSave,
+  getReviewStats,
+  type LearnWord,
+  type ReviewStats,
+} from '../src/api/reviews';
 import { TopBar } from '../src/components/TopBar';
 import { AppText } from '../src/components/Text';
 import { SkeletonRows } from '../src/components/SkeletonRows';
@@ -14,6 +20,8 @@ import { IconButton } from '../src/components/IconButton';
 import { Button } from '../src/components/Button';
 import { Card } from '../src/components/Card';
 import { SavedFlashcards } from '../src/components/SavedFlashcards';
+import { VocabStats } from '../src/components/VocabStats';
+import { SwipeToDelete } from '../src/components/SwipeToDelete';
 import { t } from '../src/i18n';
 import { useColors } from '../src/settings/SettingsContext';
 import { haptics } from '../src/lib/haptics';
@@ -33,10 +41,14 @@ export default function SavedScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(false);
   const [practicing, setPracticing] = useState(false);
+  // Lifetime vocabulary size (SM-2 state on the server), not just the saved list.
+  const [stats, setStats] = useState<ReviewStats | null>(null);
   const player = useAudioPlayer();
 
   const load = useCallback(async () => {
     if (!token) return;
+    // Stats are a nice-to-have: a failure there must not blank the word list.
+    getReviewStats(token).then(setStats).catch(() => {});
     try {
       setWords(await getSaved(token));
       setError(false);
@@ -112,20 +124,25 @@ export default function SavedScreen() {
         windowSize={9}
         removeClippedSubviews
         ListHeaderComponent={
-          words.length > 0 ? (
-            <View style={styles.practiceBar}>
-              <AppText variant="caption" color={c.textSecondary}>
-                {words.length} {t('unitWords')}
-              </AppText>
-              <Button
-                label={t('startReview')}
-                icon="school-outline"
-                size="md"
-                fullWidth={false}
-                onPress={() => { haptics.tap(); setPracticing(true); }}
-              />
-            </View>
-          ) : null
+          <>
+            {/* Vocabulary size + mastery — shown even with nothing starred, since
+                knowing words and saving words are different things. */}
+            <VocabStats stats={stats} />
+            {words.length > 0 ? (
+              <View style={styles.practiceBar}>
+                <AppText variant="caption" color={c.textSecondary}>
+                  {words.length} {t('unitWords')}
+                </AppText>
+                <Button
+                  label={t('startReview')}
+                  icon="school-outline"
+                  size="md"
+                  fullWidth={false}
+                  onPress={() => { haptics.tap(); setPracticing(true); }}
+                />
+              </View>
+            ) : null}
+          </>
         }
         ListEmptyComponent={
           <View style={styles.empty}>
@@ -161,6 +178,7 @@ const SavedRow = memo(function SavedRow({
   onUnsave: (w: LearnWord) => void;
 }) {
   return (
+    <SwipeToDelete onDelete={() => onUnsave(item)} label={`${t('removeFromSaved')}: ${item.english}`}>
     <Card variant="raised" padding="md" style={styles.row}>
       <View style={styles.thumb}>
         {item.imageUrl ? (
@@ -180,6 +198,7 @@ const SavedRow = memo(function SavedRow({
       <IconButton icon="volume-high" size={38} variant="filled" iconColor={c.primary} accessibilityLabel={t('playAudio')} onPress={() => onPlay(item)} />
       <IconButton icon="star" size={38} variant="filled" iconColor={c.xp} accessibilityLabel={t('removeFromSaved')} onPress={() => onUnsave(item)} />
     </Card>
+    </SwipeToDelete>
   );
 });
 
@@ -188,10 +207,12 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   list: { padding: spacing.lg, gap: spacing.sm },
   practiceBar: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginTop: spacing.md,
     marginBottom: spacing.md,
   },
   skeleton: { margin: spacing.lg },
-  emptyWrap: { flexGrow: 1 },
+  // Still padded: the vocabulary card sits above the "nothing saved" art.
+  emptyWrap: { flexGrow: 1, padding: spacing.lg },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   thumb: {
     width: 48, height: 48, borderRadius: radius.md,

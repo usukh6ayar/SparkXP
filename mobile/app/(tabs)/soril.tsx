@@ -1,4 +1,4 @@
-import { Fragment, useState, useEffect, useMemo } from "react";
+import { Fragment, useState, useEffect, useMemo, useCallback } from "react";
 import {
   View,
   StyleSheet,
@@ -9,11 +9,12 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Animated, { FadeInDown } from "react-native-reanimated";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { haptics } from "../../src/lib/haptics";
 import { useAuth } from "../../src/auth/AuthContext";
 import { getGamification, type Gamification } from "../../src/api/gamification";
+import { loadDailyTasks, DAILY_TASK_GOAL } from "../../src/lib/dailyTasks";
 import { AppText } from "../../src/components/Text";
 import { AppIcon } from "../../src/components/AppIcon";
 import { appIcons } from "../../src/constants/appIcons";
@@ -113,7 +114,8 @@ function games(t: (key: import("../../src/i18n").TranslationKey) => string): Gam
 
 /** Daily-goal fallback while `/gamification` is still loading (backend: 50 XP). */
 const DAILY_GOAL_FALLBACK = 50;
-const PATH = [1, 2, 3, 4, 5]; // node-ууд (тухайн level доторх ахиц)
+/** One node per exercise the student should finish today. */
+const PATH = Array.from({ length: DAILY_TASK_GOAL }, (_, i) => i + 1);
 
 export default function SorilScreen() {
   const { user, token } = useAuth();
@@ -124,8 +126,18 @@ export default function SorilScreen() {
     if (token) getGamification(token).then(setGam).catch(() => {});
   }, [token]);
   const level = gam?.level ?? 1;
-  // Path nodes = progress through the current level (5 steps).
-  const pathDone = gam ? Math.min(PATH.length, Math.round(gam.progress * PATH.length)) : 0;
+
+  // Path nodes = exercises finished TODAY, not an abstract slice of the level
+  // bar. A node the student can actually tick off by doing one exercise is the
+  // whole point; the old version moved on XP and so looked frozen for hours.
+  const [pathDone, setPathDone] = useState(0);
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      loadDailyTasks().then((s) => { if (active) setPathDone(Math.min(PATH.length, s.done)); });
+      return () => { active = false; };
+    }, []),
+  );
   // Today's challenge = real XP earned today vs the backend's daily goal.
   // Until it loads we show 0 rather than a plausible-looking made-up number.
   const dailyGoal = gam?.dailyGoal ?? DAILY_GOAL_FALLBACK;
@@ -282,7 +294,11 @@ export default function SorilScreen() {
             />
             <View style={{ flex: 1 }}>
               <AppText variant="h3">{t("progressPath")}</AppText>
-              <AppText variant="caption">{t("progressPathHint")}</AppText>
+              <AppText variant="caption">
+                {pathDone >= PATH.length
+                  ? t("progressPathDone")
+                  : tf("progressPathHint", { n: PATH.length - pathDone })}
+              </AppText>
             </View>
             <Pill
               label={`Level ${level}`}

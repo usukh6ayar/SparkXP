@@ -3,14 +3,12 @@ import { View, StyleSheet, Dimensions, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { AppIcon } from '../src/components/AppIcon';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   interpolate,
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
-  withSequence,
   withSpring,
   withTiming,
   Extrapolation,
@@ -31,7 +29,7 @@ import { ReviewStats } from '../src/components/ReviewStats';
 import { IconButton } from '../src/components/IconButton';
 import { t } from '../src/i18n';
 import { useColors } from '../src/settings/SettingsContext';
-import { spacing, radius, elevation, progressGradients, type AppColors } from '../src/theme/theme';
+import { spacing, radius, progressGradients, type AppColors } from '../src/theme/theme';
 import { bounded } from '../src/theme/responsive';
 
 const SCREEN_W = Dimensions.get('window').width;
@@ -266,10 +264,16 @@ export default function ReviewFlashcardsScreen() {
           <AppText variant="label" color={c.textMuted}>{t('reviewWords')}</AppText>
           {total > 0 && !done ? <AppText variant="h3">{Math.min(index + 1, total)} / {total}</AppText> : null}
         </View>
-        <View style={styles.streakPill}>
-          <AppIcon name="streak" size={16} />
-          <AppText variant="label">{streak}</AppText>
-        </View>
+        {/* Second door to the vocabulary screen: the student is thinking about
+            words right here, and Profile → Saved is too far to ever be found.
+            A chart (not a bookmark) — the screen now leads with vocabulary
+            progress, so a "save" icon promised the wrong thing. */}
+        <IconButton
+          icon="stats-chart"
+          onPress={() => router.push('/saved')}
+          iconColor={c.primary}
+          accessibilityLabel={t('vocabStatsTitle')}
+        />
       </View>
       {!done ? (
         <View style={styles.progressWrap}>
@@ -375,11 +379,6 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
     paddingHorizontal: spacing.lg, paddingTop: spacing.xs, paddingBottom: spacing.sm,
   },
   headerCenter: { alignItems: 'center' },
-  streakPill: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: c.surface, paddingHorizontal: spacing.md, paddingVertical: 8,
-    borderRadius: radius.full, ...(elevation.sm as object),
-  },
   progressWrap: { paddingHorizontal: spacing.lg, marginBottom: spacing.sm },
 
   deck: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: spacing.lg },
