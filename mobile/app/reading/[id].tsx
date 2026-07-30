@@ -27,8 +27,9 @@ import { ReadingQuiz } from '../../src/components/ReadingQuiz';
 import { Confetti } from '../../src/components/Confetti';
 import { AwardBadge } from '../../src/components/AwardBadge';
 import { haptics } from '../../src/lib/haptics';
+import { useReadAlong } from '../../src/lib/useReadAlong';
 import { markReadingCompleted } from '../../src/lib/readingProgress';
-import { t } from '../../src/i18n';
+import { t, tf } from '../../src/i18n';
 import { spacing, radius, levelColor, type AppColors } from '../../src/theme/theme';
 import { useColors } from '../../src/settings/SettingsContext';
 import { bounded } from '../../src/theme/responsive';
@@ -45,8 +46,9 @@ const DEFAULT_FONT_INDEX = BODY_FONT_SIZES.indexOf(15);
 
 /**
  * Reading passage reader. Shows the admin-authored passage (cover, metadata,
- * key vocabulary, text). Tap-to-guess (Phase 2) and sentence audio / shadow
- * reading (Phase 3) hook in here later.
+ * key vocabulary, text), with double-tap-to-translate and — when the admin has
+ * generated per-sentence audio — read-along playback that highlights the
+ * sentence being spoken (`useReadAlong`).
  */
 export default function ReadingDetailScreen() {
   const colors = useColors();
@@ -67,6 +69,11 @@ export default function ReadingDetailScreen() {
     progress.value = max > 0 ? Math.min(1, Math.max(0, e.contentOffset.y / max)) : 0;
   });
   const progressStyle = useAnimatedStyle(() => ({ width: `${progress.value * 100}%` }));
+
+  // Read-along ("аудио дагаж унших"). Stable array identity so the hook's
+  // callbacks don't rebuild on every render.
+  const sentences = useMemo(() => passage?.sentences ?? [], [passage]);
+  const read = useReadAlong(sentences);
 
   const finish = useCallback(async () => {
     if (!token || !id || done) return;
@@ -112,8 +119,20 @@ export default function ReadingDetailScreen() {
   const canShrink = fontIndex > 0;
   const canGrow = fontIndex < BODY_FONT_SIZES.length - 1;
 
-  // Whole passage as one string for the selectable reader.
-  const passageText = passage ? passage.sentences.map((s) => s.text).join(' ') : '';
+  // Whole passage as one string for the selectable reader, plus each sentence's
+  // character range inside it — that range is what the read-along highlights.
+  const { passageText, ranges } = useMemo(() => {
+    let at = 0;
+    const bounds = (passage?.sentences ?? []).map((s) => {
+      const from = at;
+      at += s.text.length + 1; // +1 for the joining space
+      return { from, to: from + s.text.length };
+    });
+    return {
+      passageText: (passage?.sentences ?? []).map((s) => s.text).join(' '),
+      ranges: bounds,
+    };
+  }, [passage]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -260,10 +279,44 @@ export default function ReadingDetailScreen() {
             </View>
           </View>
 
+          {/* Read-along. Always available: sentences the admin has not voiced
+              fall back to the device voice inside `useReadAlong`. */}
+          <View style={styles.listenBar}>
+            <Pressable
+              onPress={() => { haptics.tap(); read.toggle(); }}
+              style={({ pressed }) => [styles.listenBtn, pressed && { opacity: 0.9 }]}
+              accessibilityRole="button"
+              accessibilityLabel={t('readAlong')}
+            >
+              <Ionicons name={read.playing ? 'pause' : 'play'} size={20} color={colors.white} />
+              <AppText variant="label" color={colors.white}>
+                {read.playing ? t('readAlongPause') : t('readAlong')}
+              </AppText>
+            </Pressable>
+            <Pressable onPress={read.prev} hitSlop={8} style={styles.listenSideBtn}>
+              <Ionicons name="play-skip-back" size={18} color={colors.textSecondary} />
+            </Pressable>
+            <Pressable onPress={read.next} hitSlop={8} style={styles.listenSideBtn}>
+              <Ionicons name="play-skip-forward" size={18} color={colors.textSecondary} />
+            </Pressable>
+            <View style={{ flex: 1 }} />
+            <AppText variant="caption" color={colors.textMuted}>
+              {read.active != null
+                ? `${read.active + 1}/${passage.sentences.length}`
+                : tf('sentenceCount', { n: passage.sentences.length })}
+            </AppText>
+          </View>
+
           {/* Passage body — double-tap a word → meaning popover
-              (Word DB → translation cache → Gemini). */}
+              (Word DB → translation cache → Gemini). The spoken sentence is
+              tinted while read-along runs. */}
           <Card variant="filled" style={styles.body}>
-            <SelectableText text={passageText} variant="body" style={bodyTextStyle} />
+            <SelectableText
+              text={passageText}
+              variant="body"
+              style={bodyTextStyle}
+              highlightRange={read.active != null ? ranges[read.active] : null}
+            />
           </Card>
           <AppText variant="caption" color={colors.textMuted} style={styles.hint}>
             {t('selectTranslateHint')}
@@ -383,6 +436,28 @@ const makeStyles = (colors: AppColors) => StyleSheet.create({
   fontDivider: { width: StyleSheet.hairlineWidth, height: 18, backgroundColor: colors.border },
   fontBtnTextSmall: { fontSize: 13 },
   fontBtnTextLarge: { fontSize: 19 },
+
+  // Read-along controls — sit directly above the passage they drive.
+  listenBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  listenBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.full,
+  },
+  listenSideBtn: {
+    padding: spacing.xs,
+    borderRadius: radius.full,
+    backgroundColor: colors.surfaceAlt,
+  },
 
   body: {},
   hint: { marginTop: spacing.md, textAlign: 'center' },

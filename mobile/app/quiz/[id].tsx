@@ -37,6 +37,7 @@ import { AppText } from '../../src/components/Text';
 import { haptics } from '../../src/lib/haptics';
 import { sound } from '../../src/lib/sound';
 import { markExerciseCompleted } from '../../src/lib/exerciseProgress';
+import { markDailyTask } from '../../src/lib/dailyTasks';
 import { showXpToast } from '../../src/lib/xpToast';
 import { alertError } from '../../src/lib/alerts';
 import { t, tf, type TranslationKey } from '../../src/i18n';
@@ -395,7 +396,10 @@ export default function QuizScreen() {
     setSubmitting(true);
     try {
       const res = await quizzesApi.submitQuiz(id!, all, token!);
-      if (res.passed && id) markExerciseCompleted(id); // local mirror → checkmark on the list
+      if (res.passed && id) {
+        markExerciseCompleted(id); // local mirror → checkmark on the list
+        markDailyTask(); // feeds the Soril daily path (Өнөөдрийн зам)
+      }
       setResult(res);
       setPhase('result');
     } catch {

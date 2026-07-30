@@ -97,11 +97,25 @@ export async function apiRequest<T>(
       headers.Authorization = `Bearer ${token}`;
     }
 
-    const res = await fetch(`${BASE_URL}${path}`, {
-      method,
-      headers,
-      body: body ? JSON.stringify(body) : undefined,
-    });
+    let res: Response;
+    try {
+      res = await fetch(`${BASE_URL}${path}`, {
+        method,
+        headers,
+        body: body ? JSON.stringify(body) : undefined,
+      });
+    } catch (networkError) {
+      // The device is offline (or the request timed out). For a READ we already
+      // have the last good answer on disk, so serve that instead of throwing —
+      // without this the cache was written but never actually read back, and
+      // every screen showed its error state the moment the signal dropped.
+      // Writes still fail loudly: silently "succeeding" a mutation is worse.
+      if (isGet) {
+        const cached = cache.get(key);
+        if (cached) return cached.v as T;
+      }
+      throw networkError;
+    }
 
     // 204 No Content (e.g. DELETE) has no body to parse.
     const data =

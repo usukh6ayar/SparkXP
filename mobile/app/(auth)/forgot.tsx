@@ -1,11 +1,11 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { View, Pressable, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as authApi from '../../src/api/auth';
 import { ApiError } from '../../src/api/client';
 import { t } from '../../src/i18n';
-import { spacing, type AppColors } from '../../src/theme/theme';
+import { spacing } from '../../src/theme/theme';
 import { useColors } from '../../src/settings/SettingsContext';
 import { Screen } from '../../src/components/Screen';
 import { AppText } from '../../src/components/Text';
@@ -15,7 +15,6 @@ import { FormError } from '../../src/components/FormError';
 
 export default function ForgotPasswordScreen() {
   const colors = useColors();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const [step, setStep] = useState<'email' | 'reset' | 'done'>('email');
   const [email, setEmail] = useState('');
@@ -125,7 +124,8 @@ export default function ForgotPasswordScreen() {
   );
 }
 
-const makeStyles = (colors: AppColors) => StyleSheet.create({
+// No themed values in here, so these are plain constants — no per-render rebuild.
+const styles = StyleSheet.create({
   back: { alignSelf: 'flex-start', padding: spacing.xs, marginBottom: spacing.sm },
   title: { marginTop: spacing.sm },
   subtitle: { marginTop: spacing.xs, marginBottom: spacing.xl },

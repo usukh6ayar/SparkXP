@@ -268,6 +268,197 @@ Merge хийхээсээ өмнө заавал pull хий. Мөн `soril.tsx`-�
 ашигладаггүй тул **зүрх огт зарцуулдаггүй** — сурагч хязгааргүй тоглох боломжтой.
 Backend-ийн зохиомж, бүтээгдэхүүний хувьд зөрчилтэй эсэхийг шийдэх шаардлагатай.
 
+#### ✅ Choi — redesign v2-ийн regression засвар (2026-07-30) · ДАВХАРДУУЛАХГҮЙ
+
+Boju-гийн Home redesign (`main` #190) hero хэсгийг бүхэлд нь дахин бичсэн
+(`heroTop`/`streakBadge` → `heroStatsRow`/`statCard`). Тэр явцад **streak freeze
+урсгал бүхэлдээ тасарсан** байсныг сэргээв — `app/(tabs)/index.tsx`:
+`StreakFreezeSheet` import, `freezeSheet` state, streak картын `onPress`,
+sheet-ийн render. Дизайныг хөндөөгүй; мөстөлтийн тоог картын буланд ❄ badge-ээр
+харуулна (`freezeBadge`, absolute → stat row-ийн өргөн өөрчлөгдөхгүй).
+
+**Home-ийн icon-ууд → брэндийн 3D asset.** Redesign нь "Юу сурах вэ?"-гийн 4
+чадварыг `AppIcon`-оос flat Ionicons руу буулгасныг буцаав (`task.appIcon`,
+size 34) — `TASKS`-аас хэрэггүй болсон `icon: IconName` талбар + `IconName`
+төрлийг цэвэрлэв. Бусад Ionicons (үг давтах/даалгавар/IELTS/хэлц үг/play/
+refresh/offline/snow) — `assets/icons`-д тохирох зураг **байхгүй** эсвэл өөр
+tile-тай давхардана, тиймээс зориуд үлдээв.
+
+**Бүтэн regression аудит хийсэн — өөр хассан зүйл алга.** Шалгасан арга:
+`fbdebd1..HEAD` хооронд mobile-ийн 15 дэлгэцийн `onPress`/`router.push` олонлогийг
+харьцуулсан (Home-ийн 12 handler одоо яг тэнцүү), orphan component + дуудагдаагүй
+API scan, `tsc --noEmit` + eslint. `lessons.tsx` / `level/[code].tsx` / `quiz/[id].tsx`
+дээрх өөрчлөлт бүгд **нэмэлт** (island states, "ЭНД БАЙНА" waypoint, wrong-answer
+shake + sound) — юу ч хасаагүй.
+
+ℹ️ Аудитаар илэрсэн, **regression биш** хуучин dead code (засаагүй, зориуд):
+`AchievementModal` (хэзээ ч холбогдож байгаагүй → Update 1-ийн Boju-гийн Badge
+ажил), `reviews.getReviewStats` (2026-06-ны redesign-д унасан → Update 3-ын
+"Vocabulary статистик"-д хэрэгтэй болно), `lessons.tsx`-ийн `byLevel` state.
+
+#### ✅ Choi — Update 3-ын эхний багц + lint эрүүлжүүлэлт (2026-07-30) · ДАВХАРДУУЛАХГҮЙ
+
+**1. Аудио дагаж унших (Update 3 → "Reading шинэчлэлт") ✅.** Backend аль хэдийн
+өгүүлбэр тус бүрт аудио үүсгэдэг байсныг эцэст нь FE-д холбов.
+`mobile/src/lib/useReadAlong.ts` (шинэ hook) — өгүүлбэрүүдийг дараалан тоглуулж,
+`didJustFinish`-ээр дараагийнх руу шилжинэ; аудиогүй өгүүлбэрийг **алгасна**
+(admin бүрэн үүсгэж амжаагүй байхад ч ажиллана). Reader дээр play/pause +
+өмнөх/дараах + "N/нийт" тоолуур; аудиогүй материалд удирдлага **огт гарахгүй**.
+`SelectableText`-д нэмэлт optional `highlightRange` prop — яригдаж буй өгүүлбэр
+`successSoft`-оор тодорно (хэрэглэгчийн өөрийн сонголтын ягаанаас **ялгаатай**
+өнгө, ингэснээр хоёул хольж ойлгогдохгүй). Шинэ түлхүүр: `readAlong`,
+`readAlongPause`, `sentenceCount`.
+
+⚠️ **Чухал:** эхний хувилбар нь `hasAudio` байвал л товч гаргадаг байсан тул
+**хаана ч харагдахгүй** байсан (admin ганц ч материалд аудио үүсгээгүй). Одоо
+аудиогүй өгүүлбэрийг **төхөөрөмжийн TTS**-ээр уншина (`expo-speech`, `saved.tsx`-ийн
+адил) → товч **үргэлж** гарна, бичигдсэн ElevenLabs дуу байвал түүнийг илүүд үзнэ.
+Байрлал: "Үсгийн хэмжээ" мөрийн доор, эхийн шууд дээр.
+
+**2. Vocabulary статистик ✅ (нийлбэр хэсэг).** `reviews.getReviewStats` нь
+2026-06-ны redesign-аас хойш **хаанаас ч дуудагдахгүй** байсныг сэргээв.
+`mobile/src/components/VocabStats.tsx` (шинэ) — "Миний үгсийн сан": нийт
+тааралдсан үг, мэдсэн/сурч байгаа задаргаа, эзэмшилтийн хувь + `ProgressBar`.
+`app/saved.tsx`-ийн жагсаалтын толгойд суулгав (хадгалсан үг 0 байсан ч харагдана).
+Stats унавал үгийн жагсаалт **хэвээр ажиллана** (тусад нь `.catch`).
+⚠️ `/saved` дэлгэц рүү **зөвхөн Profile → "Хадгалсан үг"**-ээр ордог байсан тул
+хэн ч олохгүй байсан → `app/swipe.tsx`-ийн толгойд ⭐ товч нэмж хоёр дахь хаалга
+гаргав (үг давтаж байгаа хүн яг тэр мөчид үгсийн сангаа хармаар байдаг).
+
+**3. Lint эрүүлжүүлэлт — 84 → 4 warning.** Гол шалтгаан нь код биш, **тохиргоо**:
+`eslint.config.js` дээр TS-ийг уншиж чаддаггүй **base `no-unused-vars`** асаалттай
+байсан тул функцийн *төрлийн* зарлалт доторх параметрийн нэр бүрийг (`(id: string) => void`)
+"ашиглагдаагүй" гэж заадаг байсан — ~70 хуурамч дохио. Base-ийг унтрааж
+`@typescript-eslint/no-unused-vars`-ыг ижил `^_` дүрэмтэйгээр үлдээв.
+Үлдсэн жинхэнэ dead code-ыг цэвэрлэв: `lessons.tsx`-ийн `byLevel` (+ хэрэггүй
+болсон `getLessons` дуудлага — **бүх хичээлийг татаад хаядаг байсныг** зогсоов),
+`saved.tsx`/`swipe.tsx`/`ProgressRing`/`Toast`/`ClassCard`/`AchievementModal`/
+`MascotCircle`-ийн ашиглагдаагүй import, `forgot.tsx` + `AssignmentRow`-ийн
+өнгө хэрэглэдэггүй `makeStyles(c)` → энгийн `StyleSheet.create` (per-render
+дахин бүтээхээ болино).
+
+**Dead code одоо 0 (2026-07-30, Choi-гийн хүсэлтээр Boju-гийн файлыг ч оруулав).**
+`leaderboard.tsx` (`Ionicons`), `BuddySelector` (`makeStyles(c)` → энгийн
+`StyleSheet.create`, дагаад `BuddyCard`/`UnlockCTAButton`-ийн хэрэггүй `colors`
+prop), `BuddyChatSheet`/`BuddyHistorySheet`-ийн `open` → `open: _open`
+(**зориуд ашиглагддаггүй** — эцэг нь mount-оор удирддаг, тайлбар бичсэн).
+Мөн давхардсан import (`game/[mode].tsx`, `LeaderboardRow`, `PeriodTabs`) нэгтгэв.
+`react/no-unknown-property`-г зөвхөн `BuddyAvatar.tsx`-д унтраав — тэр нь
+react-three-fiber (`<ambientLight intensity>`), React-DOM-ын дүрэм мэдэхгүй.
+⚠️ Boju: эдгээр нь чиний файл — merge хийхээсээ өмнө pull хий.
+
+**Үлдсэн 21 warning = `react-hooks/exhaustive-deps` — ЗОРИУД хөндөөгүй.** Эдгээрийг
+"засах" нь dependency нэмэх гэсэн үг бөгөөд `useEffect` давталтад орох эрсдэлтэй
+(жинхэнэ ажиллагааны өөрчлөлт). Файл эзэмшигч тус бүр өөрөө шалгах ёстой.
+
+ℹ️ **Өсөхбаярт 2 BE хүсэлт:** `docs/REQUEST_choi_vocab_mastery.md` — (1) `LearnWord`-д
+SM-2 төлөв (`repetitions`/`dueAt`/`intervalDays`) нэмэх → үг тус бүрийн mastery
+заалт, (2) `PUT /reading/:id/progress` → унших ахиц хадгалах (одоо зөвхөн
+"дуусгасан эсэх", өөр төхөөрөмж дээр алга болно). Эдгээр ирэх хүртэл Update 3-ын
+"Ахиц хадгалах, номын сан" + "mastery indicator" **дуусахгүй**.
+
+#### ✅ Choi — QA багц #2 (2026-07-30, 8 ажил) · ДАВХАРДУУЛАХГҮЙ
+
+1. **Ахицын hero нэгдсэн** (хамгийн чухал нь). Унших/Хэлц үг нь цагаан
+   `ProgressRing` карттай, Сонсгол/Ярих/Бичих нь gradient banner-тай — нэг апп
+   мөртлөө хоёр өөр бүтээгдэхүүн шиг харагдаж байсан. Шинэ
+   `src/components/ProgressHero.tsx` — gradient + том %, `doneCountLabel`,
+   `ProgressBar`, дугуй icon. **Гурвуулан** (`skill/[key]`, `reading/index`,
+   `idioms/index`) үүнийг хэрэглэнэ; тус бүрийн давхардсан style/hero код устсан.
+2. **Хадгалсан үг — хажуу тийш чирж устгах.** `src/components/SwipeToDelete.tsx`
+   (ReanimatedSwipeable). **Бүтэн чирэлтээр устгахгүй** — зөвхөн Устгах товч
+   гаргаж, дарж баталгаажуулна (үгсийн сан санамсаргүй арчигдах эрсдэл).
+3. **Settings → "Апп хуваалцах"** нь `soon` alert байсан → `/invite` рүү холбов
+   (route аль хэдийн байсан). OS share биш invite — найзад нөхөх код өгдөг.
+4. **Soril "Амжилтын зам" → "Өнөөдрийн зам".** Өмнө нь `gam.progress × 5` буюу
+   level-ийн XP-ийн зүсэм байсан тул нэг дасгал хийхэд бараг хөдөлдөггүй байв.
+   Одоо **өнөөдөр дуусгасан дасгалын тоо** (`src/lib/dailyTasks.ts`, өдөр
+   солигдоход өөрөө 0). `quiz/[id].tsx` `res.passed` үед `markDailyTask()`.
+   ⛔ Дуусгасны **шагнал хараахан алга** — BE endpoint байхгүй
+   (`docs/REQUEST_choi_daily_path.md`). Байхгүй шагналыг байгаа мэт үзүүлээгүй.
+5. **Home daily goal** — ProgressRing 78→56, padding lg→sm/md, доод margin-ыг
+   бүр авч `nextRow`-д үлдээв (хоёр margin нийлж нүх үүсгэдэг байсан).
+6. **Buddy unlock** — Sparks сонголт **streak-ийн улбар шар галын** icon-той
+   байсныг Sparks очир болгов; premium нь алтан од. `buddyUnlockFor` →
+   "500 **Sparks**-аар нээх" (нэгж байхгүй тул "Unlock for 500…" ойлгомжгүй байв).
+7. **Зүрх** — BE дээр `maxHearts: 5` **хэвээр** (7 болоогүй). Choi-гийн шийдвэрээр
+   зөвхөн UI: Home дээрх 2 мөрийн блокийг **1 мөр** болгож, `marginTop` xxl→sm
+   (үнэгний зургийн голд өлгөөтэй байсныг stat row-ийн доор татав).
+8. **🐛 Офлайн кэшийн ЖИНХЭНЭ алдаа зассан.** `persistCache` нь дискэнд бичдэг
+   мөртлөө `apiRequest` нь **хэзээ ч буцааж уншдаггүй** байсан — `fetch` унамагц
+   алдаа шидээд бүх дэлгэц error төлөв рүү ордог байв (`getCached`-ыг зөвхөн
+   `useSWR` ашигладаг, дэлгэцүүдийн ихэнх нь шууд `apiRequest` дууддаг).
+   Одоо GET-ийн **сүлжээний** алдаанд кэшлэгдсэн утга буцаана. HTTP 4xx/5xx нь
+   сервэрийн бодит хариу тул хэвээр шиднэ; **бичих** хүсэлт ч хэвээр унана
+   (чимээгүй "амжилттай" болох нь илүү аюултай).
+
+ℹ️ **Зураг алга болдог нь код биш — Expo Go.** Lesson background, spark/streak
+icon зэрэг нь бүгд `require()`-ийн **локал** asset. Expo Go / dev горимд эдгээр
+нь Metro сервэрээс дамждаг тул офлайнд алга болно; бодит build (APK/OTA) дээр
+binary дотор шигтгээстэй. Алсын зураг (`AppImage`) нь `cachePolicy="memory-disk"`
+-тэй, зөв ажиллаж байна. Тиймээс энэ хэсэгт код өөрчлөөгүй.
+
+⚠️ **Boju АНХААР** — энэ багцад чиний файл орсон: `app/(tabs)/soril.tsx`
+(Өнөөдрийн зам), `app/quiz/[id].tsx` (`markDailyTask` нэг мөр),
+`src/components/BuddyUnlockSheet.tsx` (icon + бичвэр), `app/settings.tsx`
+(share → invite). Merge хийхээсээ өмнө pull хий.
+
+ℹ️ Soril-ын "Өнөөдрийн challenge"-ийг **зориуд хөндөөгүй** — Home-ийн daily
+goal-тэй ижил өгөгдөл ч гэсэн үнэгний banner-тай хэлбэр нь таалагдсан (Choi).
+
+#### ✅ Choi — Home hero + "Юу сурах вэ?" дизайн (2026-07-30) · ДАВХАРДУУЛАХГҮЙ
+
+**1. "Юу сурах вэ?" → wrap-гүй нэг эгнээний 4.** 2×2 сүлжээ нь Унших/Сонсгол
+хоёрыг Ярих/Бичихээс дээгүүр зэрэглэлтэй мэт харуулж байсан — 4 чадвар эрх тэгш
+тул нэг эгнээ. `skillWrap` нь хувь (`48.5%`) биш **`flex: 1` + `minWidth: 0`**,
+ингэснээр 320pt SE дээр ч, tablet дээр ч мөрөө яг хуваана. Нарийссан tile-д
+тохируулж: icon-ы ард **frosted disc** (цайвар icon өөрийн gradient дээр
+угаагдаж, өөр өөр хэлбэртэй icon-ууд ижил оптик жинтэй болсон), бүх зүйл
+төвлөрсөн, нэр/тоо `adjustsFontSizeToFit` (жижиг утсанд текстэнд ~58pt үлддэг тул
+"Сонсгол"/"12 дасгал" тасрахын оронд бага зэрэг жижигрэнэ).
+Хэмжээ нэг эх сурвалжтай: `SKILL_ART = s(54)` → `SKILL_ICON` (0.74×) →
+`SKILL_TILE_H` (`SKILL_ART + 64`). Disc томсгоход tile дагаад өндөрсөх тул
+халихгүй. Icon 30 → **40pt** (375 baseline; SE 34, tablet 50) — эх PNG 210–400px
+тул 3x дээр ч бүдгэрэхгүй.
+
+**2. Hero-гийн 4 үзүүлэлт — зүүн 1 / баруун 3.** Өмнө streak/XP/Sparks гурав
+хүрээтэй карт, зүрх нь тэдний доор тусдаа хөвж, L хэлбэр үүсгэж байв. Одоо:
+зүүнд ганц **streak**, баруун талд **зүрх → Sparks → XP** босоо. Баруун багана нь
+`alignItems: "flex-end"` + агуулгын өргөнтэй — баруун ирмэг тэгш, зүүн ирмэг
+тэгш бус, ингэснээр 3 pill нэг цул хавтан шиг харагдахгүй. Голд үнэг чөлөөтэй
+(320pt дээр ч 74pt зай).
+Шинэ `StatPill` локал component — 4 үзүүлэлт нэг л удаа бичигдсэн. 44pt дүүргэсэн
+icon tile-ыг **хассан**: өнгийг pill өөрөө үүрнэ (tint hairline + тэр өнгөөр
+зөөлөн halo), ингэснээр масс 40% буурч үнэгийг таглахаа больсон.
+Зүрх нь **"5/5" биш жинхэнэ 5 icon** — зарцуулагдсан нь бүдгэрч жижгэрэхийг
+харуулдаг, бутархай тоо түүнийг харуулж чаддаггүй. `HeartsRow` **огт
+өөрчлөгдөөгүй** (эхний оролдлогод нэмсэн `compact`/`iconOnly` prop-ыг бүрэн
+буцаасан) — shake-on-loss ба lazy regen tick хэвээрээ.
+Хэмжээ: pill 44pt, icon 28pt, зүрх 22pt, тоо `h3`. 24pt-аас доош бол 3D icon-ууд
+өнгөт толбо болж гал/эрдэнэ/аянга гурав ялгарахаа больдог.
+
+**3. 🐛 `HEADER_RESERVE` шидэт тоо → томъёо.** `= 200` гэж бичээстэй байсан тул
+stat блокийн өндөр өөрчлөгдмөгц үнэг картны ард ордог байв (энэ дизайны явцад
+2 удаа тохиолдсон). Одоо:
+```js
+const STAT_STACK_H = STAT_PILL_H * 3 + spacing.sm * 2;
+const HEADER_RESERVE =
+  SAFE_TOP_EST + HEADER_ROW_H + spacing.xs + spacing.sm + STAT_STACK_H + spacing.md
+  - Math.round(SCENE_H * FOX_EARS);
+```
+`FOX_EARS = 0.16` нь зурган доторх үнэгний чихнээс дээших хоосон тэнгэр — pill
+түүн рүү орж болно (тэнд юу ч зураагүй). Pill нэмэх/хасах/томсгоход reserve
+өөрөө дагаж тохирно. Шалгасан: 320/375/412/430pt × safe-area 24/44 бүх
+хослолд үнэгний чихнээс **+12pt зай**; hero 504 → 497pt болж доорх карт
+дээшилсэн.
+
+**4. 🐛 `eslint.config.js` бүхэлдээ унасныг зассан.** `@typescript-eslint/no-unused-vars`
+дүрмийг **`files`-гүй** блокт бичсэн байв. `eslint-config-expo` тэр plugin-ыг
+`files: ['**/*.ts(x)']`-ээр хязгаарласан блокт бүртгэдэг тул `.js` файл дээр
+(жишээ нь config өөрөө) "could not find plugin" гээд **бүх lint ажиллагаа**
+зогсдог байсан. Блокт `files: ['**/*.ts', '**/*.tsx']` нэмэв → 0 error,
+21 warning (бүгд өмнөх `exhaustive-deps`).
+
 ### Boju (Mobile — games & social)
 - ⚠️ **Choi `app/quiz/[id].tsx`-д IELTS-ийн жижиг нэмэлт хийсэн (2026-07-22)** —
       merge хийхээсээ өмнө pull хий: (1) `audioUrl` байвал сонсголын play/pause мөр,

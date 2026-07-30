@@ -2,7 +2,6 @@ import { useEffect, useState, useCallback } from 'react';
 import { View, StyleSheet, ScrollView, Pressable, RefreshControl } from 'react-native';
 import Animated, { FadeInDown, FadeInUp, FadeOutDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { AppIcon } from '../src/components/AppIcon';
 import { haptics } from '../src/lib/haptics';
 import { useAuth } from '../src/auth/AuthContext';

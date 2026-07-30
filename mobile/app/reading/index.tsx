@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useAuth } from '../../src/auth/AuthContext';
@@ -7,16 +7,15 @@ import { getReadingList, type ReadingPassage } from '../../src/api/reading';
 import { loadCompletedReading } from '../../src/lib/readingProgress';
 import { haptics } from '../../src/lib/haptics';
 import { TopBar } from '../../src/components/TopBar';
-import { AppText } from '../../src/components/Text';
-import { ProgressRing } from '../../src/components/ProgressRing';
+import { ProgressHero } from '../../src/components/ProgressHero';
 import { CategoryBrowser, type BrowserItem } from '../../src/components/CategoryBrowser';
-import { t, tf } from '../../src/i18n';
-import { spacing, radius, elevation, type AppColors, progressGradients } from '../../src/theme/theme';
+import { t } from '../../src/i18n';
+import { type AppColors, skillGradients } from '../../src/theme/theme';
 import { useColors } from '../../src/settings/SettingsContext';
 
 /**
  * Reading (Унших материал), two levels via CategoryBrowser:
- *   1) сэдэв (category) — the topics authored in admin (each with a progress ring).
+ *   1) сэдэв (category) — the topics authored in admin, under a progress hero.
  *   2) the passages inside → open the reader (/reading/[id]).
  * Completion is mirrored locally (`readingProgress`) to drive the rings +
  * checkmarks; the server still owns XP. Categories come from the passages'
@@ -83,21 +82,17 @@ export default function ReadingListScreen() {
 
   // Overall progress summary shown atop the сэдэв list.
   const doneCount = useMemo(() => passages.filter((p) => completed.has(p.id)).length, [passages, completed]);
+  // Same gradient banner the skill screens use, so Унших does not look like a
+  // different app from Сонсгол / Ярих / Бичих.
   const hero =
     !selectedCat && passages.length > 0 ? (
-      <View style={styles.hero}>
-        <ProgressRing progress={doneCount / passages.length} size={62} stroke={6} gradient={progressGradients.success}>
-          <AppText variant="label" color={c.text} style={styles.heroPct}>
-            {Math.round((doneCount / passages.length) * 100)}%
-          </AppText>
-        </ProgressRing>
-        <View style={{ flex: 1 }}>
-          <AppText variant="h3">{t('readingProgressTitle')}</AppText>
-          <AppText variant="caption" color={c.textSecondary}>
-            {tf('readingProgressSub', { done: doneCount, total: passages.length })}
-          </AppText>
-        </View>
-      </View>
+      <ProgressHero
+        eyebrow={t('catReading')}
+        done={doneCount}
+        total={passages.length}
+        gradient={skillGradients.reading}
+        icon="book"
+      />
     ) : undefined;
 
   return (
@@ -129,17 +124,4 @@ export default function ReadingListScreen() {
 const makeStyles = (c: AppColors) =>
   StyleSheet.create({
     safe: { flex: 1, backgroundColor: c.background },
-    hero: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.md,
-      backgroundColor: c.surface,
-      borderRadius: radius.xl,
-      borderWidth: 1,
-      borderColor: c.border,
-      padding: spacing.lg,
-      marginBottom: spacing.lg,
-      ...(elevation.sm as object),
-    },
-    heroPct: { fontWeight: '800', fontSize: 13 },
   });

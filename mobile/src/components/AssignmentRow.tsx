@@ -4,7 +4,7 @@ import { AppText } from './Text';
 import { IconTile } from './IconTile';
 import { t } from '../i18n';
 import { useColors } from '../settings/SettingsContext';
-import { spacing, tints, type AppColors } from '../theme/theme';
+import { spacing, tints } from '../theme/theme';
 import type { AssignmentType } from '../api/assignments';
 
 /** A class assignment row: lesson/quiz icon, resolved title, type + due date, delete or navigate. */
@@ -27,7 +27,6 @@ export function AssignmentRow({
   overdue?: boolean;
 }) {
   const c = useColors();
-  const styles = makeStyles(c);
   const isLesson = type === 'lesson';
   const tint = isLesson ? tints.blue : tints.green;
   const due = dueAt
@@ -72,7 +71,8 @@ export function AssignmentRow({
   );
 }
 
-const makeStyles = (c: AppColors) => StyleSheet.create({
+// No themed values in here, so these are plain constants — no per-render rebuild.
+const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.sm },
   body: { flex: 1, gap: 4 },
   meta: { flexDirection: 'row', alignItems: 'center', gap: 4 },

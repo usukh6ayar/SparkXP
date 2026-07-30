@@ -20,7 +20,6 @@ import { useSettings } from '../../src/settings/SettingsContext';
 import { haptics } from '../../src/lib/haptics';
 import { useReduceMotion } from '../../src/lib/motion';
 import { tf } from '../../src/i18n';
-import { getLessons, type Lesson } from '../../src/api/lessons';
 import { getGamification, type Gamification } from '../../src/api/gamification';
 import { AppText } from '../../src/components/Text';
 import { AppIcon } from '../../src/components/AppIcon';
@@ -153,26 +152,20 @@ export default function LessonsScreen() {
   const bgImg = isLight ? lightBgImg : skyImg;
   const islandImg = isLight ? ISLAND_IMG_LIGHT : ISLAND_IMG;
 
-  const [byLevel, setByLevel] = useState<Record<string, Lesson[]>>({});
   const [gam, setGam] = useState<Gamification | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   // The climb starts at the bottom (A1), so jump there once on first render.
   const scrollRef = useRef<ScrollView>(null);
   const didInitialScroll = useRef(false);
 
-  // Group all published lessons by level so tapping an island opens its first,
-  // and pull the real gamification summary (streak + per-island progress).
+  // The map only needs the gamification summary (streak + per-island progress);
+  // the lessons themselves are loaded by the level screen the island opens.
   const load = useCallback(async () => {
     if (!token) return;
     try {
-      const [r, g] = await Promise.all([getLessons(token, {}), getGamification(token)]);
-      const map: Record<string, Lesson[]> = {};
-      for (const l of r.items) (map[l.level?.toLowerCase()] ??= []).push(l);
-      setByLevel(map);
-      setGam(g);
+      setGam(await getGamification(token));
     } catch (e) {
       console.warn('Lessons map load failed:', (e as Error)?.message ?? e);
-      setByLevel({});
     }
   }, [token]);
 

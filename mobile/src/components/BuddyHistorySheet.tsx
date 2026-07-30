@@ -26,7 +26,9 @@ import type { BuddyTextSessionSummary } from '../api/ai';
  * dismiss. Presented above the chat sheet, so the chat blurs behind it.
  */
 export function BuddyHistorySheet({
-  open, loading, sessions, activeId, onClose, onNewChat, onPick, onDelete,
+  // `open` is accepted but unused on purpose — the parent only mounts this
+  // sheet while it is open, so there is nothing to gate on here.
+  open: _open, loading, sessions, activeId, onClose, onNewChat, onPick, onDelete,
 }: {
   open: boolean;
   loading: boolean;
