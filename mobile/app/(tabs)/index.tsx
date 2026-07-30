@@ -204,6 +204,7 @@ function StreakFlame({ streak }: { streak: number }) {
 function StatPill({
   tint,
   value,
+  label,
   children,
   onPress,
   accessibilityLabel,
@@ -214,6 +215,12 @@ function StatPill({
   tint: { bg: string; fg: string };
   /** Omit where the icon IS the value (five hearts need no "5/5" beside them). */
   value?: string;
+  /**
+   * The stat's name ("Дараалал", "XP", …), set after the value. The 3D icons
+   * alone don't say WHICH counter a number is, so a new student can't tell the
+   * gem from the bolt — the word does, and it costs one line of small text.
+   */
+  label?: string;
   children: React.ReactNode;
   /** Omit for a display-only stat — it then reads as text, not a button. */
   onPress?: () => void;
@@ -243,6 +250,14 @@ function StatPill({
           style={pillStyles.value}
         >
           {value}
+        </AppText>
+      ) : null}
+      {label ? (
+        // `label` (13/600), not `caption` (12/400): at caption weight the name
+        // reads as a hairline next to the bold number and disappears against
+        // the artwork behind the pill.
+        <AppText variant="label" color={c.white} numberOfLines={1} style={pillStyles.label}>
+          {label}
         </AppText>
       ) : null}
       {badge}
@@ -276,6 +291,7 @@ const pillStyles = StyleSheet.create({
     height: STAT_PILL_H,
     flexDirection: "row",
     alignItems: "center",
+    flexShrink: 1,
     gap: 6,
     paddingHorizontal: spacing.md,
     backgroundColor: HERO_PILL,
@@ -288,6 +304,10 @@ const pillStyles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
   },
   value: { flexShrink: 1 },
+  // Sits tight after the number so "12 Дараалал" reads as one unit; never
+  // wraps or pushes the pill wider than its row — the name is the hint, the
+  // number is the stat.
+  label: { flexShrink: 1, marginLeft: -2 },
   alert: { backgroundColor: "rgba(248,113,113,0.28)" },
   pressed: { opacity: 0.9, transform: [{ scale: 0.97 }] },
 });
@@ -517,6 +537,7 @@ export default function HomeScreen() {
               <StatPill
                 tint={tints.orange}
                 value={String(streak)}
+                label={t("streak")}
                 onPress={() => { haptics.tap(); setFreezeSheet(true); }}
                 accessibilityLabel={`${t("statStreak")}: ${streak} — ${t("streakFreezeTitle")}`}
                 badge={freezes > 0 ? (
@@ -548,11 +569,11 @@ export default function HomeScreen() {
                   {!hearts ? <AppText variant="h3" color={c.textOnDarkMuted}>—</AppText> : null}
                 </StatPill>
 
-                <StatPill tint={tints.blue} value={String(sparks)} accessibilityLabel={`${t("sparks")}: ${sparks}`}>
+                <StatPill tint={tints.blue} value={String(sparks)} label={t("sparks")} accessibilityLabel={`${t("sparks")}: ${sparks}`}>
                   <AppIcon name="sparks" size={STAT_ICON} />
                 </StatPill>
 
-                <StatPill tint={tints.amber} value={xp.toLocaleString()} accessibilityLabel={`XP: ${xp}`}>
+                <StatPill tint={tints.amber} value={xp.toLocaleString()} label={t("xp")} accessibilityLabel={`XP: ${xp}`}>
                   <AppIcon name="xp" size={STAT_ICON} />
                 </StatPill>
               </View>
@@ -866,7 +887,10 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   // Right-aligned and content-width, NOT a fixed-width column: pinning the
   // right edge keeps the stack tidy while the left edge stays ragged, which is
   // what stops three pills from reading as one solid block.
-  statRight: { alignItems: "flex-end", gap: spacing.sm },
+  // Shrinkable: the pills grew a name each, and on a 320pt screen hearts +
+  // "Зүрх" beside the streak pill would otherwise run off the frame. Bounding
+  // the column lets each label truncate instead.
+  statRight: { alignItems: "flex-end", gap: spacing.sm, flexShrink: 1 },
   // Banked streak freezes — a corner badge so it never widens the pill.
   freezeBadge: {
     position: "absolute",

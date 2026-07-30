@@ -3,11 +3,12 @@ import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-na
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
-import { colors, spacing, type AppColors } from "../theme/theme";
+import { colors, spacing } from "../theme/theme";
 import { useSettings } from "../settings/SettingsContext";
 import { appIcons } from "../constants/appIcons";
 import { haptics } from "../lib/haptics";
 import { SPRING, useReduceMotion } from "../lib/motion";
+import { BuddyTabButton } from "./BuddyTabButton";
 
 const buddy = require("../../assets/buddy-menu.webp");
 
@@ -76,7 +77,6 @@ export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
                 meta={meta}
                 focused={focused}
                 onPress={onPress}
-                c={c}
                 tint={focused ? PURPLE : inactive}
               />
             );
@@ -97,13 +97,11 @@ function TabButton({
   meta,
   focused,
   onPress,
-  c,
   tint,
 }: {
   meta: TabMeta;
   focused: boolean;
   onPress: () => void;
-  c: AppColors;
   tint: string;
 }) {
   const scale = useSharedValue(1);
@@ -113,9 +111,7 @@ function TabButton({
   const onPressIn = () => { if (!reduce) scale.value = withSpring(0.9, SPRING); };
   const onPressOut = () => { scale.value = withSpring(1, SPRING); };
 
-  const iconStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
-  const chipStyle = iconStyle;
-  const foxStyle = iconStyle;
+  const chipStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
 
   const a11y = {
     accessibilityRole: "button" as const,
@@ -123,21 +119,10 @@ function TabButton({
     accessibilityState: { selected: focused },
   };
 
-  // Center AI buddy = big fox avatar disc (raised, purple ring).
+  // Center AI buddy = the galaxy button (own component: it owns its orbit,
+  // nebula and burst animations, which nothing else in the bar needs).
   if (meta.image) {
-    return (
-      <Pressable style={styles.tab} onPress={onPress} onPressIn={onPressIn} onPressOut={onPressOut} {...a11y}>
-        <Animated.View
-          style={[
-            styles.foxBig,
-            foxStyle,
-            { backgroundColor: c.surface, borderColor: focused ? colors.primary : "rgba(108,59,255,0.55)" },
-          ]}
-        >
-          <Image source={meta.image} style={styles.foxBigImg} resizeMode="cover" />
-        </Animated.View>
-      </Pressable>
-    );
+    return <BuddyTabButton image={meta.image} label={meta.label} focused={focused} onPress={onPress} />;
   }
 
   // Brand 3D PNG icon (home/lessons/soril/profile). PNGs are full-colour so they
@@ -171,7 +156,9 @@ const styles = StyleSheet.create({
   bar: {
     flexDirection: "row",
     alignItems: "center",
-    overflow: "hidden",
+    // NOT clipped: the buddy galaxy's ring, halo and stars deliberately spill
+    // past the bar's top edge. `hidden` here (left over from the old floating
+    // capsule) would slice them off flat.
     borderTopWidth: StyleSheet.hairlineWidth, // thin divider above the bar
     paddingTop: spacing.sm + 2,
     paddingHorizontal: spacing.xs,
@@ -198,21 +185,4 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(108,59,255,0.14)",
     borderColor: PURPLE,
   },
-  // AI buddy fox — big raised avatar disc with a purple ring + soft glow.
-  foxBig: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    borderWidth: 2.5,
-    marginTop: -6,
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-    shadowColor: PURPLE,
-    shadowOpacity: 0.5,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 6,
-  },
-  foxBigImg: { width: 46, height: 46 },
 });
