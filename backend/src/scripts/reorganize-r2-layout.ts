@@ -43,7 +43,14 @@ interface Move {
   to: string;
 }
 
-/** Every legacy prefix that is referenced from the database. */
+/**
+ * Every legacy prefix that is referenced from the database.
+ *
+ * The legacy `img/` folder already had per-type subfolders (`img/words/`,
+ * `img/idioms/`, `img/reading/`), so mapping the parent alone produced doubled
+ * paths like `words/img/words/x.webp`. The three "flatten" entries collapse
+ * that; they are no-ops on a bucket that never saw the intermediate state.
+ */
 const MOVES: Move[] = [
   { table: 'words', column: 'image_url', from: 'englishxp/media/img/', to: 'words/img/' },
   { table: 'words', column: 'image_url', from: 'englishxp/words/', to: 'words/img/' },
@@ -53,6 +60,10 @@ const MOVES: Move[] = [
   { table: 'reading_passages', column: 'cover_image_url', from: 'englishxp/media/img/', to: 'reading/cover/' },
   { table: 'users', column: 'avatar_url', from: 'englishxp/avatars/', to: 'users/avatars/' },
   { table: 'ai_buddies', column: 'avatar_asset_url', from: 'buddy/', to: 'buddy/models/' },
+  // Flatten the doubled segment left by the parent-prefix mapping above.
+  { table: 'words', column: 'image_url', from: 'words/img/words/', to: 'words/img/' },
+  { table: 'idioms', column: 'image_url', from: 'idioms/img/idioms/', to: 'idioms/img/' },
+  { table: 'reading_passages', column: 'cover_image_url', from: 'reading/cover/reading/', to: 'reading/cover/' },
 ];
 
 /** Trophy badges are referenced from catalog.ts, so they get their own pass. */
@@ -65,6 +76,14 @@ const TROPHY_MOVES = [
 
 const CONCURRENCY = 24;
 const dryRun = process.argv.includes('--dry-run');
+
+/**
+ * A move only needs an "already done" guard when the destination sits UNDER the
+ * source (buddy/ → buddy/models/), because then it re-matches its own output.
+ * For the flatten moves the destination is a PARENT of the source, where such a
+ * guard would exclude every row that still needs moving.
+ */
+const guarded = (m: Move): boolean => m.to.startsWith(m.from);
 
 const need = (name: string): string => {
   const v = process.env[name];
@@ -143,8 +162,10 @@ async function copyReferenced(): Promise<number> {
   for (const m of MOVES) {
     const rows: { url: string }[] = await ds.query(
       `SELECT DISTINCT ${m.column} AS url FROM ${m.table}
-       WHERE ${m.column} LIKE $1`,
-      [`${publicBase}/${m.from}%`],
+        WHERE ${m.column} LIKE $1` + (guarded(m) ? ` AND ${m.column} NOT LIKE $2` : ''),
+      guarded(m)
+        ? [`${publicBase}/${m.from}%`, `${publicBase}/${m.to}%`]
+        : [`${publicBase}/${m.from}%`],
     );
     if (!rows.length) {
       console.log(`  ${m.table}.${m.column}  ${m.from} → ${m.to}: 0`);
@@ -193,15 +214,19 @@ async function repointDatabase(): Promise<void> {
     for (const m of MOVES) {
       // Count first: TypeORM returns [rows, affected] for UPDATE, so reading a
       // row count off the update result is ambiguous. A plain SELECT is not.
+      const g = guarded(m);
       const [{ n }]: { n: string }[] = await qr.query(
-        `SELECT count(*)::int AS n FROM ${m.table} WHERE ${m.column} LIKE $1`,
-        [`${publicBase}/${m.from}%`],
+        `SELECT count(*)::int AS n FROM ${m.table}
+          WHERE ${m.column} LIKE $1` + (g ? ` AND ${m.column} NOT LIKE $2` : ''),
+        g ? [`${publicBase}/${m.from}%`, `${publicBase}/${m.to}%`] : [`${publicBase}/${m.from}%`],
       );
       await qr.query(
         `UPDATE ${m.table}
             SET ${m.column} = replace(${m.column}, $1, $2)
-          WHERE ${m.column} LIKE $3`,
-        [`/${m.from}`, `/${m.to}`, `${publicBase}/${m.from}%`],
+          WHERE ${m.column} LIKE $3` + (g ? ` AND ${m.column} NOT LIKE $4` : ''),
+        g
+          ? [`/${m.from}`, `/${m.to}`, `${publicBase}/${m.from}%`, `${publicBase}/${m.to}%`]
+          : [`/${m.from}`, `/${m.to}`, `${publicBase}/${m.from}%`],
       );
       console.log(`  ${m.table}.${m.column}: ${n} мөр${dryRun ? ' (DRY RUN)' : ''}`);
     }
@@ -255,23 +280,35 @@ async function moveTrophies(): Promise<void> {
   }
 }
 
-/** Reads every stored URL back and confirms it is publicly fetchable. */
+/**
+ * Spot-checks stored URLs against the public endpoint.
+ *
+ * Sampled, not exhaustive, and deliberately serial-ish: `r2.dev` is rate limited
+ * (429 + throttling), and hammering it with 30k HEADs just fails with
+ * `fetch failed`. A random sample per column is enough to prove the mapping.
+ */
 async function verify(): Promise<void> {
   const ds = await db();
+  const SAMPLE = 150;
   let ok = 0;
   const bad: string[] = [];
 
   for (const m of MOVES) {
     const rows: { url: string }[] = await ds.query(
-      `SELECT DISTINCT ${m.column} AS url FROM ${m.table} WHERE ${m.column} LIKE $1`,
+      `SELECT DISTINCT ${m.column} AS url FROM ${m.table}
+        WHERE ${m.column} LIKE $1 ORDER BY random() LIMIT ${SAMPLE}`,
       [`${publicBase}/${m.to}%`],
     );
-    await pooled(rows, async ({ url }) => {
-      const res = await fetch(url, { method: 'HEAD' });
-      if (res.ok) ok++;
-      else bad.push(`${res.status} ${url}`);
-    });
-    console.log(`  ${m.table}.${m.column}: ${rows.length} шалгав`);
+    for (const { url } of rows) {
+      try {
+        const res = await fetch(url, { method: 'HEAD' });
+        if (res.ok) ok++;
+        else bad.push(`${res.status} ${url}`);
+      } catch (err) {
+        bad.push(`${(err as Error).message} ${url}`);
+      }
+    }
+    console.log(`  ${m.table}.${m.column} → ${m.to}: ${rows.length} түүвэр шалгав`);
   }
 
   console.log(`\n200 буцаасан: ${ok} · алдаатай: ${bad.length}`);
