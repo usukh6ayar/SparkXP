@@ -55,9 +55,14 @@ Controller-level: бүгд JWT. Заримд нэмэлт роль.
 | DELETE `/users/:id` | admin, super_admin | Хэрэглэгч устгах | path `id` |
 
 **`UpdateProfileDto` талбарууд:** `fullName` · **`username`** · `province` ·
-`district` · `avatarUrl` · `level` · `englishName`. Бүгд optional — илгээсэн
+`district` · `avatarUrl` · `level`. Бүгд optional — илгээсэн
 талбарууд нь л шинэчлэгдэнэ (global `ValidationPipe({ whitelist: true })` тул
 DTO-д байхгүй талбарыг чимээгүй арчина).
+
+> ⚠️ **`englishName` устгагдсан (2026-07-31).** Register/update-profile DTO,
+> auth хариунаас хассан. `users.english_name` багана prod-д **хэвээр үлдсэн**
+> (dormant) — өгөгдөл алдагдуулахгүйн тул `DROP COLUMN` migration бичээгүй.
+> Хуучин client `englishName` илгээвэл `whitelist: true` чимээгүй арчина (400 биш).
 
 **`username` (нэвтрэх нэр):** 3–30 тэмдэгт, зөвхөн `a-zA-Z0-9_` (дүрэм нэг газар:
 `src/common/validation/username.ts` → `@IsUsername()`, `RegisterDto` мөн үүнийг

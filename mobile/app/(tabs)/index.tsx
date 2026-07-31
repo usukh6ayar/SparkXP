@@ -333,8 +333,11 @@ export default function HomeScreen() {
   const router = useRouter();
   const { openSearch } = useDictionary();
   const hasUnread = useUnreadNotifications();
-  const firstName =
-    user?.englishName?.trim() || (user?.fullName?.split(" ")[0] ?? "");
+  // Greet by username. `username` is nullable in the DB (accounts that predate
+  // the auth overhaul), so fall back to the first word of the full name —
+  // `full_name` is NOT NULL, so this never renders a bare "Сайн уу,".
+  const displayName =
+    user?.username?.trim() || (user?.fullName?.split(" ")[0] ?? "");
 
   const [xp, setXp] = useState(user?.xp ?? 0);
   const [sparks, setSparks] = useState(user?.sparks ?? 0);
@@ -514,7 +517,7 @@ export default function HomeScreen() {
             <View style={styles.header}>
               <View style={styles.headerText}>
                 {/* On the dark sky hero — always light text, both themes. */}
-                <AppText variant="h1" color={c.white}>{t("greeting")}, {firstName} 👋</AppText>
+                <AppText variant="h1" color={c.white}>{t("greeting")}, {displayName} 👋</AppText>
               </View>
               <View style={styles.headerIcons}>
                 <IconButton icon="notifications-outline" dot={hasUnread} size={44} style={styles.headerIconBtn} accessibilityLabel={t('notifications')} onPress={() => router.push('/notifications')} />

@@ -111,8 +111,12 @@ verify + password reset (MailService is a **stub** — plug SMTP/Resend later).
 Student join-class (code/QR scanner) shipped. ⚠️ **Shared-backend changes that
 affect Bishrelt's admin (auth/classes/leaderboard/orgs) + new mobile deps are
 listed in `ROADMAP.md` → "Shared backend өөрчлөлт — Bishrelt АНХААР (2026-06-16)".**
-**Next (mobile):** product-brief alignment (Phase M6 — level/English-name/
+**Next (mobile):** product-brief alignment (Phase M6 — level/
 avatar/"Continue Learning"/student assignments). See `docs/FUTURE_PLAN.md` + `ROADMAP.md`.
+**Англи нэр (`englishName`) устгагдсан (2026-07-31)** — бүртгэл, профайл засах,
+auth хариу, DTO-оос бүгд хассан. Нүүрийн мэндчилгээ одоо **`Сайн уу, {username}`**
+(`username` null бол `fullName`-ийн эхний үг). `users.english_name` багана prod-д
+dormant үлдсэн (migration бичээгүй) — дэлгэрэнгүй `API.md`.
 **UI/UX polish — mostly DONE (2026-07-21, verified in code).** Responsive across
 phone sizes (`src/theme/responsive.ts`), delight layer (haptics/motion/glow/anim),
 skeleton loading, flat Duolingo tab bar with labelled buddy tab, frosted-glass
