@@ -29,7 +29,10 @@ import { REDIS_CLIENT } from '../redis/redis.module';
  */
 const DEFAULTS = {
   maxHearts: 5,
-  regenMinutes: 240, // one heart per 4 hours
+  // One heart per 30 min → a full refill takes 2.5h. Duolingo's 4h was too
+  // punishing for a school app: a student who ran out after class could not
+  // practise again the same evening.
+  regenMinutes: 30,
   refillSparks: 50,
 };
 

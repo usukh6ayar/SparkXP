@@ -52,8 +52,6 @@ function looksLikeInjection(text: string): boolean {
   return INJECTION_MARKERS.some((m) => lower.includes(m));
 }
 
-/** XP granted once per session for practicing with the buddy. */
-const BUDDY_XP = 10;
 /** Safe reply used when the LLM flags unsafe content. */
 const SAFE_REDIRECT = "Let's keep practicing English! What did you do today?";
 
@@ -462,9 +460,10 @@ export class BuddyService {
     }
 
     // --- XP once per session (awardOnce returns null if already granted) ---
+    const buddyXp = (await this.xp.rewards()).buddy;
     const awarded = await this.xp.awardOnce({
       userId: user.id,
-      amount: BUDDY_XP,
+      amount: buddyXp,
       source: XpSource.AI_BUDDY,
       referenceId: session.id,
     });
@@ -484,7 +483,7 @@ export class BuddyService {
         : null,
       follow_up_question: turn.follow_up_question,
       mistake_tags: turn.mistake_tags,
-      xp_reward: awarded ? BUDDY_XP : 0,
+      xp_reward: awarded ? buddyXp : 0,
       audio_url: audioUrl,
       avatar_instruction: { emotion, gesture: turn.gesture, duration_ms: durationMs },
       usage: this.usageBlock(allowance),

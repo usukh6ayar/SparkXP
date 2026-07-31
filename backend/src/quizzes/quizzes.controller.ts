@@ -107,6 +107,12 @@ export class QuizzesController {
       result.band = ieltsBand(correctCount, result.breakdown.length);
     }
 
+    // Teacher-set homework earns no XP — it's schoolwork, not the game loop
+    // (see assignments.service.ts `isAssignedWork`). The submission below is
+    // still recorded, so the teacher's dashboard is unaffected.
+    const homework = await this.assignments.isAssignedWork(user.id, quiz.id);
+    if (homework) result.xpEarned = 0;
+
     if (result.xpEarned > 0) {
       const log = await this.xpService.awardOnce({
         userId: user.id,
@@ -146,6 +152,10 @@ export class QuizzesController {
    * it is the one point where the server decides right/wrong, so the client
    * can't skip the cost by not calling an endpoint. The response carries the
    * resulting `hearts` state so the client never has to track it locally.
+   *
+   * Exception: teacher-set homework never costs a heart. Running out mid-way
+   * would block a student from finishing work their teacher required, so
+   * assigned quizzes sit outside the gamification loop entirely.
    */
   @Post(':id/check')
   @HttpCode(HttpStatus.OK)
@@ -165,11 +175,14 @@ export class QuizzesController {
     // double-tap or a client retry after a network blip can't cost two. A
     // genuinely new wrong answer to the same question (e.g. when it comes back
     // around in the re-queue) is a different submission and does cost again.
-    const hearts = result.correct
+    // Homework is exempt (see the doc comment above).
+    const free =
+      result.correct ||
+      (await this.assignments.isAssignedWork(user.id, id)) ||
+      (await this.wasJustCharged(user.id, id, dto));
+    const hearts = free
       ? await this.hearts.get(user.id)
-      : (await this.wasJustCharged(user.id, id, dto))
-        ? await this.hearts.get(user.id)
-        : await this.hearts.lose(user.id);
+      : await this.hearts.lose(user.id);
 
     return { ...result, hearts };
   }

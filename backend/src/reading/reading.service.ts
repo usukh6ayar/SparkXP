@@ -26,9 +26,6 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /** Average adult reading speed (words per minute) for the time estimate. */
 const WORDS_PER_MINUTE = 200;
 
-/** XP awarded the first time a student finishes a passage. */
-const READING_XP = 15;
-
 /** A page of results plus the total count, for the paginated list endpoint. */
 export interface PaginatedReading {
   items: ReadingPassage[];
@@ -184,16 +181,17 @@ export class ReadingService {
     passageId: string,
   ): Promise<{ passageId: string; alreadyCompleted: boolean; xpAwarded: number }> {
     await this.findOne(passageId); // 404 if missing
+    const { reading: readingXp } = await this.xp.rewards();
     const log = await this.xp.awardOnce({
       userId,
-      amount: READING_XP,
+      amount: readingXp,
       source: XpSource.READING,
       referenceId: passageId,
     });
     return {
       passageId,
       alreadyCompleted: log === null,
-      xpAwarded: log ? READING_XP : 0,
+      xpAwarded: log ? readingXp : 0,
     };
   }
 

@@ -28,8 +28,6 @@ const OTP_TTL_SECONDS = 600;
 const REFERRAL_PENDING_TTL = 24 * 60 * 60;
 /** A pending taste-task completion is held until the user verifies (same 24h). */
 const TASTE_PENDING_TTL = 24 * 60 * 60;
-/** Fixed XP for finishing the pre-signup taste-task (server-controlled, C4). */
-const ONBOARDING_XP = 10;
 
 /** What the API returns on successful login / verify. */
 export interface AuthResult {
@@ -145,7 +143,7 @@ export class AuthService {
           await this.redis.del(key);
           await this.xp.awardOnce({
             userId: user.id,
-            amount: ONBOARDING_XP,
+            amount: (await this.xp.rewards()).onboarding,
             source: XpSource.ONBOARDING,
             referenceId: user.id,
           });
