@@ -8,6 +8,10 @@ import { Plan } from '../entities/plan.entity';
 import { SparksService } from '../sparks/sparks.service';
 import { AchievementsService } from '../achievements/achievements.service';
 import { XpSource, ContentLevel, SparksSource } from '../common/enums';
+import { Inject } from '@nestjs/common';
+import type Redis from 'ioredis';
+import { REDIS_CLIENT } from '../redis/redis.module';
+import { loadRewards, streakXp, type XpRewards } from './xp-rewards';
 import {
   computeLevel,
   dayKeyUB,
@@ -71,7 +75,16 @@ export class XpService {
     private readonly dataSource: DataSource,
     private readonly sparks: SparksService,
     private readonly achievements: AchievementsService,
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
+
+  /**
+   * The XP award table, with any runtime Redis override applied. Callers use
+   * this instead of hardcoding amounts — see `xp-rewards.ts`.
+   */
+  rewards(): Promise<XpRewards> {
+    return loadRewards(this.redis);
+  }
 
   /**
    * Award XP atomically: write an XpLog row, increment User.xp, and advance the
@@ -79,6 +92,10 @@ export class XpService {
    */
   async award(opts: AwardXpOptions): Promise<XpLog> {
     if (opts.amount <= 0) return null as unknown as XpLog;
+
+    // Set inside the transaction when this award pushed the daily goal over
+    // the line, so the streak bonus below can be paid exactly once per day.
+    let streakAdvancedTo: number | null = null;
 
     const log = await this.dataSource.transaction(async (manager) => {
       const log = manager.create(XpLog, {
@@ -135,11 +152,20 @@ export class XpService {
             lastActiveDate: today,
             streakFreezes: next.freezesLeft,
           });
+          streakAdvancedTo = next.streak;
         }
       }
 
       return log;
     });
+
+    // Streak bonus, paid AFTER the commit so it sees the advanced streak.
+    // This recurses into award() exactly once: by now `lastActiveDate` is
+    // today, so the streak block above is skipped and no second bonus fires.
+    // `awardOnce` keyed on the day is the belt-and-braces guard.
+    if (streakAdvancedTo !== null && opts.source !== XpSource.STREAK) {
+      await this.awardStreakBonus(opts.userId, streakAdvancedTo);
+    }
 
     // Fire-and-forget, and only once the transaction has COMMITTED: the check
     // reads users.xp and the streak this award just changed. Hooked here rather
@@ -148,6 +174,27 @@ export class XpService {
     void this.achievements.checkAfterXp(opts.userId, opts.source);
 
     return log;
+  }
+
+  /**
+   * Pay the daily-goal streak bonus. `referenceId` is the day key, so
+   * `awardOnce` makes it idempotent even if two awards race to extend the
+   * streak. Never throws: the learning action that triggered it must not fail
+   * because a bonus could not be written.
+   */
+  private async awardStreakBonus(userId: string, streak: number): Promise<void> {
+    try {
+      const rewards = await this.rewards();
+      await this.awardOnce({
+        userId,
+        amount: streakXp(streak, rewards),
+        source: XpSource.STREAK,
+        referenceId: dayKeyUB(),
+        metadata: { streak },
+      });
+    } catch {
+      // non-critical
+    }
   }
 
   /**

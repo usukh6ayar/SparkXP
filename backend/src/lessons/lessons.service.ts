@@ -24,9 +24,6 @@ export interface ContinueResult {
   allCompleted: boolean;
 }
 
-/** XP awarded the first time a student completes a lesson. */
-const LESSON_XP = 15;
-
 @Injectable()
 export class LessonsService {
   constructor(
@@ -46,13 +43,14 @@ export class LessonsService {
     const lesson = await this.lessons.findOne({ where: { id: lessonId } });
     if (!lesson) throw new NotFoundException('Хичээл олдсонгүй');
 
+    const { lesson: lessonXp } = await this.xp.rewards();
     const log = await this.xp.awardOnce({
       userId,
-      amount: LESSON_XP,
+      amount: lessonXp,
       source: XpSource.LESSON,
       referenceId: lessonId,
     });
-    return { lessonId, alreadyCompleted: log === null, xpAwarded: log ? LESSON_XP : 0 };
+    return { lessonId, alreadyCompleted: log === null, xpAwarded: log ? lessonXp : 0 };
   }
 
   /**

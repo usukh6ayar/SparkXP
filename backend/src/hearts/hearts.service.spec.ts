@@ -9,6 +9,9 @@ import { Plan } from '../entities/plan.entity';
  */
 
 const HOUR = 60 * 60 * 1000;
+const MIN = 60 * 1000;
+/** Mirrors DEFAULTS.regenMinutes in hearts.service.ts. */
+const REGEN = 30 * MIN;
 
 /** Minimal fake repo — `get()` persists, so we capture what it would write. */
 function makeService(user: Partial<User>, redisBlob: string | null = null) {
@@ -40,18 +43,19 @@ describe('HeartsService — regeneration', () => {
     expect(s.refillCost).toBeNull();
   });
 
-  it('grants one heart per 4h and carries the remainder forward', async () => {
-    // 9h since the anchor at 2 hearts → +2 hearts, 1h of progress preserved.
-    const user = freeUser({ hearts: 2, heartsUpdatedAt: new Date(Date.now() - 9 * HOUR) });
+  it('grants one heart per regen period and carries the remainder forward', async () => {
+    // 2.25 periods since the anchor at 2 hearts → +2 hearts, a quarter of a
+    // period of progress preserved.
+    const user = freeUser({ hearts: 2, heartsUpdatedAt: new Date(Date.now() - 2.25 * REGEN) });
     const { svc } = makeService(user);
     const s = await svc.get('u1');
 
     expect(s.hearts).toBe(4);
-    // The next heart must be ~3h away, NOT a fresh 4h — otherwise every read
-    // would quietly reset progress toward the next heart.
+    // The next heart must be ~0.75 of a period away, NOT a fresh full one —
+    // otherwise every read would quietly reset progress toward the next heart.
     const msToNext = new Date(s.nextHeartAt!).getTime() - Date.now();
-    expect(msToNext).toBeGreaterThan(2.5 * HOUR);
-    expect(msToNext).toBeLessThan(3.5 * HOUR);
+    expect(msToNext).toBeGreaterThan(0.5 * REGEN);
+    expect(msToNext).toBeLessThan(REGEN);
   });
 
   it('never exceeds the max no matter how much time passed', async () => {
@@ -63,7 +67,7 @@ describe('HeartsService — regeneration', () => {
   });
 
   it('does not regenerate before a full period elapses', async () => {
-    const user = freeUser({ hearts: 3, heartsUpdatedAt: new Date(Date.now() - 3 * HOUR) });
+    const user = freeUser({ hearts: 3, heartsUpdatedAt: new Date(Date.now() - 0.9 * REGEN) });
     const { svc } = makeService(user);
     expect((await svc.get('u1')).hearts).toBe(3);
   });
@@ -85,15 +89,16 @@ describe('HeartsService — losing hearts', () => {
   });
 
   it('keeps the existing anchor so a second loss does not reset progress', async () => {
-    const anchor = new Date(Date.now() - 1 * HOUR);
+    const anchor = new Date(Date.now() - 0.25 * REGEN);
     const user = freeUser({ hearts: 3, heartsUpdatedAt: anchor });
     const { svc } = makeService(user);
     const s = await svc.lose('u1');
 
     expect(s.hearts).toBe(2);
-    // Countdown still measured from the ORIGINAL anchor (~3h left), not now.
+    // Countdown still measured from the ORIGINAL anchor, so it is SHORTER than
+    // a fresh period — a second loss must not reset progress.
     const msToNext = new Date(s.nextHeartAt!).getTime() - Date.now();
-    expect(msToNext).toBeLessThan(3.5 * HOUR);
+    expect(msToNext).toBeLessThan(REGEN);
   });
 });
 
@@ -137,9 +142,9 @@ describe('HeartsService — plans', () => {
 
 describe('HeartsService — runtime tuning (Redis `hearts:defaults`)', () => {
   it('honours a regen override so hearts can be tuned without a deploy', async () => {
-    // 30 min elapsed. Default regen is 240 min → 0 hearts back. With the
+    // 20 min elapsed. The 30-min default gives 0 hearts back. With the
     // override at 5 min it should be capped back up to max instead.
-    const user = freeUser({ hearts: 1, heartsUpdatedAt: new Date(Date.now() - 30 * 60_000) });
+    const user = freeUser({ hearts: 1, heartsUpdatedAt: new Date(Date.now() - 20 * MIN) });
     const { svc } = makeService(user, JSON.stringify({ regenMinutes: 5 }));
     expect((await svc.get('u1')).hearts).toBe(5);
   });

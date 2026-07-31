@@ -124,6 +124,35 @@ export class AssignmentsService {
   }
 
   /**
+   * Is this quiz homework the student's teacher set for them?
+   *
+   * Teacher-assigned work sits OUTSIDE the gamification loop: it costs no
+   * hearts and earns no XP (see API.md §6a). It behaves like ordinary school
+   * homework — the submission is still recorded for the teacher's dashboard.
+   *
+   * Deliberately derived server-side rather than trusting an `assignmentId`
+   * from the client: the answer decides whether a heart is charged, so a
+   * client-supplied flag would be a free-hearts switch.
+   *
+   * Matches on the class roster (not the pre-created completion row) so a
+   * student who joined AFTER the assignment was set is still covered.
+   */
+  async isAssignedWork(userId: string, quizId: string): Promise<boolean> {
+    const count = await this.assignments
+      .createQueryBuilder('a')
+      .innerJoin('class_students', 'cs', 'cs.class_id = a.class_id AND cs.student_id = :userId', { userId })
+      .where('a.type = :type', { type: AssignmentType.QUIZ })
+      .andWhere('a.target_id = :quizId', { quizId })
+      // studentIds null = the whole class; otherwise only the listed students.
+      .andWhere('(a.student_ids IS NULL OR a.student_ids @> :me::jsonb)', {
+        me: JSON.stringify([userId]),
+      })
+      .limit(1)
+      .getCount();
+    return count > 0;
+  }
+
+  /**
    * Mark a student's submission for an assignment: updates the pre-created row,
    * or inserts one if the student joined after the assign. `late` when past due.
    */

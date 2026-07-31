@@ -144,7 +144,7 @@ Controller-level: JWT. Бичилт admin-баг. (Хичээлийн тест �
 | PATCH `/quizzes/:id` | admin-баг | Quiz засах | `UpdateQuizDto` |
 | DELETE `/quizzes/:id` | admin-баг | Quiz устгах | path `id` |
 | POST `/quizzes/:id/submit` | JWT | Хариу шалгаж XP олгох (≥1 зөв бол). XP нь **quiz тус бүрт нэг удаа** (`awardOnce`, farming-аас сэргийлнэ); дахин илгээвэл `xpEarned: 0`. Бүр submit `quiz_attempt` (skill+score) хадгална; `assignmentId` өгвөл даалгаврын submission-ыг оноотой бүртгэнэ | `SubmitQuizDto` (`answers`, `assignmentId?`) |
-| POST `/quizzes/:id/check` | JWT | **Нэг** хариу шалгах — C2 шуурхай feedback (XP олгохгүй, бүх түлхүүр задлахгүй). Буруу бол тухайн асуултын зөв хариу буцна. **Буруу хариулт 1 зүрх авна** (§17 харна уу) → `{ correct, correctAnswer?, hearts }` (`correctAnswer`: mc→index · fill_blank→string · word_match→pairs; `hearts` = `HeartsState`) | `AnswerItemDto` (`questionIndex`, `answer`) |
+| POST `/quizzes/:id/check` | JWT | **Нэг** хариу шалгах — C2 шуурхай feedback (XP олгохгүй, бүх түлхүүр задлахгүй). Буруу бол тухайн асуултын зөв хариу буцна. **Буруу хариулт 1 зүрх авна** (§6a; багшийн даалгавар **үл хамаарна**) → `{ correct, correctAnswer?, hearts }` (`correctAnswer`: mc→index · fill_blank→string · word_match→pairs; `hearts` = `HeartsState`) | `AnswerItemDto` (`questionIndex`, `answer`) |
 
 > **IELTS (Approach A):** IELTS content = quizzes with `category` in
 > `ielts_listening` / `ielts_reading` / `ielts_writing` / `ielts_speaking`.
@@ -180,6 +180,14 @@ Duolingo-маягийн "амь". Бүгд JWT.
   гэсэн endpoint **зориудаар байхгүй** — client-ээс дуудаж болдог бол client-ээс
   алгасаж бас болно. Зөв/буруугийн шийдвэрийг server гаргадаг цорын ганц цэг нь
   `/check` тул хасалт тэнд явна.
+- **🆕 Багшийн даалгавар зүрх авахгүй (2026-07-31).** Оноогдсон сорил дээр буруу
+  хариулсан ч зүрх **хасагдахгүй**, XP ч **олгогдохгүй** — даалгавар бол
+  гамификацийн гадна, энгийн сургуулийн даалгавар. Дунд нь зүрх дуусвал багшийн
+  шаардсан ажлаа дуусгаж чадахгүй болно. Шийдвэрийг **server гаргана**
+  (`AssignmentsService.isAssignedWork(userId, quizId)` — анги + `student_ids`-ээр),
+  client-ийн илгээсэн `assignmentId`-д **найдахгүй**: тэгвэл хуурамч утга илгээж
+  үнэгүй зүрх авах боломжтой болно. Гүйцэтгэл нь `assignment_completions`-д
+  хэвээр бичигдэж багшийн самбарт харагдана.
 - **Дахин илгээлтийн хамгаалалт:** ижил (хэрэглэгч, quiz, асуулт, хариу)-г 90
   секундэд дахин илгээвэл **дахин хасахгүй** (Redis `SET NX`). Хоёр дарсан/сүлжээ
   тасарч retry хийсэн нь 2 зүрх авахгүй. Харин **өөр** буруу хариулт (жишээ нь
@@ -191,7 +199,11 @@ Duolingo-маягийн "амь". Бүгд JWT.
   болохгүй**, `HeartsService` дундуур ор.
 - **Багцаас хамаарна** (`plans` хүснэгт, admin-аас тохируулна, app шинэчлэлгүй):
   `unlimited_hearts` · `max_hearts` · `heart_regen_minutes` · `heart_refill_sparks`.
-  NULL = үнэгүй багцын анхдагч (**5 зүрх · 240 мин/зүрх · 50 Sparks**).
+  NULL = үнэгүй багцын анхдагч (**5 зүрх · 30 мин/зүрх · 50 Sparks**).
+  ⚠️ Сэргэх хугацаа **240 → 30 мин болов (2026-07-31)** — 4 цаг нь сургуулийн
+  аппад хэт хатуу байсан (хичээлийн дараа дуусгасан сурагч тэр оройдоо дахин
+  дасгал хийж чадахгүй). Бүрэн дүүрэхэд 2.5 цаг. Redis-ээр deploy-гүйгээр
+  тохируулна: `redis-cli set hearts:defaults '{"regenMinutes":30}'`.
   Хугацаа нь дууссан багц = багцгүйтэй адил.
 
 ## 7. Reading — `/api/reading`
@@ -317,6 +329,40 @@ Controller-level: JWT. Бүгд student-ийн өөрийн давталтын �
 | --- | --- | --- | --- |
 | GET `/gamification` | JWT | Streak, level, өнөөдрийн XP, зорилго + `progressByLevel` (CEFR island бүрийн `done/total`) | — |
 
+### 🆕 XP шагналын хүснэгт — `xp/xp-rewards.ts` (2026-07-31)
+
+Тогтмол XP-ууд 6 модульд тарсан байсныг (`LESSON_XP`, `READING_XP`, `BUDDY_XP`,
+`ONBOARDING_XP`, `REFERRAL.SIGNUP_XP_*`) **нэг хүснэгтэд** цуглуулав. Redis
+`xp:rewards` түлхүүрээр **deploy-гүйгээр** тохируулна (`hearts:defaults`-тай яг
+ижил загвар — CLAUDE.md-ийн үндсэн дүрэм):
+
+    redis-cli set xp:rewards '{"lesson":25,"reading":20}'
+
+Хэсэгчилсэн object болно — дурдаагүй нь код доторх анхдагчаараа үлдэнэ.
+
+| Түлхүүр | Анхдагч | Хэзээ |
+| --- | --- | --- |
+| `lesson` | 15 | Хичээл анх дуусгах |
+| `reading` | 15 | Уншлага анх дуусгах |
+| `buddy` | 10 | AI найзтай ярианы **session тутам нэг** удаа |
+| `onboarding` | 10 | Бүртгэлийн өмнөх taste-task (verify хийхэд) |
+| `referralInviter` / `referralInvitee` | 50 / 50 | Урисан найз verify хийхэд |
+| `streakBase` · `streakMax` | 5 · 50 | Дарааллын бонус — доор үзнэ үү |
+
+**Энд ОРООГҮЙ:** сорилын XP. Тэр нь `quiz.xpReward` — admin панелиас сорил
+тутамд тохируулагддаг DB багана, контентоос хамаарсан шагналын зөв загвар.
+
+### 🆕 Дарааллын XP (`XpSource.STREAK`) — 2026-07-31
+
+Урьд нь enum-д байсан ч **хаана ч олгогддоггүй** байсан. Одоо: өдрийн зорилго
+биелж дараалал ахих үед `min(streakBase × дараалал, streakMax)` XP нэмнэ.
+
+- **Гүйлгээ commit болсны дараа** олгоно — ахисан дарааллыг харах ёстой.
+- **Өдөрт яг нэг удаа**: `awardOnce`-ийн `referenceId` = өдрийн түлхүүр (UB).
+- **Рекурс болохгүй**: `source === STREAK` бол дахин бонус тооцохгүй (гол
+  хамгаалалт), нэмээд тэр үед `lastActiveDate` аль хэдийн өнөөдөр болсон байна.
+  Хоёуланг нь `xp/streak-bonus.spec.ts` шалгана.
+
 ### Давталт (SRS) XP — `POST /reviews/:wordId`
 
 Флашкарт давтахад **XP олгодог боллоо** (өмнө нь огт олгодоггүй байсан ч
@@ -430,6 +476,14 @@ Controller-level: JWT.
 | POST `/assignments/:id/complete` | JWT | Сурагч даалгавар дуусгах (idempotent; `late`/`completed` тэмдэглэнэ) | path `id` |
 | DELETE `/assignments/:id` | teacher, admin, super_admin | Даалгавар устгах | path `id` |
 
+> 🔴 **Даалгавар = гамификацийн ГАДНА (2026-07-31).** Багшийн оноосон сорил
+> дээр **XP олгохгүй**, **зүрх хасахгүй** — энэ бол энгийн сургуулийн даалгавар.
+> Шийдвэрийг `AssignmentsService.isAssignedWork(userId, quizId)` server талд
+> гаргана (client-ийн `assignmentId`-д найдахгүй — тэр нь үнэгүй зүрхний унтраалга
+> болно). Submission нь хэвээр бүртгэгдэж багшийн самбарт харагдана.
+> `XpSource.ASSIGNMENT` нь **зориуд ашиглагдахгүй** — enum-д зөвхөн хуучин
+> `xp_logs` мөрүүд задрахын тулд үлдсэн.
+
 > **Teacher Panel Phase 1:** `POST /quizzes/:id/submit` нь `SubmitQuizDto`-д
 > сонголтоор `assignmentId` авна — өгвөл тухайн даалгаврын submission-ыг оноотой
 > нь бүртгэнэ. Бүх quiz submit нэг `quiz_attempt` (skill + score) хадгална
@@ -527,6 +581,7 @@ Deploy хийсний дараа нэг удаа `src/scripts/backfill-trophies.
 | `auth.ts` | `register`→POST `/auth/register` · `verifyOtp`→POST `/auth/verify-otp` · `resendOtp`→POST `/auth/resend-otp` · `login`→POST `/auth/login` · `forgotPassword`→POST `/auth/forgot-password` · `resetPassword`→POST `/auth/reset-password` · `getMe`→GET `/auth/me` |
 | `users.ts` | `getStats`→GET `/users/me/stats` · `getMyPlan`→GET `/users/me/plan` · `updateProfile`→PATCH `/users/me` · `uploadAvatar`→POST `/users/me/avatar` |
 | `gamification.ts` | `getGamification`→GET `/gamification` |
+| **`achievements.ts`** 🆕 | `getAchievements`→GET `/achievements` · `markTrophiesSeen`→POST `/achievements/seen`. Хэрэглэгч: **`app/trophies.tsx`** (100 цомын бүрэн дэлгэц, tier тус бүрээр, шүүлтүүр Бүгд/Авсан/Аваагүй, дэлгэрэнгүй sheet) · **`app/(tabs)/profile.tsx`** (эзэмшсэн цомын хэвтээ мөр + `Бүгдийг харах` → `/trophies`) · **`src/lib/useUnseenTrophies.ts`** (`unseen` → `AchievementModal` баяр хүргэл → `POST /seen`; host нь `src/components/TrophyHost.tsx`, `app/_layout.tsx`-д суусан; дуусгах дэлгэцүүд `checkTrophies()` дуудна). Түгжээтэй цомын нөхцөлийг `src/lib/trophyCondition.ts` монголоор бичнэ |
 | `lessons.ts` | `getLessons`→GET `/lessons?isPublished=true` · `getLesson`→GET `/lessons/:id` · `checkAccess`→GET `/lessons/:id/access` · `unlockLesson`→POST `/lessons/:id/unlock` · `completeLesson`→POST `/lessons/:id/complete` · **`getContinue`→GET `/lessons/continue`** (C1 ✅ Home hero — Choi, 2026-07-22) |
 | `quizzes.ts` | `getQuiz`→GET `/quizzes/:id` · `getQuizzes`→GET `/quizzes?isPublished=true[&lessonId=]` · `getExercises`→GET `/quizzes?standalone=true&isPublished=true&category=` · `submitQuiz`→POST `/quizzes/:id/submit` · **`checkAnswer`→POST `/quizzes/:id/check`** (C2 — Boju нэмнэ). **IELTS 3a ✅** (Choi, 2026-07-22): `getExercises`-ийг `category=ielts_listening\|ielts_reading`-аар дуудаж `/ielts` hub + `/skill/ielts_*` жагсаалт; runner нь `passageText`/`audioUrl`-ыг үзүүлж, `submit`-ийн `band`-ыг үр дүнд харуулна |
 | `quiz.ts` (vocab) | `getQuiz`→GET `/words/quiz?count=` · `submitQuiz`→POST `/words/quiz/submit` |

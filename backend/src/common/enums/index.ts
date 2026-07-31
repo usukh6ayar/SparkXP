@@ -115,6 +115,10 @@ export enum XpSource {
   WORD_REVIEW = "word_review",
   QUIZ = "quiz",
   LESSON = "lesson",
+  // Deliberately never awarded. Teacher-set homework sits outside the
+  // gamification loop by product decision — no XP and no heart cost (see
+  // assignments.service.ts `isAssignedWork`). Kept so historical xp_logs rows
+  // still deserialize; do NOT "fix" this by wiring it up.
   ASSIGNMENT = "assignment",
   STREAK = "streak",
   AI_BUDDY = "ai_buddy",

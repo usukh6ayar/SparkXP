@@ -92,15 +92,16 @@ export class ReferralsService {
     await this.users.update(newUser.id, { referredById: inviter.id });
 
     // referenceId cross-links the pair so each side is paid exactly once.
+    const rewards = await this.xp.rewards();
     await this.xp.awardOnce({
       userId: newUser.id,
-      amount: REFERRAL.SIGNUP_XP_INVITEE,
+      amount: rewards.referralInvitee,
       source: XpSource.REFERRAL,
       referenceId: inviter.id,
     });
     await this.xp.awardOnce({
       userId: inviter.id,
-      amount: REFERRAL.SIGNUP_XP_INVITER,
+      amount: rewards.referralInviter,
       source: XpSource.REFERRAL,
       referenceId: newUser.id,
     });
