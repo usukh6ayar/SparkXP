@@ -28,6 +28,7 @@ import { t, tf } from '../../src/i18n';
 import { useColors } from '../../src/settings/SettingsContext';
 import { spacing, radius, levelColor, type AppColors } from '../../src/theme/theme';
 import { bounded } from '../../src/theme/responsive';
+import { checkTrophies } from '../../src/lib/useUnseenTrophies';
 
 const banner = require('../../assets/home-banner.webp');
 
@@ -116,6 +117,7 @@ export default function LessonDetailScreen() {
           setLessonReward(res.xpAwarded);
           showXpToast(res.xpAwarded);
         }
+        checkTrophies(); // that XP may have unlocked a badge
       } catch { /* non-critical */ }
     }
   }

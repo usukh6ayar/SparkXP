@@ -9,6 +9,7 @@ import Animated, {
   withSpring,
 } from 'react-native-reanimated';
 import { AppText } from './Text';
+import { AppImage } from './AppImage';
 import { Button } from './Button';
 import { Confetti } from './Confetti';
 import { useColors } from '../settings/SettingsContext';
@@ -27,6 +28,11 @@ export interface Achievement {
   subtitle?: string;
   /** Badge tint (bg/fg pair from theme `tints`). */
   tint: { bg: string; fg: string };
+  /**
+   * Real trophy artwork (the 640px `image` from GET /achievements). When set it
+   * replaces `icon`, which stays the fallback for callers that have no artwork.
+   */
+  imageUrl?: string;
 }
 
 /**
@@ -81,7 +87,11 @@ export function AchievementModal({
               badgeStyle,
             ]}
           >
-            <Ionicons name={achievement.icon} size={54} color={achievement.tint.fg} />
+            {achievement.imageUrl ? (
+              <AppImage source={achievement.imageUrl} width={220} contentFit="contain" style={styles.badgeImg} />
+            ) : (
+              <Ionicons name={achievement.icon} size={54} color={achievement.tint.fg} />
+            )}
           </Animated.View>
 
           <AppText variant="h2" center>{achievement.title}</AppText>
@@ -124,7 +134,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginVertical: spacing.md,
+    overflow: 'hidden',
   },
+  /** Trophy artwork fills the circle, inset so the ring stays visible. */
+  badgeImg: { width: '86%', height: '86%' },
   subtitle: { marginTop: 2 },
   btn: { marginTop: spacing.lg, alignSelf: 'stretch' },
 });

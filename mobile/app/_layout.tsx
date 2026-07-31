@@ -21,6 +21,7 @@ import {
 } from "../src/settings/SettingsContext";
 import { DictionaryProvider } from "../src/components/DictionaryProvider";
 import { ToastHost } from "../src/components/Toast";
+import { TrophyHost } from "../src/components/TrophyHost";
 import { LockScreen } from "../src/components/LockScreen";
 
 /**
@@ -152,6 +153,7 @@ function RootLayout() {
               <BottomSheetModalProvider>
                 <ThemedNav />
                 <ToastHost />
+                <TrophyHost />
               </BottomSheetModalProvider>
             </DictionaryProvider>
           </AuthProvider>

@@ -11,6 +11,12 @@ import { useSettings } from '../../src/settings/SettingsContext';
 import * as usersApi from '../../src/api/users';
 import * as classesApi from '../../src/api/classes';
 import { getGamification, type Gamification } from '../../src/api/gamification';
+import {
+  getAchievements,
+  ACHIEVEMENTS_PATH,
+  type AchievementsResponse,
+} from '../../src/api/achievements';
+import { useSWR } from '../../src/api/useSWR';
 import { AppText } from '../../src/components/Text';
 import { AppIcon } from '../../src/components/AppIcon';
 import { type AppIconName } from '../../src/constants/appIcons';
@@ -20,11 +26,10 @@ import { EditProfileModal } from '../../src/components/EditProfileModal';
 import { resolveAvatar } from '../../src/lib/avatar';
 import { useAvatarPicker } from '../../src/lib/useAvatarPicker';
 import { useLogoutConfirm, useComingSoon } from '../../src/lib/useLogoutConfirm';
-import { tf, type TranslationKey } from '../../src/i18n';
+import { tf } from '../../src/i18n';
 import { colors, spacing, radius, tints, elevation, type PremiumPalette, progressGradients } from '../../src/theme/theme';
 import { bounded } from '../../src/theme/responsive';
 
-type IconName = keyof typeof Ionicons.glyphMap;
 type Styles = ReturnType<typeof makeStyles>;
 
 const avatarImg = require('../../assets/buddy-menu.webp');
@@ -75,17 +80,8 @@ function UsageBar({ p, st, label, used, limit, unit }: {
   );
 }
 
-/** Progress the achievement predicates read from (all from real backend data). */
-type AchStats = { lessonsDone: number; quizzesDone: number; longestStreak: number; level: number; sparks: number };
-
-// Static badge config; `earned` is computed against the user's real stats below.
-const ACHIEVEMENT_DEFS: { icon: IconName; labelKey: TranslationKey; tint: { bg: string; fg: string }; earned: (s: AchStats) => boolean }[] = [
-  { icon: 'book', labelKey: 'achFirstLesson', tint: tints.purple, earned: (s) => s.lessonsDone >= 1 },
-  { icon: 'trophy', labelKey: 'achFirstQuiz', tint: tints.amber, earned: (s) => s.quizzesDone >= 1 },
-  { icon: 'calendar', labelKey: 'ach7DayStreak', tint: tints.green, earned: (s) => s.longestStreak >= 7 },
-  { icon: 'flash', labelKey: 'achLevel5', tint: tints.blue, earned: (s) => s.level >= 5 },
-  { icon: 'diamond', labelKey: 'ach100Sparks', tint: tints.purple, earned: (s) => s.sparks >= 100 },
-];
+/** How many badges the profile preview row shows before "see all". */
+const ACH_PREVIEW = 8;
 
 export default function ProfileScreen() {
   const { user, token } = useAuth();
@@ -96,6 +92,12 @@ export default function ProfileScreen() {
   const [classes, setClasses] = useState<{ id: string; name: string; teacherName: string | null }[]>([]);
   const [plan, setPlan] = useState<usersApi.PlanInfo | null>(null);
   const [gam, setGam] = useState<Gamification | null>(null);
+  // Trophies. Same cache key as the /trophies screen, so opening it is instant.
+  const { data: ach } = useSWR<AchievementsResponse>(
+    ACHIEVEMENTS_PATH,
+    () => getAchievements(token!),
+    { enabled: Boolean(token) },
+  );
 
   // Enrolled classes (+ which teacher), plan and gamification — refetched on focus.
   const loadProfile = useCallback(async () => {
@@ -137,15 +139,15 @@ export default function ProfileScreen() {
   const level = gam?.level ?? Math.floor(xp / LEVEL_SIZE) + 1;
   const pct = gam ? Math.round(gam.progress * 100) : Math.round(((xp % LEVEL_SIZE) / LEVEL_SIZE) * 100);
   const streak = gam?.currentStreak ?? STREAK;
-  const longestStreak = gam?.longestStreak ?? 0;
   const lessonsDone = gam?.lessonsDone ?? 0;
   const quizzesDone = gam?.quizzesDone ?? 0;
 
-  // Achievement badges lit up from the user's real progress (see ACHIEVEMENT_DEFS).
-  const achievements = ACHIEVEMENT_DEFS.map((a) => ({
-    ...a,
-    earned: a.earned({ lessonsDone, quizzesDone, longestStreak, level, sparks }),
-  }));
+  // Real trophies from GET /achievements. Show what the user has actually won;
+  // with none yet, show the first few locked ones instead so the row still
+  // reads as a goal rather than an empty gap.
+  const earnedTrophies = ach?.trophies.filter((tr) => tr.earned) ?? [];
+  const achPreview = (earnedTrophies.length ? earnedTrophies : (ach?.trophies ?? []))
+    .slice(0, ACH_PREVIEW);
 
   const STATS: { icon: AppIconName; value: number; label: string }[] = [
     { icon: 'streak', value: streak, label: t('statStreak') },
@@ -293,22 +295,37 @@ export default function ProfileScreen() {
             </View>
           ) : null}
 
-          {/* Achievements — large collectible badges */}
-          <SectionHead p={p} st={styles} title={t('myAchievements')} actionLabel={`${t('seeAll')} ›`} onAction={soon} style={styles.section} />
+          {/* Achievements — real trophies from GET /achievements */}
+          <SectionHead
+            p={p}
+            st={styles}
+            title={ach ? `${t('myAchievements')} (${ach.earned}/${ach.total})` : t('myAchievements')}
+            actionLabel={`${t('seeAll')} ›`}
+            onAction={() => router.push('/trophies')}
+            style={styles.section}
+          />
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.achRow}>
-            {achievements.map((a) => (
-              <View key={a.labelKey} style={styles.achItem}>
-                {a.earned ? (
-                  <View style={[styles.achBadge, { backgroundColor: alpha(a.tint.fg, 0.14), borderColor: alpha(a.tint.fg, 0.4) }]}>
-                    <Ionicons name={a.icon} size={32} color={a.tint.fg} />
-                  </View>
-                ) : (
-                  <View style={[styles.achBadge, styles.achLocked]}>
-                    <Ionicons name="lock-closed" size={28} color={p.textMuted} />
-                  </View>
-                )}
-                <AppText variant="caption" color={p.textSecondary} center numberOfLines={2} style={styles.achLabel}>{t(a.labelKey)}</AppText>
-              </View>
+            {achPreview.map((tr) => (
+              <Pressable key={tr.slug} style={styles.achItem} onPress={() => router.push('/trophies')}>
+                {/* Always the 256px thumb — the full images are 8.7MB together. */}
+                <View style={[styles.achBadge, !tr.earned && styles.achLocked]}>
+                  <AppImage
+                    source={tr.thumb}
+                    width={128}
+                    contentFit="contain"
+                    style={[styles.achBadgeImg, !tr.earned && styles.achBadgeImgLocked]}
+                  />
+                </View>
+                <AppText
+                  variant="caption"
+                  color={tr.earned ? p.textSecondary : p.textMuted}
+                  center
+                  numberOfLines={2}
+                  style={styles.achLabel}
+                >
+                  {tr.name}
+                </AppText>
+              </Pressable>
             ))}
           </ScrollView>
 
@@ -499,7 +516,10 @@ const makeStyles = (p: PremiumPalette, isDark: boolean) => {
   // Achievements
   achRow: { gap: spacing.md, paddingRight: spacing.lg, paddingVertical: spacing.xs },
   achItem: { alignItems: 'center', width: 84 },
-  achBadge: { width: 74, height: 74, borderRadius: radius.lg, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
+  achBadge: { width: 74, height: 74, borderRadius: radius.lg, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'transparent', overflow: 'hidden' },
+  achBadgeImg: { width: '86%', height: '86%' },
+  // Locked badges stay readable as a goal, but clearly not yours yet.
+  achBadgeImgLocked: { opacity: 0.28 },
   achLocked: { backgroundColor: p.track, borderColor: p.divider },
   achLabel: { marginTop: spacing.sm },
 
