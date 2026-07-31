@@ -115,8 +115,10 @@ listed in `ROADMAP.md` → "Shared backend өөрчлөлт — Bishrelt АНХ�
 avatar/"Continue Learning"/student assignments). See `docs/FUTURE_PLAN.md` + `ROADMAP.md`.
 **Англи нэр (`englishName`) устгагдсан (2026-07-31)** — бүртгэл, профайл засах,
 auth хариу, DTO-оос бүгд хассан. Нүүрийн мэндчилгээ одоо **`Сайн уу, {username}`**
-(`username` null бол `fullName`-ийн эхний үг). `users.english_name` багана prod-д
-dormant үлдсэн (migration бичээгүй) — дэлгэрэнгүй `API.md`.
+(`username` null бол `fullName`-ийн эхний үг). `users.english_name` багана
+`DropUserEnglishName1786200000000` migration-оор prod-оос **устгагдана**
+(дараагийн deploy-д автоматаар; хадгалагдсан нэрс бүрмөсөн алдагдана)
+— дэлгэрэнгүй `API.md`.
 **UI/UX polish — mostly DONE (2026-07-21, verified in code).** Responsive across
 phone sizes (`src/theme/responsive.ts`), delight layer (haptics/motion/glow/anim),
 skeleton loading, flat Duolingo tab bar with labelled buddy tab, frosted-glass
