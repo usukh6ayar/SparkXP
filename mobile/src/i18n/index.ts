@@ -308,8 +308,15 @@ const mn = {
   // Saved words
   savedWords: 'Хадгалсан үгс',
   vocabStatsTitle: 'Миний үгсийн сан',
-  vocabStatsSub: 'Нийт {n} үгтэй тааралдсан',
+  vocabStatsSub: 'Апп дээр нийт {n} үгтэй тааралдсан',
   vocabLearning: 'Сурч байгаа',
+  // Тоо бүр юуг хэлж байгааг ЗААВАЛ тайлбарлана — тайлбаргүй "95%" нь
+  // хаанаас гарсан нь ойлгомжгүй тоо болдог.
+  vocabKnownRatio: 'Мэдсэн {known} / {total} үг',
+  vocabKnownHint: 'Дор хаяж нэг удаа зөв сануулсан',
+  vocabLearningHint: 'Тааралдсан ч хараахан сануулаагүй',
+  vocabEmpty: 'Одоогоор нэг ч үгтэй тааралдаагүй байна',
+  vocabEmptyHint: 'Үг сурах хэсгээс эхэлбэл энд тоо гарч эхэлнэ',
   tapToReveal: 'Товшиж хариуг харах',
   noSavedWords: 'Хадгалсан үг алга',
   noSavedWordsHint: 'Үг сурах үед картны ⭐ дээр дарж хадгална.',
@@ -642,6 +649,13 @@ const mn = {
   correctComboToast: '{n} дараалсан зөв',
   correctComboInline: '×{n} комбо',
   correctAnswerLabel: 'Зөв хариу: {answer}',
+  // Дүнгийн дэлгэц — алдаан дээрээ ажиллах хэсэг
+  resultMistakesTitle: 'Алдсан асуултууд',
+  resultMistakesHint: 'Эдгээр асуулт дээр эхэндээ андуурсан байна',
+  resultQuestionNo: '{n}-р асуулт',
+  resultYourAnswer: 'Таны хариулт',
+  resultCorrectAnswer: 'Зөв хариу',
+  resultNoMistakes: 'Нэг ч алдаагүй — гайхалтай! 🎉',
 
   // Hearts (зүрх / амь) — buruu hariult бүр 1 зүрх авна
   heartsCountA11y: 'Зүрх {n} / {max}',
@@ -1166,8 +1180,13 @@ const en: Record<TranslationKey, string> = {
 
   savedWords: 'Saved words',
   vocabStatsTitle: 'My vocabulary',
-  vocabStatsSub: '{n} words encountered',
+  vocabStatsSub: '{n} words encountered in the app',
   vocabLearning: 'Learning',
+  vocabKnownRatio: 'Known {known} of {total} words',
+  vocabKnownHint: 'Recalled correctly at least once',
+  vocabLearningHint: 'Met, but not recalled yet',
+  vocabEmpty: 'You have not met any words yet',
+  vocabEmptyHint: 'Start in the vocabulary section and these numbers fill in',
   tapToReveal: 'Tap to reveal',
   noSavedWords: 'No saved words',
   noSavedWordsHint: 'Tap ⭐ on a card while learning to save it here.',
@@ -1490,6 +1509,13 @@ const en: Record<TranslationKey, string> = {
   correctComboToast: '{n} correct in a row',
   correctComboInline: '×{n} combo',
   correctAnswerLabel: 'Correct answer: {answer}',
+  // Result screen — review your mistakes
+  resultMistakesTitle: 'What you missed',
+  resultMistakesHint: 'You slipped up on these at first',
+  resultQuestionNo: 'Question {n}',
+  resultYourAnswer: 'Your answer',
+  resultCorrectAnswer: 'Correct answer',
+  resultNoMistakes: 'No mistakes at all — brilliant! 🎉',
 
   // Hearts
   heartsCountA11y: '{n} of {max} hearts',

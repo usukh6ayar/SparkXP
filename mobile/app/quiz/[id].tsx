@@ -17,7 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { useAuth } from '../../src/auth/AuthContext';
 import * as quizzesApi from '../../src/api/quizzes';
-import type { Quiz, AnswerItem, QuizResult } from '../../src/api/quizzes';
+import type { Quiz, QuizQuestion, AnswerItem, QuizResult } from '../../src/api/quizzes';
 import { getHearts, type HeartsState } from '../../src/api/hearts';
 import { getStats } from '../../src/api/users';
 import { HeartsRow } from '../../src/components/HeartsRow';
@@ -56,6 +56,53 @@ type RewardFlash = {
   run: number;
   titleKey: TranslationKey;
 };
+
+/**
+ * One question the student got wrong, kept so the result screen can explain it.
+ *
+ * Nothing else can supply this: `GET /quizzes/:id` deliberately withholds the
+ * answer key, and `/submit`'s breakdown is only pass/fail per question. The one
+ * place the key ever appears is the `/check` response for a WRONG answer — so we
+ * catch it as it goes past, or it is gone by the time the score is on screen.
+ */
+type Mistake = {
+  /** What they answered the FIRST time they missed it — the instructive one. */
+  given: number | string;
+  /** The key from `/check` (mc → index, fill_blank → string, word_match → pairs). */
+  correctAnswer?: quizzesApi.CheckResult['correctAnswer'];
+};
+
+/** word_match answers travel as a JSON string (student) or a real array (key). */
+function parsePairs(value: unknown): { left: string; right: string }[] {
+  if (Array.isArray(value)) return value as { left: string; right: string }[];
+  if (typeof value !== 'string') return [];
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return Array.isArray(parsed) ? (parsed as { left: string; right: string }[]) : [];
+  } catch {
+    return []; // not JSON → nothing sensible to show
+  }
+}
+
+/**
+ * Render an answer the way the student saw it: a multiple-choice index becomes
+ * "B. london", word-match pairs become "left → right" lines. A bare index or a
+ * JSON blob on the review screen would be unreadable.
+ */
+function formatAnswer(q: QuizQuestion | undefined, value: unknown): string {
+  if (value == null || value === '') return '—';
+  if (q?.type === 'multiple_choice' && typeof value === 'number') {
+    const opt = q.options?.[value];
+    return opt ? `${String.fromCharCode(65 + value)}. ${opt}` : String(value + 1);
+  }
+  if (q?.type === 'word_match') {
+    const pairs = parsePairs(value);
+    return pairs.length
+      ? pairs.map((p) => `${p.left} → ${p.right || '—'}`).join('\n')
+      : '—';
+  }
+  return String(value);
+}
 
 /** Longest run of consecutive correct answers — the quiz "combo" (Duolingo feel).
  *  Computed from the graded breakdown (no per-question data needed client-side). */
@@ -137,6 +184,13 @@ export default function QuizScreen() {
    */
   const [wrongTries, setWrongTries] = useState<Record<number, number>>({});
   const [answers, setAnswers] = useState<AnswerItem[]>([]);
+  /**
+   * Questions missed at least once, by index → what the result screen reviews.
+   * Recorded as `/check` grades each answer (see `Mistake`), and kept even when
+   * the retry succeeds: "I got it eventually" is exactly the thing worth
+   * re-reading afterwards.
+   */
+  const [mistakes, setMistakes] = useState<Record<number, Mistake>>({});
   const [fillText, setFillText] = useState('');
   const [selected, setSelected] = useState<number | null>(null);
   // word_match: leftIndex → chosen right value (drag/tap handled in WordMatchBoard).
@@ -193,6 +247,7 @@ export default function QuizScreen() {
         setQuiz(q);
         setQueue(q.questions.map((_, i) => i));
         setWrongTries({}); // a reloaded quiz starts a fresh run
+        setMistakes({});
         setPhase('quiz');
       })
       .catch(() => setPhase('error'));
@@ -345,6 +400,19 @@ export default function QuizScreen() {
             ...w,
             [currentIndex]: (w[currentIndex] ?? 0) + 1,
           }));
+          // Keep the FIRST miss only: later tries drift towards the answer as
+          // the student narrows it down, and "what I thought at the time" is
+          // what makes the review worth reading. `open_response` is skipped —
+          // the server never auto-grades it (always `correct: false`), so
+          // filing it as a mistake would be a lie about the student's answer.
+          if (currentQ?.type !== 'open_response') {
+            const given = currentAnswer();
+            setMistakes((m) => (
+              m[currentIndex]
+                ? m
+                : { ...m, [currentIndex]: { given, correctAnswer: fb.correctAnswer } }
+            ));
+          }
         }
       } catch {
         // /check failed. Advancing silently used to look like the quiz had
@@ -442,6 +510,10 @@ export default function QuizScreen() {
   if (phase === 'result' && result) {
     const combo = bestCombo(result.breakdown);
     const accent = result.passed ? c.success : c.danger;
+    // Missed questions in the order they were asked (object keys are strings).
+    const missed = Object.keys(mistakes)
+      .map(Number)
+      .sort((a, b) => a - b);
     return (
       <SafeAreaView style={styles.safe}>
         {result.passed && <Confetti />}
@@ -521,6 +593,73 @@ export default function QuizScreen() {
               </Animated.View>
             ))}
           </View>
+
+          {/* Where it actually went wrong. The chips above only say WHICH
+              questions were missed; a student can't learn from a red ✗. Note
+              this lists every question missed at least once, so a question
+              retried into a ✓ still shows up — that first wrong answer is the
+              one worth re-reading. */}
+          <AppText variant="overline" color={c.textSecondary} style={styles.breakdownTitle}>
+            {t('resultMistakesTitle')}
+          </AppText>
+          {missed.length === 0 ? (
+            <View style={styles.noMistakes}>
+              <Ionicons name="sparkles" size={18} color={c.success} />
+              <AppText variant="body" color={c.success} style={{ flex: 1 }}>
+                {t('resultNoMistakes')}
+              </AppText>
+            </View>
+          ) : (
+            <>
+              <AppText variant="caption" color={c.textMuted}>
+                {t('resultMistakesHint')}
+              </AppText>
+              {missed.map((qi, i) => {
+                const m = mistakes[qi];
+                const q = quiz?.questions[qi];
+                return (
+                  <Animated.View
+                    key={qi}
+                    entering={FadeInDown.delay(400 + i * 60)}
+                    style={styles.missCard}
+                  >
+                    <AppText variant="overline" color={c.textMuted}>
+                      {tf('resultQuestionNo', { n: qi + 1 })}
+                    </AppText>
+                    {q?.question ? (
+                      <AppText variant="bodyStrong">{q.question}</AppText>
+                    ) : null}
+                    <View style={styles.missLine}>
+                      <Ionicons name="close-circle" size={16} color={c.danger} />
+                      <View style={styles.missLineBody}>
+                        <AppText variant="caption" color={c.textMuted}>
+                          {t('resultYourAnswer')}
+                        </AppText>
+                        <AppText variant="body" color={c.danger}>
+                          {formatAnswer(q, m.given)}
+                        </AppText>
+                      </View>
+                    </View>
+                    {/* `correctAnswer` is absent only if an older backend omitted
+                        it — hide the row rather than print an empty one. */}
+                    {m.correctAnswer !== undefined ? (
+                      <View style={styles.missLine}>
+                        <Ionicons name="checkmark-circle" size={16} color={c.success} />
+                        <View style={styles.missLineBody}>
+                          <AppText variant="caption" color={c.textMuted}>
+                            {t('resultCorrectAnswer')}
+                          </AppText>
+                          <AppText variant="body" color={c.success}>
+                            {formatAnswer(q, m.correctAnswer)}
+                          </AppText>
+                        </View>
+                      </View>
+                    ) : null}
+                  </Animated.View>
+                );
+              })}
+            </>
+          )}
 
           <Button label={t('finish')} onPress={() => router.back()} style={{ marginTop: spacing.xl }} />
         </ScrollView>
@@ -901,4 +1040,25 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   },
   chipNum: { fontWeight: '800', fontSize: fontSize.sm },
   chipMark: { fontWeight: '800', fontSize: fontSize.md },
+
+  // "What you missed" review cards. Left-aligned and roomy on purpose: this is
+  // the one block on the result screen meant to be READ, not glanced at.
+  missCard: {
+    gap: spacing.sm,
+    backgroundColor: c.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: c.border,
+    padding: spacing.md,
+  },
+  missLine: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
+  missLineBody: { flex: 1, gap: 1 },
+  noMistakes: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: c.successSoft,
+    borderRadius: radius.md,
+    padding: spacing.md,
+  },
 });

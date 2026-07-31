@@ -42,6 +42,7 @@ import { AppImage } from "../../src/components/AppImage";
 import { AppIcon } from "../../src/components/AppIcon";
 import { type AppIconName } from "../../src/constants/appIcons";
 import { IconButton } from "../../src/components/IconButton";
+import { Button } from "../../src/components/Button";
 import { PressableScale } from "../../src/components/PressableScale";
 import { Skeleton } from "../../src/components/Skeleton";
 import { ProgressBar } from "../../src/components/ProgressBar";
@@ -667,32 +668,56 @@ export default function HomeScreen() {
             />
           ) : null}
 
-          {/* SECONDARY — two next steps as equal half-width tiles: review +
-              assignments (assignments only when enrolled; review then goes wide). */}
-          <View style={styles.nextRow}>
-            <PressableScale style={styles.nextTile} onPress={() => { haptics.tap(); router.push("/swipe"); }}>
-              <View style={[styles.nextIcon, { backgroundColor: tints.purple.bg, borderColor: tints.purple.fg }]}>
-                <Ionicons name="albums" size={22} color={tints.purple.fg} />
-                {due > 0 ? (
-                  <View style={styles.dueBadge}><AppText variant="caption" color={c.white}>{due}</AppText></View>
-                ) : null}
+          {/* SECONDARY — review + assignments, each a FULL-WIDTH card stacked
+              one under the other. Half-width tiles squeezed the Mongolian
+              labels ("Давтах үгс" / "Миний даалгавар") into one clipped line
+              and shrank the review CTA to an icon; full width keeps both
+              readable whether or not the student is enrolled in a class. */}
+          {/* Review reminder */}
+          <View style={styles.reviewCard}>
+            <View style={styles.reviewHead}>
+              <View style={styles.reviewIcon}>
+                <Ionicons name="alarm" size={26} color={tints.purple.fg} />
               </View>
-              <AppText variant="h3" numberOfLines={1}>{t("reviewWords")}</AppText>
-              <AppText variant="caption" color={c.textSecondary} numberOfLines={1}>
-                {due > 0 ? tf("wordsDueCount", { n: due }) : t("noWordsDue")}
-              </AppText>
-            </PressableScale>
-
-            {enrolled ? (
-              <PressableScale style={styles.nextTile} onPress={() => { haptics.tap(); router.push("/assignments"); }}>
-                <View style={[styles.nextIcon, { backgroundColor: tints.green.bg, borderColor: tints.green.fg }]}>
-                  <Ionicons name="clipboard" size={22} color={tints.green.fg} />
+              <View style={styles.reviewBody}>
+                <AppText variant="h3">{t("reviewWords")}</AppText>
+                <AppText variant="caption" color={c.textSecondary}>
+                  {due > 0 ? tf("wordsDueCount", { n: due }) : t("noWordsDue")}
+                </AppText>
+              </View>
+              {due > 0 ? (
+                <View style={styles.reviewDueBadge}>
+                  <AppText variant="label" color={c.white} style={styles.reviewDueText}>
+                    {due}
+                  </AppText>
                 </View>
-                <AppText variant="h3" numberOfLines={1}>{t("myAssignments")}</AppText>
-                <AppText variant="caption" color={c.textSecondary} numberOfLines={1}>{t("assignmentsSubtitle")}</AppText>
-              </PressableScale>
-            ) : null}
+              ) : null}
+            </View>
+            <Button
+              label={t("startReview")}
+              icon="play"
+              size="md"
+              onPress={() => router.push("/swipe")}
+            />
           </View>
+
+          {/* My assignments — only for students enrolled in a class (that's
+              where assignments come from). */}
+          {enrolled ? (
+            <Pressable
+              style={({ pressed }) => [styles.joinCard, pressed && styles.pressed]}
+              onPress={() => { haptics.tap(); router.push("/assignments"); }}
+            >
+              <View style={[styles.joinIcon, { backgroundColor: tints.green.bg, borderColor: tints.green.fg }]}>
+                <Ionicons name="clipboard" size={24} color={tints.green.fg} />
+              </View>
+              <View style={styles.joinBody}>
+                <AppText variant="h3">{t("myAssignments")}</AppText>
+                <AppText variant="caption" color={c.textSecondary}>{t("assignmentsSubtitle")}</AppText>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={c.borderStrong} />
+            </Pressable>
+          ) : null}
 
           {/* BROWSE — the skill menu as ONE row of 4 gradient tiles ("Юу сурах
               вэ?"). All four skills are peers, so a single row says that; the
@@ -945,43 +970,65 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   },
   continueThumb: { width: "100%", height: "100%" },
 
-  // Two next-step tiles (review + assignments), equal half-width.
-  // Single source of the gap under the daily-goal strip (the strip itself has
-  // no bottom margin), so the two never stack into an obvious hole.
-  nextRow: { flexDirection: "row", gap: spacing.md, marginTop: spacing.md },
-  nextTile: {
-    flex: 1,
-    gap: spacing.xs,
+  // Review reminder — full-width card: icon chip + title/subtitle + due badge,
+  // with the "start review" button on its own line underneath.
+  reviewCard: {
+    gap: spacing.md,
+    backgroundColor: c.surface,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: c.border,
+    padding: spacing.lg,
+    marginTop: spacing.lg,
+    ...(elevation.sm as object),
+  },
+  reviewHead: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  // Shared premium icon chip — rounded square with a soft tint + matching
+  // outline so every feature icon reads as one consistent, vivid set.
+  reviewIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: radius.md,
+    backgroundColor: tints.purple.bg,
+    borderWidth: 1,
+    borderColor: tints.purple.fg,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reviewBody: { flex: 1, gap: 2 },
+  reviewDueBadge: {
+    minWidth: 30,
+    height: 30,
+    paddingHorizontal: 8,
+    borderRadius: radius.full,
+    backgroundColor: c.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reviewDueText: { fontWeight: "800" },
+
+  // My assignments — full-width row: icon chip + text + chevron.
+  joinCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
     backgroundColor: c.surface,
     borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: c.border,
     padding: spacing.md,
+    marginTop: spacing.md,
     ...(elevation.sm as object),
   },
-  nextIcon: {
-    width: 44,
-    height: 44,
+  joinIcon: {
+    width: 52,
+    height: 52,
     borderRadius: radius.md,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: spacing.xs,
   },
-  dueBadge: {
-    position: "absolute",
-    top: -6,
-    right: -6,
-    minWidth: 20,
-    height: 20,
-    paddingHorizontal: 5,
-    borderRadius: radius.full,
-    backgroundColor: c.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 2,
-    borderColor: c.surface,
-  },
+  joinBody: { flex: 1, gap: 2 },
 
   // Section eyebrow + title (skill grid / rail).
   learnHead: { marginTop: spacing.xl, marginBottom: spacing.md, gap: 2 },

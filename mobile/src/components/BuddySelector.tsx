@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Dimensions, StyleSheet, Pressable, FlatList, ActivityIndicator, Platform } from 'react-native';
 import Animated, {
   useAnimatedStyle, useAnimatedScrollHandler, useSharedValue,
   interpolate, interpolateColor, Extrapolation, FadeIn, FadeOut, type SharedValue,
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Speech from 'expo-speech';
 import { AppText } from './Text';
@@ -190,8 +191,39 @@ export function BuddySelector({
 
   useEffect(() => () => { Speech.stop(); }, []);
 
-  // No auto-speak: the buddy stays quiet on entry / when swiping. The user hears
-  // the motto only by tapping the speaker button (or the motto bubble).
+  /**
+   * Greet ONCE on arrival, then stay quiet while swiping.
+   *
+   * `aac2f54` removed auto-speak entirely because it fired on every centered
+   * buddy, so the carousel talked over itself on each swipe. The hello on entry
+   * was the half worth keeping — `greetedRef` is what separates the two.
+   */
+  const [focused, setFocused] = useState(false);
+  const greetedRef = useRef(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      setFocused(true);
+      return () => {
+        // This tab stays mounted, so leaving it would otherwise keep talking.
+        // Re-arm the greeting too: coming back counts as arriving again.
+        setFocused(false);
+        greetedRef.current = false;
+        Speech.stop();
+        setSpeakingSlug(null);
+      };
+    }, []),
+  );
+
+  useEffect(() => {
+    if (!focused || greetedRef.current || !centerBuddy) return;
+    greetedRef.current = true;
+    speak(centerBuddy.motto);
+    // `speak` is a stable function declaration below; re-running this on every
+    // centered buddy is exactly what we are avoiding.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focused, centerBuddy]);
+
   function speak(text: string) {
     if (!centerBuddy) return;
     Speech.stop();
