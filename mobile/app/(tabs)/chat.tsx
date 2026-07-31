@@ -1,6 +1,7 @@
 import { useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import { StyleSheet, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from 'expo-router';
 import * as Speech from 'expo-speech';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { BuddySelector } from '../../src/components/BuddySelector';
@@ -140,6 +141,30 @@ export default function ChatScreen() {
   }, [token, t, lang]);
 
   useEffect(() => { loadBuddies(); }, [loadBuddies]);
+
+  /**
+   * Leaving the tab silences the buddy at once.
+   *
+   * A tab screen is not unmounted when you switch away, so a reply that is
+   * mid-sentence — the ElevenLabs file on `player`, or the device-TTS fallback —
+   * otherwise follows the student onto Home and keeps talking.
+   */
+  useFocusEffect(
+    useCallback(() => () => {
+      Speech.stop();
+      try {
+        player.pause();
+      } catch {
+        // best-effort — never break navigation over playback
+      }
+      // Hand the audio session back in playback mode. `startRecording` puts the
+      // WHOLE app into `allowsRecording: true`, and only `playAudio` ever clears
+      // it — so walking away after holding the mic left every other screen
+      // routing sound to the earpiece, where it just sounds like the volume
+      // faded out (read-along, saved words, flashcards, all of it).
+      setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(() => {});
+    }, [player]),
+  );
 
   const selectBuddy = useCallback(async (buddy: Buddy) => {
     if (!token) return;
@@ -359,7 +384,13 @@ export default function ChatScreen() {
         title={selected?.name ?? t('aiBuddyShort')}
         subtitle={t('buddyOnline')}
         back
-        onBack={() => setMode('select')}
+        onBack={() => {
+          // Same rule as leaving the tab: the reply must not follow you back to
+          // the buddy carousel, which is about to speak its own greeting.
+          Speech.stop();
+          try { player.pause(); } catch { /* best-effort */ }
+          setMode('select');
+        }}
       />
       <Animated.View key="voice" entering={FadeIn.duration(260)} style={styles.flex}>
         <BuddyVoiceStage
