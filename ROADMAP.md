@@ -57,7 +57,7 @@
 | Owner | Ажил (тэнцүү 3 багц) |
 | --- | --- |
 | **Өсөхбаяр** (backend/admin/infra) | Railway Hobby + **бүх prod migration** (reading/idioms/translations/ai-buddy-voice/**IELTS**); 🆕 **`docs/CODE_AUDIT.md`-ийн 3 өндөр эрэмбэ**: migration гинж засах (`CreateAssignmentCompletions`) · `JWT_SECRET` fail-fast · rate limit (`@nestjs/throttler`) + helmet; `C1-BE` ✅ · `C2-BE` ✅ · `C4-BE` ✅; **IELTS Plan 2 — admin authoring**; Apple($99)/Google($25) account + EAS submit config |
-| **Choi** (mobile — learning + IELTS L/R) | ✅ бүгд дууссан (2026-07-22): `C1` Home hero (FE) · `C4` taste-task онбординг (FE) · **IELTS Plan 3a — `/ielts` hub + L/R runner (band)** · фонт (Onest/Inter). Үлдсэн: бодит утсан дээрх regression тест |
+| **Choi** (mobile — learning + IELTS L/R) | ✅ бүгд дууссан (2026-07-22): `C1` Home hero (FE) · `C4` taste-task онбординг (FE) · **IELTS Plan 3a — `/ielts` hub + L/R runner (band)** · фонт (Manrope/Inter). Үлдсэн: бодит утсан дээрх regression тест |
 | **Boju** (mobile — buddy/games + store) | `C3` buddy scaffold (starter prompt + voice-минут үлдэгдэл + limit→текст); real gamification data (placeholder → бодит); **IELTS Plan 3b — Writing/Speaking практик дэлгэц** (model-answer reveal); **splash + App Store material** (screenshot/description/privacy/data-safety) — *icon ✅ хийгдсэн* |
 
 > **🟪 3D AI buddy — ХАМГИЙН СҮҮЛД, 3-уулаа хамт:** optimize rigged GLB (<5MB) → R2
@@ -533,9 +533,12 @@ disc хассан).
 - [x] **App icon холбогдсон** (2026-07-23) — `assets/icon-ios.png` **1024×1024**
       (iOS) + `assets/icon.png` **1254×1254** (Android adaptive, bg `#191040`).
       `app.json` эдгээр рүү зааж байна.
-- [x] **Cyrillic фонт (Onest/Inter) ачаалагдсан** — `@expo-google-fonts/onest` +
-      `/inter` dependency, `useFonts` → `mobile/app/_layout.tsx:122`, `expo-font`
-      plugin `app.json`-д бүртгэлтэй.
+- [x] **Cyrillic фонт (Manrope/Inter) ачаалагдсан** — `@expo-google-fonts/manrope`
+      + `/inter` dependency, `useFonts` → `mobile/app/_layout.tsx`, `expo-font`
+      plugin `app.json`-д бүртгэлтэй. **2026-07-31: Onest → Manrope** — Onest-д
+      `Ө ө Ү ү` глиф байхгүй тул гарчиг дотор системийн фонтоор солигдож
+      харагдаж байсан. Шинэ фонт нэмэхээсээ өмнө глиф шалгах дүрэм →
+      `mobile/DESIGN.md` § Typography.
 - [ ] **Splash screen** — `app.json`-д `splash` түлхүүр **огт байхгүй** → Expo-ийн
       default цагаан дэлгэц гарна. `assets/splash.png` + тохиргоо (fox/logo on
       `#191040`). Store blocker биш ч launch-д хэрэгтэй.

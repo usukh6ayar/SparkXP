@@ -128,9 +128,18 @@ Lucide migration; real gamification data (streak/level/progress placeholders);
 real video player. Full list: `ROADMAP.md §3` + `docs/LAUNCH_FROM_SCRATCH.md`.
 **Already DONE (was wrongly listed as pending):** app icon wired
 (`assets/icon-ios.png` 1024×1024 + `assets/icon.png` 1254×1254 adaptive); fonts
-loaded (`@expo-google-fonts/onest`+`inter`, `useFonts` at
-`mobile/app/_layout.tsx:122`, `expo-font` plugin); EAS initialized (real
+loaded (`@expo-google-fonts/manrope`+`inter`, `useFonts` at
+`mobile/app/_layout.tsx`, `expo-font` plugin); EAS initialized (real
 `extra.eas.projectId`).
+
+**Фонт: Onest → Manrope (2026-07-31).** Onest нь **Ө ө Ү ү**
+(U+04E8/04E9/04AE/04AF) глифгүй байсан тул гарчиг дотор эдгээр үсэг системийн
+фонтоор солигдож харагдаж байв (RN нь нэг `fontFamily` авдаг, CSS шиг fallback
+list байхгүй). Display фонт → **Manrope** (бүх шаардлагатай глифтэй,
+Onest-тэй хамгийн ойр төрх). Body хэвээр **Inter**. **Дүрэм: шинэ фонт
+нэмэхээсээ өмнө Ө/Ү глифийг заавал шалга** — жагсаалт `mobile/DESIGN.md`
+→ Typography. ⚠️ Choi/Boju: `git pull` дараа **`npm install` заавал ажиллуул**,
+эс бөгөөс Expo Go дээр гарчиг fallback фонтоор гарна.
 
 **Vocabulary AI pipeline — shipped (2026-06-25).** Admin Words page now does
 end-to-end AI authoring:

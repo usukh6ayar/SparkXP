@@ -13,8 +13,8 @@ import {
   Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold,
 } from "@expo-google-fonts/inter";
 import {
-  Onest_400Regular, Onest_500Medium, Onest_600SemiBold, Onest_700Bold, Onest_800ExtraBold,
-} from "@expo-google-fonts/onest";
+  Manrope_400Regular, Manrope_500Medium, Manrope_600SemiBold, Manrope_700Bold, Manrope_800ExtraBold,
+} from "@expo-google-fonts/manrope";
 import { AuthProvider, useAuth } from "../src/auth/AuthContext";
 import {
   SettingsProvider, useColors, useSettings, useStatusBarStyle,
@@ -116,12 +116,15 @@ function ThemedNav() {
 }
 
 function RootLayout() {
-  // Load the brand fonts (Onest = display/headings, Inter = body/UI; both have
-  // full Cyrillic). Gate the app on load so text never flashes the system font,
-  // but proceed on a font error so a load failure can never brick the app.
+  // Load the brand fonts (Manrope = display/headings, Inter = body/UI). Both
+  // cover Mongolian Cyrillic Ө/ө/Ү/ү — Onest did NOT, so those letters fell back
+  // to the system font mid-word. React Native takes a single `fontFamily` (no CSS
+  // fallback list), so any display font we use must ship those glyphs itself.
+  // Gate the app on load so text never flashes the system font, but proceed on a
+  // font error so a load failure can never brick the app.
   const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold,
-    Onest_400Regular, Onest_500Medium, Onest_600SemiBold, Onest_700Bold, Onest_800ExtraBold,
+    Manrope_400Regular, Manrope_500Medium, Manrope_600SemiBold, Manrope_700Bold, Manrope_800ExtraBold,
   });
 
   // iOS mutes app audio when the physical ring/silent switch is on unless we opt

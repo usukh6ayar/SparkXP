@@ -181,8 +181,15 @@ Toggle-г дагаж зөв солигдохын тулд токенийг **у�
 
 Font:
 
-- Inter
-- SF Pro
+- **Manrope** — display / гарчиг (`display`, `h1`, `h2`, `h3`)
+- **Inter** — body / UI (`body`, `label`, `caption`, `overline`)
+
+> ⚠️ **Монгол Кирилл шалгуур:** display фонт солих бол `Ө ө Ү ү`
+> (U+04E8/04E9/04AE/04AF) глифийг **заавал** агуулсан байх ёстой. React Native
+> нэг л `fontFamily` авдаг (CSS-ийн fallback list байхгүй) тул дутуу глиф нь үг
+> дунд системийн фонтоор солигдож харагдана. Onest-ыг яг энэ шалтгаанаар
+> хассан (2026-07-31). Шалгагдсан: Manrope · Nunito · Montserrat · Rubik ·
+> Golos Text · Raleway ✅ · Jost, Unbounded ❌.
 
 | Style   | Size | Weight   | Хэрэглээ                 |
 | ------- | ---- | -------- | ------------------------ |
