@@ -51,10 +51,6 @@ export class User extends BaseEntity {
   @Column({ type: 'varchar', nullable: true })
   level: string | null;
 
-  /** Optional English name the student goes by in the app. */
-  @Column({ name: 'english_name', type: 'varchar', nullable: true })
-  englishName: string | null;
-
   @Column({ name: 'full_name' })
   fullName: string;
 

@@ -116,7 +116,6 @@ const mn = {
   stepDone: 'Дуссан',
   placementTitle: 'Түвшингээ сонгоно уу',
   placementSubtitle: 'Танд тохирох хичээлийг санал болгоход ашиглана.',
-  englishName: 'Англи нэр (заавал биш)',
   successTitle: 'Амжилттай!',
   successBody: 'Бүртгэл амжилттай үүслээ.\nSparkXP-д тавтай морил! 🎉',
 
@@ -988,7 +987,6 @@ const en: Record<TranslationKey, string> = {
   stepDone: 'Done',
   placementTitle: 'Choose your level',
   placementSubtitle: 'Used to suggest suitable lessons for you.',
-  englishName: 'English name (optional)',
   successTitle: 'Success!',
   successBody: 'Your account was created.\nWelcome to SparkXP! 🎉',
 

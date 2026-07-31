@@ -44,12 +44,6 @@ const CONFETTI = [
 // Placement levels (CEFR) — shared with the edit-profile form.
 const LEVELS = CEFR_LEVELS;
 
-// Suggested English names (student can reshuffle / keep blank).
-const ENGLISH_NAMES = [
-  'Alex', 'Bella', 'Chris', 'Daisy', 'Ethan', 'Grace', 'Henry', 'Ivy',
-  'Jack', 'Kate', 'Leo', 'Mia', 'Noah', 'Olivia', 'Ryan', 'Sophia', 'Tom', 'Zoe',
-];
-
 // Password requirement checks (mirrored in the rules card).
 const rules = {
   minLen: (p: string) => p.length >= 8,
@@ -91,7 +85,6 @@ export default function RegisterScreen() {
   const [province, setProvince] = useState<string | undefined>();
   const [district, setDistrict] = useState<string | undefined>();
   const [level, setLevel] = useState<string | undefined>();
-  const [englishName, setEnglishName] = useState('');
   const [code, setCode] = useState('');
   const [referral, setReferral] = useState<string | null>(null);
   // Guest finished the pre-signup taste-task → claim its one-time XP bonus (C4).
@@ -145,7 +138,6 @@ export default function RegisterScreen() {
         password,
         fullName: fullName.trim(),
         level,
-        englishName: englishName.trim() || undefined,
         province,
         district: isUB ? district : undefined,
         referralCode: referral ?? undefined,
@@ -186,10 +178,6 @@ export default function RegisterScreen() {
     } catch {
       // ignore — backend always returns ok
     }
-  }
-
-  function suggestName() {
-    setEnglishName(ENGLISH_NAMES[Math.floor(Math.random() * ENGLISH_NAMES.length)]);
   }
 
   function back() {
@@ -381,23 +369,6 @@ export default function RegisterScreen() {
             );
           })}
 
-          {/* English name (optional, with suggest) */}
-          <View style={styles.nameRow}>
-            <View style={{ flex: 1 }}>
-              <TextField
-                leftIcon="happy-outline"
-                label={t('englishName')}
-                placeholder="Alex"
-                autoCapitalize="words"
-                value={englishName}
-                onChangeText={setEnglishName}
-              />
-            </View>
-            <Pressable style={styles.diceBtn} onPress={suggestName}>
-              <Ionicons name="dice" size={20} color={colors.primary} />
-            </Pressable>
-          </View>
-
           <FormError message={error} />
           <Button
             label={t('register')}
@@ -477,11 +448,6 @@ const makeStyles = (colors: AppColors) => StyleSheet.create({
     borderWidth: 1, borderColor: colors.border,
   },
   levelRowOn: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
-  nameRow: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm, marginTop: spacing.sm },
-  diceBtn: {
-    width: 52, height: 52, borderRadius: radius.md, backgroundColor: colors.primarySoft,
-    alignItems: 'center', justifyContent: 'center', marginBottom: 2,
-  },
 
   // Location
   mapFox: { width: ms(150), height: ms(150), alignSelf: 'center', marginVertical: spacing.md },

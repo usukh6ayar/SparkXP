@@ -95,7 +95,6 @@ export class UsersService {
     role?: UserRole;
     emailVerified?: boolean;
     level?: string | null;
-    englishName?: string | null;
     province?: string | null;
     district?: string | null;
   }): Promise<User> {

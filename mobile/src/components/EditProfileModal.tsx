@@ -27,7 +27,6 @@ export function EditProfileModal({ visible, onClose }: { visible: boolean; onClo
   const { t } = useSettings();
   const [fullName, setFullName] = useState('');
   const [username, setUsername] = useState('');
-  const [englishName, setEnglishName] = useState('');
   const [province, setProvince] = useState('');
   const [district, setDistrict] = useState('');
   const [saving, setSaving] = useState(false);
@@ -44,7 +43,6 @@ export function EditProfileModal({ visible, onClose }: { visible: boolean; onClo
     haptics.tap();
     setFullName(user?.fullName ?? '');
     setUsername(user?.username ?? '');
-    setEnglishName(user?.englishName ?? '');
     setProvince(user?.province ?? '');
     setDistrict(user?.district ?? '');
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -60,7 +58,6 @@ export function EditProfileModal({ visible, onClose }: { visible: boolean; onClo
         {
           fullName: fullName.trim(),
           username: usernameChanged ? username.trim() : undefined,
-          englishName: englishName.trim() || undefined,
           province: province || undefined,
           district: isUB ? district || undefined : undefined,
         },
@@ -105,10 +102,6 @@ export function EditProfileModal({ visible, onClose }: { visible: boolean; onClo
           placeholder={t('usernamePlaceholder')} autoCapitalize="none" autoCorrect={false}
           hint={t('usernameHint')}
           error={usernameChanged && username.trim() !== '' && !isValidUsername(username) ? t('usernameInvalid') : undefined}
-        />
-        <TextField
-          label={t('englishName')} value={englishName} onChangeText={setEnglishName}
-          placeholder={t('optional')} autoCapitalize="words"
         />
         <SelectField
           label={t('province')} value={province} options={PROVINCES}

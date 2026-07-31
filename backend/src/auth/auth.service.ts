@@ -49,7 +49,6 @@ export interface PublicUser {
   emailVerified: boolean;
   avatarUrl: string | null;
   level: string | null;
-  englishName: string | null;
   province: string | null;
   district: string | null;
 }
@@ -88,7 +87,6 @@ export class AuthService {
       role: dto.role,
       emailVerified: false,
       level: dto.level ?? null,
-      englishName: dto.englishName ?? null,
       province: dto.province ?? null,
       district: dto.district ?? null,
     });
@@ -262,7 +260,6 @@ export class AuthService {
       emailVerified: user.emailVerified,
       avatarUrl: user.avatarUrl,
       level: user.level,
-      englishName: user.englishName,
       province: user.province,
       district: user.district,
     };

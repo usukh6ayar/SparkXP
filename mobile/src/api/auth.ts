@@ -12,7 +12,6 @@ export interface AuthUser {
   emailVerified: boolean;
   avatarUrl: string | null;
   level: string | null;
-  englishName: string | null;
   province: string | null;
   district: string | null;
 }
@@ -28,7 +27,6 @@ export interface RegisterPayload {
   password: string;
   fullName: string;
   level?: string;
-  englishName?: string;
   province?: string;
   district?: string;
   /** Referral code (or username) of the friend who invited this user. */

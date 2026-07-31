@@ -197,13 +197,13 @@ export const radius = {
  */
 export const typography = {
   /** Only two places: the greeting and a celebration count. */
-  display: { fontSize: 34, lineHeight: 40, fontWeight: '800' as const, fontFamily: 'Onest_800ExtraBold', color: colors.text },
+  display: { fontSize: 34, lineHeight: 40, fontWeight: '800' as const, fontFamily: 'Manrope_800ExtraBold', color: colors.text },
   /** Screen title. */
-  h1: { fontSize: 27, lineHeight: 34, fontWeight: '700' as const, fontFamily: 'Onest_700Bold', color: colors.text },
+  h1: { fontSize: 27, lineHeight: 34, fontWeight: '700' as const, fontFamily: 'Manrope_700Bold', color: colors.text },
   /** Section header / card title. */
-  h2: { fontSize: 22, lineHeight: 28, fontWeight: '700' as const, fontFamily: 'Onest_700Bold', color: colors.text },
+  h2: { fontSize: 22, lineHeight: 28, fontWeight: '700' as const, fontFamily: 'Manrope_700Bold', color: colors.text },
   /** List-row title / island level name. */
-  h3: { fontSize: 18, lineHeight: 24, fontWeight: '600' as const, fontFamily: 'Onest_600SemiBold', color: colors.text },
+  h3: { fontSize: 18, lineHeight: 24, fontWeight: '600' as const, fontFamily: 'Manrope_600SemiBold', color: colors.text },
   /** Everything long-form. 15 not 16 — Mongolian needs the width. */
   body: { fontSize: 15, lineHeight: 22, fontWeight: '400' as const, fontFamily: 'Inter_400Regular', color: colors.text },
   /** Emphasized body (button labels, key values inline). */
