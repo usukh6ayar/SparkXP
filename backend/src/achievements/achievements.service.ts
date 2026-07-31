@@ -126,11 +126,9 @@ export class AchievementsService {
     // can never leave two trophies sharing a rank.
     await this.earned.manager.transaction(async (manager) => {
       await manager.update(UserTrophy, { userId }, { pinnedRank: null });
-      await Promise.all(
-        wanted.map((slug, rank) =>
-          manager.update(UserTrophy, { userId, slug }, { pinnedRank: rank }),
-        ),
-      );
+      for (const [rank, slug] of wanted.entries()) {
+        await manager.update(UserTrophy, { userId, slug }, { pinnedRank: rank });
+      }
     });
 
     return { pinned: wanted };

@@ -104,6 +104,7 @@ export default function TrophiesScreen() {
     try {
       await setPinnedTrophies(next, token);
       await refetch();
+      setPinned(null); // server confirmed — stop shadowing `data.pinned`
     } catch {
       setPinned(pinnedSlugs); // roll back to what the server last confirmed
       toast.error(t('errorGeneric'));
@@ -115,6 +116,7 @@ export default function TrophiesScreen() {
   async function onRefresh() {
     setRefreshing(true);
     await refetch();
+    setPinned(null); // pull-to-refresh means "show me what the server has"
     setRefreshing(false);
   }
 

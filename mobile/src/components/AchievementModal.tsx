@@ -78,8 +78,15 @@ export function AchievementModal({
       <View style={styles.backdrop}>
         {/* Tap outside to dismiss — behind the card/confetti */}
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        {visible && <Confetti count={50} />}
-        <Animated.View entering={FadeIn} style={[styles.card, { backgroundColor: c.surface }]}>
+        {/* `key` matters when two celebrations queue back to back (a streak and
+            the trophy it just unlocked): the modal never closes between them,
+            so without a remount the second one would inherit spent confetti. */}
+        {visible && <Confetti key={achievement.title} count={50} />}
+        <Animated.View
+          key={achievement.title}
+          entering={FadeIn}
+          style={[styles.card, { backgroundColor: c.surface }]}
+        >
           <AppText variant="overline" color={c.textMuted}>
             {achievement.overline ?? t('achievementUnlocked')}
           </AppText>
