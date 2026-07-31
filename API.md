@@ -406,10 +406,21 @@ Controller-level: JWT. Бүгд student-ийн өөрийн давталтын �
 | --- | --- | --- | --- |
 | PATCH `/gamification/goal` | JWT | Өдрийн XP зорилт тавих. Зөвхөн **20 / 50 / 100** (өөр утга → **400**). Хариу нь шинэчилсэн gamification summary | `{ dailyGoalXp: 20\|50\|100 }` |
 | POST `/gamification/streak-freeze` | JWT | **Streak freeze** худалдаж авах (100 Sparks, багцаас хамаарна). Хамгийн ихдээ **2** хадгална → давсан бол **400**; Sparks дутуу → **400** | — |
+| POST `/gamification/streak-seen` | JWT | Streak баяр хүргэлтийг үзүүлсний дараа тэмдэглэнэ → `{ ok: true }` | — |
 
 `GET /gamification` хариунд одоо **`streakFreezeCost`** (тухайн хэрэглэгчийн
 багцаар шийдэгдсэн үнэ) ба **`maxStreakFreezes`** бас орно — апп үнийг
 hardcode хийхгүйн тулд (`HeartsState.refillCost`-тэй ижил зарчим).
+
+**Streak баяр хүргэлт (2026-07-31).** `GET /gamification` хариунд
+**`streakCelebration: { streak, bonusXp } | null`** нэмэгдсэн. Streak ахисан
+өдрийн эхний уншилтад л утгатай гарч, апп трофейн адил баяр хүргэх цонх
+харуулаад `POST /gamification/streak-seen` дуудна. "Үзсэн" тугийг **Redis**-д
+(`streak:seen:{userId}`, TTL 48ц) хадгална — "streak өнөөдөр ахисан" гэдэг нь
+`users.last_active_date` дотор аль хэдийн байгаа тул шинэ багана шаардлагагүй.
+Redis уншигдахгүй бол `null` буцна (цонх давтагдахаас нэг удаа алдсан нь дээр).
+`bonusXp` нь `streakXp()`-ээс — Redis-ээр тохируулагддаг тул апп hardcode
+хийхгүй.
 
 **Streak нь ӨДРИЙН ЗОРИЛТ биелэхэд ахина** (2026-07-29-нөөс). Өмнө нь өдрийн
 **анхны XP** дээр ахидаг байсан тул 1 XP олоход л streak нэмэгддэг байв —
@@ -545,8 +556,14 @@ Controller-level: admin, super_admin.
 
 | Method + Path | Auth | Зорилго | Params / Body |
 | --- | --- | --- | --- |
-| GET `/achievements` | JWT | Trophy catalog + өөрийн авсан төлөв → `{ tiers[], total, earned, unseen[], trophies: [{slug, tier, name, image, thumb, condition, earned, earnedAt}] }` | — |
+| GET `/achievements` | JWT | Trophy catalog + өөрийн авсан төлөв → `{ tiers[], total, earned, unseen[], pinned[], trophies: [{slug, tier, name, image, thumb, condition, earned, earnedAt}] }` | — |
 | POST `/achievements/seen` | JWT | Баярлах цонх үзүүлсний дараа тэмдэглэнэ → `{ updated }` | `{ slugs?: string[] }` — хоосон бол бүх үзээгүйг |
+| POST `/achievements/pinned` | JWT | Профайлд онцлох трофейнуудыг **бүхэлд нь** солино → `{ pinned }`. >5 эсвэл аваагүй трофей → **400** | `{ slugs: string[] }` (харагдах дараалалтай, хоосон = бүгдийг болиулна) |
+
+**Онцлох (pin, 2026-07-31).** Хэрэглэгч авсан трофейнуудаасаа **хамгийн ихдээ 5**-ыг
+профайл дээрээ онцолно. Дараалал нь `user_trophies.pinned_rank` (0…4, null =
+онцлоогүй; migration `AddTrophyPinnedRank1786300000000`). Аваагүй трофей мөргүй
+тул онцлох боломжгүй. `GET /achievements → pinned[]` нь rank-аар эрэмбэлэгдсэн.
 
 **Зураг:** `thumb` = 256px WebP ~19KB · `image` = 640px WebP ~87KB.
 **Grid-д заавал `thumb` ашиглана** — 100 трофейг `image`-ээр зурвал 2.4MB биш 8.7MB татна.
@@ -581,7 +598,7 @@ Deploy хийсний дараа нэг удаа `src/scripts/backfill-trophies.
 | `auth.ts` | `register`→POST `/auth/register` · `verifyOtp`→POST `/auth/verify-otp` · `resendOtp`→POST `/auth/resend-otp` · `login`→POST `/auth/login` · `forgotPassword`→POST `/auth/forgot-password` · `resetPassword`→POST `/auth/reset-password` · `getMe`→GET `/auth/me` |
 | `users.ts` | `getStats`→GET `/users/me/stats` · `getMyPlan`→GET `/users/me/plan` · `updateProfile`→PATCH `/users/me` · `uploadAvatar`→POST `/users/me/avatar` |
 | `gamification.ts` | `getGamification`→GET `/gamification` |
-| **`achievements.ts`** 🆕 | `getAchievements`→GET `/achievements` · `markTrophiesSeen`→POST `/achievements/seen`. Хэрэглэгч: **`app/trophies.tsx`** (100 цомын бүрэн дэлгэц, tier тус бүрээр, шүүлтүүр Бүгд/Авсан/Аваагүй, дэлгэрэнгүй sheet) · **`app/(tabs)/profile.tsx`** (эзэмшсэн цомын хэвтээ мөр + `Бүгдийг харах` → `/trophies`) · **`src/lib/useUnseenTrophies.ts`** (`unseen` → `AchievementModal` баяр хүргэл → `POST /seen`; host нь `src/components/TrophyHost.tsx`, `app/_layout.tsx`-д суусан; дуусгах дэлгэцүүд `checkTrophies()` дуудна). Түгжээтэй цомын нөхцөлийг `src/lib/trophyCondition.ts` монголоор бичнэ |
+| **`achievements.ts`** 🆕 | `getAchievements`→GET `/achievements` · `markTrophiesSeen`→POST `/achievements/seen` · `setPinnedTrophies`→POST `/achievements/pinned`. Хэрэглэгч: **`app/trophies.tsx`** (100 цомын бүрэн дэлгэц, tier тус бүрээр, шүүлтүүр Бүгд/Авсан/Аваагүй, дэлгэрэнгүй sheet) · **`app/(tabs)/profile.tsx`** (**онцолсон** цомын хэвтээ мөр — онцлоогүй бол эзэмшсэн/түгжээтэй нь + `Бүгдийг харах` → `/trophies`) · **`src/lib/useCelebrations.ts`** (`unseen` трофей **+** `streakCelebration` → `AchievementModal` баяр хүргэл → `POST /seen` / `POST /gamification/streak-seen`; нэг дараалал — streak эхэлж, трофей дараа нь; host нь `src/components/CelebrationHost.tsx`, `app/_layout.tsx`-д суусан; дуусгах дэлгэцүүд (хичээл · сорил · унших · swipe · game) `checkCelebrations()` дуудна). Түгжээтэй цомын нөхцөлийг `src/lib/trophyCondition.ts` монголоор бичнэ |
 | `lessons.ts` | `getLessons`→GET `/lessons?isPublished=true` · `getLesson`→GET `/lessons/:id` · `checkAccess`→GET `/lessons/:id/access` · `unlockLesson`→POST `/lessons/:id/unlock` · `completeLesson`→POST `/lessons/:id/complete` · **`getContinue`→GET `/lessons/continue`** (C1 ✅ Home hero — Choi, 2026-07-22) |
 | `quizzes.ts` | `getQuiz`→GET `/quizzes/:id` · `getQuizzes`→GET `/quizzes?isPublished=true[&lessonId=]` · `getExercises`→GET `/quizzes?standalone=true&isPublished=true&category=` · `submitQuiz`→POST `/quizzes/:id/submit` · **`checkAnswer`→POST `/quizzes/:id/check`** (C2 — Boju нэмнэ). **IELTS 3a ✅** (Choi, 2026-07-22): `getExercises`-ийг `category=ielts_listening\|ielts_reading`-аар дуудаж `/ielts` hub + `/skill/ielts_*` жагсаалт; runner нь `passageText`/`audioUrl`-ыг үзүүлж, `submit`-ийн `band`-ыг үр дүнд харуулна |
 | `quiz.ts` (vocab) | `getQuiz`→GET `/words/quiz?count=` · `submitQuiz`→POST `/words/quiz/submit` |

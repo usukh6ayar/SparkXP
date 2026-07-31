@@ -24,6 +24,8 @@ type IconName = keyof typeof Ionicons.glyphMap;
 export interface Achievement {
   icon: IconName;
   title: string;
+  /** Small header above the badge. Defaults to "Шинэ амжилт нээгдлээ!". */
+  overline?: string;
   /** Short description of what was unlocked. */
   subtitle?: string;
   /** Badge tint (bg/fg pair from theme `tints`). */
@@ -78,7 +80,9 @@ export function AchievementModal({
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         {visible && <Confetti count={50} />}
         <Animated.View entering={FadeIn} style={[styles.card, { backgroundColor: c.surface }]}>
-          <AppText variant="overline" color={c.textMuted}>{t('achievementUnlocked')}</AppText>
+          <AppText variant="overline" color={c.textMuted}>
+            {achievement.overline ?? t('achievementUnlocked')}
+          </AppText>
 
           <Animated.View
             style={[

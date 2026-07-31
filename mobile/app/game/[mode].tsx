@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, useMemo, useRef } from "react";
 import { View, StyleSheet, Pressable, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { checkCelebrations } from "../../src/lib/useCelebrations";
 import { Ionicons } from "@expo/vector-icons";
 import { AppIcon } from "../../src/components/AppIcon";
 import { useAudioPlayer } from "expo-audio";
@@ -122,6 +123,7 @@ function VocabGame({ mode }: { mode: McMode }) {
         setResult(res);
         if (res.xpAwarded > 0) sound.xp(); // win chime (per-question sound needs BE — answer is hidden)
         getMe(token).then(updateUser).catch(() => {});
+        checkCelebrations(); // that XP may have unlocked a badge or the streak
       } catch {
         setError(true);
       } finally {

@@ -19,6 +19,7 @@ import {
   startOfUBDay,
   type LevelInfo,
   resolveStreak,
+  streakCelebrationDue,
   MAX_HELD_FREEZES,
 } from './gamification';
 
@@ -28,6 +29,17 @@ export interface AwardXpOptions {
   source: XpSource;
   referenceId?: string;
   metadata?: Record<string, unknown>;
+}
+
+/**
+ * "Your streak just went up" — sent once per day, then cleared by
+ * `POST /gamification/streak-seen`. The app celebrates it like a trophy unlock.
+ */
+export interface StreakCelebration {
+  /** The streak the learner reached today. */
+  streak: number;
+  /** The bonus XP that streak paid, from the (tunable) reward table. */
+  bonusXp: number;
 }
 
 /** Gamification summary returned to the app (Home / Profile). */
@@ -45,6 +57,11 @@ export interface GamificationSummary extends LevelInfo {
   streakFreezeCost: number;
   /** Most freezes that may be held at once. */
   maxStreakFreezes: number;
+  /**
+   * Set on the first read of a day the streak advanced, so the app can throw a
+   * celebration. null once it has been shown (see `markStreakSeen`).
+   */
+  streakCelebration: StreakCelebration | null;
   todayXp: number;
   dailyGoal: number;
   cefrLevel: string | null;
@@ -62,6 +79,18 @@ export const DAILY_GOAL_CHOICES = [20, 50, 100] as const;
 
 /** Free-tier Sparks price of one streak freeze (plans may override). */
 const STREAK_FREEZE_SPARKS = 100;
+
+/**
+ * Where "the streak celebration was already shown today" is remembered.
+ *
+ * Redis, not a column: the fact that the streak advanced today is already
+ * durable in `users.last_active_date`, so only the "seen" flag needs storing —
+ * and prod runs `DB_SYNCHRONIZE=false`, so this avoids a migration for a value
+ * that is worthless after 24 hours anyway. Two days of TTL covers the UB
+ * timezone edge without ever growing.
+ */
+const streakSeenKey = (userId: string) => `streak:seen:${userId}`;
+const STREAK_SEEN_TTL_SECONDS = 48 * 60 * 60;
 
 @Injectable()
 export class XpService {
@@ -262,6 +291,37 @@ export class XpService {
     return this.getGamification(userId);
   }
 
+  /** Remember that today's streak celebration has been shown. */
+  async markStreakSeen(userId: string): Promise<{ ok: true }> {
+    await this.redis
+      .set(streakSeenKey(userId), dayKeyUB(), 'EX', STREAK_SEEN_TTL_SECONDS)
+      .catch(() => null);
+    return { ok: true };
+  }
+
+  /**
+   * Today's unshown streak celebration, or null. The rule itself lives in
+   * `streakCelebrationDue` so it can be tested without a database.
+   */
+  private async pendingStreakCelebration(
+    userId: string,
+    streak: number,
+    lastActiveDate: string | null,
+  ): Promise<StreakCelebration | null> {
+    // A Redis failure reads as 'error' → treated as already seen.
+    const seenDate = await this.redis
+      .get(streakSeenKey(userId))
+      .catch(() => 'error');
+    const due = streakCelebrationDue({
+      lastActiveDate,
+      today: dayKeyUB(),
+      seenDate,
+      streak,
+    });
+    if (!due) return null;
+    return { streak, bonusXp: streakXp(streak, await this.rewards()) };
+  }
+
   /** Persist the user's chosen daily XP goal, then return the fresh summary. */
   async setDailyGoal(userId: string, dailyGoalXp: number) {
     await this.users.update(userId, { dailyGoalXp });
@@ -297,6 +357,13 @@ export class XpService {
     const yesterday = dayKeyUBOffset(-1);
     const alive = user?.lastActiveDate === today || user?.lastActiveDate === yesterday;
     const currentStreak = alive ? (user?.currentStreak ?? 0) : 0;
+    // `lastActiveDate === today` only happens once the daily goal is met, so it
+    // doubles as "the streak advanced today" — no extra state needed.
+    const streakCelebration = await this.pendingStreakCelebration(
+      userId,
+      currentStreak,
+      user?.lastActiveDate ?? null,
+    );
 
     const [todayRow, lessonRow, quizzesDone, levelTotals, levelDone] = await Promise.all([
       this.xpLogs
@@ -349,6 +416,7 @@ export class XpService {
       streakFreezeCost:
         (user && this.activePlanOf(user)?.streakFreezeSparks) ?? STREAK_FREEZE_SPARKS,
       maxStreakFreezes: MAX_HELD_FREEZES,
+      streakCelebration,
       todayXp: Number(todayRow?.sum ?? 0),
       dailyGoal: user?.dailyGoalXp ?? DAILY_GOAL,
       cefrLevel: user?.level ?? null,

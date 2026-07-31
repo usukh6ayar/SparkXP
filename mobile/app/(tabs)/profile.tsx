@@ -15,6 +15,7 @@ import {
   getAchievements,
   ACHIEVEMENTS_PATH,
   type AchievementsResponse,
+  type Trophy,
 } from '../../src/api/achievements';
 import { useSWR } from '../../src/api/useSWR';
 import { AppText } from '../../src/components/Text';
@@ -142,12 +143,17 @@ export default function ProfileScreen() {
   const lessonsDone = gam?.lessonsDone ?? 0;
   const quizzesDone = gam?.quizzesDone ?? 0;
 
-  // Real trophies from GET /achievements. Show what the user has actually won;
-  // with none yet, show the first few locked ones instead so the row still
-  // reads as a goal rather than an empty gap.
+  // Real trophies from GET /achievements, in order of preference:
+  // the ones the user pinned (from the trophy screen) → everything they won →
+  // the first few locked ones, so the row reads as a goal rather than a gap.
+  const bySlug = new Map((ach?.trophies ?? []).map((tr) => [tr.slug, tr]));
+  const pinnedTrophies = (ach?.pinned ?? [])
+    .map((slug) => bySlug.get(slug))
+    .filter((tr): tr is Trophy => Boolean(tr));
   const earnedTrophies = ach?.trophies.filter((tr) => tr.earned) ?? [];
-  const achPreview = (earnedTrophies.length ? earnedTrophies : (ach?.trophies ?? []))
-    .slice(0, ACH_PREVIEW);
+  const achPreview = (
+    pinnedTrophies.length ? pinnedTrophies : earnedTrophies.length ? earnedTrophies : (ach?.trophies ?? [])
+  ).slice(0, ACH_PREVIEW);
 
   const STATS: { icon: AppIconName; value: number; label: string }[] = [
     { icon: 'streak', value: streak, label: t('statStreak') },

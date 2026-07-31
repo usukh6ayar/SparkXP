@@ -25,6 +25,12 @@ export interface Gamification {
    */
   streakFreezeCost?: number;
   maxStreakFreezes?: number;
+  /**
+   * Set on the first read of a day the streak advanced — show the celebration,
+   * then POST /gamification/streak-seen so it never repeats. Optional so an
+   * older backend (which omits it) simply never celebrates.
+   */
+  streakCelebration?: { streak: number; bonusXp: number } | null;
   todayXp: number;
   /** The student's chosen daily XP target — one of DAILY_GOAL_CHOICES. */
   dailyGoal: number;
@@ -62,6 +68,17 @@ export const STREAK_FREEZE_FALLBACK = { cost: 100, max: 2 } as const;
  */
 export function buyStreakFreeze(token: string): Promise<Gamification> {
   return apiRequest<Gamification>('/gamification/streak-freeze', {
+    method: 'POST',
+    token,
+  });
+}
+
+/**
+ * POST /gamification/streak-seen — call once the streak celebration has been
+ * shown, so today's `streakCelebration` stops coming back.
+ */
+export function markStreakSeen(token: string): Promise<{ ok: true }> {
+  return apiRequest<{ ok: true }>('/gamification/streak-seen', {
     method: 'POST',
     token,
   });
