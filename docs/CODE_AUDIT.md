@@ -20,7 +20,7 @@
 | --- | --- | --- |
 | 🔴 Өндөр | 3 | **бүгд ✅ зассан** — migration гинж (#178) · `JWT_SECRET` (#179) · rate limit (#179) |
 | 🟠 Дунд | 11 | ✅ lint/test (#181) · ✅ crash reporting (#183) · ✅ CLAUDE.md (#177) · ✅ index (#182) · ✅ splash (M8, 2026-08-03) · ⬜ hardcoded өнгө · ⬜ том файл · ⬜ bundle ID |
-| 🟡 Бага | 6 | ✅ Expo Push (#180) · ✅ сануулга (#180) · ✅ CI (#181) · ⬜ QPay stub · ⬜ i18n цоорхой |
+| 🟡 Бага | 6 | ✅ Expo Push (#180) · ✅ сануулга (#180) · ✅ CI (#181) · ✅ i18n цоорхой (L4, 2026-08-03) · ❌ L3/L6 олдвор нь **буруу** байсан · ⬜ QPay stub |
 
 > **Төлөв (2026-07-28 орой):** өндөр эрэмбийн **3/3** хаагдсан. Үлдсэн ажил нь
 > ихэвчлэн `/mobile` талын (өнгө/i18n/bundle ID) буюу Choi/Boju-гийн хэсэг,
@@ -228,12 +228,12 @@ App icon нь урьд өмнөөс **бэлэн**: `icon-ios.png` 1024×1024, `
 | L1 | QPay жинхэнэ API дуудлага stub хэвээр | `backend/src/payments/payments.service.ts:67` |
 | L2 | Expo Push илгээлт stub хэвээр (`expoPushToken` хадгалагдаагүй) | `backend/src/notifications/notifications.service.ts:22` |
 | ~~L3~~ | ~~Production код дотор `console.log`~~ — **энэ олдвор БУРУУ байсан.** `notifications.service.ts`-ийнх нь stub байсан (одоо бодит push, #180). `WordsPage.tsx`-ийнх нь **зориудын оператор хэрэгсэл**: удаан ажиллах bulk job-ийн явцыг browser console-д харуулдаг (кодод нь тайлбарласан байсан). Ажиллаж байгаа хэрэгслийг "цэвэрлэх" нь буруу тул хөндөөгүй | — |
-| L4 | Англи хатуу текст i18n-д ороогүй (level narrative) | `mobile/app/level/[code].tsx:79` |
-| L5 | CI байхгүй — `.github/workflows/` огт алга | repo root |
-| L6 | **Үхмэл код** — `sound.ts` бүрэн бичигдсэн ч хаанаас ч import хийгдээгүй, `SOURCES` хоосон (CODING_RULES §5 зөрчил) | `mobile/src/lib/sound.ts` |
+| ~~L4~~ | ~~Англи хатуу текст i18n-д ороогүй (level narrative)~~ — ✅ **зассан 2026-08-03.** Арлын нэрс `levelName*` түлхүүр болж (MN: Ой/Тосгон/Цайз/Уул/Сансар/Тэнгэрийн орон — ⚠️ Boju батална), tier/desc нь бүртгэл дээр хэрэглэгддэг **тэр л** `cefr*` түлхүүрүүдийг дахин ашиглана (2 дахь англи хувилбар үлдээгүй). Дутуу байсан `cefrC2` нэмэгдэв. Дэлгэцийн хэсэгт үлдсэн нь зөвхөн өнгө/emoji; текст нь `t()`-ээр render үед уншигдана (module-level const бол хэл солиход хуучнаараа үлдэнэ). Апп даяар хатуу англи текст дахин хайхад олдсонгүй | ~~`mobile/app/level/[code].tsx:79`~~ |
+| ~~L5~~ | ~~CI байхгүй~~ — ✅ зассан (#181). `.github/workflows/ci.yml` бий | `.github/workflows/ci.yml` |
+| ~~L6~~ | ~~**Үхмэл код** — `sound.ts` хаанаас ч import хийгдээгүй, `SOURCES` хоосон~~ — **энэ олдвор БУРУУ байсан (2026-08-03 дахин шалгав).** `sound.ts` нь бүрэн амьд: `app/quiz/[id].tsx` (зөв/буруу/XP), `app/game/[mode].tsx` (XP), `app/settings.tsx` (унтраах/асаах товч) гурваас import хийгдэнэ; `SOURCES` ч хоосон биш — `assets/sounds/{correct,wrong,xp}.wav` гурвуулаа бодит PCM WAV (13–15KB). Устгах юм алга | — |
 | L7 | **Сануулга (reminder) огт илгээгддэггүй** — `scheduler/`-т streak/давтлагын job алга, Expo Push нь stub. Гэтэл `WordReview`-д SM-2 due date аль хэдийн бий → өгөгдөл бэлэн, зөвхөн хүргэлт дутуу. Gamified апп-д хамгийн том retention хөшүүрэг | `backend/src/scheduler/`, `notifications.service.ts:22` |
 
-L5-ын улмаас M1–M3 (lint/test) нь ажиллаж эхэлсэн ч **автоматаар шалгагдахгүй**.
+L5 хаагдсанаар M1–M3 (lint/test) нь CI дээр автоматаар шалгагддаг болсон.
 Хамгийн бага CI: 3 төслийн `tsc --noEmit` + backend `jest`.
 
 ---
@@ -271,6 +271,6 @@ L5-ын улмаас M1–M3 (lint/test) нь ажиллаж эхэлсэн ч *
 - **`.env` commit хийгдээгүй** — зөвхөн `.env.example` × 4 tracked.
 - **`mobile/ios` · `mobile/android` git-д ороогүй** (Expo Go урсгал бүтэн).
 - **Health endpoint** — Redis ping-ийг timeout-оор race хийж hang-ээс сэргийлсэн.
-- **i18n сахилга** — дэлгэцүүдэд монгол хатуу текст бараг алга (L4-өөс бусад).
+- **i18n сахилга** — дэлгэцүүдэд хатуу текст алга. L4 хаагдсаны дараа `app/` + `src/components/`-ийг дахин шүүхэд англи JSX текст ч, `label`/`title`/`placeholder` prop ч олдсонгүй. `en` нь `Record<TranslationKey, string>` (`TranslationKey = keyof mn`) тул **хоёр хэлний түлхүүр бүрэн таарахыг `tsc` өөрөө барина**.
 - **API.md шинэ endpoint-уудыг барьсан** — `/quizzes/:id/check`, `/words/sample`,
   IELTS band бүгд баримтжсан.

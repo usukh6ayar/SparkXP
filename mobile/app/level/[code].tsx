@@ -20,6 +20,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { AppIcon } from '../../src/components/AppIcon';
 import { useAuth } from '../../src/auth/AuthContext';
 import { useSettings } from '../../src/settings/SettingsContext';
+import type { TranslationKey } from '../../src/i18n';
 import { getLessons, type Lesson } from '../../src/api/lessons';
 import { getGamification, type Gamification } from '../../src/api/gamification';
 import { AppText } from '../../src/components/Text';
@@ -71,24 +72,32 @@ function palette(isLight: boolean) {
 }
 
 interface LevelMeta {
-  name: string;
   color: string;
   emoji: string;
-  tier: string; // CEFR tier label (Beginner … Proficient)
-  desc: string; // one-line subtitle
+  /** Island name — narrative "world map" copy (Ой / Тосгон / Цайз …). */
+  nameKey: TranslationKey;
+  /** CEFR tier label + one-line subtitle. */
+  tierKey: TranslationKey;
+  descKey: TranslationKey;
 }
 
-// TODO(i18n/copy): name/tier/desc are English-only "world map" narrative
-// content (Forest/Village/Castle...), not plain UI chrome — needs Boju's
-// call on Mongolian names before this goes through i18n like the rest of
-// the app's copy (CLAUDE.md: Mongolian-primary).
+/**
+ * Per-level island: colour, emoji and the i18n keys for its copy.
+ *
+ * Only non-text data is held here — the strings are looked up through `t()` at
+ * render time, because a module-level constant is evaluated once at import and
+ * would keep the language the app started in after a switch. The CEFR tier and
+ * subtitle reuse the SAME `cefr*` keys as registration and edit-profile
+ * (`src/constants/levels.ts`), so the app has one Mongolian wording per level
+ * rather than a second English-only set that drifts from it.
+ */
 const LEVEL: Record<string, LevelMeta> = {
-  a1: { name: 'Forest',    color: islandMap.green,  emoji: '🌿', tier: 'Beginner',          desc: 'Learn greetings and basic words' },
-  a2: { name: 'Village',   color: islandMap.green,  emoji: '🏡', tier: 'Elementary',        desc: 'Everyday phrases and simple talk' },
-  b1: { name: 'Castle',    color: islandMap.blue,   emoji: '🏰', tier: 'Intermediate',      desc: 'Hold conversations with confidence' },
-  b2: { name: 'Mountain',  color: islandMap.blue,   emoji: '⛰️', tier: 'Upper-Intermediate', desc: 'Express ideas on complex topics' },
-  c1: { name: 'Space',     color: islandMap.purple, emoji: '🪐', tier: 'Advanced',          desc: 'Fluent, nuanced communication' },
-  c2: { name: 'Sky Realm', color: islandMap.purple, emoji: '✨', tier: 'Proficient',        desc: 'Near-native mastery of English' },
+  a1: { color: islandMap.green,  emoji: '🌿', nameKey: 'levelNameA1', tierKey: 'cefrA1', descKey: 'cefrA1Desc' },
+  a2: { color: islandMap.green,  emoji: '🏡', nameKey: 'levelNameA2', tierKey: 'cefrA2', descKey: 'cefrA2Desc' },
+  b1: { color: islandMap.blue,   emoji: '🏰', nameKey: 'levelNameB1', tierKey: 'cefrB1', descKey: 'cefrB1Desc' },
+  b2: { color: islandMap.blue,   emoji: '⛰️', nameKey: 'levelNameB2', tierKey: 'cefrB2', descKey: 'cefrB2Desc' },
+  c1: { color: islandMap.purple, emoji: '🪐', nameKey: 'levelNameC1', tierKey: 'cefrC1', descKey: 'cefrC1Desc' },
+  c2: { color: islandMap.purple, emoji: '✨', nameKey: 'levelNameC2', tierKey: 'cefrC2', descKey: 'cefrC2Desc' },
 };
 
 const NODE = 62;            // node diameter
@@ -126,9 +135,18 @@ function CurrentRing({ left, top, reduce }: { left: number; top: number; reduce:
 export default function LevelScreen() {
   const { code } = useLocalSearchParams<{ code: string }>();
   const levelCode = (code ?? 'a1').toLowerCase();
-  const meta = LEVEL[levelCode] ?? { name: 'Level', color: islandMap.purple, emoji: '✨', tier: '', desc: '' };
   const { token, user } = useAuth();
   const { theme, t } = useSettings();
+  // An unknown code still renders (the route is just a URL) — it falls back to
+  // a neutral island rather than crashing on an undefined lookup.
+  const meta = LEVEL[levelCode];
+  const island = {
+    color: meta?.color ?? islandMap.purple,
+    emoji: meta?.emoji ?? '✨',
+    name: t(meta?.nameKey ?? 'levelNameFallback'),
+    tier: meta ? t(meta.tierKey) : '',
+    desc: meta ? t(meta.descKey) : '',
+  };
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -351,18 +369,18 @@ export default function LevelScreen() {
         {/* Title → subtitle → level chip */}
         <View style={styles.titleBlock}>
           <AppText variant="h1" color={C.text} style={styles.bigTitle}>
-            {meta.name} {meta.emoji}
+            {island.name} {island.emoji}
           </AppText>
-          {!!meta.desc && (
+          {!!island.desc && (
             <AppText variant="body" color={C.textDim} style={{ marginTop: 2 }}>
-              {meta.desc}
+
             </AppText>
           )}
           <View style={[styles.tierRow, { marginTop: 10 }]}>
-            <View style={[styles.levelChip, { backgroundColor: meta.color }]}>
+            <View style={[styles.levelChip, { backgroundColor: island.color }]}>
               <AppText variant="overline" color={colors.white}>{levelCode.toUpperCase()}</AppText>
             </View>
-            {!!meta.tier && <AppText variant="bodyStrong" color={meta.color}>{meta.tier}</AppText>}
+            {!!island.tier && <AppText variant="bodyStrong" color={island.color}>{island.tier}</AppText>}
           </View>
         </View>
 
@@ -375,7 +393,7 @@ export default function LevelScreen() {
               <AppText variant="bodyStrong" color={C.text}>{pct}%</AppText>
             </View>
             <View style={[styles.track, { backgroundColor: C.track }]}>
-              <View style={[styles.fill, { width: `${pct}%`, backgroundColor: meta.color }]} />
+              <View style={[styles.fill, { width: `${pct}%`, backgroundColor: island.color }]} />
             </View>
             <View style={styles.starsRow}>
               <Ionicons name="star" size={16} color={islandMap.gold} />

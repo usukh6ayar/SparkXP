@@ -788,6 +788,18 @@ const mn = {
   cefrB2Desc: 'Чөлөөтэй харилцана',
   cefrC1: 'Гүнзгий',
   cefrC1Desc: 'Бараг төгс',
+  cefrC2: 'Төгс',
+  cefrC2Desc: 'Төрөлх хэл шиг',
+
+  // Level map island names (app/level/[code].tsx). Narrative "world map" copy,
+  // not UI chrome — ⚠️ Boju эцсийн монгол нэрийг батлана.
+  levelNameA1: 'Ой',
+  levelNameA2: 'Тосгон',
+  levelNameB1: 'Цайз',
+  levelNameB2: 'Уул',
+  levelNameC1: 'Сансар',
+  levelNameC2: 'Тэнгэрийн орон',
+  levelNameFallback: 'Түвшин',
 
   // Logo
   logoTagline: 'Суралц • Дадлага • Амжилт',
@@ -1699,6 +1711,17 @@ const en: Record<TranslationKey, string> = {
   cefrB2Desc: 'Communicates fluently',
   cefrC1: 'Advanced',
   cefrC1Desc: 'Almost fluent',
+  cefrC2: 'Proficient',
+  cefrC2Desc: 'Near-native mastery',
+
+  // Level map island names (app/level/[code].tsx)
+  levelNameA1: 'Forest',
+  levelNameA2: 'Village',
+  levelNameB1: 'Castle',
+  levelNameB2: 'Mountain',
+  levelNameC1: 'Space',
+  levelNameC2: 'Sky Realm',
+  levelNameFallback: 'Level',
 
   // Logo
   logoTagline: 'Learn • Practice • Achieve',
