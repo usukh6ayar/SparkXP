@@ -20,6 +20,7 @@ import {
 import { useSWR } from '../../src/api/useSWR';
 import { AppText } from '../../src/components/Text';
 import { AppIcon } from '../../src/components/AppIcon';
+import { DictionaryButton } from '../../src/components/DictionaryButton';
 import { type AppIconName } from '../../src/constants/appIcons';
 import { CountUp } from '../../src/components/CountUp';
 import { ProgressRing } from '../../src/components/ProgressRing';
@@ -188,6 +189,7 @@ export default function ProfileScreen() {
           <View style={styles.header}>
             <AppText variant="h1" color={p.text}>{t('profile')}</AppText>
             <View style={styles.headerActions}>
+              <DictionaryButton size={38} iconColor={p.text} />
               <Pressable
                 onPress={() => router.push('/settings')}
                 hitSlop={8}
@@ -305,7 +307,7 @@ export default function ProfileScreen() {
           <SectionHead
             p={p}
             st={styles}
-            title={ach ? `${t('myAchievements')} (${ach.earned}/${ach.total})` : t('myAchievements')}
+            title={t('myAchievements')}
             actionLabel={`${t('seeAll')} ›`}
             onAction={() => router.push('/trophies')}
             style={styles.section}

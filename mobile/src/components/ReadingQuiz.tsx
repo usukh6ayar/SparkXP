@@ -12,14 +12,28 @@ function fillCorrect(q: ReadingQuestion, ans: string): boolean {
   return (ans ?? '').trim().toLowerCase() === (q.answer ?? '').trim().toLowerCase();
 }
 
+/** Share of correct answers needed to count the passage as understood. */
+const PASS_RATIO = 0.6;
+
 /**
- * Comprehension quiz shown after finishing a reading passage. Questions come
- * from the passage (`comprehensionQuestions`, AI-generated in admin). Two answer
- * modes: multiple_choice (tap an option) and fill_blank (type). Correctness is
- * checked on-device — reading passages return their answers to the client (same
- * as keyVocab). No extra XP: the +15 is awarded for finishing the reading.
+ * Comprehension quiz shown after the reader marks a passage read. Questions
+ * come from the passage (`comprehensionQuestions`, authored in admin). Two
+ * answer modes: multiple_choice (tap an option) and fill_blank (type).
+ * Correctness is checked on-device — reading passages return their answers to
+ * the client (same as keyVocab).
+ *
+ * This quiz is the XP gate: reading alone earns nothing, `onPass` fires once
+ * the reader answers at least PASS_RATIO correctly and the screen awards the
+ * +15 XP then. Failing offers a retry instead.
  */
-export function ReadingQuiz({ questions }: { questions: ReadingQuestion[] }) {
+export function ReadingQuiz({
+  questions,
+  onPass,
+}: {
+  questions: ReadingQuestion[];
+  /** Called once, when the reader passes — the screen awards the reading XP. */
+  onPass?: () => void;
+}) {
   const c = useColors();
   const styles = useMemo(() => makeStyles(c), [c]);
 
@@ -46,6 +60,18 @@ export function ReadingQuiz({ questions }: { questions: ReadingQuestion[] }) {
     const a = answers[i];
     return q.type === 'multiple_choice' ? typeof a === 'number' : typeof a === 'string' && a.trim().length > 0;
   });
+  const passed = score >= Math.ceil(questions.length * PASS_RATIO);
+
+  const submit = () => {
+    setSubmitted(true);
+    if (score >= Math.ceil(questions.length * PASS_RATIO)) onPass?.();
+  };
+
+  /** Wipe the answers so the reader can re-read and try again. */
+  const retry = () => {
+    setAnswers({});
+    setSubmitted(false);
+  };
 
   return (
     <View style={styles.wrap}>
@@ -114,13 +140,27 @@ export function ReadingQuiz({ questions }: { questions: ReadingQuestion[] }) {
       })}
 
       {submitted ? (
-        <View style={styles.result}>
-          <Ionicons name="ribbon" size={20} color={c.xp} />
-          <AppText variant="bodyStrong">{score} / {questions.length} {t('correctSuffix')}</AppText>
-        </View>
+        <>
+          <View style={styles.result}>
+            <Ionicons
+              name={passed ? 'ribbon' : 'refresh-circle'}
+              size={20}
+              color={passed ? c.xp : c.textMuted}
+            />
+            <AppText variant="bodyStrong">{score} / {questions.length} {t('correctSuffix')}</AppText>
+          </View>
+          <AppText variant="caption" color={passed ? c.success : c.textSecondary} center>
+            {passed ? t('readingQuizPassed') : t('readingQuizFailed')}
+          </AppText>
+          {!passed ? (
+            <Pressable onPress={retry} style={styles.checkBtn}>
+              <AppText variant="bodyStrong" color={c.white}>{t('retry')}</AppText>
+            </Pressable>
+          ) : null}
+        </>
       ) : (
         <Pressable
-          onPress={() => setSubmitted(true)}
+          onPress={submit}
           disabled={!allAnswered}
           style={[styles.checkBtn, !allAnswered && styles.checkBtnOff]}
         >

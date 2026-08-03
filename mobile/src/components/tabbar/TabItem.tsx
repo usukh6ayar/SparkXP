@@ -1,39 +1,31 @@
 import { Pressable, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import Animated, {
   useAnimatedStyle,
   useDerivedValue,
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
+import { AppIcon } from '../AppIcon';
 import { AppText } from '../Text';
+import type { AppIconName } from '../../constants/appIcons';
 import { useSettings } from '../../settings/SettingsContext';
 import { SPRING, DURATION, useReduceMotion } from '../../lib/motion';
-import { radius } from '../../theme/theme';
+import { LABEL_BOTTOM, TAB_GAP, TAB_ICON } from './geometry';
 
-type IconName = keyof typeof Ionicons.glyphMap;
-
-/** Outline when idle, filled when active — the whole icon language of the bar. */
-export interface TabIcon {
-  outline: IconName;
-  filled: IconName;
-}
-
-/** How far the active icon rises. */
-const LIFT = 8;
-/** The active marker: a short, softly glowing underline. */
-const UNDERLINE_W = 18;
-const UNDERLINE_H = 3;
+/** How dim an idle icon goes. The 3D art can't be tinted, so this is the tell. */
+const IDLE_OPACITY = 0.6;
 
 /**
- * One flat tab: icon over a small label, marked as active by lifting the icon
- * and fading in a tiny glowing underline beneath it.
+ * One flat tab: the brand's 3D icon over a small label, marked as active by
+ * lighting the icon up and colouring the label.
  *
- * No pill, capsule or filled background behind the active icon. Those read as
- * chrome and make a five-tab bar feel crowded; the lift plus a 18×3 underline
- * says the same thing with almost nothing on screen. Only the active tab moves
- * — the idle ones stay put, so the eye is pulled to the change rather than to
- * four things animating at once.
+ * The icons are full-colour PNGs, so `color` can do nothing for them — active
+ * vs idle is carried by OPACITY plus a touch of scale.
+ *
+ * Nothing rises, and there is no underline, pill or capsule under the icon.
+ * That is a space decision as much as a taste one: the wave dips lowest right
+ * over the inner tabs, and every px of chrome under the icon pushes the icon up
+ * into the coloured band along the card's edge. Two states, said with light.
  */
 export function TabItem({
   icon,
@@ -41,7 +33,7 @@ export function TabItem({
   focused,
   onPress,
 }: {
-  icon: TabIcon;
+  icon: AppIconName;
   label: string;
   focused: boolean;
   onPress: () => void;
@@ -49,24 +41,17 @@ export function TabItem({
   const { colors: c } = useSettings();
   const reduce = useReduceMotion();
 
-  // One source of truth for "how active am I", so the lift, the underline and
-  // the label fade can never disagree mid-animation.
+  // One source of truth for "how active am I", so the icon and the label can
+  // never disagree mid-animation.
   const active = useDerivedValue(() =>
     reduce ? (focused ? 1 : 0) : withSpring(focused ? 1 : 0, SPRING),
   );
 
-  // Lift AND a touch of scale: the active icon should read as nearer, not just
-  // higher. Scale rather than a bigger `size` so nothing re-lays-out per frame.
+  // Full colour and slightly nearer when active. Scale rather than a bigger
+  // `size` so nothing re-lays-out per frame.
   const iconStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateY: -LIFT * active.value },
-      { scale: 1 + 0.08 * active.value },
-    ],
-  }));
-  // Grows out from the middle as it fades in — the underline draws itself.
-  const underlineStyle = useAnimatedStyle(() => ({
-    opacity: active.value,
-    transform: [{ scaleX: 0.3 + 0.7 * active.value }],
+    opacity: IDLE_OPACITY + (1 - IDLE_OPACITY) * active.value,
+    transform: [{ scale: 1 + 0.06 * active.value }],
   }));
   const labelStyle = useAnimatedStyle(() => ({
     opacity: withTiming(focused ? 1 : 0.7, { duration: DURATION.fast }),
@@ -82,42 +67,25 @@ export function TabItem({
       accessibilityState={{ selected: focused }}
     >
       <Animated.View style={iconStyle}>
-        <Ionicons
-          name={focused ? icon.filled : icon.outline}
-          size={24}
-          color={focused ? c.primary : c.textMuted}
-        />
+        <AppIcon name={icon} size={TAB_ICON} />
       </Animated.View>
       <Animated.View style={labelStyle}>
         <AppText variant="tabLabel" color={focused ? c.primary : c.textMuted} center>
           {label}
         </AppText>
       </Animated.View>
-      {/* The glow is an iOS shadow drawn from this view's own alpha, so the bar
-          has to be filled for the bloom to exist — at 18×3 it cannot read as a
-          pill. Android has no coloured shadow; the purple bar alone carries it. */}
-      <Animated.View
-        pointerEvents="none"
-        style={[
-          styles.underline,
-          { backgroundColor: c.primary, shadowColor: c.primary },
-          underlineStyle,
-        ]}
-      />
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  tab: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3 },
-  underline: {
-    width: UNDERLINE_W,
-    height: UNDERLINE_H,
-    borderRadius: radius.full,
-    marginTop: 4,
-    opacity: 0,
-    shadowOpacity: 0.7,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
+  tab: {
+    flex: 1,
+    alignItems: 'center',
+    // Bottom-aligned, so the label sits on the shared baseline and every spare
+    // px lands above the icon — where the wave needs it.
+    justifyContent: 'flex-end',
+    paddingBottom: LABEL_BOTTOM,
+    gap: TAB_GAP,
   },
 });

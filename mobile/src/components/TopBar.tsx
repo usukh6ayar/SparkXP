@@ -4,15 +4,19 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../auth/AuthContext';
 import { AppText } from './Text';
 import { AppIcon } from './AppIcon';
+import { DictionaryButton } from './DictionaryButton';
 import { useStreak } from '../lib/useStreak';
 import { spacing, radius } from '../theme/theme';
 import { useColors } from '../settings/SettingsContext';
 
 /**
  * Shared screen header: optional back button + title on the left, streak and
- * Sparks badges on the right. Both are real: streak comes from GET /gamification
- * (via useStreak), Sparks is the user's live balance. Pass `streak` only to
- * override with a screen-local value.
+ * Sparks badges on the right. Both badges are real: streak comes from GET
+ * /gamification (via useStreak), Sparks is the user's live balance. Pass
+ * `streak` only to override with a screen-local value.
+ *
+ * The dictionary button is OFF by default — it lives on the five main tabs
+ * only (see `DictionaryButton`), so screens like the AI buddy opt in.
  */
 export function TopBar({
   title,
@@ -21,6 +25,7 @@ export function TopBar({
   onBack,
   streak,
   showBadges = true,
+  showDictionary = false,
   onAddSparks,
   onHistory,
 }: {
@@ -33,6 +38,8 @@ export function TopBar({
   /** Override the real streak (defaults to GET /gamification via useStreak). */
   streak?: number;
   showBadges?: boolean;
+  /** Show the dictionary button — the five main tabs only. */
+  showDictionary?: boolean;
   /** Shows a small "+" button next to the Sparks badge (e.g. open the Sparks store). */
   onAddSparks?: () => void;
   /** Shows a history icon in the top corner (e.g. open the ChatGPT-style chat history). */
@@ -77,6 +84,9 @@ export function TopBar({
       </View>
 
       <View style={styles.badges}>
+        {showDictionary ? (
+          <DictionaryButton size={36} variant="filled" style={styles.iconBtn} />
+        ) : null}
         {onHistory ? (
           <Pressable
             style={[styles.iconBtn, { backgroundColor: c.surfaceAlt }]}
