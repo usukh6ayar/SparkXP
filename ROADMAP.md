@@ -698,7 +698,7 @@ Expo Go дээр `npm install` хийсний дараа Reading passage нээ�
 
 ### 🚨 Store setup — бодит blocker (шинэчилсэн 2026-07-28, кодоос баталсан)
 - [x] **EAS холбогдсон** — `eas init` (2026-07-21). Expo project үүссэн
-      (`@usukh6ayar/englishxp`), `app.json` `extra.eas.projectId` =
+      (`@usukh6ayar/sparkxp` — slug солигдсон), `app.json` `extra.eas.projectId` =
       `d5b190dd-0fb6-4684-8aff-4648fb0f0357`.
 - [x] **App icon холбогдсон** (2026-07-23) — `assets/icon-ios.png` **1024×1024**
       (iOS) + `assets/icon.png` **1254×1254** (Android adaptive, bg `#191040`).
@@ -719,12 +719,19 @@ Expo Go дээр `npm install` хийсний дараа Reading passage нээ�
       алга болж, фонт ачаалагдах хүртэл хоосон дэлгэц харагдана.
       ⚠️ Splash нь **зөвхөн native build дээр** харагдана (Expo Go өөрийн
       splash-аа үзүүлдэг) → EAS build-ээр нүдээр батал.
-- [x] 🆕 **App identifier шийдэгдсэн (2026-08-03): `mn.app.sparkxp`.**
-      iOS `bundleIdentifier` ба Android `package` хоёулаа **`mn.app.sparkxp`**
-      (өмнө нь `com.usukh6ayar.englishxp`). Санаатайгаар **хэвээр** үлдээсэн:
-      `slug`/`owner` (`@usukh6ayar/englishxp` EAS төсөлд уягдсан),
-      `scheme: englishxp` (join/invite deep link 6 файлд хамааралтай),
-      `englishxp.*` storage key (солих юм бол бүх хэрэглэгч гарна).
+- [x] 🆕 **`englishxp` нэр бүрмөсөн устгагдав → SparkXP (2026-08-03).**
+      `bundleIdentifier`/`package` = **`mn.app.sparkxp`** · `scheme` =
+      **`sparkxp`** · SecureStore key = **`sparkxp.*`** · dev DB = **`sparkxp`**
+      · package нэр = **`sparkxp-mobile`/`-backend`** · AI system prompt дотор
+      "SparkXP платформ". Хэвээр үлдсэн нь зөвхөн **бодит дата**: R2 дахь
+      `englishxp/...` object key, `cleanup-demo.sql`-ын WHERE email, `owner`
+      (Expo бүртгэлийн нэр). Дэлгэрэнгүй → `docs/CODE_AUDIT.md §M7`.
+      ⚠️ **Choi/Boju:** pull хийсний дараа `npm install`; аппаас нэг удаа
+      автоматаар гарна (дахин нэвтэр); локал DB-гээ
+      `ALTER DATABASE englishxp RENAME TO sparkxp;` гэж сольж өг.
+      ⚠️ **`slug` = `sparkxp` болсон** → EAS build хийхээс өмнө expo.dev дээрх
+      төслийн slug-ийг ч мөн сольсон байх ёстой (`eas project:rename` команд
+      байхгүй — dashboard-аас).
       ⚠️ Дараагийн native build-ийн ӨМНӨ: локал `ios/`+`android/` (gitignore)
       хуучин ID-тэй хэвээр → `PRODUCT_BUNDLE_IDENTIFIER` (pbxproj) +
       `namespace`/`applicationId` (`android/app/build.gradle`)-ыг гараар засах

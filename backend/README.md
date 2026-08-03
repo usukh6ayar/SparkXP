@@ -72,7 +72,7 @@ npm run migration:run
 Connect with `psql`:
 
 ```bash
-PGPASSWORD=postgres psql -h localhost -U postgres -d englishxp
+PGPASSWORD=postgres psql -h localhost -U postgres -d sparkxp
 ```
 
 Useful commands once connected:
@@ -86,4 +86,4 @@ SELECT * FROM users;   view rows
 ```
 
 Or use a GUI (TablePlus / DBeaver) with: host `localhost`, port `5432`,
-database `englishxp`, user `postgres`, password `postgres`.
+database `sparkxp`, user `postgres`, password `postgres`.

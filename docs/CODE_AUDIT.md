@@ -191,21 +191,29 @@ Store-д гарсны дараа **хэрэглэгчийн утсан дээр 
 
 ### ~~M7. Апп-ын нэрлэлт `englishxp` хэвээр~~ — ✅ ШИЙДЭГДСЭН (2026-08-03)
 
-App identifier нь **`mn.app.sparkxp`** болов (iOS + Android хоёул). Одоогийн
-төлөв:
+`englishxp` нэрийг **бүрмөсөн** устгаж SparkXP болгов. Одоогийн төлөв:
 
 | Талбар | Утга |
 | --- | --- |
-| iOS `bundleIdentifier` | **`mn.app.sparkxp`** |
-| Android `package` | **`mn.app.sparkxp`** |
-| `slug` / `scheme` | `englishxp` (санаатайгаар хэвээр) |
-| `extra.eas.projectId` | `d5b190dd-…` (жинхэнэ, `owner: usukh6ayar`) |
+| iOS `bundleIdentifier` · Android `package` | **`mn.app.sparkxp`** |
+| `scheme` | **`sparkxp`** (`sparkxp://join/…` · `sparkxp://invite/…`) |
+| SecureStore key | **`sparkxp.*`** |
+| Dev DB default (`DB_NAME`) | **`sparkxp`** |
+| `slug` | **`sparkxp`** — expo.dev дээр төслийн slug-ийг ч сольсон байх ёстой |
+| `extra.eas.projectId` | `d5b190dd-…` (өөрчлөгдөөгүй — төслийг холбогч жинхэнэ түлхүүр) |
+| `owner` | `usukh6ayar` (Expo **бүртгэлийн** нэр, брэнд биш → хэвээр) |
 
-**`slug`/`owner`/`scheme`-ийг яагаад хөдөлгөөгүй вэ:** `slug`+`owner` нь EAS
-төсөл `@usukh6ayar/englishxp`-д уягдсан (солих нь build/OTA-г тасална);
-`scheme: englishxp` дээр join/invite deep link 6 файл түшиглэдэг; `englishxp.*`
-storage key солих юм бол хадгалагдсан session бүр устаж бүх хэрэглэгч гарна.
-Эдгээр нь хэрэглэгчид **харагддаггүй** тул брэндийн ач холбогдолгүй.
+**Хэвээр үлдсэн `englishxp` бүхэн нь дата, брэнд биш:** R2 bucket дахь
+`englishxp/...` object key (`reorganize-r2-layout.ts`, `migrate-images-to-r2.ts`,
+`CLOUDFLARE_MIGRATION_PLAN.md`) — кодон дахь мөрийг солиход бодит объект
+шилждэггүй, зөвхөн байхгүй зам руу заана; `cleanup-demo.sql`-ын
+`admin@englishxp.mn` нь `WHERE` нөхцөл (одоо байгаа мөр рүү заадаг).
+`backfill-media-to-r2.ts`-ийн `R2_FOLDER` default `englishxp/media` ч хэвээр —
+энэ нь өмнөөс тодорхойлогдсон асуудал (Railway env хуучирсан), солих юм бол
+**гурав дахь** layout үүсгэнэ.
+
+⚠️ **Дараагийн хэрэглэгчид нэг удаа системээс гарна** (storage key солигдсон).
+Апп store-д гараагүй тул migration shim нэмээгүй.
 
 ⚠️ **Дараагийн native build-ийн өмнө:** локал `ios/` + `android/` фолдер
 (gitignore, prebuild-ээр үүсдэг) хуучин ID-тэй хэвээр →

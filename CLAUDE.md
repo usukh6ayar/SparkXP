@@ -126,14 +126,34 @@ multi-thread chat, quiz result celebration (Confetti+haptics+combo), notificatio
 center, WebP asset perf. Full done-list + **Critical UX C1–C4** (C1 ✅, C2 ✅ BE+FE
 (`POST /quizzes/:id/check` → check→continue урсгал), C3 buddy scaffold 🔶, C4 ✅) →
 `ROADMAP.md §3` + `mobile/UX_CRITICAL_SPEC.md`.
-**App identifier — шийдэгдсэн (2026-08-03): `mn.app.sparkxp`.** iOS
-`bundleIdentifier` ба Android `package` хоёулаа `mn.app.sparkxp` (өмнө нь
-`com.usukh6ayar.englishxp`). **Санаатайгаар хэвээр үлдсэн:** `slug` +
-`owner` (EAS төсөл `@usukh6ayar/englishxp`-д уягдсан), `scheme: englishxp`
-(join/invite deep link), `englishxp.*` storage key (солих юм бол бүх
-хэрэглэгч системээс гарна). Локал `ios/`/`android/` фолдер (gitignore)
-хуучин ID-тэй хэвээр тул дараагийн **native build-ийн өмнө** гараар засах
-эсвэл prebuild хийнэ; iOS шинэ App ID + provisioning profile авна.
+**`englishxp` нэр бүрмөсөн УСТСАН → SparkXP (2026-08-03).** Апп нь SparkXP
+болсон тул техникийн бүх танигчийг ч шинэчлэв:
+
+| Юу | Өмнө | Одоо |
+| --- | --- | --- |
+| iOS `bundleIdentifier` · Android `package` | `com.usukh6ayar.englishxp` | **`mn.app.sparkxp`** |
+| `scheme` (deep link) | `englishxp://` | **`sparkxp://`** |
+| SecureStore key | `englishxp.*` | **`sparkxp.*`** |
+| Dev DB нэр (default) | `englishxp` | **`sparkxp`** |
+| package нэр | `englishxp-mobile` / `-backend` | **`sparkxp-…`** |
+| AI system prompt | "EnglishXP платформ" | **"SparkXP платформ"** |
+
+⚠️ **Choi/Boju — `git pull` дараа 3 зүйл заавал:**
+1. `cd mobile && npm install` (package нэр солигдсон).
+2. Аппаас **нэг удаа автоматаар гарна** (storage key солигдсон) → дахин нэвтэр.
+3. Локал DB нэрээ сольж өг:
+   `psql -d postgres -c "ALTER DATABASE englishxp RENAME TO sparkxp;"`
+   (эсвэл өөрийн `.env`-д `DB_NAME=englishxp` гэж бичээд хэвээр үлдээж болно.)
+
+**Санаатайгаар ХЭВЭЭР үлдсэн** (эдгээр нь брэнд биш, *бодит дата*): R2 дахь
+`englishxp/...` object key (`reorganize-r2-layout.ts`, `migrate-images-to-r2.ts`,
+`CLOUDFLARE_MIGRATION_PLAN.md` — код дахь мөрийг солиход бодит файл шилждэггүй,
+зөвхөн байхгүй зам руу заана); `cleanup-demo.sql`-ын `admin@englishxp.mn`
+WHERE нөхцөл; `owner: usukh6ayar` (Expo бүртгэлийн нэр, брэнд биш).
+
+⚠️ **Native build-ийн өмнө:** локал `ios/`/`android/` фолдер (gitignore) хуучин
+ID-тэй хэвээр → гараар засах эсвэл prebuild; iOS шинэ App ID + provisioning
+profile авна.
 
 **Still pending (launch blockers), re-verified 2026-08-03:** eas.json submit creds empty;
 Lucide migration; real gamification data (streak/level/progress placeholders);
@@ -284,7 +304,12 @@ NOT shared — make your own from `.env.example`).
 2. **Create the DB role + database** (once):
    ```bash
    psql -d postgres -c "CREATE ROLE postgres LOGIN SUPERUSER PASSWORD 'postgres';"
-   psql -d postgres -c "CREATE DATABASE englishxp OWNER postgres;"
+   psql -d postgres -c "CREATE DATABASE sparkxp OWNER postgres;"
+   ```
+   *DB нь өмнө нь `englishxp` нэртэй байсан (2026-08-03-нд солигдсон). Хуучин
+   сангаа хадгалахыг хүсвэл шинээр үүсгэхийн оронд нэрийг нь сольж болно:*
+   ```bash
+   psql -d postgres -c "ALTER DATABASE englishxp RENAME TO sparkxp;"
    ```
 3. **Configure & run the API**:
    ```bash
@@ -295,7 +320,7 @@ NOT shared — make your own from `.env.example`).
    ```
 
 Inspect the database with `psql`, or a GUI (TablePlus / DBeaver) using:
-host `localhost`, port `5432`, db `englishxp`, user `postgres`, pass `postgres`.
+host `localhost`, port `5432`, db `sparkxp`, user `postgres`, pass `postgres`.
 
 ---
 

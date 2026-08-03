@@ -67,6 +67,6 @@ export function buildTypeOrmOptions(
     port: config.get<number>('DB_PORT', 5432),
     username: config.get<string>('DB_USERNAME', 'postgres'),
     password: config.get<string>('DB_PASSWORD', 'postgres'),
-    database: config.get<string>('DB_NAME', 'englishxp'),
+    database: config.get<string>('DB_NAME', 'sparkxp'),
   };
 }
