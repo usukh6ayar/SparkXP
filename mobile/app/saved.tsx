@@ -12,6 +12,12 @@ import {
   type LearnWord,
   type ReviewStats,
 } from '../src/api/reviews';
+import {
+  getDictionarySaves,
+  toggleDictionarySave,
+  type SavedDictionaryWord,
+} from '../src/api/dictionary';
+import { useDictionary } from '../src/components/DictionaryProvider';
 import { TopBar } from '../src/components/TopBar';
 import { AppText } from '../src/components/Text';
 import { SkeletonRows } from '../src/components/SkeletonRows';
@@ -37,6 +43,10 @@ export default function SavedScreen() {
   const c = useColors();
   const styles = useMemo(() => makeStyles(c), [c]);
   const [words, setWords] = useState<LearnWord[]>([]);
+  // Толь (dictionary) ⭐ saves — a separate table/endpoint, shown in their own
+  // section below the curated words. See DictionarySensesService.listSaves.
+  const [dictWords, setDictWords] = useState<SavedDictionaryWord[]>([]);
+  const { openWordCard } = useDictionary();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(false);
@@ -49,6 +59,9 @@ export default function SavedScreen() {
     if (!token) return;
     // Stats are a nice-to-have: a failure there must not blank the word list.
     getReviewStats(token).then(setStats).catch(() => {});
+    // Толь saves are a separate list — a failure there must not blank the
+    // curated words above it.
+    getDictionarySaves(token).then(setDictWords).catch(() => {});
     try {
       setWords(await getSaved(token));
       setError(false);
@@ -79,6 +92,12 @@ export default function SavedScreen() {
   const unsave = useCallback((w: LearnWord) => {
     setWords((list) => list.filter((x) => x.id !== w.id)); // optimistic
     if (token) toggleSave(token, w.id).catch(() => {});
+  }, [token]);
+
+  const unsaveDictWord = useCallback(async (word: string) => {
+    if (!token) return;
+    await toggleDictionarySave(token, word);
+    setDictWords((list) => list.filter((r) => r.word !== word));
   }, [token]);
 
   const renderItem = useCallback(
@@ -117,7 +136,10 @@ export default function SavedScreen() {
       <FlatList
         data={words}
         keyExtractor={(w) => w.id}
-        contentContainerStyle={[words.length === 0 ? styles.emptyWrap : styles.list, bounded]}
+        contentContainerStyle={[
+          words.length === 0 && dictWords.length === 0 ? styles.emptyWrap : styles.list,
+          bounded,
+        ]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.primary} />}
         initialNumToRender={10}
         maxToRenderPerBatch={10}
@@ -129,29 +151,54 @@ export default function SavedScreen() {
                 knowing words and saving words are different things. */}
             <VocabStats stats={stats} />
             {words.length > 0 ? (
-              <View style={styles.practiceBar}>
-                <AppText variant="caption" color={c.textSecondary}>
-                  {words.length} {t('unitWords')}
+              <>
+                <AppText variant="overline" color={c.textMuted} style={styles.overline}>
+                  {t('lessonWords')}
                 </AppText>
-                <Button
-                  label={t('startReview')}
-                  icon="school-outline"
-                  size="md"
-                  fullWidth={false}
-                  onPress={() => { haptics.tap(); setPracticing(true); }}
-                />
-              </View>
+                <View style={styles.practiceBar}>
+                  <AppText variant="caption" color={c.textSecondary}>
+                    {words.length} {t('unitWords')}
+                  </AppText>
+                  <Button
+                    label={t('startReview')}
+                    icon="school-outline"
+                    size="md"
+                    fullWidth={false}
+                    onPress={() => { haptics.tap(); setPracticing(true); }}
+                  />
+                </View>
+              </>
             ) : null}
           </>
         }
+        ListFooterComponent={
+          dictWords.length > 0 ? (
+            <View style={styles.dictSection}>
+              <AppText variant="overline" color={c.textMuted} style={styles.overline}>
+                {t('dictionaryWords')}
+              </AppText>
+              {dictWords.map((row) => (
+                <DictRow
+                  key={row.word}
+                  row={row}
+                  colors={c}
+                  onOpen={() => openWordCard(row.word)}
+                  onUnsave={() => unsaveDictWord(row.word)}
+                />
+              ))}
+            </View>
+          ) : null
+        }
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <AppText style={styles.emptyEmoji}>⭐</AppText>
-            <AppText variant="h3" center>{t('noSavedWords')}</AppText>
-            <AppText variant="body" color={c.textSecondary} center style={styles.emptyHint}>
-              {t('noSavedWordsHint')}
-            </AppText>
-          </View>
+          dictWords.length === 0 ? (
+            <View style={styles.empty}>
+              <AppText style={styles.emptyEmoji}>⭐</AppText>
+              <AppText variant="h3" center>{t('noSavedWords')}</AppText>
+              <AppText variant="body" color={c.textSecondary} center style={styles.emptyHint}>
+                {t('noSavedWordsHint')}
+              </AppText>
+            </View>
+          ) : null
         }
         renderItem={renderItem}
       />
@@ -202,6 +249,54 @@ const SavedRow = memo(function SavedRow({
   );
 });
 
+/**
+ * One ⭐ dictionary word. Tapping opens the full Толь card; the bookmark
+ * unsaves it. No flashcard practice here — these rows have no image, level
+ * or SM-2 state, so they never enter the SavedFlashcards deck.
+ */
+const DictRow = memo(function DictRow({
+  row,
+  colors: c,
+  onOpen,
+  onUnsave,
+}: {
+  row: SavedDictionaryWord;
+  colors: AppColors;
+  onOpen: () => void;
+  onUnsave: () => void;
+}) {
+  return (
+    <Card variant="raised" padding="md" style={{ marginBottom: spacing.sm }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+        <View style={{ flex: 1 }}>
+          <AppText variant="label">{row.word}</AppText>
+          {row.translation ? (
+            <AppText variant="caption" color={c.textSecondary} numberOfLines={1}>
+              {row.translation}
+            </AppText>
+          ) : null}
+        </View>
+        <IconButton
+          icon="book-outline"
+          size={38}
+          variant="filled"
+          iconColor={c.primary}
+          accessibilityLabel={t('openInDictionary')}
+          onPress={onOpen}
+        />
+        <IconButton
+          icon="bookmark"
+          size={38}
+          variant="filled"
+          iconColor={c.xp}
+          accessibilityLabel={t('removeFromSaved')}
+          onPress={onUnsave}
+        />
+      </View>
+    </Card>
+  );
+});
+
 const makeStyles = (c: AppColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: c.background },
   list: { padding: spacing.lg, gap: spacing.sm },
@@ -211,6 +306,8 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
     marginBottom: spacing.md,
   },
   skeleton: { margin: spacing.lg },
+  overline: { marginBottom: spacing.sm },
+  dictSection: { marginTop: spacing.lg },
   // Still padded: the vocabulary card sits above the "nothing saved" art.
   emptyWrap: { flexGrow: 1, padding: spacing.lg },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
