@@ -151,7 +151,9 @@ function RootLayout() {
 
   if (!fontsLoaded && !fontError) {
     return (
-      <View style={[styles.center, { backgroundColor: "#191040" }]}>
+      // Must match the splash `backgroundColor` in `app.json`, or a lost race
+      // between `hideAsync` and the first render flashes a different colour.
+      <View style={[styles.center, { backgroundColor: "#0B0716" }]}>
         <ActivityIndicator size="large" color="#6C3BFF" />
       </View>
     );

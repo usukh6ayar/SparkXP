@@ -126,12 +126,13 @@ multi-thread chat, quiz result celebration (Confetti+haptics+combo), notificatio
 center, WebP asset perf. Full done-list + **Critical UX C1–C4** (C1 ✅, C2 ✅ BE+FE
 (`POST /quizzes/:id/check` → check→continue урсгал), C3 buddy scaffold 🔶, C4 ✅) →
 `ROADMAP.md §3` + `mobile/UX_CRITICAL_SPEC.md`.
-**Still pending (launch blockers), re-verified 2026-08-03:** **iOS/Android
-bundle ID mismatch** — iOS is `com.usukh6ayar.englishxp` in git, Android
-`com.usukh6ayar.englishxp`, `slug`/`scheme` `englishxp`; a local uncommitted flip
-to `com.usukhbayar.sparkxp` was **reverted 2026-08-03** so the decision stays
-open (rename everything, or keep `englishxp` — half-renamed is the worst state);
-eas.json submit creds empty;
+**Still pending (launch blockers), re-verified 2026-08-03:** **app-identifier
+rename decision** — there is no longer a mismatch (an uncommitted local flip of
+the iOS id to `com.usukhbayar.sparkxp` was **reverted 2026-08-03**); iOS and
+Android are both `com.usukh6ayar.englishxp` with `slug`/`scheme` = `englishxp`.
+Open question: ship as `englishxp` (cheap, invisible to users) or rename
+everything to `sparkxp` — a rename is only possible **before the first store
+submit**, and half-renamed is the worst state. eas.json submit creds empty;
 Lucide migration; real gamification data (streak/level/progress placeholders);
 real video player. Full list: `ROADMAP.md §3` + `docs/LAUNCH_FROM_SCRATCH.md`.
 **Already DONE (was wrongly listed as pending):** app icon wired
