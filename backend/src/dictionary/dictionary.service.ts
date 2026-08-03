@@ -2,7 +2,6 @@ import {
   Injectable,
   BadRequestException,
   ForbiddenException,
-  InternalServerErrorException,
   Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -15,9 +14,7 @@ import { AiUsage } from '../entities/ai-usage.entity';
 import { Translation } from '../entities/translation.entity';
 import { AiUsageType, WordStatus, ContentLevel } from '../common/enums';
 import { AiGatewayService } from '../ai-gateway/ai-gateway.service';
-import { geminiRetryDelayMs } from '../words/words.service';
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+import { runGeminiText } from './gemini-text';
 
 export interface WordLookup {
   word: string;
@@ -303,8 +300,8 @@ export class DictionaryService {
   }
 
   /**
-   * Low-level Gemini text call shared by word + sentence translation. Retries
-   * transient 429/503/overload responses. `label` is used only for logging.
+   * Low-level Gemini text call shared by word + sentence translation.
+   * Delegates to the shared helper — see gemini-text.ts.
    */
   private async runGemini(
     prompt: string,
@@ -315,64 +312,6 @@ export class DictionaryService {
     promptTokens: number;
     completionTokens: number;
   }> {
-    const apiKey = this.config.get<string>('GEMINI_API_KEY');
-    if (!apiKey) {
-      throw new InternalServerErrorException('GEMINI_API_KEY тохируулаагүй байна');
-    }
-    const model = this.config.get<string>('GEMINI_MODEL', 'gemini-2.5-flash');
-
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-    const requestInit = {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.3 },
-      }),
-    };
-
-    const MAX_ATTEMPTS = 5;
-    for (let attempt = 1; ; attempt++) {
-      const response = await fetch(url, requestInit);
-      if (response.ok) {
-        const data = (await response.json()) as {
-          candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] } }[];
-          usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
-        };
-        const parts = data.candidates?.[0]?.content?.parts ?? [];
-        const text = parts
-          .filter((p) => !p.thought && p.text)
-          .map((p) => p.text)
-          .join('')
-          .trim();
-        if (!text) {
-          throw new InternalServerErrorException('AI хоосон хариу буцаалаа');
-        }
-        return {
-          text,
-          model,
-          promptTokens: data.usageMetadata?.promptTokenCount ?? 0,
-          completionTokens: data.usageMetadata?.candidatesTokenCount ?? 0,
-        };
-      }
-
-      const body = await response.text().catch(() => '');
-      const transient =
-        response.status === 429 ||
-        response.status === 503 ||
-        (response.status === 404 &&
-          /high demand|unavailable|overloaded|try again/i.test(body));
-      if (transient && attempt < MAX_ATTEMPTS) {
-        const waitMs = geminiRetryDelayMs(body, attempt);
-        this.logger.warn(
-          `Gemini ${response.status} for "${label}" — retry ${attempt}/${MAX_ATTEMPTS - 1} in ${waitMs}ms`,
-        );
-        await sleep(waitMs);
-        continue;
-      }
-
-      this.logger.error(`Gemini dictionary failed (${response.status}): ${body}`);
-      throw new InternalServerErrorException('Орчуулга үүсгэхэд алдаа гарлаа');
-    }
+    return runGeminiText(this.config, prompt, label);
   }
 }
