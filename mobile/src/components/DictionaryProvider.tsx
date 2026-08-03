@@ -47,8 +47,11 @@ import {
   lookupWord,
   translateSentence,
   getWordAudio,
-  saveWord,
+  searchWord,
+  getDictionarySaves,
+  toggleDictionarySave,
   type WordLookup,
+  type WordSense,
 } from '../api/dictionary';
 import { ApiError } from '../api/client';
 import { AppText } from './Text';
@@ -72,6 +75,8 @@ interface DictionaryState {
   translatePhrase: (text: string, anchor: Anchor) => void;
   /** Open the in-place search overlay (transparent — no screen change). */
   openSearch: () => void;
+  /** Open the full Толь card for a word (used by the Saved-words screen). */
+  openWordCard: (word: string) => void;
 }
 
 const DictionaryContext = createContext<DictionaryState | undefined>(undefined);
@@ -94,8 +99,17 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
   const [result, setResult] = useState<WordLookup | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [audioBusy, setAudioBusy] = useState(false);
-  const [saved, setSaved] = useState(false);
+  // Every word this user has starred, loaded once. Both the reader popover and
+  // the Толь card read their ⭐ state from here, so the star is never wrong on
+  // first open (the old code always started un-starred).
+  const [savedWords, setSavedWords] = useState<Set<string>>(new Set());
   const [saveBusy, setSaveBusy] = useState(false);
+
+  // Толь search card state (separate from the tap popover — different layout).
+  const [cardWord, setCardWord] = useState<string | null>(null);
+  const [cardSenses, setCardSenses] = useState<WordSense[] | null>(null);
+  const [cardLoading, setCardLoading] = useState(false);
+  const [cardError, setCardError] = useState<string | null>(null);
 
   // In-place search overlay state.
   const [searchOpen, setSearchOpen] = useState(false);
@@ -114,7 +128,6 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
       setAnchor(at);
       setResult(null);
       setError(null);
-      setSaved(false);
       setLoading(true);
       haptics.select(); // tactile tick as the meaning popover reveals
       try {
@@ -140,7 +153,6 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
       setAnchor(at);
       setResult(null);
       setError(null);
-      setSaved(false);
       setLoading(true);
       haptics.select(); // tactile tick as the translation popover reveals
       try {
@@ -167,6 +179,16 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  // Load the ⭐ list once per session. Deliberately not refreshed afterwards:
+  // if an admin deletes an entry mid-session the star stays until restart, which
+  // is the same cache semantics the rest of the dictionary already has.
+  useEffect(() => {
+    if (!token) return;
+    getDictionarySaves(token)
+      .then((rows) => setSavedWords(new Set(rows.map((r) => r.word))))
+      .catch(() => {});
+  }, [token]);
+
   const openSearch = useCallback(() => {
     setQuery('');
     setSearchOpen(true);
@@ -179,23 +201,34 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
     AsyncStorage.removeItem(RECENTS_KEY).catch(() => {});
   }, []);
 
-  // Search from the overlay: remember it, close the overlay, then open the
-  // popover near the top-centre of the screen (no tapped-word anchor here).
-  const runSearch = useCallback(
-    (raw: string) => {
-      const clean = raw.trim().toLowerCase();
-      if (!clean) return;
-      Keyboard.dismiss();
-      setSearchOpen(false);
-      setRecents((prev) => {
-        const next = [clean, ...prev.filter((w) => w !== clean)].slice(0, MAX_RECENTS);
-        AsyncStorage.setItem(RECENTS_KEY, JSON.stringify(next)).catch(() => {});
-        return next;
-      });
-      const screen = Dimensions.get('window');
-      lookup(clean, { x: screen.width / 2, y: screen.height * 0.32 });
+  /** Speak an English word: ElevenLabs clip if we have one, else device TTS. */
+  const speakEnglish = useCallback(
+    async (w: string, knownUrl?: string | null) => {
+      const playUrl = (uri: string) => {
+        try {
+          player.replace({ uri });
+          player.play();
+          return true;
+        } catch {
+          return false;
+        }
+      };
+      if (knownUrl && playUrl(knownUrl)) return;
+      if (token) {
+        setAudioBusy(true);
+        try {
+          const { audioUrl } = await getWordAudio(token, w);
+          if (playUrl(audioUrl)) return;
+        } catch {
+          // fall through to device TTS
+        } finally {
+          setAudioBusy(false);
+        }
+      }
+      Speech.stop();
+      Speech.speak(w, { language: 'en-US', rate: 0.9 });
     },
-    [lookup],
+    [token, player],
   );
 
   // Speak the English word: prefer the ElevenLabs clip (generated + cached on
@@ -208,45 +241,71 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
       Speech.speak(word, { language: 'en-US', rate: 0.9 });
       return;
     }
-    const playUrl = (uri: string) => {
-      try {
-        player.replace({ uri });
-        player.play();
-        return true;
-      } catch {
-        return false;
-      }
-    };
-    if (result?.audioUrl && playUrl(result.audioUrl)) return;
-    if (token) {
-      setAudioBusy(true);
-      try {
-        const { audioUrl } = await getWordAudio(token, word);
-        setResult((r) => (r ? { ...r, audioUrl } : r));
-        if (playUrl(audioUrl)) return;
-      } catch {
-        // fall through to device TTS
-      } finally {
-        setAudioBusy(false);
-      }
-    }
-    Speech.stop();
-    Speech.speak(word, { language: 'en-US', rate: 0.9 });
-  }, [word, result, token, player, isPhrase]);
+    await speakEnglish(word, result?.audioUrl);
+  }, [word, isPhrase, result, speakEnglish]);
 
-  // Save the word (+ translation) to the user's saved vocabulary.
-  const save = useCallback(async () => {
-    if (!word || !token || saved || saveBusy) return;
-    setSaveBusy(true);
-    try {
-      await saveWord(token, word);
-      setSaved(true);
-    } catch {
-      // ignore — keep the icon un-saved so the user can retry
-    } finally {
-      setSaveBusy(false);
-    }
-  }, [word, token, saved, saveBusy]);
+  // ⭐ toggle. Goes to `user_dictionary_saves` — never to the curated word bank.
+  const toggleStar = useCallback(
+    async (raw: string) => {
+      const w = raw.trim().toLowerCase();
+      if (!w || !token || saveBusy) return;
+      setSaveBusy(true);
+      try {
+        const { saved: isSaved } = await toggleDictionarySave(token, w);
+        setSavedWords((prev) => {
+          const next = new Set(prev);
+          if (isSaved) next.add(w);
+          else next.delete(w);
+          return next;
+        });
+      } catch {
+        // leave the star as-is so the user can retry
+      } finally {
+        setSaveBusy(false);
+      }
+    },
+    [token, saveBusy],
+  );
+
+  /** Open the Толь card for a word: 4 senses in a wide, scrollable sheet. */
+  const openWordCard = useCallback(
+    async (raw: string) => {
+      const clean = raw.trim().toLowerCase();
+      if (!clean || !token) return;
+      setCardWord(clean);
+      setCardSenses(null);
+      setCardError(null);
+      setCardLoading(true);
+      haptics.select();
+      try {
+        const { senses } = await searchWord(token, clean);
+        setCardSenses(senses);
+      } catch (err) {
+        setCardError(err instanceof ApiError ? err.message : t('noSensesFound'));
+      } finally {
+        setCardLoading(false);
+      }
+    },
+    [token],
+  );
+
+  // Search from the overlay: remember it, close the overlay, then open the
+  // wide Толь card (4 senses) — not the tap popover, which can't fit them.
+  const runSearch = useCallback(
+    (raw: string) => {
+      const clean = raw.trim().toLowerCase();
+      if (!clean) return;
+      Keyboard.dismiss();
+      setSearchOpen(false);
+      setRecents((prev) => {
+        const next = [clean, ...prev.filter((w) => w !== clean)].slice(0, MAX_RECENTS);
+        AsyncStorage.setItem(RECENTS_KEY, JSON.stringify(next)).catch(() => {});
+        return next;
+      });
+      openWordCard(clean);
+    },
+    [openWordCard],
+  );
 
   // Position the popover next to the tapped word, clamped to the screen.
   // Both dimensions are anchored by a FIXED edge so that when the content grows
@@ -284,8 +343,8 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
   // <SelectableText>) re-renders on each lookup tick and the text visibly
   // re-lays-out / "trembles" under the tapped word.
   const value = useMemo(
-    () => ({ lookup, translatePhrase, openSearch }),
-    [lookup, translatePhrase, openSearch],
+    () => ({ lookup, translatePhrase, openSearch, openWordCard }),
+    [lookup, translatePhrase, openSearch, openWordCard],
   );
 
   return (
@@ -388,34 +447,85 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
                 </Pressable>
                 {/* Save is word-only — sentences aren't added to vocabulary. */}
                 {!isPhrase ? (
-                  <Pressable onPress={save} hitSlop={8} style={styles.iconBtn}>
+                  <Pressable onPress={() => toggleStar(word!)} hitSlop={8} style={styles.iconBtn}>
                     {saveBusy ? (
                       <ActivityIndicator size="small" color={colors.primary} />
                     ) : (
                       <Ionicons
-                        name={saved ? 'bookmark' : 'bookmark-outline'}
+                        name={savedWords.has(word ?? '') ? 'bookmark' : 'bookmark-outline'}
                         size={22}
-                        color={saved ? colors.success : colors.primary}
+                        color={savedWords.has(word ?? '') ? colors.success : colors.primary}
                       />
                     )}
                   </Pressable>
                 ) : null}
               </View>
-
-              {/* Richer 4-part explanation, when the backend provides it (doc §2). */}
-              {result.sections && result.sections.length > 0 ? (
-                <ScrollView style={styles.sections} showsVerticalScrollIndicator={false}>
-                  {result.sections.map((s, i) => (
-                    <View key={i} style={styles.section}>
-                      <AppText variant="label" color={colors.primary}>{s.title}</AppText>
-                      <AppText variant="caption" color={colors.textSecondary}>{s.body}</AppText>
-                    </View>
-                  ))}
-                </ScrollView>
-              ) : null}
             </View>
           ) : null}
         </Animated.View>
+      </Modal>
+
+      {/* Толь card — the 4-sense search result. Wide + scrollable, unlike the
+          260px tap popover, which cannot fit four 3-line senses. */}
+      <Modal
+        visible={!!cardWord}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setCardWord(null)}
+      >
+        <Pressable style={styles.cardBackdrop} onPress={() => setCardWord(null)}>
+          <Pressable style={styles.card} onPress={() => {}}>
+            <View style={styles.cardHead}>
+              <AppText variant="h3" style={styles.cardWord}>{cardWord}</AppText>
+              <Pressable
+                hitSlop={8}
+                style={styles.iconBtn}
+                onPress={() => cardWord && speakEnglish(cardWord)}
+              >
+                {audioBusy ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <Ionicons name="volume-high" size={22} color={colors.primary} />
+                )}
+              </Pressable>
+              <Pressable
+                hitSlop={8}
+                style={styles.iconBtn}
+                onPress={() => cardWord && toggleStar(cardWord)}
+              >
+                {saveBusy ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <Ionicons
+                    name={savedWords.has(cardWord ?? '') ? 'bookmark' : 'bookmark-outline'}
+                    size={22}
+                    color={savedWords.has(cardWord ?? '') ? colors.success : colors.primary}
+                  />
+                )}
+              </Pressable>
+            </View>
+
+            {cardLoading ? (
+              <ActivityIndicator style={styles.cardLoading} color={colors.primary} />
+            ) : cardError ? (
+              <AppText variant="body" color={colors.textMuted}>{cardError}</AppText>
+            ) : (
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {(cardSenses ?? []).map((s, i) => (
+                  <View key={i} style={styles.sense}>
+                    <AppText variant="label" color={colors.primary}>
+                      {i + 1}. {s.word}
+                    </AppText>
+                    <AppText variant="body">{s.example}</AppText>
+                    <AppText variant="body" color={colors.textSecondary}>
+                      {s.translation}
+                    </AppText>
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+          </Pressable>
+        </Pressable>
       </Modal>
     </DictionaryContext.Provider>
   );
@@ -544,8 +654,6 @@ const makeStyles = (colors: AppColors) => StyleSheet.create({
   },
   popoverBody: { gap: spacing.sm },
   popoverRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  sections: { maxHeight: 220 },
-  section: { marginTop: spacing.sm, gap: 2 },
   translation: { flexShrink: 1, marginRight: spacing.xs },
   iconBtn: {
     width: 40,
@@ -555,4 +663,28 @@ const makeStyles = (colors: AppColors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+
+  // Толь search card (4 senses) — wide, centred, scrollable.
+  cardBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.lg,
+  },
+  card: {
+    maxHeight: '65%',
+    borderRadius: radius.lg,
+    backgroundColor: colors.surface,
+    padding: spacing.lg,
+    ...elevation.float,
+  },
+  cardHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  cardWord: { flex: 1 },
+  cardLoading: { paddingVertical: spacing.xl },
+  sense: { marginBottom: spacing.lg, gap: 2 },
 });

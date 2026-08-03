@@ -776,6 +776,10 @@ const mn = {
   searchEnglishWord: 'Англи үг хайх...',
   recentSearches: 'Сүүлд хайсан',
   clearHistory: 'Цэвэрлэх',
+  dictionaryWords: 'Тольны үгс',
+  lessonWords: 'Хичээлийн үгс',
+  noSensesFound: 'Энэ үгийн утга олдсонгүй.',
+  openInDictionary: 'Тольноос харах',
 
   // CEFR levels (register)
   cefrA1: 'Анхан',
@@ -1699,6 +1703,10 @@ const en: Record<TranslationKey, string> = {
   searchEnglishWord: 'Search English word...',
   recentSearches: 'Recent',
   clearHistory: 'Clear',
+  dictionaryWords: 'Dictionary words',
+  lessonWords: 'Lesson words',
+  noSensesFound: 'No meanings found for this word.',
+  openInDictionary: 'Open in dictionary',
 
   // CEFR levels (register)
   cefrA1: 'Beginner',
