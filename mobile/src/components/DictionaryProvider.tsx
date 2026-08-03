@@ -59,6 +59,15 @@ import { t } from '../i18n';
 import { spacing, radius, elevation, type AppColors } from '../theme/theme';
 import { useColors } from '../settings/SettingsContext';
 
+/**
+ * Must match the server's `normaliseWord` exactly (backend
+ * dictionary-senses.service.ts) — including collapsing inner whitespace.
+ * If the two disagree, a word the server has starred comes back under a
+ * different key and its ⭐ renders empty.
+ */
+const normaliseWord = (raw: string) =>
+  raw.trim().toLowerCase().replace(/\s+/g, ' ');
+
 const RECENTS_KEY = 'dictionary_recents';
 const MAX_RECENTS = 12;
 
@@ -120,7 +129,7 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
 
   const lookup = useCallback(
     async (raw: string, at: Anchor) => {
-      const clean = raw.trim().toLowerCase();
+      const clean = normaliseWord(raw);
       if (!clean || !token) return;
 
       setIsPhrase(false);
@@ -183,11 +192,19 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
   // if an admin deletes an entry mid-session the star stays until restart, which
   // is the same cache semantics the rest of the dictionary already has.
   useEffect(() => {
-    if (!token) return;
+    // Logging out must drop the previous user's stars — on a shared device they
+    // would otherwise stay in memory until the next login's fetch resolves.
+    if (!token) {
+      setSavedWords(new Set());
+      return;
+    }
     getDictionarySaves(token)
       .then((rows) => setSavedWords(new Set(rows.map((r) => r.word))))
       .catch(() => {});
   }, [token]);
+
+  /** Pronunciation URLs already fetched this session, keyed by word. */
+  const audioCache = useRef<Map<string, string>>(new Map());
 
   const openSearch = useCallback(() => {
     setQuery('');
@@ -214,10 +231,15 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
         }
       };
       if (knownUrl && playUrl(knownUrl)) return;
+      // Remember fetched clips for this session: without it, pressing 🔊 twice
+      // on the same word hits the audio endpoint again every time.
+      const cached = audioCache.current.get(w);
+      if (cached && playUrl(cached)) return;
       if (token) {
         setAudioBusy(true);
         try {
           const { audioUrl } = await getWordAudio(token, w);
+          audioCache.current.set(w, audioUrl);
           if (playUrl(audioUrl)) return;
         } catch {
           // fall through to device TTS
@@ -247,7 +269,7 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
   // ⭐ toggle. Goes to `user_dictionary_saves` — never to the curated word bank.
   const toggleStar = useCallback(
     async (raw: string) => {
-      const w = raw.trim().toLowerCase();
+      const w = normaliseWord(raw);
       if (!w || !token || saveBusy) return;
       setSaveBusy(true);
       try {
@@ -270,7 +292,7 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
   /** Open the Толь card for a word: 4 senses in a wide, scrollable sheet. */
   const openWordCard = useCallback(
     async (raw: string) => {
-      const clean = raw.trim().toLowerCase();
+      const clean = normaliseWord(raw);
       if (!clean || !token) return;
       setCardWord(clean);
       setCardSenses(null);
@@ -293,7 +315,7 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
   // wide Толь card (4 senses) — not the tap popover, which can't fit them.
   const runSearch = useCallback(
     (raw: string) => {
-      const clean = raw.trim().toLowerCase();
+      const clean = normaliseWord(raw);
       if (!clean) return;
       Keyboard.dismiss();
       setSearchOpen(false);
