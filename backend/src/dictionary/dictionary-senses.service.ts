@@ -125,9 +125,16 @@ export class DictionarySensesService {
           edited: false,
         }),
       );
-    } catch {
+    } catch (err) {
+      // Only a unique violation is expected here — another request cached the
+      // same new word a moment earlier. Anything else (connection loss, a
+      // constraint from a future column) is rethrown as itself: swallowing it
+      // would report a database outage to the student as "word not found" and
+      // silently discard the Gemini call we just paid for.
+      if ((err as { code?: string }).code !== '23505') throw err;
       const existing = await this.entries.findOne({ where: { word } });
-      if (existing) return { word, senses: existing.senses ?? [], cached: true };
+      if (existing)
+        return { word, senses: existing.senses ?? [], cached: true };
       throw new NotFoundException('Энэ үгийн утга олдсонгүй');
     }
 
@@ -221,7 +228,8 @@ export class DictionarySensesService {
     const qb = this.entries.createQueryBuilder('e');
     const search = query.search?.trim();
     if (search) {
-      qb.where('e.word ILIKE :search', { search: `%${search.toLowerCase()}%` });
+      // ILIKE is already case-insensitive — no need to lower-case the term.
+      qb.where('e.word ILIKE :search', { search: `%${search}%` });
     }
     if (query.sort === 'recent') {
       qb.orderBy('e.createdAt', 'DESC');
