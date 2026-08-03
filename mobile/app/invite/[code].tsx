@@ -14,7 +14,7 @@ import { bounded } from '../../src/theme/responsive';
 import { useColors } from '../../src/settings/SettingsContext';
 
 /**
- * Deep-link target: `englishxp://invite/CODE`.
+ * Deep-link target: `sparkxp://invite/CODE`.
  * - Logged out → stash the code and send them to register, where the code is
  *   applied so both sides get the referral XP after email verification.
  * - Logged in → can't be referred (only new users), so show a friendly note.

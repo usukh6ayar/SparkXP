@@ -19,7 +19,7 @@ import { useColors } from '../settings/SettingsContext';
 /**
  * Student "join a class" flow: type the code or scan the class QR. Either way
  * it sends a join request that the teacher must approve (pending state shown).
- * `initialCode` is set when opened via a deep link (`englishxp://join/CODE`).
+ * `initialCode` is set when opened via a deep link (`sparkxp://join/CODE`).
  */
 export function JoinClass({ initialCode }: { initialCode?: string }) {
   const colors = useColors();
