@@ -9,6 +9,7 @@ import Login from './pages/Login';
 // JS instead of shipping all ~18 pages (incl. the 1200-line WordsPage) in the
 // initial bundle. The Layout's <Suspense> shows a spinner while a chunk loads.
 const WordsPage = lazy(() => import('./pages/words/WordsPage'));
+const DictionaryPage = lazy(() => import('./pages/dictionary/DictionaryPage'));
 const LessonsPage = lazy(() => import('./pages/lessons/LessonsPage'));
 const IdiomsPage = lazy(() => import('./pages/idioms/IdiomsPage'));
 const ExercisesPage = lazy(() => import('./pages/exercises/ExercisesPage'));
@@ -43,6 +44,7 @@ export default function App() {
           >
             <Route index element={<Navigate to="/words" replace />} />
             <Route path="/words"         element={<WordsPage />} />
+            <Route path="/dictionary"    element={<DictionaryPage />} />
             <Route path="/lessons"       element={<LessonsPage />} />
             <Route path="/idioms"        element={<IdiomsPage />} />
             <Route path="/exercises"     element={<ExercisesPage />} />
