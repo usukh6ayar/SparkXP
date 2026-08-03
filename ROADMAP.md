@@ -45,10 +45,14 @@
 > **3 нь аль хэдийн хийгдсэн** байсан: фонт (`useFonts` → `_layout.tsx:122`),
 > app icon (`assets/icon-ios.png` 1024×1024 + `icon.png` 1254×1254),
 > EAS init (`extra.eas.projectId` жинхэнэ). Taste-task онбординг ч ✅ (C4).
-> **Үнэхээр үлдсэн store блокер:** `splash` тохируулаагүй · iOS/Android
-> **bundle ID зөрүү** · eas.json submit creds хоосон.
-> Кодын талын бүрэн олдвор → **`docs/CODE_AUDIT.md`** (migration гинж тасарсан,
-> `JWT_SECRET` default, rate limit алга гэсэн 3 өндөр эрэмбийн зүйл багтсан).
+> **🔄 2026-08-03 шинэчлэл.** `splash` ✅ **хийгдсэн** (доор). Кодын 3 өндөр
+> эрэмбийн олдвор ч бүгд ✅ зассан (`@nestjs/throttler` + helmet `main.ts`,
+> `JWT_SECRET` fail-fast `auth/jwt-secret.ts`, `CreateAssignmentCompletions1785550000000`)
+> — `docs/CODE_AUDIT.md §0` харна уу; IELTS admin authoring ч
+> `admin/src/pages/ielts/IeltsPage.tsx` дээр бэлэн.
+> **Үнэхээр үлдсэн store блокер:** iOS/Android **bundle ID зөрүү** (шийдвэр
+> хүлээж байна) · eas.json submit creds хоосон · Apple/Google бүртгэл.
+> Кодын талын бүрэн олдвор → **`docs/CODE_AUDIT.md`**.
 
 ### 🧑‍🤝‍🧑 Launch ажлын хуваарь (шинэчилсэн 2026-07-21 — 3-талт тэнцүү)
 > Ажлыг **3-уулаа тэнцүү** хуваав. **3D AI buddy avatar-ыг хамгийн СҮҮЛД, 3-уулаа
@@ -56,9 +60,9 @@
 
 | Owner | Ажил (тэнцүү 3 багц) |
 | --- | --- |
-| **Өсөхбаяр** (backend/admin/infra) | Railway Hobby + **бүх prod migration** (reading/idioms/translations/ai-buddy-voice/**IELTS**); 🆕 **`docs/CODE_AUDIT.md`-ийн 3 өндөр эрэмбэ**: migration гинж засах (`CreateAssignmentCompletions`) · `JWT_SECRET` fail-fast · rate limit (`@nestjs/throttler`) + helmet; `C1-BE` ✅ · `C2-BE` ✅ · `C4-BE` ✅; **IELTS Plan 2 — admin authoring**; Apple($99)/Google($25) account + EAS submit config |
+| **Өсөхбаяр** (backend/admin/infra) | Railway Hobby + **бүх prod migration** (reading/idioms/translations/ai-buddy-voice/**IELTS**); ~~`docs/CODE_AUDIT.md`-ийн 3 өндөр эрэмбэ~~ ✅ (#178/#179) · ~~IELTS Plan 2 admin authoring~~ ✅; `C1-BE` ✅ · `C2-BE` ✅ · `C4-BE` ✅; **splash** ✅ (2026-08-03); **үлдсэн:** Apple($99)/Google($25) account + EAS submit config + bundle ID шийдвэр |
 | **Choi** (mobile — learning + IELTS L/R) | ✅ бүгд дууссан (2026-07-22): `C1` Home hero (FE) · `C4` taste-task онбординг (FE) · **IELTS Plan 3a — `/ielts` hub + L/R runner (band)** · фонт (Manrope/Inter). Үлдсэн: бодит утсан дээрх regression тест |
-| **Boju** (mobile — buddy/games + store) | `C3` buddy scaffold (starter prompt + voice-минут үлдэгдэл + limit→текст); real gamification data (placeholder → бодит); **IELTS Plan 3b — Writing/Speaking практик дэлгэц** (model-answer reveal); **splash + App Store material** (screenshot/description/privacy/data-safety) — *icon ✅ хийгдсэн* |
+| **Boju** (mobile — buddy/games + store) | `C3` buddy scaffold (starter prompt + voice-минут үлдэгдэл + limit→текст); real gamification data (placeholder → бодит); **IELTS Plan 3b — Writing/Speaking практик дэлгэц** (model-answer reveal); **App Store material** (screenshot/description/privacy/data-safety) — *icon ✅ · splash ✅ (Өсөхбаяр 2026-08-03, native config тул lead хийв — ДАВХАРДУУЛАХГҮЙ)* |
 
 > **🟪 3D AI buddy — ХАМГИЙН СҮҮЛД, 3-уулаа хамт:** optimize rigged GLB (<5MB) → R2
 > upload → admin `avatarAssetUrl` → mobile wire + procedural lip-sync + утсан дээр тест.
@@ -684,9 +688,16 @@ Expo Go дээр `npm install` хийсний дараа Reading passage нээ�
       `Ө ө Ү ү` глиф байхгүй тул гарчиг дотор системийн фонтоор солигдож
       харагдаж байсан. Шинэ фонт нэмэхээсээ өмнө глиф шалгах дүрэм →
       `mobile/DESIGN.md` § Typography.
-- [ ] **Splash screen** — `app.json`-д `splash` түлхүүр **огт байхгүй** → Expo-ийн
-      default цагаан дэлгэц гарна. `assets/splash.png` + тохиргоо (fox/logo on
-      `#191040`). Store blocker биш ч launch-д хэрэгтэй.
+- [x] **Splash screen ✅ (2026-08-03)** — `expo-splash-screen` plugin `app.json`-д
+      нэмэгдсэн: `assets/splash-icon.png` (үнэгний icon-ыг 1024×1024 тунгалаг
+      талбайн голд 2/3 хэмжээтэй байрлуулсан — Android 12-ийн дугуй маск
+      таслахгүй), `imageWidth: 200`, `resizeMode: contain`, дэвсгэр нь **theme-ийн
+      өнгө** (light `#F6F4FD` · dark `#0B0716`) тул апп нээгдэхэд өнгө үсрэхгүй.
+      `app/_layout.tsx` нь `SplashScreen.preventAutoHideAsync()` дуудаж, фонт
+      ачаалагдсаны дараа `hideAsync()` хийнэ — эс бөгөөс splash эхний frame дээр
+      алга болж, фонт ачаалагдах хүртэл хоосон дэлгэц харагдана.
+      ⚠️ Splash нь **зөвхөн native build дээр** харагдана (Expo Go өөрийн
+      splash-аа үзүүлдэг) → EAS build-ээр нүдээр батал.
 - [ ] 🆕 **Bundle ID зөрүү — submit хийхийн ӨМНӨ шийдэх.** iOS
       `com.usukhbayar.sparkxp` ↔ Android `com.usukh6ayar.englishxp`, `slug`/`scheme`
       нь `englishxp` хэвээр. EAS credential нь хуучин ID-д уягдсан тул iOS-ийн

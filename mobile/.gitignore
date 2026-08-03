@@ -47,3 +47,6 @@ keys/
 /android
 # hot-updater
 .hot-updater/output
+
+# Store submit credentials (never commit)
+google-service-account.json

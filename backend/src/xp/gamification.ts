@@ -125,6 +125,31 @@ export function resolveStreak(input: StreakInput): {
 }
 
 /**
+ * Whether a streak is still standing right now — i.e. whether meeting today's
+ * goal would continue it rather than start a new one.
+ *
+ * The read path (Home / Profile) must agree with `resolveStreak`, which only
+ * runs once the goal is met. Judging this on "active today or yesterday" alone
+ * ignored freezes: after a missed day the app showed a 0 streak until the goal
+ * was met, so the freeze the learner spent Sparks on looked like it had done
+ * nothing. Same rules as `resolveStreak`, in read-only form.
+ */
+export function isStreakAlive(input: {
+  lastActiveDate: string | null;
+  today: string;
+  freezes: number;
+}): boolean {
+  const { lastActiveDate, today, freezes } = input;
+  if (!lastActiveDate) return false;
+
+  const gap = daysBetween(lastActiveDate, today);
+  if (gap <= 1) return true; // active today or yesterday
+
+  const missed = gap - 1;
+  return missed <= MAX_FROZEN_DAYS && freezes >= missed;
+}
+
+/**
  * Whether the app should still throw a streak celebration today.
  *
  * `lastActiveDate === today` only becomes true once the daily goal is met, so

@@ -126,10 +126,13 @@ multi-thread chat, quiz result celebration (Confetti+haptics+combo), notificatio
 center, WebP asset perf. Full done-list + **Critical UX C1–C4** (C1 ✅, C2 ✅ BE+FE
 (`POST /quizzes/:id/check` → check→continue урсгал), C3 buddy scaffold 🔶, C4 ✅) →
 `ROADMAP.md §3` + `mobile/UX_CRITICAL_SPEC.md`.
-**Still pending (launch blockers), re-verified 2026-07-28:** `splash` not
-configured in `app.json`; **iOS/Android bundle ID mismatch** (iOS
-`com.usukhbayar.sparkxp` vs Android `com.usukh6ayar.englishxp`, `slug`/`scheme`
-still `englishxp`) — decide before store submit; eas.json submit creds empty;
+**Still pending (launch blockers), re-verified 2026-08-03:** **app-identifier
+rename decision** — there is no longer a mismatch (an uncommitted local flip of
+the iOS id to `com.usukhbayar.sparkxp` was **reverted 2026-08-03**); iOS and
+Android are both `com.usukh6ayar.englishxp` with `slug`/`scheme` = `englishxp`.
+Open question: ship as `englishxp` (cheap, invisible to users) or rename
+everything to `sparkxp` — a rename is only possible **before the first store
+submit**, and half-renamed is the worst state. eas.json submit creds empty;
 Lucide migration; real gamification data (streak/level/progress placeholders);
 real video player. Full list: `ROADMAP.md §3` + `docs/LAUNCH_FROM_SCRATCH.md`.
 **Already DONE (was wrongly listed as pending):** app icon wired
@@ -148,6 +151,27 @@ migration `AddTrophyPinnedRank1786300000000`). ⚠️ **Choi/Boju:** трофе�
 **`useCelebrations`/`CelebrationHost`/`checkCelebrations()`** (streak + трофей
 нэг дараалалд). XP олдог шинэ дуусгах дэлгэц нэмэх бүрд `checkCelebrations()`
 дуудаарай.
+
+**Splash + доод навигаци + streak freeze (2026-08-03).**
+- **Splash ✅** — `expo-splash-screen` plugin `app.json`-д (шинэ asset
+  `assets/splash-icon.png`, дэвсгэр нь theme-ийн өнгө: light `#F6F4FD` · dark
+  `#0B0716`). `app/_layout.tsx` splash-ыг фонт ачаалагдтал барина
+  (`preventAutoHideAsync` → `hideAsync`). Splash **зөвхөн native build**-д
+  харагдана; Expo Go өөрийн splash-ыг үзүүлнэ.
+- **Доод навигаци — шил (glass) БОЛИВ.** `WaveCard` нь одоо `BlurView`-гүй,
+  **цул `colors.surface`** + ганц зөөлөн сүүдэр (`y −4 · blur 24 · 9%`), градиент
+  hairline хассан. `TabItem`-ийн идэвхтэй тэмдэг нь bloom биш **18×3 гэрэлтсэн
+  доогуур зураас** + дүрс 8px өргөгдөж 1.08 томорно. Табын мөр одоо safe-area
+  дээр (`bottom: insets.bottom`) суух тул дүрс home-indicator руу шахагдахаа
+  болив. Дүрс хэвээр **Ionicons** outline↔filled (Phosphor/Lucide рүү шилжих нь
+  тусдаа ажил — бүх апп даяар нэг дор хийнэ).
+- **Streak freeze засвар (BE)** — `isStreakAlive()` (`src/xp/gamification.ts`)
+  нэмэгдэж, `getGamification` нь freeze-ийг тооцдог болов. Өмнө нь өдөр
+  алгассаны дараа Home **0** харуулж, худалдаж авсан freeze ажиллахгүй мэт
+  харагддаг байсан (freeze нь зорилт биелэх үед л зарцуулагддаг). API-ийн
+  хэлбэр өөрчлөгдөөгүй.
+- ⚠️ **Choi/Boju:** `git pull` дараа **`npm install` заавал** — `expo-splash-screen`
+  шинэ dependency.
 
 **Фонт: Onest → Manrope (2026-07-31).** Onest нь **Ө ө Ү ү**
 (U+04E8/04E9/04AE/04AF) глифгүй байсан тул гарчиг дотор эдгээр үсэг системийн

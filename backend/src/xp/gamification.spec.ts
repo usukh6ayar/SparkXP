@@ -1,4 +1,5 @@
 import {
+  isStreakAlive,
   resolveStreak,
   streakCelebrationDue,
   MAX_FROZEN_DAYS,
@@ -70,6 +71,70 @@ describe('resolveStreak', () => {
     expect(
       resolveStreak({ ...base, lastActiveDate: '2026-06-30', today: '2026-07-01' }),
     ).toEqual({ streak: 11, freezesLeft: 0, freezesUsed: 0 });
+  });
+});
+
+/**
+ * What Home/Profile show BEFORE today's goal is met. This has to agree with
+ * `resolveStreak`, which only runs once the goal is met — if the read path
+ * calls a streak dead that `resolveStreak` would revive with a freeze, the
+ * learner sees a 0 and concludes the freeze they paid Sparks for did nothing.
+ */
+describe('isStreakAlive', () => {
+  const base = { today: '2026-07-28', freezes: 0 };
+
+  it('is alive on the day the goal was met', () => {
+    expect(isStreakAlive({ ...base, lastActiveDate: '2026-07-28' })).toBe(true);
+  });
+
+  it('is alive the day after, before today’s goal is met', () => {
+    expect(isStreakAlive({ ...base, lastActiveDate: '2026-07-27' })).toBe(true);
+  });
+
+  it('is dead after a missed day with no freezes', () => {
+    expect(isStreakAlive({ ...base, lastActiveDate: '2026-07-26' })).toBe(false);
+  });
+
+  it('stays alive across a missed day when a freeze can cover it', () => {
+    // The whole point of the purchase: one missed day, one freeze held.
+    expect(
+      isStreakAlive({ ...base, lastActiveDate: '2026-07-26', freezes: 1 }),
+    ).toBe(true);
+  });
+
+  it('needs one freeze per missed day', () => {
+    // Two missed days, only one freeze → resolveStreak would reset, so must
+    // read as dead rather than promise a streak that is about to vanish.
+    expect(
+      isStreakAlive({ ...base, lastActiveDate: '2026-07-25', freezes: 1 }),
+    ).toBe(false);
+    expect(
+      isStreakAlive({ ...base, lastActiveDate: '2026-07-25', freezes: 2 }),
+    ).toBe(true);
+  });
+
+  it('is dead beyond the freeze cap however many are held', () => {
+    expect(
+      isStreakAlive({ ...base, lastActiveDate: '2026-06-01', freezes: 99 }),
+    ).toBe(false);
+  });
+
+  it('is dead for a learner who has never been active', () => {
+    expect(isStreakAlive({ ...base, lastActiveDate: null })).toBe(false);
+  });
+
+  it('agrees with resolveStreak on every gap it is asked about', () => {
+    // The two functions disagreeing IS the bug, so pin them together rather
+    // than trusting two hand-written tables to stay in sync.
+    for (const freezes of [0, 1, 2]) {
+      for (let gap = 1; gap <= 5; gap++) {
+        const lastActiveDate = `2026-07-${String(28 - gap).padStart(2, '0')}`;
+        const survives =
+          resolveStreak({ lastActiveDate, currentStreak: 10, freezes, today: base.today })
+            .streak > 1;
+        expect(isStreakAlive({ ...base, lastActiveDate, freezes })).toBe(survives);
+      }
+    }
   });
 });
 

@@ -7,6 +7,7 @@ import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 import { ThemeProvider, DarkTheme, DefaultTheme } from "@react-navigation/native";
 import { StatusBar } from "expo-status-bar";
 import { setAudioModeAsync } from "expo-audio";
+import * as SplashScreen from "expo-splash-screen";
 import Constants from "expo-constants";
 import {
   useFonts,
@@ -32,6 +33,13 @@ import { LockScreen } from "../src/components/LockScreen";
 // TEMP: when true, the auth gate stops redirecting so onboarding / login /
 // register can be browsed freely. Set false to restore normal behaviour.
 const PREVIEW_AUTH = false;
+
+// Keep the native splash (fox on the brand background, see `app.json` →
+// `expo-splash-screen`) on screen until the fonts below are ready. Without this
+// the splash hides on the first frame and the user sees a blank screen while
+// the fonts load. Errors are ignored: a splash that refuses to hide would brick
+// the app, and in Expo Go there is no native splash of ours to control.
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 function RootNavigator() {
   const { token, user, loading, onboarded, biometricEnabled, biometricLocked } = useAuth();
@@ -136,9 +144,16 @@ function RootLayout() {
     setAudioModeAsync({ playsInSilentMode: true }).catch(() => {});
   }, []);
 
+  // Fonts settled (loaded or failed) → hand the screen over to the app.
+  useEffect(() => {
+    if (fontsLoaded || fontError) SplashScreen.hideAsync().catch(() => {});
+  }, [fontsLoaded, fontError]);
+
   if (!fontsLoaded && !fontError) {
     return (
-      <View style={[styles.center, { backgroundColor: "#191040" }]}>
+      // Must match the splash `backgroundColor` in `app.json`, or a lost race
+      // between `hideAsync` and the first render flashes a different colour.
+      <View style={[styles.center, { backgroundColor: "#0B0716" }]}>
         <ActivityIndicator size="large" color="#6C3BFF" />
       </View>
     );

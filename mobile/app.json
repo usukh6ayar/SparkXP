@@ -40,6 +40,18 @@
       "expo-router",
       "expo-secure-store",
       [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#F6F4FD",
+          "dark": {
+            "backgroundColor": "#0B0716"
+          }
+        }
+      ],
+      [
         "expo-camera",
         {
           "cameraPermission": "\u0410\u043d\u0433\u0438 \u043d\u044d\u0433\u0434\u044d\u0445 QR \u043a\u043e\u0434 \u0443\u043d\u0448\u0438\u0445\u0430\u0434 \u043a\u0430\u043c\u0435\u0440 \u0430\u0448\u0438\u0433\u043b\u0430\u043d\u0430."
