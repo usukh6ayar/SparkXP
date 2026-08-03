@@ -1,6 +1,6 @@
-# EnglishXP — Backend
+# SparkXP — Backend
 
-NestJS + TypeScript API for EnglishXP. PostgreSQL via TypeORM, Redis for
+NestJS + TypeScript API for SparkXP. PostgreSQL via TypeORM, Redis for
 cache/queue. This is the **foundation only** — entities and infrastructure
 wiring, no feature endpoints yet.
 

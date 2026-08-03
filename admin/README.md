@@ -1,4 +1,4 @@
-# EnglishXP — Admin Web (SparkXP)
+# SparkXP — Admin Web
 
 Vite + React + TypeScript admin dashboard for managing content (words, lessons,
 quizzes), users, organizations and more. Talks to the NestJS backend over REST.

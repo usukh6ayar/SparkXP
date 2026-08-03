@@ -1,4 +1,4 @@
-# EnglishXP backend-ийг deploy хийх
+# SparkXP backend-ийг deploy хийх
 
 Энэ бол NestJS API (`/backend`)-ийг production-д гаргах шалгах хуудас. Жинхэнэ
 хэрэглэгчид ажиллахад саад болдог гол 3 зүйлийг хамарна: **өгөгдлийн сангийн
@@ -110,9 +110,9 @@ ADMIN_ORIGIN=https://your-admin.vercel.app   # админ веб-д зориул
 
 ```bash
 # /backend дотроос
-docker build -t englishxp-api .
+docker build -t sparkxp-api .
 
-docker run -p 3000:3000 --env-file .env englishxp-api
+docker run -p 3000:3000 --env-file .env sparkxp-api
 ```
 
 Контейнер `node dist/main.js`-ийг ажиллуулна. `DB_MIGRATIONS_RUN=true` үед эхлэх

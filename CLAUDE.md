@@ -1,4 +1,4 @@
-# SparkXP (EnglishXP)
+# SparkXP
 
 Gamified English learning app for Mongolian students, schools, and
 organizations (e.g. law firms). Owner: Hustle Hive LLC.
