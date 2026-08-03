@@ -254,6 +254,33 @@ git add backend/src/dictionary/senses.ts backend/src/dictionary/senses.spec.ts
 git commit -m "feat(dictionary): parseSenses — Gemini-ийн 4 утгатай JSON хариуг задлагч"
 ```
 
+- [ ] **Step 6: Кодын шалгалтын дараах засвар** *(2026-08-03 review-ийн дараа нэмэгдэв)*
+
+Дээрх код нь талбарын **урттай хязгаар тавьдаггүй** байсан — Gemini-ийн эвдэрсэн
+хариунаас ирсэн 50KB `word` нь үүрд үлдэх jsonb мөрөнд бичигдэх боломжтой байв.
+Тиймээс `senses.ts`-д нэм:
+
+```ts
+/**
+ * Per-field length bounds. The AI-sourced path (parseSenses) and the
+ * admin-edited path (SenseDto) enforce the same numbers from this one constant.
+ */
+export const SENSE_FIELD_MAX = { word: 120, example: 300, translation: 300 } as const;
+```
+
+`cleanField`-д хамгийн их урт дамжуулж, хэтэрсэн талбартай утгыг **бүтнээр нь
+хая** (таслахгүй — таслагдсан жишээ өгүүлбэр үүрд хадгалагдах нь дутуу байснаас
+дор). Мөн `JSON.parse` унасан үед эхний код-блокоор нэг удаа дахин оролд:
+`raw.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1]` (эхний `[`-ээс сүүлийн `]`
+хүртэл огтлох аргыг **бүү** ашигла — `{ senses: [...] }` хэлбэрийг эвдэнэ).
+
+Нэмэлт тест: талбар нь `123` / `null` / `{…}` төрөлтэй; хязгаар хэтэрсэн талбар;
+хаалтын хашилтын дараа хоосон зайтай оролт.
+
+Давхардсан утгыг **шүүхгүй** (YAGNI) — хэрэв ирээдүйд нэмэх бол `word` дангаар
+нь биш **бүтэн `{word, example, translation}` гурвалаар** харьцуул: нэг толгой
+үг олон утгаар давтагдах нь зөв (ж: `run` хоёр өөр жишээтэй).
+
 ---
 
 ## Task 2: Gemini текст дуудлагыг helper болгож гаргах
@@ -963,23 +990,27 @@ import {
   MaxLength,
   ValidateNested,
 } from 'class-validator';
-import { MAX_SENSES } from '../senses';
+import { MAX_SENSES, SENSE_FIELD_MAX } from '../senses';
 
-/** One hand-edited sense row from the admin Толь editor. */
+/**
+ * One hand-edited sense row from the admin Толь editor. The length bounds come
+ * from the same constant `parseSenses` uses, so the AI-sourced and hand-edited
+ * paths can't drift apart.
+ */
 export class SenseDto {
   @IsString()
   @IsNotEmpty()
-  @MaxLength(120)
+  @MaxLength(SENSE_FIELD_MAX.word)
   word: string;
 
   @IsString()
   @IsNotEmpty()
-  @MaxLength(300)
+  @MaxLength(SENSE_FIELD_MAX.example)
   example: string;
 
   @IsString()
   @IsNotEmpty()
-  @MaxLength(300)
+  @MaxLength(SENSE_FIELD_MAX.translation)
   translation: string;
 }
 
