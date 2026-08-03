@@ -107,8 +107,8 @@ npx eas-cli build:configure   # optional confirm
 
 `app.json`-д шаардлагатай:
 
-- `ios.bundleIdentifier`: `com.usukh6ayar.englishxp`
-- `android.package`: `com.usukh6ayar.englishxp`
+- `ios.bundleIdentifier`: `mn.app.sparkxp`
+- `android.package`: `mn.app.sparkxp`
 - `extra.eas.projectId`: `eas init`-ийн дараа
 
 ### 5.2 Development build (баг дотоод — OTA тест)

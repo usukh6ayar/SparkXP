@@ -9,7 +9,7 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.usukh6ayar.englishxp",
+      "bundleIdentifier": "mn.app.sparkxp",
       "icon": "./assets/icon-ios.png",
       "infoPlist": {
         "NSCameraUsageDescription": "\u0410\u043d\u0433\u0438 \u043d\u044d\u0433\u0434\u044d\u0445 QR \u043a\u043e\u0434 \u0443\u043d\u0448\u0438\u0445\u0430\u0434 \u043a\u0430\u043c\u0435\u0440 \u0430\u0448\u0438\u0433\u043b\u0430\u043d\u0430.",
@@ -21,7 +21,7 @@
       }
     },
     "android": {
-      "package": "com.usukh6ayar.englishxp",
+      "package": "mn.app.sparkxp",
       "adaptiveIcon": {
         "backgroundColor": "#191040",
         "foregroundImage": "./assets/icon.png"

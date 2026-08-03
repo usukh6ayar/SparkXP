@@ -719,14 +719,17 @@ Expo Go дээр `npm install` хийсний дараа Reading passage нээ�
       алга болж, фонт ачаалагдах хүртэл хоосон дэлгэц харагдана.
       ⚠️ Splash нь **зөвхөн native build дээр** харагдана (Expo Go өөрийн
       splash-аа үзүүлдэг) → EAS build-ээр нүдээр батал.
-- [ ] 🆕 **Нэрлэлтийн rename хийх эсэх — submit хийхийн ӨМНӨ шийдэх.**
-      **Зөрүү байхгүй болсон (2026-08-03):** iOS-ийн commit хийгээгүй байсан
-      `com.usukhbayar.sparkxp` өөрчлөлтийг буцаасан тул iOS ба Android хоёул
-      `com.usukh6ayar.englishxp`, `slug`/`scheme` нь `englishxp`. Үлдсэн нь
-      шийдвэр: (а) `englishxp`-ээр илгээх — хямд, хэрэглэгчид харагдахгүй;
-      (б) бүгдийг `sparkxp` болгож rename — зөвхөн **анх илгээхээс өмнө**
-      боломжтой (дараа нь шинэ апп болно, EAS credential ч хуучин ID-д уягдсан).
-      → `docs/CODE_AUDIT.md §M7`
+- [x] 🆕 **App identifier шийдэгдсэн (2026-08-03): `mn.app.sparkxp`.**
+      iOS `bundleIdentifier` ба Android `package` хоёулаа **`mn.app.sparkxp`**
+      (өмнө нь `com.usukh6ayar.englishxp`). Санаатайгаар **хэвээр** үлдээсэн:
+      `slug`/`owner` (`@usukh6ayar/englishxp` EAS төсөлд уягдсан),
+      `scheme: englishxp` (join/invite deep link 6 файлд хамааралтай),
+      `englishxp.*` storage key (солих юм бол бүх хэрэглэгч гарна).
+      ⚠️ Дараагийн native build-ийн ӨМНӨ: локал `ios/`+`android/` (gitignore)
+      хуучин ID-тэй хэвээр → `PRODUCT_BUNDLE_IDENTIFIER` (pbxproj) +
+      `namespace`/`applicationId` (`android/app/build.gradle`)-ыг гараар засах
+      эсвэл дахин prebuild. iOS-д шинэ App ID + provisioning profile хэрэгтэй
+      (EAS өөрөө үүсгэнэ, Apple эрх асууна). → `docs/CODE_AUDIT.md §M7`
 - [ ] **eas.json iOS submit блок** — Apple creds алга байсан тул түр **хассан**
       (`appleId`/`ascAppId`/`appleTeamId` хоосон байвал `eas` validation унадаг).
       Apple account гарахад буцааж нэмнэ. Android `google-service-account.json` алга.
