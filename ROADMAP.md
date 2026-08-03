@@ -729,9 +729,18 @@ Expo Go дээр `npm install` хийсний дараа Reading passage нээ�
       ⚠️ **Choi/Boju:** pull хийсний дараа `npm install`; аппаас нэг удаа
       автоматаар гарна (дахин нэвтэр); локал DB-гээ
       `ALTER DATABASE englishxp RENAME TO sparkxp;` гэж сольж өг.
-      ⚠️ **`slug` = `sparkxp` болсон** → EAS build хийхээс өмнө expo.dev дээрх
-      төслийн slug-ийг ч мөн сольсон байх ёстой (`eas project:rename` команд
-      байхгүй — dashboard-аас).
+- [ ] 🚨 **expo.dev дээр төслийн slug-ийг `englishxp` → `sparkxp` болго —
+      EAS build хийхээс ӨМНӨ.** `app.json`-д `slug: "sparkxp"` болсон бөгөөд
+      EAS үүнийг `extra.eas.projectId`-тай тааруулж шалгадаг. Одоо ажиллуулбал:
+      `Slug for project identified by "extra.eas.projectId" (englishxp) does not
+      match the "slug" field (sparkxp)` → **бүх `eas` команд унана**
+      (`project:info`-оор баталсан). `eas project:rename` команд байхгүй тул
+      **expo.dev → Project settings**-ээс гараар сольно.
+      *Хэрэв dashboard slug rename-ийг зөвшөөрөхгүй бол:* `app.json`-ы `slug`-ийг
+      `englishxp` болгож нэг мөрөөр буцаа (`projectId` нь төслийг холбогч
+      жинхэнэ түлхүүр учир slug нь хэрэглэгчид харагддаггүй). `eas init --force`
+      **бүү** ажиллуул — шинэ `projectId` үүсгэж, OTA түүхийг тасална.
+      Expo Go (`npm run go`) энэ шалгалтад ороогүй тул Choi/Boju-д саад болохгүй.
       ⚠️ Дараагийн native build-ийн ӨМНӨ: локал `ios/`+`android/` (gitignore)
       хуучин ID-тэй хэвээр → `PRODUCT_BUNDLE_IDENTIFIER` (pbxproj) +
       `namespace`/`applicationId` (`android/app/build.gradle`)-ыг гараар засах

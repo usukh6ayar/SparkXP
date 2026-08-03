@@ -199,7 +199,7 @@ Store-д гарсны дараа **хэрэглэгчийн утсан дээр 
 | `scheme` | **`sparkxp`** (`sparkxp://join/…` · `sparkxp://invite/…`) |
 | SecureStore key | **`sparkxp.*`** |
 | Dev DB default (`DB_NAME`) | **`sparkxp`** |
-| `slug` | **`sparkxp`** — expo.dev дээр төслийн slug-ийг ч сольсон байх ёстой |
+| `slug` | **`sparkxp`** — 🚨 expo.dev дээр ч сольсон байх ёстой, эс бөгөөс EAS унана (доор) |
 | `extra.eas.projectId` | `d5b190dd-…` (өөрчлөгдөөгүй — төслийг холбогч жинхэнэ түлхүүр) |
 | `owner` | `usukh6ayar` (Expo **бүртгэлийн** нэр, брэнд биш → хэвээр) |
 
@@ -214,6 +214,21 @@ Store-д гарсны дараа **хэрэглэгчийн утсан дээр 
 
 ⚠️ **Дараагийн хэрэглэгчид нэг удаа системээс гарна** (storage key солигдсон).
 Апп store-д гараагүй тул migration shim нэмээгүй.
+
+🚨 **ҮЛДСЭН ГАНЦ АЖИЛ — expo.dev дээр slug сольж өгөх.** `app.json`-ы
+`slug: "sparkxp"` нь EAS төслийн жинхэнэ slug (`englishxp`)-тэй зөрж байгаа тул
+одоогоор **бүх `eas` команд унана**:
+
+```
+Slug for project identified by "extra.eas.projectId" (englishxp)
+does not match the "slug" field (sparkxp).
+```
+
+`eas project:rename` гэсэн команд байхгүй → **expo.dev → Project settings**-ээс
+гараар сольно. Боломжгүй бол `app.json`-ы `slug`-ийг `englishxp` болгож нэг
+мөрөөр буцаахад л хангалттай (slug хэрэглэгчид харагддаггүй, төслийг холбогч нь
+`projectId`). **`eas init --force` бүү ажиллуул** — шинэ `projectId` үүсгэж OTA
+түүхийг тасална. Expo Go энэ шалгалтад ордоггүй тул Choi/Boju-д нөлөөгүй.
 
 ⚠️ **Дараагийн native build-ийн өмнө:** локал `ios/` + `android/` фолдер
 (gitignore, prebuild-ээр үүсдэг) хуучин ID-тэй хэвээр →
