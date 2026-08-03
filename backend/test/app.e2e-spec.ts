@@ -8,7 +8,12 @@
  *
  * Run with: npm run test:e2e
  *
- * Each describe block is independent; the suite cleans up its own data.
+ * Every account this suite creates is namespaced by `RUN`, a fresh id per
+ * process. Before that, the fixed addresses (`auth_test@test.mn`, …) survived
+ * in whatever database the suite last touched, so the second run got 409 on
+ * every register, the helper handed back an undefined token, and a dozen tests
+ * failed with 401 — the suite only ever passed against a virgin DB. Namespacing
+ * costs nothing and makes a rerun mean the same thing as a first run.
  */
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
@@ -18,6 +23,12 @@ import { AppModule } from '../src/app.module';
 import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
+
+/** Unique per process — keeps one run's accounts from colliding with the next. */
+const RUN = Math.random().toString(36).slice(2, 8);
+
+/** Test address for `name`, namespaced by this run. */
+const mail = (name: string) => `${name}_${RUN}@test.mn`;
 
 async function createApp(): Promise<INestApplication> {
   const moduleRef: TestingModule = await Test.createTestingModule({
@@ -62,7 +73,7 @@ describe('Auth', () => {
   it('POST /api/auth/register → 201 (pending verification)', async () => {
     const res = await request(app.getHttpServer())
       .post('/api/auth/register')
-      .send({ username: 'auth_test', email: 'auth_test@test.mn', password: 'Test1234!', fullName: 'Auth Test' });
+      .send({ username: `auth_test_${RUN}`, email: mail('auth_test'), password: 'Test1234!', fullName: 'Auth Test' });
     expect(res.status).toBe(201);
     expect(res.body).toHaveProperty('pendingVerification', true);
   });
@@ -70,18 +81,49 @@ describe('Auth', () => {
   it('POST /api/auth/login → 200 with token (username or email)', async () => {
     const res = await request(app.getHttpServer())
       .post('/api/auth/login')
-      .send({ identifier: 'auth_test', password: 'Test1234!' });
+      .send({ identifier: `auth_test_${RUN}`, password: 'Test1234!' });
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('accessToken');
   });
 
+  // Sign-up has always rejected a username that differs only by case, so the
+  // app promises `Bataa` and `bataa` are one person. Login used to demand the
+  // exact case and lock that person out of their own account.
+  it('POST /api/auth/login → identifier is case-insensitive (username)', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ identifier: `AUTH_TEST_${RUN}`.toUpperCase(), password: 'Test1234!' });
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('accessToken');
+  });
+
+  it('POST /api/auth/login → identifier is case-insensitive (email)', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ identifier: mail('auth_test').toUpperCase(), password: 'Test1234!' });
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('accessToken');
+  });
+
+  it('POST /api/auth/register → email that differs only by case is a duplicate', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/auth/register')
+      .send({
+        username: `dupe_${RUN}`,
+        email: mail('auth_test').toUpperCase(),
+        password: 'Test1234!',
+        fullName: 'Dupe',
+      });
+    expect(res.status).toBe(409);
+  });
+
   it('GET /api/auth/me with valid token → 200', async () => {
-    const token = await registerAndLogin(app, 'me_test@test.mn');
+    const token = await registerAndLogin(app, mail('me_test'));
     const res = await request(app.getHttpServer())
       .get('/api/auth/me')
       .set('Authorization', `Bearer ${token}`);
     expect(res.status).toBe(200);
-    expect(res.body).toHaveProperty('email', 'me_test@test.mn');
+    expect(res.body).toHaveProperty('email', mail('me_test'));
   });
 
   it('GET /api/auth/me without token → 401', async () => {
@@ -102,7 +144,7 @@ describe('Quiz submit + XP', () => {
     app = await createApp();
     // Promote admin via DB so we can create content
     const ds = app.get(DataSource);
-    adminToken = await registerAndLogin(app, 'quiz_admin@test.mn');
+    adminToken = await registerAndLogin(app, mail('quiz_admin'));
     const adminRes = await request(app.getHttpServer())
       .get('/api/auth/me')
       .set('Authorization', `Bearer ${adminToken}`);
@@ -112,7 +154,7 @@ describe('Quiz submit + XP', () => {
     );
     // Re-login to get a token with admin role (JWT payload doesn't carry role,
     // but the guard reads role from DB via JwtStrategy, so same token works)
-    studentToken = await registerAndLogin(app, 'quiz_student@test.mn');
+    studentToken = await registerAndLogin(app, mail('quiz_student'));
   });
 
   afterAll(async () => { await app.close(); });
@@ -174,13 +216,13 @@ describe('Lesson complete + XP', () => {
   beforeAll(async () => {
     app = await createApp();
     const ds = app.get(DataSource);
-    adminToken = await registerAndLogin(app, 'lesson_admin@test.mn');
+    adminToken = await registerAndLogin(app, mail('lesson_admin'));
     const adminRes = await request(app.getHttpServer())
       .get('/api/auth/me')
       .set('Authorization', `Bearer ${adminToken}`);
     await ds.query(`UPDATE users SET role = 'admin' WHERE id = $1`, [adminRes.body.id]);
     // Fresh student starts at xp = 0, so the assertions below can be exact.
-    studentToken = await registerAndLogin(app, 'lesson_student@test.mn');
+    studentToken = await registerAndLogin(app, mail('lesson_student'));
   });
 
   afterAll(async () => { await app.close(); });
@@ -238,13 +280,13 @@ describe('Sparks lesson unlock', () => {
     app = await createApp();
     const ds = app.get(DataSource);
 
-    adminToken = await registerAndLogin(app, 'sparks_admin@test.mn');
+    adminToken = await registerAndLogin(app, mail('sparks_admin'));
     const adminRes = await request(app.getHttpServer())
       .get('/api/auth/me')
       .set('Authorization', `Bearer ${adminToken}`);
     await ds.query(`UPDATE users SET role = 'admin' WHERE id = $1`, [adminRes.body.id]);
 
-    studentToken = await registerAndLogin(app, 'sparks_student@test.mn');
+    studentToken = await registerAndLogin(app, mail('sparks_student'));
     const studentRes = await request(app.getHttpServer())
       .get('/api/auth/me')
       .set('Authorization', `Bearer ${studentToken}`);
@@ -328,14 +370,14 @@ describe('Admin user list (no passwordHash leak)', () => {
     app = await createApp();
     const ds = app.get(DataSource);
 
-    adminToken = await registerAndLogin(app, 'userlist_admin@test.mn');
+    adminToken = await registerAndLogin(app, mail('userlist_admin'));
     const adminRes = await request(app.getHttpServer())
       .get('/api/auth/me')
       .set('Authorization', `Bearer ${adminToken}`);
     await ds.query(`UPDATE users SET role = 'admin' WHERE id = $1`, [adminRes.body.id]);
 
     // Add another user so the list has more than one entry.
-    await registerAndLogin(app, 'userlist_student@test.mn');
+    await registerAndLogin(app, mail('userlist_student'));
   });
 
   afterAll(async () => { await app.close(); });
@@ -393,13 +435,13 @@ describe('Organizations + Classes + Assignments', () => {
     app = await createApp();
     ds = app.get(DataSource);
 
-    adminToken = await registerAndLogin(app, 'p2_admin@test.mn');
+    adminToken = await registerAndLogin(app, mail('p2_admin'));
     await setRole(adminToken, 'admin');
 
-    teacherToken = await registerAndLogin(app, 'p2_teacher@test.mn');
+    teacherToken = await registerAndLogin(app, mail('p2_teacher'));
     await setRole(teacherToken, 'teacher');
 
-    studentToken = await registerAndLogin(app, 'p2_student@test.mn');
+    studentToken = await registerAndLogin(app, mail('p2_student'));
     studentId = await setRole(studentToken, 'student');
   });
 
@@ -461,19 +503,39 @@ describe('Organizations + Classes + Assignments', () => {
     expect(res.status).toBe(403);
   });
 
-  it('POST /api/classes/join (student) → 201, no passwordHash leaked', async () => {
+  // Joining is approval-gated: the code only files a REQUEST, and nothing about
+  // the student changes until the teacher approves it. These three tests walk
+  // that in order — request → still not enrolled → approve — because the gate
+  // is the part worth protecting; an earlier version of this suite asserted the
+  // old "join = instant enrolment" contract and went red when it changed.
+  it('POST /api/classes/join (student) → 201 pending, not yet enrolled', async () => {
     const res = await request(app.getHttpServer())
       .post('/api/classes/join')
       .set('Authorization', `Bearer ${studentToken}`)
       .send({ joinCode });
     expect(res.status).toBe(201);
-    expect(res.body.students.some((s: { id: string }) => s.id === studentId)).toBe(true);
-    for (const s of res.body.students) {
-      expect(s).not.toHaveProperty('passwordHash');
-    }
+    expect(res.body).toEqual({ status: 'pending', className: 'English A1' });
   });
 
-  it('joining inherits the org location onto the student', async () => {
+  it('GET /api/classes/:id/requests (teacher) → the request is listed', async () => {
+    const res = await request(app.getHttpServer())
+      .get(`/api/classes/${classId}/requests`)
+      .set('Authorization', `Bearer ${teacherToken}`);
+    expect(res.status).toBe(200);
+    // A flat SafeUser[] — the requesting students themselves, not request rows.
+    const mine = res.body.find((s: { id: string }) => s.id === studentId);
+    expect(mine).toBeDefined();
+    expect(mine).not.toHaveProperty('passwordHash');
+  });
+
+  it('teacher approves → student is enrolled', async () => {
+    const res = await request(app.getHttpServer())
+      .post(`/api/classes/${classId}/requests/${studentId}/approve`)
+      .set('Authorization', `Bearer ${teacherToken}`);
+    expect(res.status).toBe(201);
+  });
+
+  it('approval inherits the org location onto the student', async () => {
     const rows = await ds.query(
       `SELECT province, district, organization_id FROM users WHERE id = $1`,
       [studentId],

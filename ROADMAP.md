@@ -139,14 +139,28 @@ progress бүгд бүтэн `SafeUser` (⊃ `avatarUrl`) буцаана. Тий
       `bataa` хоёулаа орших боломжтой (unique index нь түүхий утган дээр). Мөр
       гарвал тэдгээр хүн нэрээ солиж чадахгүй болно (шалгалт нөгөө мөрийг тоолно)
       → гараар нэгтгэ. Мөр гарахгүй бол шууд merge.
-- [ ] `username`-ий unique index нь түүхий утган дээр тул `LOWER(...)` хайлт
-      индекс ашиглахгүй (одоогийн хэмжээнд асуудалгүй). Хэрэглэгч олширвол
-      `lower(username)` дээр expression index нэмэх.
-- [ ] **`test/app.e2e-spec.ts` хуучирсан — шинэчлэх.** `POST /classes/join` одоо
-      `{ status:'pending', className }` буцаадаг (багшийн зөвшөөрөлтэй болсон) ч
-      тест хуучнаар `res.body.students`-ийг шалгасаар байна. Мөн `jest.config.ts`-ийн
-      `testRegex` нь `*.e2e-spec.ts` л барьдаг тул `src/**/*.spec.ts` unit тестүүд
-      ямар ч script-ээр гүйдэггүй → `test` (unit) + `test:e2e` гэж 2 script болгох.
+- [x] **`lower(username)` / `lower(email)` expression index ✅ (2026-08-03)** —
+      migration `AddLowerUsernameEmailIndexes1786400000000`. Хайлт нь
+      `LOWER(...) =` тул түүхий утган дээрх unique index-ийг ашиглаж чаддаггүй,
+      нэвтрэх оролдлого болгонд users бүтнээрээ уншигдаж байв. **Unique биш**
+      — прод дээр том/жижиг үсгийн давхардал байвал unique index босохгүй,
+      migration нь boot дээр унана (шалгах query нь migration-ий тайлбарт).
+- [x] **Нэвтрэх нэр/имэйл том-жижиг үсэг ялгахгүй болов ✅ (2026-08-03)** —
+      `assertUsernameFree` анхнаасаа case-insensitive байсан тул апп нь `Bataa`
+      ба `bataa`-г нэг хүн гэж амласаар, гэтэл login яг тэр үсгийг шаардаж
+      хэрэглэгчийг өөрийнх нь данснаас гаргадаг байв. Имэйл дээр ч мөн адил
+      (бүртгэлд `A@x.com` + `a@x.com` 2 данс болж чадна). `findByEmail` /
+      `findByUsernameOrEmail` одоо `LOWER(...)` — яг тэр үсгээр бичсэн хүн
+      эхэлж таарна (`ORDER BY CASE`), тул одоо байгаа ямар ч нэвтрэлт утгаа
+      алдахгүй. E2E 3 тестээр бэхэлсэн.
+- [x] **`test/app.e2e-spec.ts` ✅ засав (2026-08-03) — 43/43 ногоон.** Гурван
+      бодит алдаа: (1) `npm run test:e2e` **огт ажиллахгүй** байсан — Jest 30
+      дээр `--testPathPattern` → `--testPathPatterns` болсон; (2) ажиллуулсан ч
+      Redis/TypeORM handle-ууд нээлттэй үлдэж jest дуусахгүй өлгөнө → `--forceExit`;
+      (3) тестийн имэйл/username нь тогтмол байсан тул 2 дахь удаа бүх register
+      409 өгч, token `undefined` болж 9 тест унана — одоо `RUN` id-гаар
+      namespace хийсэн (дараалан 2 удаа ажиллуулж баталсан). Мөн анги нэгдэх нь
+      багшийн зөвшөөрөлтэй болсныг тусгав: request → хараахан элсээгүй → approve.
 - [ ] **Бэлэн аватар зургууд (av1–av6) солих** — одоо 6 нь ижилхэн placeholder
       art тул зураггүй сурагчид бүгд адилхан харагдаж, "зураг гарахгүй" мэт
       ойлгогдож байна (QA #11/#15-ийн магадлалтай үндсэн шалтгаан).
@@ -160,11 +174,18 @@ progress бүгд бүтэн `SafeUser` (⊃ `avatarUrl`) буцаана. Тий
       `AI_BUDDY_AUDIO_RETENTION_DAYS`. Дэлгэрэнгүй: `docs/AI_BUDDY_PLAN.md`.
       Дараагийн: admin UI (Part 2), mobile+3D avatar (Part 3/4 — Boju).
 - [ ] Prod дээр бүх шинэ endpoint ажиллаж буйг шалгах (Railway).
-- [ ] `.env.example` бүрэн (бүх шаардлагатай key placeholder-тэй); real key
-      commit хийгдээгүйг баталгаажуулах.
+- [x] **`.env.example` ✅ (2026-08-03)** — кодод ашиглагддаг ч тэнд байхгүй 3
+      key нэмэв: `ADMIN_EMAIL`/`ADMIN_PASSWORD` (`BootstrapPlansAdmin` migration
+      эдгээр **хоёул** тавигдсан үед л анхны super_admin үүсгэдэг — үгүй бол
+      шинэ прод DB-д нэвтрэх арга үлдэхгүй) + `BACKFILL_CONCURRENCY`. Жинхэнэ
+      түлхүүр байхгүйг дахин шалгав (`sk-`/`AIza`/`re_`… загвараар — цэвэр).
 - [ ] AI usage limit / rate-limit prod дээр асаалттай эсэхийг шалгах.
 - [ ] Admin бүх list page pagination + bulk ажиллаж буйг шалгах.
-- [ ] `API.md`-г одоогийн endpoint-уудтай тааруулж шинэчлэх.
+- [x] **`API.md` ✅ шалгав (2026-08-03) — засвар шаардлагагүй байв.** Апп-ыг
+      асааж `RouterExplorer`-ийн бүртгэсэн **166 route**-ыг API.md-тай
+      программаар тулгахад **дутуу нэг ч зам олдсонгүй**. ⚠️ Энэ нь зөвхөн
+      *зам* байгаа эсэхийг шалгасан — параметр/эрхийн тайлбар зөв эсэхийг
+      баталаагүй.
 
 ### Choi (Mobile — learning core)
 - [ ] Auth → Home → Lesson → Quiz → Review бүх урсгалыг **гараар турших**, алдаа засах.
@@ -698,11 +719,14 @@ Expo Go дээр `npm install` хийсний дараа Reading passage нээ�
       алга болж, фонт ачаалагдах хүртэл хоосон дэлгэц харагдана.
       ⚠️ Splash нь **зөвхөн native build дээр** харагдана (Expo Go өөрийн
       splash-аа үзүүлдэг) → EAS build-ээр нүдээр батал.
-- [ ] 🆕 **Bundle ID зөрүү — submit хийхийн ӨМНӨ шийдэх.** iOS
-      `com.usukhbayar.sparkxp` ↔ Android `com.usukh6ayar.englishxp`, `slug`/`scheme`
-      нь `englishxp` хэвээр. EAS credential нь хуучин ID-д уягдсан тул iOS-ийн
-      bundle ID солих нь App Store Connect дээр **шинэ апп** үүсгэнэ (шинэчлэл
-      биш). Бүрэн rename эсвэл буцаах — хагас байдал хамгийн муу. → `docs/CODE_AUDIT.md §M7`
+- [ ] 🆕 **Нэрлэлтийн rename хийх эсэх — submit хийхийн ӨМНӨ шийдэх.**
+      **Зөрүү байхгүй болсон (2026-08-03):** iOS-ийн commit хийгээгүй байсан
+      `com.usukhbayar.sparkxp` өөрчлөлтийг буцаасан тул iOS ба Android хоёул
+      `com.usukh6ayar.englishxp`, `slug`/`scheme` нь `englishxp`. Үлдсэн нь
+      шийдвэр: (а) `englishxp`-ээр илгээх — хямд, хэрэглэгчид харагдахгүй;
+      (б) бүгдийг `sparkxp` болгож rename — зөвхөн **анх илгээхээс өмнө**
+      боломжтой (дараа нь шинэ апп болно, EAS credential ч хуучин ID-д уягдсан).
+      → `docs/CODE_AUDIT.md §M7`
 - [ ] **eas.json iOS submit блок** — Apple creds алга байсан тул түр **хассан**
       (`appleId`/`ascAppId`/`appleTeamId` хоосон байвал `eas` validation унадаг).
       Apple account гарахад буцааж нэмнэ. Android `google-service-account.json` алга.

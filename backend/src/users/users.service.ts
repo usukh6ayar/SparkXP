@@ -71,15 +71,52 @@ export class UsersService {
     return sanitizeUser(user);
   }
 
+  /**
+   * Find by email, ignoring letter case.
+   *
+   * Email addresses are not case-sensitive in practice, but we store them as
+   * typed. Matching exactly meant `Bataa@Gmail.com` and `bataa@gmail.com` were
+   * two different accounts on sign-up, and a password reset typed in the "wrong"
+   * case simply found nobody.
+   */
   findByEmail(email: string): Promise<User | null> {
-    return this.users.findOne({ where: { email } });
+    return this.byLower('email', email);
   }
 
-  /** Find by username or email (case used by login: one field, either kind). */
+  /**
+   * Find by username OR email, ignoring letter case — the login lookup, where
+   * one field accepts either kind of handle.
+   *
+   * `assertUsernameFree` has always compared case-insensitively, so the app
+   * promised that `Bataa` and `bataa` are the same person; login then demanded
+   * the exact case and locked that person out. Both ends agree now.
+   */
   findByUsernameOrEmail(identifier: string): Promise<User | null> {
-    return this.users.findOne({
-      where: [{ username: identifier }, { email: identifier }],
-    });
+    return this.users
+      .createQueryBuilder('u')
+      .where('LOWER(u.username) = LOWER(:id) OR LOWER(u.email) = LOWER(:id)', {
+        id: identifier,
+      })
+      // Rows predating the case-insensitive check can still collide (the unique
+      // index is on the raw value). Whoever typed their handle exactly as
+      // registered keeps getting their own account, i.e. no existing login
+      // changes meaning — see the migration on `LOWER(username)`.
+      .orderBy('CASE WHEN u.username = :id OR u.email = :id THEN 0 ELSE 1 END', 'ASC')
+      .getOne();
+  }
+
+  /**
+   * `WHERE LOWER(col) = LOWER(:value)`, which is what the `LOWER(...)`
+   * expression indexes from `AddLowerUsernameEmailIndexes` are built for.
+   * `LOWER(...) =` rather than `ILike`: `_` and `%` are legal in an email local
+   * part and `_` in a username, and both are wildcards to LIKE.
+   */
+  private byLower(column: 'email' | 'username', value: string): Promise<User | null> {
+    return this.users
+      .createQueryBuilder('u')
+      .where(`LOWER(u.${column}) = LOWER(:value)`, { value })
+      .orderBy(`CASE WHEN u.${column} = :value THEN 0 ELSE 1 END`, 'ASC')
+      .getOne();
   }
 
   findById(id: string): Promise<User | null> {
