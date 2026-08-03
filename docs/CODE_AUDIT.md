@@ -189,25 +189,30 @@ Store-д гарсны дараа **хэрэглэгчийн утсан дээр 
 буруу framework нь **идэвхтэй төөрөгдүүлж** байна (Next.js-ийн routing/SSR
 таамаглалаар код бичих эрсдэл). Хамгийн хямд, хамгийн шууд өгөөжтэй засвар.
 
-### M7. Апп-ын нэрлэлт `englishxp` хэвээр — rename хийх эсэхийг store-оос ӨМНӨ шийдэх
+### ~~M7. Апп-ын нэрлэлт `englishxp` хэвээр~~ — ✅ ШИЙДЭГДСЭН (2026-08-03)
 
-**Шинэчлэл 2026-08-03:** iOS дээр байсан **commit хийгээгүй** `com.usukhbayar.sparkxp`
-өөрчлөлтийг **буцаалаа** → одоо *зөрүү байхгүй*, бүх талбар нэг мөрөнд:
+App identifier нь **`mn.app.sparkxp`** болов (iOS + Android хоёул). Одоогийн
+төлөв:
 
 | Талбар | Утга |
 | --- | --- |
-| iOS `bundleIdentifier` | `com.usukh6ayar.englishxp` |
-| Android `package` | `com.usukh6ayar.englishxp` |
-| `slug` / `scheme` | `englishxp` |
+| iOS `bundleIdentifier` | **`mn.app.sparkxp`** |
+| Android `package` | **`mn.app.sparkxp`** |
+| `slug` / `scheme` | `englishxp` (санаатайгаар хэвээр) |
 | `extra.eas.projectId` | `d5b190dd-…` (жинхэнэ, `owner: usukh6ayar`) |
 
-Үлдсэн асуудал нь зөрүү биш, **брэндийн нэр**: апп нь SparkXP атлаа бүх
-техникийн танигч нь `englishxp`. **Шийдвэр хэрэгтэй:** (а) `englishxp`-ээр
-хэвээр илгээх — хамгийн хямд, хэрэглэгчид харагдахгүй; эсвэл (б) бүрэн rename
-(iOS + Android + `slug` + `scheme` + EAS дахин холбох) — store-д **нэг ч удаа
-илгээхээс өмнө** л боломжтой. Илгээсний дараа bundle ID солих нь App Store
-Connect / Play дээр **шинэ апп** үүсгэнэ (шинэчлэл болохгүй), EAS credential ч
-хуучин ID-д уягдсан. Хагас солих нь хамгийн муу төлөв.
+**`slug`/`owner`/`scheme`-ийг яагаад хөдөлгөөгүй вэ:** `slug`+`owner` нь EAS
+төсөл `@usukh6ayar/englishxp`-д уягдсан (солих нь build/OTA-г тасална);
+`scheme: englishxp` дээр join/invite deep link 6 файл түшиглэдэг; `englishxp.*`
+storage key солих юм бол хадгалагдсан session бүр устаж бүх хэрэглэгч гарна.
+Эдгээр нь хэрэглэгчид **харагддаггүй** тул брэндийн ач холбогдолгүй.
+
+⚠️ **Дараагийн native build-ийн өмнө:** локал `ios/` + `android/` фолдер
+(gitignore, prebuild-ээр үүсдэг) хуучин ID-тэй хэвээр →
+`PRODUCT_BUNDLE_IDENTIFIER` (pbxproj) ба `namespace` + `applicationId`
+(`android/app/build.gradle`)-ыг гараар засах эсвэл дахин prebuild хийнэ.
+iOS-д `mn.app.sparkxp`-д зориулсан **шинэ App ID + provisioning profile**
+(Push Notifications capability-тэй) хэрэгтэй — EAS үүсгэнэ, Apple эрх асууна.
 
 ### ~~M8. `splash` тохируулаагүй~~ — ✅ ЗАССАН (2026-08-03)
 

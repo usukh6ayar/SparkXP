@@ -72,8 +72,9 @@
    `npx expo start` (Expo Go) дээр push ажиллахгүй.
 2. **`projectId` дутуу** — `app.json`-д `extra.eas.projectId` алга. `eas init`-ээр
    үүсгэнэ (token авахад заавал).
-3. **`android.package` дутуу** — `app.json` `android`-д `package` талбар алга
-   (жишээ: `com.usukh6ayar.englishxp`). FCM/build-д заавал.
+3. **`android.package`** — одоо `app.json`-д бий: **`mn.app.sparkxp`**
+   (2026-08-03-нд `com.usukh6ayar.englishxp`-ээс солигдсон). Firebase/FCM апп
+   үүсгэхдээ яг энэ package name-ийг ашиглана.
 4. **Физик төхөөрөмж** — emulator/simulator дээр push token гарахгүй.
 5. **Token-ийн амьдрал** — token хугацаа дуусах/солигдох тул нэвтрэх бүрд дахин
    бүртгэх; backend талд `DeviceNotRegistered` receipt ирвэл token устгах.
@@ -85,7 +86,7 @@
 ### 5.1 Дэд бүтэц / эрх (Team lead + Өсөхбаяр — org account)
 - **Expo account** (үнэгүй) → `cd mobile && eas init` → `projectId`-г `app.json`
   `extra.eas.projectId`-д бичих. `eas build:configure` → `eas.json`.
-- **Firebase project** → Android app (`com.usukh6ayar.englishxp`) нэмэх → **FCM V1**
+- **Firebase project** → Android app (`mn.app.sparkxp`) нэмэх → **FCM V1**
   тохируулж `google-services.json` татаад EAS Android credentials-д өгөх.
 - **Apple Developer Program** ($99/жил) → EAS эхний iOS build дээр **APNs** key
   автоматаар үүснэ.
