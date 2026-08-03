@@ -18,6 +18,7 @@ import {
   parseSenses,
   sensesPrompt,
   MAX_SENSES,
+  SENSE_FIELD_MAX,
   SENSES_SCHEMA,
   type WordSense,
 } from './senses';
@@ -75,6 +76,11 @@ export class DictionarySensesService {
   async search(userId: string, raw: string): Promise<SensesResult> {
     const word = normaliseWord(raw);
     if (!word) throw new BadRequestException('Хоосон үг');
+    // The path param is unvalidated, and a miss costs a real Gemini call — so
+    // reject junk before spending money on it.
+    if (word.length > SENSE_FIELD_MAX.word) {
+      throw new BadRequestException('Хэт урт үг');
+    }
 
     // 1. Cache hit — still counts as a search, so the admin "most searched"
     //    ordering means something. Must happen BEFORE the early return.
@@ -198,6 +204,9 @@ export class DictionarySensesService {
   ): Promise<{ word: string; saved: boolean }> {
     const word = normaliseWord(raw);
     if (!word) throw new BadRequestException('Хоосон үг');
+    if (word.length > SENSE_FIELD_MAX.word) {
+      throw new BadRequestException('Хэт урт үг');
+    }
 
     const existing = await this.saves.findOne({ where: { userId, word } });
     if (existing) {
@@ -246,7 +255,13 @@ export class DictionarySensesService {
   async adminUpdate(id: string, senses: WordSense[]): Promise<DictionaryEntry> {
     const entry = await this.entries.findOne({ where: { id } });
     if (!entry) throw new NotFoundException('Толины бичлэг олдсонгүй');
-    entry.senses = senses.slice(0, MAX_SENSES);
+    // Trim like parseSenses does, so a hand-edited sense and an AI-generated
+    // one are stored the same way.
+    entry.senses = senses.slice(0, MAX_SENSES).map((s) => ({
+      word: s.word.trim(),
+      example: s.example.trim(),
+      translation: s.translation.trim(),
+    }));
     entry.edited = true;
     return this.entries.save(entry);
   }
