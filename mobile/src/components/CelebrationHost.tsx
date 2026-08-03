@@ -1,16 +1,16 @@
 import { AchievementModal } from './AchievementModal';
-import { useUnseenTrophies } from '../lib/useUnseenTrophies';
+import { useCelebrations } from '../lib/useCelebrations';
 
 /**
- * Mounts the trophy unlock celebration once, app-wide.
+ * Mounts the celebration modal (trophy unlocks + daily streak) once, app-wide.
  *
  * Lives beside `<ToastHost />` in `app/_layout.tsx` for the same reason: the
  * celebration has to appear over whatever screen the user finished on, and a
  * pushed screen is a sibling in the router stack, not a child of the tabs.
- * Screens fire it with `checkTrophies()`.
+ * Screens fire it with `checkCelebrations()`.
  */
-export function TrophyHost() {
-  const { achievement, dismiss } = useUnseenTrophies();
+export function CelebrationHost() {
+  const { achievement, dismiss } = useCelebrations();
   return (
     <AchievementModal visible={Boolean(achievement)} achievement={achievement} onClose={dismiss} />
   );

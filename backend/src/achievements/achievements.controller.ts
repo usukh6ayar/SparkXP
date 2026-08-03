@@ -1,9 +1,10 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../entities/user.entity';
 import { AchievementsService } from './achievements.service';
 import { MarkSeenDto } from './dto/mark-seen.dto';
+import { PinTrophiesDto } from './dto/pin-trophies.dto';
 
 @Controller('achievements')
 @UseGuards(JwtAuthGuard)
@@ -20,5 +21,12 @@ export class AchievementsController {
   @Post('seen')
   markSeen(@CurrentUser() user: User, @Body() dto: MarkSeenDto) {
     return this.achievements.markSeen(user.id, dto.slugs);
+  }
+
+  /** Replace the trophies pinned to the profile (max 5, in display order). */
+  @Post('pinned')
+  @HttpCode(HttpStatus.OK)
+  setPinned(@CurrentUser() user: User, @Body() dto: PinTrophiesDto) {
+    return this.achievements.setPinned(user.id, dto.slugs);
   }
 }

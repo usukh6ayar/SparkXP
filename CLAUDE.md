@@ -138,6 +138,17 @@ loaded (`@expo-google-fonts/manrope`+`inter`, `useFonts` at
 `mobile/app/_layout.tsx`, `expo-font` plugin); EAS initialized (real
 `extra.eas.projectId`).
 
+**Streak баяр хүргэлт + цом онцлох (2026-07-31).** Өдрийн зорилт биелж streak
+ахихад трофей нээгдэх шиг баяр хүргэх цонх гарна (`GET /gamification` →
+`streakCelebration`, харуулсны дараа `POST /gamification/streak-seen`; "үзсэн"
+туг Redis-д, migration шаардлагагүй). Мөн хэрэглэгч авсан цомоосоо **5**-ыг
+профайлдаа онцолно (`POST /achievements/pinned`, `user_trophies.pinned_rank`,
+migration `AddTrophyPinnedRank1786300000000`). ⚠️ **Choi/Boju:** трофейн host
+нэр солигдсон — `useUnseenTrophies`/`TrophyHost`/`checkTrophies()` →
+**`useCelebrations`/`CelebrationHost`/`checkCelebrations()`** (streak + трофей
+нэг дараалалд). XP олдог шинэ дуусгах дэлгэц нэмэх бүрд `checkCelebrations()`
+дуудаарай.
+
 **Фонт: Onest → Manrope (2026-07-31).** Onest нь **Ө ө Ү ү**
 (U+04E8/04E9/04AE/04AF) глифгүй байсан тул гарчиг дотор эдгээр үсэг системийн
 фонтоор солигдож харагдаж байв (RN нь нэг `fontFamily` авдаг, CSS шиг fallback

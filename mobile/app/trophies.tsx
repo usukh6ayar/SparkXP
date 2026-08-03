@@ -6,7 +6,9 @@ import { useAuth } from '../src/auth/AuthContext';
 import { useSWR } from '../src/api/useSWR';
 import {
   getAchievements,
+  setPinnedTrophies,
   ACHIEVEMENTS_PATH,
+  MAX_PINNED,
   type Trophy,
   type AchievementsResponse,
 } from '../src/api/achievements';
@@ -21,6 +23,7 @@ import { ProgressBar } from '../src/components/ProgressBar';
 import { PressableScale } from '../src/components/PressableScale';
 import { describeCondition, tierLabel } from '../src/lib/trophyCondition';
 import { haptics } from '../src/lib/haptics';
+import { toast } from '../src/components/Toast';
 import { t, tf } from '../src/i18n';
 import { useColors } from '../src/settings/SettingsContext';
 import { spacing, radius, type AppColors } from '../src/theme/theme';
@@ -51,6 +54,10 @@ export default function TrophiesScreen() {
   const [filter, setFilter] = useState<Filter>('all');
   const [selected, setSelected] = useState<Trophy | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  // Pinned slugs, held locally so the sheet reacts instantly; the server is the
+  // source of truth and `refetch()` reconciles right after the write.
+  const [pinned, setPinned] = useState<string[] | null>(null);
+  const [pinning, setPinning] = useState(false);
 
   const { data, loading, refetch } = useSWR<AchievementsResponse>(
     ACHIEVEMENTS_PATH,
@@ -74,9 +81,42 @@ export default function TrophiesScreen() {
       .filter((s) => s.total > 0);
   }, [data, filter]);
 
+  const pinnedSlugs = pinned ?? data?.pinned ?? [];
+
+  /**
+   * Pin or unpin one trophy. The API takes the WHOLE set, so build the next set
+   * here and send it — that keeps the display order explicit.
+   */
+  async function togglePin(trophy: Trophy) {
+    if (!token || pinning) return;
+    const isPinned = pinnedSlugs.includes(trophy.slug);
+    if (!isPinned && pinnedSlugs.length >= MAX_PINNED) {
+      haptics.warning();
+      toast.error(tf('trophyPinFull', { n: MAX_PINNED }));
+      return;
+    }
+    const next = isPinned
+      ? pinnedSlugs.filter((slug) => slug !== trophy.slug)
+      : [...pinnedSlugs, trophy.slug];
+    setPinned(next);
+    setPinning(true);
+    haptics.tap();
+    try {
+      await setPinnedTrophies(next, token);
+      await refetch();
+      setPinned(null); // server confirmed — stop shadowing `data.pinned`
+    } catch {
+      setPinned(pinnedSlugs); // roll back to what the server last confirmed
+      toast.error(t('errorGeneric'));
+    } finally {
+      setPinning(false);
+    }
+  }
+
   async function onRefresh() {
     setRefreshing(true);
     await refetch();
+    setPinned(null); // pull-to-refresh means "show me what the server has"
     setRefreshing(false);
   }
 
@@ -112,6 +152,9 @@ export default function TrophiesScreen() {
                 {tf('trophyProgress', { earned: data.earned, total: data.total })}
               </AppText>
               <ProgressBar value={data.total ? data.earned / data.total : 0} style={styles.heroBar} />
+              <AppText variant="caption" color={c.textMuted} center style={styles.heroHint}>
+                {tf('trophyPinHint', { n: MAX_PINNED })}
+              </AppText>
               <View style={styles.filters}>
                 {FILTERS.map((f) => {
                   const on = filter === f.key;
@@ -148,7 +191,14 @@ export default function TrophiesScreen() {
           renderItem={({ item: row }) => (
             <View style={styles.row}>
               {row.map((tr) => (
-                <TrophyCell key={tr.slug} trophy={tr} styles={styles} c={c} onPress={() => open(tr)} />
+                <TrophyCell
+                  key={tr.slug}
+                  trophy={tr}
+                  pinned={pinnedSlugs.includes(tr.slug)}
+                  styles={styles}
+                  c={c}
+                  onPress={() => open(tr)}
+                />
               ))}
               {/* Keeps the last, short row left-aligned instead of spread out. */}
               {padding(row.length).map((k) => (
@@ -159,15 +209,23 @@ export default function TrophiesScreen() {
         />
       )}
 
-      <TrophyDetail trophy={selected} onClose={() => setSelected(null)} styles={styles} c={c} />
+      <TrophyDetail
+        trophy={selected}
+        pinned={selected ? pinnedSlugs.includes(selected.slug) : false}
+        onTogglePin={togglePin}
+        busy={pinning}
+        onClose={() => setSelected(null)}
+        styles={styles}
+        c={c}
+      />
     </SafeAreaView>
   );
 }
 
 /** One badge in the grid. Always uses `thumb` — see api/achievements.ts. */
 function TrophyCell({
-  trophy, styles, c, onPress,
-}: { trophy: Trophy; styles: Styles; c: AppColors; onPress: () => void }) {
+  trophy, pinned, styles, c, onPress,
+}: { trophy: Trophy; pinned: boolean; styles: Styles; c: AppColors; onPress: () => void }) {
   return (
     <PressableScale onPress={onPress} style={styles.cell}>
       <View style={[styles.badge, !trophy.earned && styles.badgeLocked]}>
@@ -180,6 +238,10 @@ function TrophyCell({
         {!trophy.earned ? (
           <View style={styles.lockDot}>
             <Ionicons name="lock-closed" size={12} color={c.textMuted} />
+          </View>
+        ) : pinned ? (
+          <View style={styles.lockDot}>
+            <Ionicons name="bookmark" size={12} color={c.primary} />
           </View>
         ) : null}
       </View>
@@ -198,8 +260,16 @@ function TrophyCell({
 
 /** Detail sheet: the big 640px image plus earned date or unlock condition. */
 function TrophyDetail({
-  trophy, onClose, styles, c,
-}: { trophy: Trophy | null; onClose: () => void; styles: Styles; c: AppColors }) {
+  trophy, pinned, onTogglePin, busy, onClose, styles, c,
+}: {
+  trophy: Trophy | null;
+  pinned: boolean;
+  onTogglePin: (trophy: Trophy) => void;
+  busy: boolean;
+  onClose: () => void;
+  styles: Styles;
+  c: AppColors;
+}) {
   return (
     <SheetModal visible={Boolean(trophy)} onClose={onClose}>
       {trophy ? (
@@ -229,7 +299,26 @@ function TrophyDetail({
             </View>
           )}
 
-          <Button label={t('close')} onPress={onClose} style={styles.detailBtn} />
+          {pinned ? (
+            <View style={styles.detailNote}>
+              <Ionicons name="bookmark" size={18} color={c.primary} />
+              <AppText variant="body" color={c.textSecondary}>{t('trophyPinned')}</AppText>
+            </View>
+          ) : null}
+
+          {/* Only an earned trophy can be pinned — there is nothing to show off
+              about a locked one. */}
+          {trophy.earned ? (
+            <Button
+              label={pinned ? t('trophyUnpin') : t('trophyPin')}
+              variant={pinned ? 'secondary' : 'primary'}
+              icon={pinned ? 'bookmark' : 'bookmark-outline'}
+              loading={busy}
+              onPress={() => onTogglePin(trophy)}
+              style={styles.detailBtn}
+            />
+          ) : null}
+          <Button label={t('close')} variant="ghost" onPress={onClose} style={styles.detailBtn} />
         </View>
       ) : null}
     </SheetModal>
@@ -256,6 +345,7 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
 
   hero: { alignItems: 'center', paddingVertical: spacing.lg, gap: spacing.xs },
   heroBar: { alignSelf: 'stretch', marginTop: spacing.sm },
+  heroHint: { marginTop: spacing.xs },
   filters: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
   chip: {
     paddingHorizontal: spacing.md, paddingVertical: spacing.xs,

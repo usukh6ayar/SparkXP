@@ -1,4 +1,8 @@
-import { resolveStreak, MAX_FROZEN_DAYS } from './gamification';
+import {
+  resolveStreak,
+  streakCelebrationDue,
+  MAX_FROZEN_DAYS,
+} from './gamification';
 
 /**
  * Streak resolution decides whether a learner keeps or loses their streak —
@@ -66,5 +70,51 @@ describe('resolveStreak', () => {
     expect(
       resolveStreak({ ...base, lastActiveDate: '2026-06-30', today: '2026-07-01' }),
     ).toEqual({ streak: 11, freezesLeft: 0, freezesUsed: 0 });
+  });
+});
+
+/**
+ * The gate on the once-a-day streak celebration. A false positive here means a
+ * modal that pops up on every screen focus, which is worse than no modal —
+ * hence the deliberately conservative reading of an unavailable "seen" store.
+ */
+describe('streakCelebrationDue', () => {
+  const base = { today: '2026-07-28', streak: 5 };
+
+  it('fires on the day the streak advanced, before it has been shown', () => {
+    expect(
+      streakCelebrationDue({ ...base, lastActiveDate: '2026-07-28', seenDate: null }),
+    ).toBe(true);
+  });
+
+  it('stays quiet once today has been marked as seen', () => {
+    expect(
+      streakCelebrationDue({ ...base, lastActiveDate: '2026-07-28', seenDate: '2026-07-28' }),
+    ).toBe(false);
+  });
+
+  it('fires again the next day, even though yesterday was seen', () => {
+    expect(
+      streakCelebrationDue({ ...base, lastActiveDate: '2026-07-28', seenDate: '2026-07-27' }),
+    ).toBe(true);
+  });
+
+  it('stays quiet when the goal has not been met today', () => {
+    // The streak is alive (yesterday) but has not advanced yet today.
+    expect(
+      streakCelebrationDue({ ...base, lastActiveDate: '2026-07-27', seenDate: null }),
+    ).toBe(false);
+  });
+
+  it('treats an unreadable seen-store as already seen', () => {
+    expect(
+      streakCelebrationDue({ ...base, lastActiveDate: '2026-07-28', seenDate: 'error' }),
+    ).toBe(false);
+  });
+
+  it('never celebrates a zero streak', () => {
+    expect(
+      streakCelebrationDue({ ...base, streak: 0, lastActiveDate: '2026-07-28', seenDate: null }),
+    ).toBe(false);
   });
 });

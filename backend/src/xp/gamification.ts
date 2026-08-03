@@ -123,3 +123,25 @@ export function resolveStreak(input: StreakInput): {
   // Gap too wide (or not enough freezes) — reset, keep what they own.
   return { streak: 1, freezesLeft: freezes, freezesUsed: 0 };
 }
+
+/**
+ * Whether the app should still throw a streak celebration today.
+ *
+ * `lastActiveDate === today` only becomes true once the daily goal is met, so
+ * it doubles as "the streak advanced today" — no extra state to keep in sync.
+ * `seenDate` is what the app last reported as celebrated; `'error'` (an
+ * unreadable store) counts as seen, because a modal that reappears on every
+ * screen focus is worse than one that never appears.
+ *
+ * Pure on purpose — same reason as `resolveStreak` above.
+ */
+export function streakCelebrationDue(input: {
+  lastActiveDate: string | null;
+  today: string;
+  seenDate: string | null;
+  streak: number;
+}): boolean {
+  const { lastActiveDate, today, seenDate, streak } = input;
+  if (lastActiveDate !== today || streak <= 0) return false;
+  return seenDate !== today && seenDate !== 'error';
+}

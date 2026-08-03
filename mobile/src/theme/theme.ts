@@ -210,6 +210,8 @@ export const typography = {
   bodyStrong: { fontSize: 15, lineHeight: 22, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold', color: colors.text },
   /** Pills, chips, tab labels, stat captions. */
   label: { fontSize: 13, lineHeight: 18, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold', color: colors.text },
+  /** Bottom-tab labels only — one notch below `label` so five fit without crowding. */
+  tabLabel: { fontSize: 11, lineHeight: 14, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold', color: colors.text },
   /** Helper text, timestamps, done/total. */
   caption: { fontSize: 12, lineHeight: 16, fontWeight: '400' as const, fontFamily: 'Inter_400Regular', color: colors.textMuted },
   /** UPPERCASE eyebrow — section headers only; Cyrillic uppercase tires fast. */

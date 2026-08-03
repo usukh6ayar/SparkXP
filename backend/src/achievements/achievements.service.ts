@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, IsNull, Repository } from 'typeorm';
@@ -40,8 +40,13 @@ export interface AchievementsResponse {
   earned: number;
   /** Earned but never celebrated — the app should show these, then POST /seen. */
   unseen: string[];
+  /** Slugs the user pinned to their profile, in display order (max 5). */
+  pinned: string[];
   trophies: TrophyView[];
 }
+
+/** How many trophies a learner may pin to their profile. */
+export const MAX_PINNED_TROPHIES = 5;
 
 @Injectable()
 export class AchievementsService {
@@ -64,7 +69,7 @@ export class AchievementsService {
   async getForUser(userId: string): Promise<AchievementsResponse> {
     const rows = await this.earned.find({
       where: { userId },
-      select: { slug: true, createdAt: true, seenAt: true },
+      select: { slug: true, createdAt: true, seenAt: true, pinnedRank: true },
     });
     const bySlug = new Map(rows.map((r) => [r.slug, r]));
 
@@ -84,8 +89,49 @@ export class AchievementsService {
       total: trophies.length,
       earned: rows.length,
       unseen: rows.filter((r) => r.seenAt === null).map((r) => r.slug),
+      pinned: rows
+        .filter((r) => r.pinnedRank !== null)
+        .sort((a, b) => a.pinnedRank! - b.pinnedRank!)
+        .map((r) => r.slug),
       trophies,
     };
+  }
+
+  /**
+   * Replace the user's pinned set with `slugs`, in the given order.
+   *
+   * Replace-the-whole-set (rather than pin/unpin one at a time) keeps the order
+   * unambiguous and makes the call idempotent — the app sends what the profile
+   * row should look like and gets exactly that.
+   */
+  async setPinned(userId: string, slugs: string[]): Promise<{ pinned: string[] }> {
+    const wanted = [...new Set(slugs)];
+    if (wanted.length > MAX_PINNED_TROPHIES) {
+      throw new BadRequestException(
+        `Хамгийн ихдээ ${MAX_PINNED_TROPHIES} трофей онцолно`,
+      );
+    }
+
+    const held = new Set(
+      (
+        await this.earned.find({ where: { userId }, select: { slug: true } })
+      ).map((r) => r.slug),
+    );
+    const missing = wanted.filter((slug) => !held.has(slug));
+    if (missing.length) {
+      throw new BadRequestException('Аваагүй трофейг онцолж болохгүй');
+    }
+
+    // One transaction: clearing first then ranking means a half-applied write
+    // can never leave two trophies sharing a rank.
+    await this.earned.manager.transaction(async (manager) => {
+      await manager.update(UserTrophy, { userId }, { pinnedRank: null });
+      for (const [rank, slug] of wanted.entries()) {
+        await manager.update(UserTrophy, { userId, slug }, { pinnedRank: rank });
+      }
+    });
+
+    return { pinned: wanted };
   }
 
   /** Marks unlock celebrations as shown. No slugs = every outstanding one. */

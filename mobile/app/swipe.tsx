@@ -27,6 +27,7 @@ import { AwardBadge } from '../src/components/AwardBadge';
 import { FlashCard, type MemoryStatus } from '../src/components/FlashCard';
 import { ReviewStats } from '../src/components/ReviewStats';
 import { IconButton } from '../src/components/IconButton';
+import { checkCelebrations } from '../src/lib/useCelebrations';
 import { t } from '../src/i18n';
 import { useColors } from '../src/settings/SettingsContext';
 import { spacing, radius, progressGradients, type AppColors } from '../src/theme/theme';
@@ -86,9 +87,13 @@ export default function ReviewFlashcardsScreen() {
 
   useEffect(() => { load(); }, [load]);
 
+
   const current = queue[index];
   const next = queue[index + 1];
   const done = total > 0 && index >= total;
+  // Reviewing words earns XP, so finishing the deck can be what completes the
+  // daily goal — check once, when the deck flips to done.
+  useEffect(() => { if (done) checkCelebrations(); }, [done]);
 
   /* ── Audio ─────────────────────────────────────────────────────────────── */
   function playAudio(word?: LearnWord) {

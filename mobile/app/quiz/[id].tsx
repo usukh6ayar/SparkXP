@@ -45,7 +45,7 @@ import { formatBand } from '../../src/constants/ielts';
 import { useColors } from '../../src/settings/SettingsContext';
 import { colors, spacing, radius, fontSize, type AppColors } from '../../src/theme/theme';
 import { bounded } from '../../src/theme/responsive';
-import { checkTrophies } from '../../src/lib/useUnseenTrophies';
+import { checkCelebrations } from '../../src/lib/useCelebrations';
 
 type Phase = 'loading' | 'quiz' | 'result' | 'error';
 
@@ -471,7 +471,7 @@ export default function QuizScreen() {
       }
       setResult(res);
       setPhase('result');
-      checkTrophies(); // a passing score may have unlocked a badge
+      checkCelebrations(); // a passing score may have unlocked a badge or the streak
     } catch {
       alertError(t('submitAnswerError'));
     } finally {

@@ -74,8 +74,13 @@ export interface AchievementsResponse {
   earned: number;
   /** Earned but never celebrated — show these, then POST /achievements/seen. */
   unseen: string[];
+  /** Slugs pinned to the profile, in display order (max MAX_PINNED). */
+  pinned: string[];
   trophies: Trophy[];
 }
+
+/** How many trophies may be pinned to the profile (mirrors the backend cap). */
+export const MAX_PINNED = 5;
 
 /** The GET path — also the `useSWR` cache key, so keep the two in sync. */
 export const ACHIEVEMENTS_PATH = '/achievements';
@@ -96,6 +101,24 @@ export function markTrophiesSeen(
   return apiRequest<{ updated: number }>('/achievements/seen', {
     method: 'POST',
     body: slugs?.length ? { slugs } : {},
+    token,
+  });
+}
+
+/**
+ * POST /achievements/pinned — send the WHOLE pinned set, in display order.
+ *
+ * Replace-the-set (not pin-one) keeps the order unambiguous and the call
+ * idempotent. Rejects with `ApiError` 400 if more than MAX_PINNED slugs are
+ * sent or any of them isn't earned; the message is already Mongolian.
+ */
+export function setPinnedTrophies(
+  slugs: string[],
+  token: string,
+): Promise<{ pinned: string[] }> {
+  return apiRequest<{ pinned: string[] }>('/achievements/pinned', {
+    method: 'POST',
+    body: { slugs },
     token,
   });
 }

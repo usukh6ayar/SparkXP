@@ -23,6 +23,13 @@ export class XpController {
     return this.xpService.buyStreakFreeze(user.id);
   }
 
+  /** Call after showing the streak celebration so it isn't shown again today. */
+  @Post('streak-seen')
+  @HttpCode(HttpStatus.OK)
+  markStreakSeen(@CurrentUser() user: User) {
+    return this.xpService.markStreakSeen(user.id);
+  }
+
   /** Set the daily XP target (Хөнгөн 20 / Дунд 50 / Ширүүн 100). */
   @Patch('goal')
   setGoal(@CurrentUser() user: User, @Body() dto: SetDailyGoalDto) {

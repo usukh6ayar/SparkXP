@@ -1,188 +1,152 @@
-import { View, Pressable, Image, StyleSheet } from "react-native";
-import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
-import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
-import { colors, spacing } from "../theme/theme";
-import { useSettings } from "../settings/SettingsContext";
-import { appIcons } from "../constants/appIcons";
-import { haptics } from "../lib/haptics";
-import { SPRING, useReduceMotion } from "../lib/motion";
-import { BuddyTabButton } from "./BuddyTabButton";
+import { useWindowDimensions, StyleSheet, View } from 'react-native';
+import Animated, { SlideInDown, useSharedValue } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import { useSettings } from '../settings/SettingsContext';
+import { haptics } from '../lib/haptics';
+import { useReduceMotion } from '../lib/motion';
+import { spacing } from '../theme/theme';
+import { WaveCard } from './tabbar/WaveCard';
+import { TabItem, type TabIcon } from './tabbar/TabItem';
+import { BuddyTab } from './tabbar/BuddyTab';
+import { BAR_H, BUDDY_OUTER, BUDDY_SLOT, LIFT, TOTAL_H, WAVE_H } from './tabbar/geometry';
 
-const buddy = require("../../assets/buddy-menu.webp");
+const buddy = require('../../assets/buddy-menu.webp');
 
-const PURPLE = colors.primary; // #6C3BFF SparkXP accent
+/** The buddy's own route — rendered as the floating hero, not as a flat tab. */
+const BUDDY_ROUTE = 'chat';
 
-type IconName = keyof typeof Ionicons.glyphMap;
-
-type TabMeta =
-  | { icon: IconName; iconOutline: IconName; label: string; image?: undefined; png?: undefined }
-  | { image: number; label: string; icon?: undefined; iconOutline?: undefined; png?: undefined }
-  | { png: number; label: string; icon?: undefined; iconOutline?: undefined; image?: undefined };
-
-/** Icon + label per tab route. Most tabs use a brand 3D PNG icon (appIcons);
- *  `chat` shows the fox AI-buddy image. */
-function tabMeta(t: (key: import("../i18n").TranslationKey) => string): Record<string, TabMeta> {
-  return {
-    index: { png: appIcons.home, label: t("home") },
-    lessons: { png: appIcons.reading, label: t("tabLessons") },
-    chat: { image: buddy, label: t("aiBuddyShort") },
-    soril: { png: appIcons.trophy, label: t("quiz") },
-    profile: { png: appIcons.profile, label: t("profile") },
-  };
-}
+/** Route → icon pair. Tab ORDER comes from `app/(tabs)/_layout.tsx`, not here. */
+const ICONS: Record<string, TabIcon> = {
+  index: { outline: 'home-outline', filled: 'home' },
+  lessons: { outline: 'book-outline', filled: 'book' },
+  soril: { outline: 'game-controller-outline', filled: 'game-controller' },
+  profile: { outline: 'person-circle-outline', filled: 'person-circle' },
+};
 
 /**
- * Liquid-Glass bottom navigation (inspired by Apple's design, not a copy):
- * a floating frosted-glass capsule with a strong background blur, a translucent
- * white glass overlay, a soft top light-reflection sheen, a thin glass border
- * and a soft drop shadow. The active tab sits in a purple glass chip and its
- * icon is slightly magnified. Adapts to light/dark theme.
+ * SparkXP's bottom navigation: a floating glass card whose top edge is one long
+ * wave, with the AI buddy riding the crest as the primary call to action.
+ *
+ * Three files, one job each — the shape (`WaveCard`), a flat tab (`TabItem`),
+ * the hero (`BuddyTab`); the numbers they share live in `tabbar/geometry.ts`.
+ *
+ * The root view is `box-none` and taller than the card on purpose: the buddy
+ * needs room to float above the card, and on Android a child drawn outside its
+ * parent draws but does not receive touches. The extra band is transparent and
+ * passes taps through to the screen underneath. In the row the buddy leaves a
+ * fixed-width gap behind, so the four flat tabs space themselves around it.
  */
 export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
-  const { theme, colors: c, t } = useSettings();
-  const isDark = theme === "dark";
-  const TAB_META = tabMeta(t);
-
-  const inactive = isDark ? "rgba(233,229,255,0.62)" : "rgba(60,54,90,0.55)";
-
-  return (
-    <View style={[styles.wrap, { backgroundColor: c.background }]}>
-      {/* Solid bar — same background as the screen, with a top border. */}
-      <View
-        style={[styles.bar, { backgroundColor: c.background, paddingBottom: insets.bottom || spacing.sm, borderTopColor: c.border }]}
-      >
-          {state.routes.map((route, index) => {
-            const meta = TAB_META[route.name];
-            if (!meta) return null; // hidden routes
-
-            const focused = state.index === index;
-            const onPress = () => {
-              const event = navigation.emit({
-                type: "tabPress",
-                target: route.key,
-                canPreventDefault: true,
-              });
-              if (!focused && !event.defaultPrevented) {
-                haptics.select(); // tactile tick when switching tabs
-                navigation.navigate(route.name);
-              }
-            };
-
-            return (
-              <TabButton
-                key={route.key}
-                meta={meta}
-                focused={focused}
-                onPress={onPress}
-                tint={focused ? PURPLE : inactive}
-              />
-            );
-          })}
-      </View>
-    </View>
-  );
-}
-
-/**
- * One tab (icon-only — no labels). Split into its own component so each tab can
- * own reanimated hooks (rules-of-hooks forbid calling them inside the `.map`).
- * When focused the chip pops, then settles slightly magnified and lifted, and
- * lights up as a soft purple glowing pill. `meta.label` is kept only for the
- * screen-reader accessibility label since there's no visible text.
- */
-function TabButton({
-  meta,
-  focused,
-  onPress,
-  tint,
-}: {
-  meta: TabMeta;
-  focused: boolean;
-  onPress: () => void;
-  tint: string;
-}) {
-  const scale = useSharedValue(1);
+  const { width } = useWindowDimensions();
+  const { t } = useSettings();
   const reduce = useReduceMotion();
 
-  // No size change on selection — only a small press-down shrink for feedback.
-  const onPressIn = () => { if (!reduce) scale.value = withSpring(0.9, SPRING); };
-  const onPressOut = () => { scale.value = withSpring(1, SPRING); };
-
-  const chipStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
-
-  const a11y = {
-    accessibilityRole: "button" as const,
-    accessibilityLabel: meta.label,
-    accessibilityState: { selected: focused },
+  const labels: Record<string, string> = {
+    index: t('home'),
+    lessons: t('tabLessons'),
+    [BUDDY_ROUTE]: t('aiBuddyShort'),
+    soril: t('quiz'),
+    profile: t('profile'),
   };
 
-  // Center AI buddy = the galaxy button (own component: it owns its orbit,
-  // nebula and burst animations, which nothing else in the bar needs).
-  if (meta.image) {
-    return <BuddyTabButton image={meta.image} label={meta.label} focused={focused} onPress={onPress} />;
-  }
+  // Hidden routes (anything without a label) never reach the bar.
+  const visible = state.routes.filter((r) => r.name in labels);
 
-  // Brand 3D PNG icon (home/lessons/soril/profile). PNGs are full-colour so they
-  // aren't tinted; the active glowing pill + magnify + lift signal focus.
-  if (meta.png) {
-    return (
-      <Pressable style={styles.tab} onPress={onPress} onPressIn={onPressIn} onPressOut={onPressOut} {...a11y}>
-        <Animated.View style={[styles.chip, focused && styles.chipActive, chipStyle]}>
-          <Image
-            source={meta.png}
-            style={[styles.pngIcon, !focused && styles.pngIconInactive]}
-            resizeMode="contain"
-          />
-        </Animated.View>
-      </Pressable>
-    );
-  }
+  /** −1…1: how far left or right of centre a tab sits. The wave leans by it. */
+  const driftOf = (position: number) => (position - (visible.length - 1) / 2) / 2;
+
+  // Seeded from the tab the app opens on, so the wave is already leaning the
+  // right way on the first frame instead of snapping after the first tap.
+  const drift = useSharedValue(
+    driftOf(visible.findIndex((r) => r === state.routes[state.index])),
+  );
+
+  /** Switch tabs, nudging the wave toward the one that was picked. */
+  const select = (route: (typeof visible)[number]) => {
+    const focused = state.index === state.routes.indexOf(route);
+    const event = navigation.emit({
+      type: 'tabPress',
+      target: route.key,
+      canPreventDefault: true,
+    });
+    if (focused || event.defaultPrevented) return;
+    haptics.select(); // tactile tick when switching tabs
+    drift.value = driftOf(visible.indexOf(route));
+    navigation.navigate(route.name);
+  };
+
+  const buddyRoute = visible.find((r) => r.name === BUDDY_ROUTE);
 
   return (
-    <Pressable style={styles.tab} onPress={onPress} onPressIn={onPressIn} onPressOut={onPressOut} {...a11y}>
-      <Animated.View style={[styles.chip, focused && styles.chipActive, chipStyle]}>
-        <Ionicons name={focused ? meta.icon! : meta.iconOutline!} size={28} color={tint} />
-      </Animated.View>
-    </Pressable>
+    <Animated.View
+      pointerEvents="box-none"
+      style={[styles.root, { height: TOTAL_H + insets.bottom }]}
+      entering={reduce ? undefined : SlideInDown.springify().damping(18).mass(0.7)}
+    >
+      <WaveCard width={width} bottomInset={insets.bottom} drift={drift} />
+
+      <View style={[styles.row, { paddingBottom: insets.bottom || spacing.sm }]}>
+        {visible.map((route) =>
+          route.name === BUDDY_ROUTE ? (
+            // The hero is positioned against the crest below, not in this row —
+            // this only reserves its width.
+            <View key={route.key} style={styles.buddySlot} />
+          ) : (
+            <TabItem
+              key={route.key}
+              icon={ICONS[route.name]}
+              label={labels[route.name]}
+              focused={state.index === state.routes.indexOf(route)}
+              onPress={() => select(route)}
+            />
+          ),
+        )}
+      </View>
+
+      {buddyRoute ? (
+        <View
+          pointerEvents="box-none"
+          style={[
+            styles.buddyAnchor,
+            // Centre the avatar on the crest of the wave, lifted a touch above
+            // it so the swell reads as the wake it leaves behind.
+            { bottom: WAVE_H + BAR_H + insets.bottom - BUDDY_OUTER / 2 + LIFT },
+          ]}
+        >
+          <BuddyTab
+            image={buddy}
+            label={labels[BUDDY_ROUTE]}
+            focused={state.index === state.routes.indexOf(buddyRoute)}
+            onPress={() => select(buddyRoute)}
+          />
+        </View>
+      ) : null}
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  // Full-width flat bar (Duolingo-style) — no side margins, no float, no radius.
-  wrap: { backgroundColor: "transparent" },
-  bar: {
-    flexDirection: "row",
-    alignItems: "center",
-    // NOT clipped: the buddy galaxy's ring, halo and stars deliberately spill
-    // past the bar's top edge. `hidden` here (left over from the old floating
-    // capsule) would slice them off flat.
-    borderTopWidth: StyleSheet.hairlineWidth, // thin divider above the bar
-    paddingTop: spacing.sm + 2,
-    paddingHorizontal: spacing.xs,
+  /**
+   * In normal flow, NOT absolute: React Navigation measures this view to work
+   * out how much bottom padding each screen needs. Absolute here would measure
+   * as zero and every screen's last row would slide under the card. Everything
+   * inside is positioned against it instead.
+   */
+  root: { backgroundColor: 'transparent' },
+  /** The flat tabs, sitting on the card below the wave's shoulders. */
+  row: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: WAVE_H + BAR_H,
+    paddingTop: WAVE_H,
+    paddingHorizontal: spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  tab: { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 2 },
-  // Brand 3D PNG tab icon — a touch larger than the vector glyphs since the 3D
-  // art carries transparent padding, so it reads smaller at the same box size.
-  pngIcon: { width: 40, height: 40 },
-  pngIconInactive: { opacity: 0.6 },
-  // Icon holder — a rounded-square box (Duolingo-style). The 2px transparent
-  // border is reserved so the active border doesn't shift the layout.
-  chip: {
-    height: 48,
-    minWidth: 54,
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: "transparent",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 10,
-  },
-  // Active tab — Duolingo's selected box: a purple outline + light purple fill.
-  chipActive: {
-    backgroundColor: "rgba(108,59,255,0.14)",
-    borderColor: PURPLE,
-  },
+  buddySlot: { width: BUDDY_SLOT },
+  buddyAnchor: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
 });

@@ -28,4 +28,12 @@ export class UserTrophy extends BaseEntity {
   /** null = the unlock celebration has not been shown to the user yet. */
   @Column({ name: 'seen_at', type: 'timestamptz', nullable: true })
   seenAt: Date | null;
+
+  /**
+   * Position in the "pinned to my profile" row (0…MAX_PINNED-1), or null when
+   * not pinned. Living here rather than on `users` means an unearned trophy
+   * simply has no row to pin — the data model enforces the rule for free.
+   */
+  @Column({ name: 'pinned_rank', type: 'smallint', nullable: true })
+  pinnedRank: number | null;
 }

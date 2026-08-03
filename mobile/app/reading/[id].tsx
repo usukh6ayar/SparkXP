@@ -33,7 +33,7 @@ import { t, tf } from '../../src/i18n';
 import { spacing, radius, levelColor, type AppColors } from '../../src/theme/theme';
 import { useColors } from '../../src/settings/SettingsContext';
 import { bounded } from '../../src/theme/responsive';
-import { checkTrophies } from '../../src/lib/useUnseenTrophies';
+import { checkCelebrations } from '../../src/lib/useCelebrations';
 
 function fmtTime(sec: number): string {
   if (!sec) return '';
@@ -86,7 +86,7 @@ export default function ReadingDetailScreen() {
       markReadingCompleted(id); // local mirror → checkmark on the list
       setDone(true);
       haptics.success(); // celebratory tick as the confetti fires
-      checkTrophies(); // reading XP may have unlocked a badge
+      checkCelebrations(); // reading XP may have unlocked a badge or the streak
     }
   }, [token, id, done]);
 
