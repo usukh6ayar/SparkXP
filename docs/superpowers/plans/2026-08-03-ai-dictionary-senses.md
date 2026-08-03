@@ -601,13 +601,14 @@ export class CreateDictionaryEntries1786500000000 implements MigrationInterface 
         "user_id" uuid NOT NULL,
         "word" character varying NOT NULL,
         CONSTRAINT "PK_user_dictionary_saves_id" PRIMARY KEY ("id"),
+        -- Must be a table CONSTRAINT, not a bare CREATE UNIQUE INDEX: the
+        -- entity uses @Unique(...), which synchronize turns into a real UNIQUE
+        -- CONSTRAINT. A plain index here would drift dev from prod.
+        CONSTRAINT "uq_user_dictionary_save" UNIQUE ("user_id", "word"),
         CONSTRAINT "FK_user_dictionary_saves_user" FOREIGN KEY ("user_id")
           REFERENCES "users"("id") ON DELETE CASCADE
       )
     `);
-    await queryRunner.query(
-      `CREATE UNIQUE INDEX IF NOT EXISTS "uq_user_dictionary_save" ON "user_dictionary_saves" ("user_id", "word")`,
-    );
   }
 
   async down(queryRunner: QueryRunner): Promise<void> {
