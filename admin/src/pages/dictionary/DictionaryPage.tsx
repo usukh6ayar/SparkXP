@@ -62,8 +62,18 @@ export default function DictionaryPage() {
 
   const remove = async (entry: Entry) => {
     if (!confirm(`"${entry.word}" толиноос устгах уу?\n\nДараагийн хайлтад AI дахин үүсгэнэ.`)) return;
-    await api.delete(`/dictionary/admin/entries/${entry.id}`);
-    load();
+    try {
+      await api.delete(`/dictionary/admin/entries/${entry.id}`);
+    } catch (e) {
+      // Without this the promise rejects unhandled, the row stays on screen and
+      // the delete looks like it silently did nothing.
+      alert(`Устгаж чадсангүй: ${(e as Error).message}`);
+      return;
+    }
+    // Removing the last row of the last page would otherwise leave the table
+    // empty while Pagination still shows a nonzero total — step back a page.
+    if (data.items.length === 1 && page > 1) setPage(page - 1);
+    else load();
   };
 
   return (
