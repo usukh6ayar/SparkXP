@@ -165,6 +165,15 @@ migration `AddTrophyPinnedRank1786300000000`). ⚠️ **Choi/Boju:** трофе�
   дээр (`bottom: insets.bottom`) суух тул дүрс home-indicator руу шахагдахаа
   болив. Дүрс хэвээр **Ionicons** outline↔filled (Phosphor/Lucide рүү шилжих нь
   тусдаа ажил — бүх апп даяар нэг дор хийнэ).
+- **Navbar-ийн layout засвар (Choi, мөн 2026-08-03).** Дээрх бар нь **урсгал
+  дотор** 142+inset өндөртэй байсан тул (React Navigation таб барыг дэлгэцтэй нэг
+  flex багананд тавьдаг) таб бүрийн контент ~80px-ээр дээш шахагдаж байв. Одоо
+  `CustomTabBar` нь **`position: absolute` overlay**, харин `app/(tabs)/_layout.tsx`
+  нь `sceneStyle.paddingBottom = tabBarHeight(insets.bottom)` (= зөвхөн цул карт,
+  64+inset) өгнө. ⚠️ **Дүрэм: `geometry.ts`-ийн `TOTAL_H` (барын өөрийн өндөр)
+  ба `tabBarHeight()` (дэлгэцийн авах зай) хоёрыг хэзээ ч хольж болохгүй.** Buddy
+  66px болж давалгаанд суув, шошготой болов, таван шошго нэг шугам дээр
+  (`mobile/DESIGN.md` → Bottom Navigation).
 - **Streak freeze засвар (BE)** — `isStreakAlive()` (`src/xp/gamification.ts`)
   нэмэгдэж, `getGamification` нь freeze-ийг тооцдог болов. Өмнө нь өдөр
   алгассаны дараа Home **0** харуулж, худалдаж авсан freeze ажиллахгүй мэт
