@@ -647,3 +647,137 @@ describe('Health', () => {
     expect(res.body.redis).toBe('ok');
   });
 });
+
+// ── Толь (dictionary senses) ─────────────────────────────────────────────────
+
+describe('Dictionary — Толь', () => {
+  let app: INestApplication;
+  let ds: DataSource;
+  let token: string;
+  let adminToken: string;
+  /** A word that only this run uses, so reruns don't collide. */
+  const word = `zzrun${RUN}`;
+  let entryId: string;
+
+  beforeAll(async () => {
+    app = await createApp();
+    ds = app.get(DataSource);
+    token = await registerAndLogin(app, mail('dict_user'));
+
+    // Promote to admin in the DB. No re-login needed: the JWT carries no role,
+    // JwtStrategy reads it from the DB on every request.
+    adminToken = await registerAndLogin(app, mail('dict_admin'));
+    const adminRes = await request(app.getHttpServer())
+      .get('/api/auth/me')
+      .set('Authorization', `Bearer ${adminToken}`);
+    await ds.query(`UPDATE users SET role = 'admin' WHERE id = $1`, [adminRes.body.id]);
+
+    // Seed the cache directly — the AI path is not exercised in e2e.
+    const senses = JSON.stringify([
+      { word, example: 'I run every morning.', translation: 'Би өглөө бүр гүйдэг.' },
+      { word: `${word} out of`, example: 'We ran out of food.', translation: 'Бидний хоол дууссан.' },
+    ]);
+    const rows = await ds.query(
+      `INSERT INTO dictionary_entries ("word", "senses", "search_count", "source")
+       VALUES ($1, $2::jsonb, 0, 'seed') RETURNING id`,
+      [word, senses],
+    );
+    entryId = rows[0].id;
+  });
+
+  afterAll(async () => {
+    // ⭐ rows are keyed on the word, not on the entry — delete them first.
+    await ds.query(`DELETE FROM user_dictionary_saves WHERE word LIKE $1`, [`%${RUN}%`]);
+    await ds.query(`DELETE FROM dictionary_entries WHERE word LIKE $1`, [`%${RUN}%`]);
+    await app.close();
+  });
+
+  it('GET /api/dictionary/search/:word → cached senses', async () => {
+    const res = await request(app.getHttpServer())
+      .get(`/api/dictionary/search/${word}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+
+    expect(res.body.cached).toBe(true);
+    expect(res.body.senses).toHaveLength(2);
+    expect(res.body.senses[0].translation).toBe('Би өглөө бүр гүйдэг.');
+  });
+
+  it('a cache hit still increments search_count', async () => {
+    const before = await ds.query(
+      `SELECT search_count FROM dictionary_entries WHERE id = $1`,
+      [entryId],
+    );
+    await request(app.getHttpServer())
+      .get(`/api/dictionary/search/${word}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    const after = await ds.query(
+      `SELECT search_count, last_searched_at FROM dictionary_entries WHERE id = $1`,
+      [entryId],
+    );
+
+    expect(Number(after[0].search_count)).toBe(Number(before[0].search_count) + 1);
+    expect(after[0].last_searched_at).not.toBeNull();
+  });
+
+  it('POST /api/dictionary/saves/:word toggles the star both ways', async () => {
+    const on = await request(app.getHttpServer())
+      .post(`/api/dictionary/saves/${word}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(201);
+    expect(on.body.saved).toBe(true);
+
+    const listed = await request(app.getHttpServer())
+      .get('/api/dictionary/saves')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    expect(listed.body.map((r: { word: string }) => r.word)).toContain(word);
+    expect(listed.body[0].senses).toHaveLength(2);
+
+    const off = await request(app.getHttpServer())
+      .post(`/api/dictionary/saves/${word}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(201);
+    expect(off.body.saved).toBe(false);
+  });
+
+  it('starring never creates a row in the curated words bank', async () => {
+    await request(app.getHttpServer())
+      .post(`/api/dictionary/saves/${word}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(201);
+
+    const rows = await ds.query(`SELECT id FROM words WHERE english = $1`, [word]);
+    expect(rows).toHaveLength(0);
+  });
+
+  it('GET /api/dictionary/admin/entries is admin-only', async () => {
+    await request(app.getHttpServer())
+      .get('/api/dictionary/admin/entries')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(403);
+
+    const res = await request(app.getHttpServer())
+      .get(`/api/dictionary/admin/entries?search=${word}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(res.body.total).toBe(1);
+    expect(res.body.items[0].word).toBe(word);
+  });
+
+  it('PATCH /api/dictionary/admin/entries/:id marks the entry edited', async () => {
+    const res = await request(app.getHttpServer())
+      .patch(`/api/dictionary/admin/entries/${entryId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        senses: [
+          { word, example: 'Edited example.', translation: 'Зассан орчуулга.' },
+        ],
+      })
+      .expect(200);
+
+    expect(res.body.edited).toBe(true);
+    expect(res.body.senses).toHaveLength(1);
+  });
+});
