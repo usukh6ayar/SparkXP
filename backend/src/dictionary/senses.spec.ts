@@ -1,4 +1,4 @@
-import { parseSenses, MAX_SENSES } from './senses';
+import { parseSenses, MAX_SENSES, SENSE_FIELD_MAX } from './senses';
 
 /**
  * parseSenses is the only thing standing between Gemini's free-form output and
@@ -22,6 +22,19 @@ describe('parseSenses', () => {
     expect(parseSenses(raw)).toEqual([sense(1)]);
   });
 
+  it('tolerates trailing whitespace after the closing fence', () => {
+    const raw = '```json\n' + JSON.stringify([sense(1)]) + '\n```\n  ';
+    expect(parseSenses(raw)).toEqual([sense(1)]);
+  });
+
+  it('recovers a fenced block that has prose around it', () => {
+    const raw =
+      "Here's the answer:\n```json\n" +
+      JSON.stringify([sense(1)]) +
+      '\n```\nHope that helps!';
+    expect(parseSenses(raw)).toEqual([sense(1)]);
+  });
+
   it('accepts a { senses: [...] } wrapper', () => {
     const raw = JSON.stringify({ senses: [sense(1)] });
     expect(parseSenses(raw)).toEqual([sense(1)]);
@@ -38,6 +51,28 @@ describe('parseSenses', () => {
       sense(1),
       { word: 'w2', example: 'Example 2.' },
       { word: 'w3', example: '   ', translation: 'Орчуулга 3.' },
+    ]);
+    expect(parseSenses(raw)).toEqual([sense(1)]);
+  });
+
+  it('drops entries with a wrong-typed field', () => {
+    const raw = JSON.stringify([
+      sense(1),
+      { word: 123, example: 'Example 2.', translation: 'Орчуулга 2.' },
+      { word: 'w3', example: 'Example 3.', translation: null },
+      { word: 'w4', example: { foo: 1 }, translation: 'Орчуулга 4.' },
+    ]);
+    expect(parseSenses(raw)).toEqual([sense(1)]);
+  });
+
+  it('drops an entry when a field exceeds its length bound', () => {
+    const raw = JSON.stringify([
+      sense(1),
+      {
+        word: 'w'.repeat(SENSE_FIELD_MAX.word + 1),
+        example: 'Example 2.',
+        translation: 'Орчуулга 2.',
+      },
     ]);
     expect(parseSenses(raw)).toEqual([sense(1)]);
   });

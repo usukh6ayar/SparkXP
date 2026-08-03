@@ -15,6 +15,22 @@ export interface WordSense {
 /** Never store or show more than this many senses for one word. */
 export const MAX_SENSES = 4;
 
+/**
+ * Per-field length bounds. The AI-sourced path (parseSenses) and the
+ * admin-edited path (SenseDto in dto/update-senses.dto.ts, built in a later
+ * task) enforce the same numbers from this one constant.
+ */
+export const SENSE_FIELD_MAX = {
+  word: 120,
+  example: 300,
+  translation: 300,
+} as const;
+
+// Note: we deliberately never dedupe senses. Dedup would have to compare the
+// FULL { word, example, translation } triple, never `word` alone — the same
+// headword is allowed to appear in several senses (e.g. "run" twice with
+// different examples).
+
 /** Gemini's JSON schema for a senses request (generationConfig.responseSchema). */
 export const SENSES_SCHEMA = {
   type: 'ARRAY',
@@ -44,11 +60,16 @@ export function sensesPrompt(word: string): string {
   );
 }
 
-/** One field of a sense: a non-empty string after trimming. */
-function cleanField(value: unknown): string | null {
+/**
+ * One field of a sense: a non-empty string, trimmed, within `maxLength`.
+ * Too long is dropped outright (return null) rather than truncated — a
+ * truncated example sentence cached forever is worse than a missing one.
+ */
+function cleanField(value: unknown, maxLength: number): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
+  if (trimmed.length === 0 || trimmed.length > maxLength) return null;
+  return trimmed;
 }
 
 /**
@@ -71,7 +92,16 @@ export function parseSenses(raw: string): WordSense[] {
   try {
     data = JSON.parse(cleaned);
   } catch {
-    return [];
+    // Defense-in-depth: Gemini is called in JSON mode with a responseSchema,
+    // so this should rarely trigger. But if prose sneaks in around a fenced
+    // block, retry once against just the fenced content before giving up.
+    const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1];
+    if (!fenced) return [];
+    try {
+      data = JSON.parse(fenced.trim());
+    } catch {
+      return [];
+    }
   }
 
   // Accept both a bare array and a { senses: [...] } wrapper.
@@ -85,9 +115,12 @@ export function parseSenses(raw: string): WordSense[] {
   for (const item of list) {
     if (!item || typeof item !== 'object') continue;
     const row = item as Record<string, unknown>;
-    const word = cleanField(row.word);
-    const example = cleanField(row.example);
-    const translation = cleanField(row.translation);
+    const word = cleanField(row.word, SENSE_FIELD_MAX.word);
+    const example = cleanField(row.example, SENSE_FIELD_MAX.example);
+    const translation = cleanField(
+      row.translation,
+      SENSE_FIELD_MAX.translation,
+    );
     if (!word || !example || !translation) continue;
     senses.push({ word, example, translation });
     if (senses.length === MAX_SENSES) break;
