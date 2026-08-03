@@ -1,6 +1,6 @@
 import { Entity, Column, Index } from 'typeorm';
 import { BaseEntity } from '../common/entities/base.entity';
-import { WordSense } from '../dictionary/senses';
+import { WordSense } from '../common/types/word-sense';
 
 /**
  * The Толь (dictionary) search cache: one row per English word the students
@@ -16,7 +16,14 @@ import { WordSense } from '../dictionary/senses';
  */
 @Entity('dictionary_entries')
 export class DictionaryEntry extends BaseEntity {
-  /** Normalised (lowercase, trimmed, single-spaced) English word — cache key. */
+  /**
+   * Normalised (lowercase, trimmed, single-spaced) English word — cache key.
+   *
+   * The index is unnamed, so `synchronize` (dev) generates a hashed name while
+   * the migration (prod) hardcodes `IDX_dictionary_entries_word`. Upserts must
+   * therefore use the column form `ON CONFLICT ("word")`, never
+   * `ON CONFLICT ON CONSTRAINT <name>`, which would break in one environment.
+   */
   @Index({ unique: true })
   @Column()
   word: string;

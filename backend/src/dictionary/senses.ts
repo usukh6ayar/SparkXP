@@ -1,16 +1,9 @@
-/**
- * The dictionary "search" result shape: the 4-sense format the product spec
- * asks for. Deliberately has NO title, label or definition — just the word (or
- * phrase), one English example and its Mongolian translation.
- */
-export interface WordSense {
-  /** The word or phrase this sense belongs to, e.g. "run", "run out of". */
-  word: string;
-  /** A short English example sentence. */
-  example: string;
-  /** Mongolian translation of `example`. */
-  translation: string;
-}
+// The sense shape itself lives in common/ so the DictionaryEntry entity can
+// type its jsonb column without an entity → feature import. Re-exported here
+// so feature code keeps a single import site.
+export type { WordSense } from '../common/types/word-sense';
+
+import type { WordSense } from '../common/types/word-sense';
 
 /** Never store or show more than this many senses for one word. */
 export const MAX_SENSES = 4;
