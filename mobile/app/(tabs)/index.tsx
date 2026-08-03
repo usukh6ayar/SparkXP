@@ -522,7 +522,7 @@ export default function HomeScreen() {
               </View>
               <View style={styles.headerIcons}>
                 <IconButton icon="notifications-outline" dot={hasUnread} size={44} style={styles.headerIconBtn} accessibilityLabel={t('notifications')} onPress={() => router.push('/notifications')} />
-                {/* Dictionary — in-place search overlay (no screen change) */}
+                {/* Dictionary — search overlay → the word panel */}
                 <IconButton icon="search" size={44} style={styles.headerIconBtn} accessibilityLabel={t('searchEnglishWord')} onPress={openSearch} />
               </View>
             </View>

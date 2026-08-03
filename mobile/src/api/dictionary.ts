@@ -1,14 +1,21 @@
 import { apiRequest } from './client';
 
+/** At most this many senses are shown for one word. */
+export const MAX_SENSES = 4;
+
 /**
- * One block of the richer AI dictionary explanation (Premium plan doc §2):
- * most-common meaning, common/secondary, special case, phrase/expression.
+ * One sense of an English word — deliberately just three lines, no definitions
+ * or grammar labels: the word (or phrase) it is used as, an English example,
+ * and that example's Mongolian translation. Learners read usage, not glossary
+ * entries.
  */
-export interface DictionarySection {
-  /** Section heading, e.g. "Most common", "Phrase / expression". */
-  title: string;
-  /** Mongolian explanation for this section. */
-  body: string;
+export interface DictionarySense {
+  /** The word or phrase form of this sense, e.g. "run" or "run out of". */
+  word: string;
+  /** English example sentence. */
+  example: string;
+  /** Mongolian translation of `example`. */
+  translation: string;
 }
 
 export interface WordLookup {
@@ -21,11 +28,12 @@ export interface WordLookup {
   /** True when served from the Words DB / cache (free), false when from AI. */
   cached: boolean;
   /**
-   * Optional 4-part detailed explanation. The backend only returns the short
-   * `translation` today; when Өсөхбаяр ships the fuller Gemini explanation the
-   * popover renders these sections automatically (see DictionaryProvider).
+   * Up to `MAX_SENSES` senses ordered by how often the word is really used in
+   * that sense — most common first, never random. Optional: the backend
+   * returns only the short `translation` today, and the panel falls back to it
+   * until Өсөхбаяр ships this field.
    */
-  sections?: DictionarySection[];
+  meanings?: DictionarySense[];
 }
 
 /**
