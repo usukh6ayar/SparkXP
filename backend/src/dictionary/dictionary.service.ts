@@ -2,7 +2,6 @@ import {
   Injectable,
   BadRequestException,
   ForbiddenException,
-  Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -28,8 +27,6 @@ export interface WordLookup {
 
 @Injectable()
 export class DictionaryService {
-  private readonly logger = new Logger(DictionaryService.name);
-
   constructor(
     private readonly config: ConfigService,
     private readonly aiGateway: AiGatewayService,
