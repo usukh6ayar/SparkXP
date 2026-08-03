@@ -87,7 +87,10 @@ export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
     >
       <WaveCard width={width} bottomInset={insets.bottom} drift={drift} />
 
-      <View style={[styles.row, { paddingBottom: insets.bottom || spacing.sm }]}>
+      {/* Sits ON the card body and stops where the safe area begins, so the
+          icons are optically centred in the bar instead of being pushed down
+          against the home indicator. */}
+      <View style={[styles.row, { bottom: insets.bottom }]}>
         {visible.map((route) =>
           route.name === BUDDY_ROUTE ? (
             // The hero is positioned against the crest below, not in this row —
@@ -140,9 +143,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    bottom: 0,
-    height: WAVE_H + BAR_H,
-    paddingTop: WAVE_H,
+    height: BAR_H,
     paddingHorizontal: spacing.sm,
     flexDirection: 'row',
     alignItems: 'center',

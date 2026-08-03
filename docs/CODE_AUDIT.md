@@ -19,7 +19,7 @@
 | Эрэмбэ | Тоо | Гол сэдэв |
 | --- | --- | --- |
 | 🔴 Өндөр | 3 | **бүгд ✅ зассан** — migration гинж (#178) · `JWT_SECRET` (#179) · rate limit (#179) |
-| 🟠 Дунд | 11 | ✅ lint/test (#181) · ✅ crash reporting (#183) · ✅ CLAUDE.md (#177) · ✅ index (#182) · ⬜ hardcoded өнгө · ⬜ том файл · ⬜ bundle ID |
+| 🟠 Дунд | 11 | ✅ lint/test (#181) · ✅ crash reporting (#183) · ✅ CLAUDE.md (#177) · ✅ index (#182) · ✅ splash (M8, 2026-08-03) · ⬜ hardcoded өнгө · ⬜ том файл · ⬜ bundle ID |
 | 🟡 Бага | 6 | ✅ Expo Push (#180) · ✅ сануулга (#180) · ✅ CI (#181) · ⬜ QPay stub · ⬜ i18n цоорхой |
 
 > **Төлөв (2026-07-28 орой):** өндөр эрэмбийн **3/3** хаагдсан. Үлдсэн ажил нь
@@ -203,11 +203,15 @@ iOS-ийн bundle ID-г солих нь App Store Connect дээр **шинэ а
 Хагас солих нь хамгийн муу төлөв. **Шийдвэр хэрэгтэй:** бүрэн rename (iOS +
 Android + slug + scheme + EAS дахин холбох) эсвэл буцаах. Энэ PR-д оруулаагүй.
 
-### M8. `splash` тохируулаагүй
+### ~~M8. `splash` тохируулаагүй~~ — ✅ ЗАССАН (2026-08-03)
 
-`mobile/app.json`-д `splash` түлхүүр огт байхгүй (grep = 0) → Expo-ийн default
-цагаан дэлгэц гарна. App icon нь харин **бэлэн**: `icon-ios.png` 1024×1024,
-`icon.png` 1254×1254 adaptive.
+`mobile/app.json`-д `expo-splash-screen` plugin нэмэгдэв: `assets/splash-icon.png`
++ `imageWidth: 200` + theme-ийн дэвсгэр (light `#F6F4FD` · dark `#0B0716`).
+`app/_layout.tsx` нь `preventAutoHideAsync()` → фонт бэлэн болмогц `hideAsync()`
+хийж, splash-аас апп руу шууд шилжинэ (өмнө нь splash эхний frame дээр алга
+болж, фонт ачаалагдах хүртэл хоосон дэлгэц гарах байсан).
+App icon нь урьд өмнөөс **бэлэн**: `icon-ios.png` 1024×1024, `icon.png`
+1254×1254 adaptive.
 
 ---
 

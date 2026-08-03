@@ -15,9 +15,9 @@ import { loadRewards, streakXp, type XpRewards } from './xp-rewards';
 import {
   computeLevel,
   dayKeyUB,
-  dayKeyUBOffset,
   startOfUBDay,
   type LevelInfo,
+  isStreakAlive,
   resolveStreak,
   streakCelebrationDue,
   MAX_HELD_FREEZES,
@@ -352,10 +352,16 @@ export class XpService {
     });
     const xp = user?.xp ?? 0;
 
-    // A streak only counts if the last active day is today or yesterday.
+    // A streak counts if the last active day is today/yesterday — OR if the
+    // learner holds enough freezes to bridge the gap. Freezes are only spent
+    // when the goal is met (`resolveStreak` in `award()`), so without this the
+    // app reported 0 in the meantime and a paid-for freeze looked broken.
     const today = dayKeyUB();
-    const yesterday = dayKeyUBOffset(-1);
-    const alive = user?.lastActiveDate === today || user?.lastActiveDate === yesterday;
+    const alive = isStreakAlive({
+      lastActiveDate: user?.lastActiveDate ?? null,
+      today,
+      freezes: user?.streakFreezes ?? 0,
+    });
     const currentStreak = alive ? (user?.currentStreak ?? 0) : 0;
     // `lastActiveDate === today` only happens once the daily goal is met, so it
     // doubles as "the streak advanced today" — no extra state needed.
