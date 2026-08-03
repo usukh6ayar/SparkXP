@@ -875,4 +875,19 @@ describe('Dictionary — Толь', () => {
     expect(res.body.edited).toBe(true);
     expect(res.body.senses).toHaveLength(1);
   });
+
+  // The guard rails in search(). Both reject before any Gemini call is made,
+  // so they cost nothing to test — and an over-long word reaching the AI is a
+  // real way to make the server spend money on junk.
+  it('rejects a blank or over-long search word without calling the AI', async () => {
+    await request(app.getHttpServer())
+      .get(`/api/dictionary/search/${encodeURIComponent('   ')}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .get(`/api/dictionary/search/${'a'.repeat(121)}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(400);
+  });
 });

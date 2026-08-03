@@ -120,6 +120,7 @@ export class DictionarySensesService {
 
     // 4. Cache. Two users can search the same new word at the same moment; the
     //    unique index decides the winner and the loser reads it back.
+    let racedTo: DictionaryEntry | null = null;
     try {
       await this.entries.save(
         this.entries.create({
@@ -138,14 +139,15 @@ export class DictionarySensesService {
       // would report a database outage to the student as "word not found" and
       // silently discard the Gemini call we just paid for.
       if ((err as { code?: string }).code !== '23505') throw err;
-      const existing = await this.entries.findOne({ where: { word } });
-      if (existing)
-        return { word, senses: existing.senses ?? [], cached: true };
-      throw new NotFoundException('Энэ үгийн утга олдсонгүй');
+      racedTo = await this.entries.findOne({ where: { word } });
+      if (!racedTo) throw new NotFoundException('Энэ үгийн утга олдсонгүй');
     }
 
     // 5. Usage log + monthly counter. Its own `feature` so the admin Usage page
     //    can separate the cost from the short-gloss lookups.
+    //    This runs on the raced path too: the loser still made — and paid for —
+    //    a Gemini call, so returning early here would silently under-report
+    //    spend and hand out one free call past the plan limit.
     const costMicroUsd =
       Math.round(promptTokens * 0.0001) + Math.round(completionTokens * 0.0004);
     await this.aiUsages.save(
@@ -164,6 +166,7 @@ export class DictionarySensesService {
       await this.users.increment({ id: userId }, 'dictionaryAiCount', 1);
     }
 
+    if (racedTo) return { word, senses: racedTo.senses ?? [], cached: true };
     return { word, senses, cached: false };
   }
 

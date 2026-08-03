@@ -86,6 +86,13 @@ interface DictionaryState {
   openSearch: () => void;
   /** Open the full Толь card for a word (used by the Saved-words screen). */
   openWordCard: (word: string) => void;
+  /**
+   * Toggle ⭐ for a word. Screens must call THIS rather than the API function
+   * directly — the provider holds the in-memory set of starred words, and a
+   * direct call would leave that set stale, so the star would keep rendering
+   * filled and the next tap would silently re-save the word.
+   */
+  toggleStar: (word: string) => void;
 }
 
 const DictionaryContext = createContext<DictionaryState | undefined>(undefined);
@@ -365,8 +372,8 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
   // <SelectableText>) re-renders on each lookup tick and the text visibly
   // re-lays-out / "trembles" under the tapped word.
   const value = useMemo(
-    () => ({ lookup, translatePhrase, openSearch, openWordCard }),
-    [lookup, translatePhrase, openSearch, openWordCard],
+    () => ({ lookup, translatePhrase, openSearch, openWordCard, toggleStar }),
+    [lookup, translatePhrase, openSearch, openWordCard, toggleStar],
   );
 
   return (
