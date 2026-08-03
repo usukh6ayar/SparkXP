@@ -1,14 +1,13 @@
 import { apiRequest } from './client';
 
 /**
- * One block of the richer AI dictionary explanation (Premium plan doc §2):
- * most-common meaning, common/secondary, special case, phrase/expression.
+ * One sense of a searched word: the Толь format. No title, no definition —
+ * just the word (or phrase), an English example and its Mongolian translation.
  */
-export interface DictionarySection {
-  /** Section heading, e.g. "Most common", "Phrase / expression". */
-  title: string;
-  /** Mongolian explanation for this section. */
-  body: string;
+export interface WordSense {
+  word: string;
+  example: string;
+  translation: string;
 }
 
 export interface WordLookup {
@@ -20,17 +19,38 @@ export interface WordLookup {
   audioUrl: string | null;
   /** True when served from the Words DB / cache (free), false when from AI. */
   cached: boolean;
-  /**
-   * Optional 4-part detailed explanation. The backend only returns the short
-   * `translation` today; when Өсөхбаяр ships the fuller Gemini explanation the
-   * popover renders these sections automatically (see DictionaryProvider).
-   */
-  sections?: DictionarySection[];
+}
+
+/** GET /api/dictionary/search/:word result — up to 4 senses, most common first. */
+export interface SensesResult {
+  word: string;
+  senses: WordSense[];
+  cached: boolean;
+}
+
+/** One row of the user's ⭐ dictionary list. */
+export interface SavedDictionaryWord {
+  word: string;
+  /** Cached senses, or null when the word was starred from the reader. */
+  senses: WordSense[] | null;
+  /** One-line subtitle: short gloss, else the first sense's translation. */
+  translation: string;
 }
 
 /**
- * GET /api/dictionary/:word — short Mongolian meaning of an English word.
- * Backend order: Word DB → translation cache → Gemini (cached after).
+ * GET /api/dictionary/search/:word — the Толь search result (max 4 senses).
+ * Backend order: dictionary_entries cache → Gemini (cached after).
+ */
+export function searchWord(token: string, word: string): Promise<SensesResult> {
+  return apiRequest<SensesResult>(
+    `/dictionary/search/${encodeURIComponent(word)}`,
+    { token },
+  );
+}
+
+/**
+ * GET /api/dictionary/:word — short Mongolian meaning of an English word
+ * (reader double-tap). Backend: Word DB → translation cache → Gemini.
  */
 export function lookupWord(token: string, word: string): Promise<WordLookup> {
   return apiRequest<WordLookup>(`/dictionary/${encodeURIComponent(word)}`, { token });
@@ -38,8 +58,7 @@ export function lookupWord(token: string, word: string): Promise<WordLookup> {
 
 /**
  * POST /api/dictionary/translate — full Mongolian translation of an English
- * sentence/phrase (not a 1–4 word gloss). Backend: translation cache → Gemini
- * with a sentence-tuned prompt, cached after. (Endpoint owned by Өсөхбаяр.)
+ * sentence/phrase (not a 1–4 word gloss).
  */
 export function translateSentence(
   token: string,
@@ -66,16 +85,21 @@ export function getWordAudio(
   );
 }
 
+/** GET /api/dictionary/saves — the user's ⭐ dictionary words. */
+export function getDictionarySaves(token: string): Promise<SavedDictionaryWord[]> {
+  return apiRequest<SavedDictionaryWord[]>('/dictionary/saves', { token });
+}
+
 /**
- * POST /api/dictionary/:word/save — save the word (+ translation) to the user's
- * saved vocabulary (creates the Word as needs_review if it isn't in the bank).
+ * POST /api/dictionary/saves/:word — toggle ⭐. Unlike the old
+ * `/dictionary/:word/save`, this never creates a row in the curated word bank.
  */
-export function saveWord(
+export function toggleDictionarySave(
   token: string,
   word: string,
-): Promise<{ wordId: string; saved: boolean }> {
-  return apiRequest<{ wordId: string; saved: boolean }>(
-    `/dictionary/${encodeURIComponent(word)}/save`,
+): Promise<{ word: string; saved: boolean }> {
+  return apiRequest<{ word: string; saved: boolean }>(
+    `/dictionary/saves/${encodeURIComponent(word)}`,
     { method: 'POST', token },
   );
 }
