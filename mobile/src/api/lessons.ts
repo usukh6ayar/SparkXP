@@ -60,6 +60,12 @@ export function getContinue(token: string): Promise<ContinueLearning> {
   return apiRequest<ContinueLearning>('/lessons/continue', { token });
 }
 
+/** Lesson ids the student has finished — the level trail ticks nodes BY ID
+ *  (counting "the first N" put checkmarks on the wrong lessons). */
+export function getCompletedLessonIds(token: string): Promise<{ ids: string[] }> {
+  return apiRequest<{ ids: string[] }>('/lessons/completed', { token });
+}
+
 /** Mark a lesson complete → awards XP once. Idempotent on the server. */
 export function completeLesson(
   id: string,

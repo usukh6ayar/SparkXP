@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull } from 'typeorm';
 import { Lesson } from '../entities/lesson.entity';
 import { XpService } from '../xp/xp.service';
-import { XpSource } from '../common/enums';
+import { XpSource, ContentLevel } from '../common/enums';
 import { CreateLessonDto } from './dto/create-lesson.dto';
 import { UpdateLessonDto } from './dto/update-lesson.dto';
 import { QueryLessonsDto } from './dto/query-lessons.dto';
@@ -61,7 +61,9 @@ export class LessonsService {
   async getContinue(userId: string): Promise<ContinueResult> {
     const published = await this.lessons.find({
       where: { isPublished: true, parentLessonId: IsNull() },
-      order: { level: 'ASC', position: 'ASC' },
+      // Same ordering as findAll() — otherwise "the next lesson" and the order
+      // the student sees on the level trail disagree whenever positions tie.
+      order: { level: 'ASC', position: 'ASC', createdAt: 'ASC' },
       select: { id: true, title: true, thumbnailUrl: true, type: true, level: true },
     });
     const completed = await this.xp.getCompletedLessonIds(userId);
@@ -84,13 +86,39 @@ export class LessonsService {
     };
   }
 
-  create(dto: CreateLessonDto): Promise<Lesson> {
+  /** Create a lesson. With no explicit `position` the lesson is appended to the
+   *  end of its level, so an author who never touches the field still gets a
+   *  sane order instead of everything piling up at 0. */
+  async create(dto: CreateLessonDto): Promise<Lesson> {
     const lesson = this.lessons.create(dto);
+    if (dto.position === undefined) lesson.position = await this.nextPosition(dto);
     return this.lessons.save(lesson);
   }
 
+  /** Last position in this level/track + 1 (1 for the first lesson). */
+  private async nextPosition(dto: CreateLessonDto): Promise<number> {
+    const last = await this.lessons.findOne({
+      where: {
+        level: dto.level ?? ContentLevel.A1,
+        parentLessonId: dto.parentLessonId ?? IsNull(),
+      },
+      order: { position: 'DESC' },
+      select: { id: true, position: true },
+    });
+    return (last?.position ?? 0) + 1;
+  }
+
+  /** Lesson ids this student has already completed — the level trail marks its
+   *  nodes by id, so a checkmark always lands on the lesson that was finished
+   *  (counting "the first N nodes" mislabels them when positions tie). */
+  async completedIds(userId: string): Promise<{ ids: string[] }> {
+    const completed = await this.xp.getCompletedLessonIds(userId);
+    return { ids: [...completed] };
+  }
+
   /** List lessons with optional filters and pagination. Ordered by `position`
-   *  so a level/track shows in the intended sequence. */
+   *  (then oldest-first) so a level/track shows in the authored sequence — the
+   *  same order `getContinue` walks. */
   async findAll(query: QueryLessonsDto): Promise<PaginatedLessons> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
@@ -105,7 +133,7 @@ export class LessonsService {
 
     const [items, total] = await this.lessons.findAndCount({
       where,
-      order: { position: 'ASC', createdAt: 'DESC' },
+      order: { position: 'ASC', createdAt: 'ASC' },
       skip: (page - 1) * limit,
       take: limit,
     });

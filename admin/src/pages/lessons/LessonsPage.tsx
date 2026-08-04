@@ -14,6 +14,7 @@ import { FormActions } from '../../components/FormActions';
 import { RowActions } from '../../components/RowActions';
 import { Pagination } from '../../components/Pagination';
 import { LessonTests } from './LessonTests';
+import { LessonWords } from './LessonWords';
 import { levelFormOptions as levelOptions } from '../../lib/options';
 
 const LIMIT = 20;
@@ -23,10 +24,13 @@ interface Lesson {
   title: string;
   type: string;
   level: string;
+  /** Order within the level — the app shows lessons (and numbers them) by this. */
+  position: number;
   isPublished: boolean;
   priceSparks: number;
   description?: string;
-  content?: { imageUrl?: string; videoUrl?: string; topic?: string };
+  thumbnailUrl?: string | null;
+  content?: Record<string, string | undefined>;
 }
 
 const typeOptions = [
@@ -38,54 +42,18 @@ const typeOptions = [
   { value: 'fill',       label: 'Нөхөх' },
 ];
 
-const topicOptions = [
-  { value: '',               label: '— Select topic —' },
-  // Conversation
-  { value: 'greetings',     label: '👋 Greetings & Farewells' },
-  { value: 'introductions', label: '🙋 Introductions' },
-  { value: 'dialogue',      label: '💬 Conversations & Dialogues' },
-  { value: 'phone',         label: '📞 Phone Calls' },
-  { value: 'requests',      label: '🙏 Requests & Offers' },
-  // Grammar
-  { value: 'articles',      label: '📌 Articles (a, an, the)' },
-  { value: 'tenses',        label: '⏰ Tenses' },
-  { value: 'questions',     label: '❓ Questions' },
-  { value: 'negation',      label: '🚫 Negation' },
-  { value: 'prepositions',  label: '📍 Prepositions' },
-  { value: 'adjectives',    label: '🎨 Adjectives' },
-  { value: 'comparatives',  label: '📊 Comparatives & Superlatives' },
-  { value: 'modal_verbs',   label: '🔧 Modal Verbs (can, must, should)' },
-  { value: 'conditionals',  label: '🔀 Conditionals (if / unless)' },
-  // Vocabulary by topic
-  { value: 'family',        label: '👨‍👩‍👧 Family' },
-  { value: 'food',          label: '🍎 Food & Drinks' },
-  { value: 'animals',       label: '🐶 Animals' },
-  { value: 'weather',       label: '🌤 Weather' },
-  { value: 'places',        label: '🗺 Places & Directions' },
-  { value: 'jobs',          label: '💼 Jobs & Professions' },
-  { value: 'sports',        label: '⚽ Sports & Hobbies' },
-  { value: 'body',          label: '🫀 Body Parts & Health' },
-  { value: 'time',          label: '📅 Time, Days & Dates' },
-  { value: 'numbers',       label: '🔢 Numbers & Counting' },
-  { value: 'colors',        label: '🌈 Colors & Shapes' },
-  { value: 'clothing',      label: '👕 Clothing & Fashion' },
-  { value: 'travel',        label: '✈️ Travel & Tourism' },
-  { value: 'school',        label: '🏫 School & Education' },
-  { value: 'technology',    label: '💻 Technology' },
-  { value: 'business',      label: '📈 Business & Work' },
-  { value: 'nature',        label: '🌿 Nature & Environment' },
-  { value: 'emotions',      label: '😊 Emotions & Feelings' },
-  { value: 'shopping',      label: '🛒 Shopping' },
-  { value: 'home',          label: '🏠 Home & Furniture' },
-];
+/** Хичээлийн тайлбарын хязгаар — backend DTO-той ижил (@MaxLength(1000)). */
+const DESC_MAX = 1000;
 
 interface LessonForm {
   title: string; type: string; level: string; priceSparks: number;
-  description: string; imageUrl: string; videoUrl: string; topic: string;
+  /** Text, not number: empty = "auto" (backend appends to the end of the level). */
+  position: string;
+  description: string; imageUrl: string; videoUrl: string; isPublished: boolean;
 }
 const emptyForm: LessonForm = {
-  title: '', type: 'vocabulary', level: 'a1', priceSparks: 0,
-  description: '', imageUrl: '', videoUrl: '', topic: '',
+  title: '', type: 'vocabulary', level: 'a1', priceSparks: 0, position: '',
+  description: '', imageUrl: '', videoUrl: '', isPublished: true,
 };
 
 export default function LessonsPage() {
@@ -117,10 +85,12 @@ export default function LessonsPage() {
   function openEdit(l: Lesson) {
     setForm({
       title: l.title, type: l.type, level: l.level, priceSparks: l.priceSparks,
+      position: String(l.position ?? ''),
       description: l.description ?? '',
-      imageUrl: l.content?.imageUrl ?? '',
+      // Older lessons kept the cover only in `content`; newer ones in the column.
+      imageUrl: l.thumbnailUrl ?? l.content?.imageUrl ?? '',
       videoUrl: l.content?.videoUrl ?? '',
-      topic: l.content?.topic ?? '',
+      isPublished: l.isPublished,
     });
     setEditing(l); setError(''); setModal('edit');
   }
@@ -128,14 +98,23 @@ export default function LessonsPage() {
 
   async function save() {
     if (!form.title.trim()) { setError('Гарчиг оруулна уу'); return; }
+    if (form.description.length > DESC_MAX) { setError(`Тайлбар ${DESC_MAX} тэмдэгтээс богино байх ёстой`); return; }
     setSaving(true); setError('');
     try {
-      const { description, imageUrl, videoUrl, topic, ...rest } = form;
-      const content: Record<string, string> = {};
-      if (imageUrl) content.imageUrl = imageUrl;
-      if (videoUrl) content.videoUrl = videoUrl;
-      if (topic) content.topic = topic;
-      const payload = { ...rest, description: description || undefined, content, thumbnailUrl: imageUrl || undefined, isPublished: true };
+      const { description, imageUrl, videoUrl, position, ...rest } = form;
+      // Merge, don't replace: `content` may hold keys this form doesn't edit.
+      const content: Record<string, string | undefined> = { ...(editing?.content ?? {}) };
+      content.imageUrl = imageUrl || undefined;
+      content.videoUrl = videoUrl || undefined;
+      const payload = {
+        ...rest,
+        description: description.trim() || null,
+        content,
+        // The app reads the cover from this column (content.imageUrl is legacy).
+        thumbnailUrl: imageUrl || null,
+        // Empty = let the backend append it to the end of the level.
+        position: position.trim() === '' ? undefined : Number(position),
+      };
       if (modal === 'create') await api.post('/lessons', payload);
       else if (editing) await api.patch(`/lessons/${editing.id}`, payload);
       setModal(null); load();
@@ -152,9 +131,14 @@ export default function LessonsPage() {
 
   const columns = [
     {
+      key: 'position', header: '#',
+      render: (l: Lesson) => <span className="text-xs text-gray-400">{l.position || '—'}</span>,
+      className: 'w-10',
+    },
+    {
       key: 'media', header: '',
       render: (l: Lesson) => {
-        const img = l.content?.imageUrl;
+        const img = l.thumbnailUrl ?? l.content?.imageUrl;
         const vid = l.content?.videoUrl;
         if (img) return (
           <button onClick={() => openPreview(l)} title="Зураг харах">
@@ -177,6 +161,10 @@ export default function LessonsPage() {
     { key: 'type', header: 'Төрөл', render: (l: Lesson) => <Badge color="blue">{l.type}</Badge> },
     { key: 'level', header: 'Түвшин', render: (l: Lesson) => <Badge color="gray">{l.level.toUpperCase()}</Badge> },
     {
+      key: 'published', header: 'Төлөв', render: (l: Lesson) =>
+        l.isPublished ? <Badge color="green">Нийтэлсэн</Badge> : <Badge color="gray">Ноорог</Badge>,
+    },
+    {
       key: 'price', header: 'Үнэ', render: (l: Lesson) =>
         l.priceSparks > 0 ? <span className="text-amber font-medium">✨ {l.priceSparks}</span> : <span className="text-gray-400">Үнэгүй</span>,
     },
@@ -193,7 +181,7 @@ export default function LessonsPage() {
     <>
       <PageHeader
         title="Хичээлүүд"
-        description={`Нийт: ${lessons.length}`}
+        description={`Нийт: ${total}`}
         action={<Button onClick={openCreate}><Plus className="h-4 w-4" /> Хичээл нэмэх</Button>}
       />
       <Table columns={columns} rows={lessons} keyFn={(l) => l.id} empty="Хичээл байхгүй" loading={loading} />
@@ -208,21 +196,22 @@ export default function LessonsPage() {
               <Select label="Төрөл" options={typeOptions} value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} />
               <Select label="Түвшин" options={levelOptions} value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value })} />
             </div>
-            <Select
-              label="Хичээлийн агуулга"
-              options={topicOptions}
-              value={form.topic}
-              onChange={(e) => setForm({ ...form, topic: e.target.value })}
-            />
             <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-gray-700">Тайлбар / Контент</label>
+              <div className="flex items-baseline justify-between">
+                <label className="text-sm font-medium text-gray-700">Тайлбар / Контент</label>
+                <span className={`text-xs ${form.description.length > DESC_MAX ? 'text-red-500' : 'text-gray-400'}`}>
+                  {form.description.length}/{DESC_MAX}
+                </span>
+              </div>
               <textarea
                 className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                 rows={4}
+                maxLength={DESC_MAX}
                 placeholder="Хичээлийн тайлбар, дүрэм, тэмдэглэл..."
                 value={form.description}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
               />
+              <p className="text-xs text-gray-400">Апп дээр гарчгийн доор товч тайлбар болж харагдана.</p>
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <ImageCropUpload
@@ -237,14 +226,32 @@ export default function LessonsPage() {
                 onChange={(url) => setForm({ ...form, videoUrl: url })}
               />
             </div>
-            <Input label="Үнэ (Sparks, 0=үнэгүй)" type="number" min={0} value={form.priceSparks}
-              onChange={(e) => setForm({ ...form, priceSparks: Number(e.target.value) })} />
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Input label="Үнэ (Sparks, 0=үнэгүй)" type="number" min={0} value={form.priceSparks}
+                onChange={(e) => setForm({ ...form, priceSparks: Number(e.target.value) })} />
+              <div>
+                <Input label="Дараалал (хоосон = хамгийн ард)" type="number" min={1} value={form.position}
+                  placeholder="Автомат"
+                  onChange={(e) => setForm({ ...form, position: e.target.value })} />
+                <p className="mt-1 text-xs text-gray-400">
+                  Түвшин доторх дараалал — апп дээрх зам болон хичээлийн дугаар үүгээр эрэмбэлэгдэнэ.
+                </p>
+              </div>
+            </div>
+            <label className="flex items-center gap-2 text-sm text-gray-700">
+              <input type="checkbox" checked={form.isPublished}
+                onChange={(e) => setForm({ ...form, isPublished: e.target.checked })} />
+              Нийтлэх <span className="text-xs text-gray-400">(нийтлээгүй хичээл апп дээр харагдахгүй)</span>
+            </label>
             {error && <p className="text-sm text-red-500">{error}</p>}
             <FormActions onCancel={() => setModal(null)} onSave={save} saving={saving} />
 
             {/* Per-lesson tests (4 categories) — needs a saved lesson id */}
             {modal === 'edit' && editing ? (
-              <LessonTests lessonId={editing.id} level={form.level} />
+              <>
+                <LessonWords lessonId={editing.id} />
+                <LessonTests lessonId={editing.id} level={form.level} />
+              </>
             ) : (
               <p className="text-xs text-gray-400">💡 Тест нэмэхийн тулд эхлээд хичээлээ хадгална уу.</p>
             )}
@@ -256,11 +263,11 @@ export default function LessonsPage() {
       {modal === 'preview' && preview && (
         <Modal title={preview.title} onClose={() => { setModal(null); setPreview(null); }}>
           <div className="space-y-4">
-            {preview.content?.imageUrl && (
+            {(preview.thumbnailUrl ?? preview.content?.imageUrl) && (
               <div>
                 <p className="text-xs text-gray-400 mb-2 flex items-center gap-1"><Image className="h-3 w-3" /> Зураг</p>
                 <img
-                  src={preview.content.imageUrl}
+                  src={preview.thumbnailUrl ?? preview.content?.imageUrl}
                   alt={preview.title}
                   className="w-full rounded-xl border border-gray-200 object-contain max-h-80"
                 />
@@ -276,7 +283,7 @@ export default function LessonsPage() {
                 />
               </div>
             )}
-            {!preview.content?.imageUrl && !preview.content?.videoUrl && (
+            {!preview.thumbnailUrl && !preview.content?.imageUrl && !preview.content?.videoUrl && (
               <p className="text-sm text-gray-400 text-center py-6">Медиа файл байхгүй байна</p>
             )}
             <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">

@@ -17,16 +17,17 @@ export class CreateLessonDto {
   @MaxLength(200)
   title: string;
 
+  /** `null` clears the text (admin sends null when the field is emptied). */
   @IsOptional()
   @IsString()
   @MaxLength(1000)
-  description?: string;
+  description?: string | null;
 
-  /** Banner/thumbnail image URL (admin form requires it; ~1200×600 image). */
+  /** Banner/thumbnail image URL (~1200×600). `null` removes the cover. */
   @IsOptional()
   @IsString()
   @MaxLength(300)
-  thumbnailUrl?: string;
+  thumbnailUrl?: string | null;
 
   /** Set = this is a "deeper" sub-lesson under the given parent lesson. */
   @IsOptional()

@@ -21,7 +21,7 @@ import { AppIcon } from '../../src/components/AppIcon';
 import { useAuth } from '../../src/auth/AuthContext';
 import { useSettings } from '../../src/settings/SettingsContext';
 import type { TranslationKey } from '../../src/i18n';
-import { getLessons, type Lesson } from '../../src/api/lessons';
+import { getLessons, getCompletedLessonIds, type Lesson } from '../../src/api/lessons';
 import { getGamification, type Gamification } from '../../src/api/gamification';
 import { AppText } from '../../src/components/Text';
 import { haptics } from '../../src/lib/haptics';
@@ -157,6 +157,7 @@ export default function LevelScreen() {
   const reduceMotion = useReduceMotion();
 
   const [lessons, setLessons] = useState<Lesson[]>([]);
+  const [completed, setCompleted] = useState<Set<string>>(new Set());
   const [gam, setGam] = useState<Gamification | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -169,12 +170,15 @@ export default function LevelScreen() {
   const load = useCallback(async () => {
     if (!token) return;
     try {
-      const [r, g] = await Promise.all([
+      const [r, g, done] = await Promise.all([
         getLessons(token, { level: levelCode }),
         getGamification(token),
+        // Which lessons are finished — by id, so the trail can't mis-tick.
+        getCompletedLessonIds(token).catch(() => ({ ids: [] as string[] })),
       ]);
       setLessons(r.items);
       setGam(g);
+      setCompleted(new Set(done.ids));
     } catch (e) {
       console.warn('Level load failed:', (e as Error)?.message ?? e);
       setLessons([]);
@@ -200,8 +204,10 @@ export default function LevelScreen() {
   const done = levelProg?.done ?? 0;
   const total = levelProg?.total ?? 0;
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-  // The first `done` lessons of this level are completed; the next is "current".
-  const completedCount = Math.min(done, lessons.length);
+  // "Current" = the first lesson of this level the student has NOT finished.
+  // -1 (all done) means every node is mastered and nothing is ahead.
+  const firstUndone = lessons.findIndex((l) => !completed.has(l.id));
+  const currentIndex = firstUndone === -1 ? lessons.length : firstUndone;
 
   // One node per lesson + a few locked "coming soon" nodes. The path is tall
   // enough to hold them all and scrolls; node 1 sits at the very bottom.
@@ -224,7 +230,7 @@ export default function LevelScreen() {
   for (let i = 0; i < nodeCount - 1; i++) {
     const a = nodeCenter(i);
     const b = nodeCenter(i + 1);
-    const ahead = i >= completedCount;
+    const ahead = i >= currentIndex;
     const steps = Math.max(1, Math.round(Math.hypot(b.x - a.x, b.y - a.y) / BEAD_GAP));
     for (let k = 0; k < steps; k++) {
       const t = k / steps;
@@ -269,10 +275,10 @@ export default function LevelScreen() {
               const c = nodeCenter(i);
               // Four node states (§3.2b): mastered (done) · current (the one that
               // pulses) · unlocked (a real lesson ahead) · locked (coming soon).
-              const completed = i < completedCount;
-              const current = i === completedCount && i < lessons.length;
+              const isDone = !!lesson && completed.has(lesson.id);
+              const current = i === currentIndex && i < lessons.length;
               const locked = i >= lessons.length;
-              const unlocked = !completed && !current && !locked;
+              const unlocked = !isDone && !current && !locked;
               return (
                 <Fragment key={i}>
                   {/* Rings: current pulses (glow); unlocked gets a quiet outline;
@@ -295,7 +301,7 @@ export default function LevelScreen() {
                       onPress={lesson ? () => { haptics.tap(); router.push(`/lesson/${lesson.id}`); } : undefined}
                       style={({ pressed }) => [
                         styles.node,
-                        completed && styles.nodeMastered,
+                        isDone && styles.nodeMastered,
                         current && styles.nodeCurrent,
                         unlocked && styles.nodeUnlocked,
                         locked && styles.nodeLocked,
@@ -310,7 +316,7 @@ export default function LevelScreen() {
                           style={styles.nodeFill}
                         />
                       ) : null}
-                      {completed ? (
+                      {isDone ? (
                         <Ionicons name="checkmark" size={28} color={colors.white} />
                       ) : locked ? (
                         <Ionicons name="lock-closed" size={22} color={colors.lockedInk} />

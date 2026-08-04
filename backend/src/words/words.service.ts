@@ -25,6 +25,15 @@ import { UpdateWordDto } from './dto/update-word.dto';
 import { QueryWordsDto } from './dto/query-words.dto';
 import { QuizAnswerDto } from './dto/quiz.dto';
 
+/** Fields PATCH /words/bulk can change across many words at once. */
+export interface BulkChanges {
+  status?: WordStatus;
+  category?: string;
+  level?: ContentLevel;
+  /** `null` = detach the words from their lesson. */
+  lessonId?: string | null;
+}
+
 export interface ImportReport {
   total: number;
   inserted: number;
@@ -1098,24 +1107,23 @@ export class WordsService {
   /** Alias for bulkUpdate — called by PATCH /words/bulk with raw body params. */
   async bulkEdit(
     ids: string[],
-    changes: { status?: WordStatus; category?: string; level?: ContentLevel },
+    changes: BulkChanges,
   ): Promise<{ updated: number }> {
     return this.bulkUpdate(ids, changes);
   }
 
-  /** Apply the same change (status / category / level) to many words at once. */
+  /** Apply the same change (status / category / level / lesson) to many words. */
   async bulkUpdate(
     ids: string[],
-    changes: { status?: WordStatus; category?: string; level?: ContentLevel },
+    changes: BulkChanges,
   ): Promise<{ updated: number }> {
-    const patch: {
-      status?: WordStatus;
-      category?: string;
-      level?: ContentLevel;
-    } = {};
+    const patch: BulkChanges = {};
     if (changes.status) patch.status = changes.status;
     if (changes.category !== undefined) patch.category = changes.category;
     if (changes.level) patch.level = changes.level;
+    // `null` is a meaningful value here (detach from the lesson), so this test
+    // is `!== undefined` rather than truthiness.
+    if (changes.lessonId !== undefined) patch.lessonId = changes.lessonId;
     if (Object.keys(patch).length === 0) {
       throw new BadRequestException('Өөрчлөх утга алга байна');
     }

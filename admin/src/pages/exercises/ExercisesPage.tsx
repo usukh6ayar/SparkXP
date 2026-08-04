@@ -57,8 +57,10 @@ interface Form {
   xpReward: number;
   isPublished: boolean;
 }
+// Published by default: the app only lists `isPublished=true` exercises, and a
+// draft-by-default form is why newly authored дасгал never showed up on mobile.
 const emptyForm: Form = {
-  title: '', level: 'a1', topic: '', questionType: 'multiple_choice', questions: [], xpReward: 50, isPublished: false,
+  title: '', level: 'a1', topic: '', questionType: 'multiple_choice', questions: [], xpReward: 50, isPublished: true,
 };
 
 export default function ExercisesPage() {
@@ -377,6 +379,10 @@ export default function ExercisesPage() {
                 placeholder="Энд CSV (|-аар) эсвэл JSON буулгана..."
               />
             </div>
+            <p className="text-xs text-amber-600">
+              ⚠️ Импортолсон дасгал <b>ноорог</b> болж үүснэ — шалгаад "Нийтлэх" дарж
+              идэвхжүүлнэ. Нийтлээгүй дасгал апп дээр огт харагдахгүй.
+            </p>
             {impError && <p className="text-sm text-red-500">{impError}</p>}
             <FormActions onCancel={() => setImportOpen(false)} onSave={runImport} saving={importing} saveLabel="Импортлох" />
           </div>
