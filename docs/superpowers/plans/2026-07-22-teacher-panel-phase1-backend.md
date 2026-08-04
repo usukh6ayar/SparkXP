@@ -341,7 +341,7 @@ Expected: no errors.
 
 Start the API, log in as a student, POST a quiz submission, then confirm a row landed:
 
-Run: `psql -d englishxp -c "SELECT user_id, skill, score_pct, assignment_id FROM quiz_attempts ORDER BY created_at DESC LIMIT 3;"`
+Run: `psql -d sparkxp -c "SELECT user_id, skill, score_pct, assignment_id FROM quiz_attempts ORDER BY created_at DESC LIMIT 3;"`
 Expected: one row per submit, `skill` one of listening/reading/writing/fill/other, `score_pct` matching the result.
 
 - [ ] **Step 9: Commit**
@@ -589,7 +589,7 @@ Expected: no errors. (If `QuizzesModule ↔ AssignmentsModule` form a cycle, wra
 
 Assign a quiz to 2 selected students → expect 2 `assignment_completions` rows `status='assigned'`. Submit as one student with `assignmentId` → that row flips to `completed`/`late` with `score_pct` set and `attempt_count=1`.
 
-Run: `psql -d englishxp -c "SELECT student_id, status, score_pct, attempt_count FROM assignment_completions WHERE assignment_id='<id>';"`
+Run: `psql -d sparkxp -c "SELECT student_id, status, score_pct, attempt_count FROM assignment_completions WHERE assignment_id='<id>';"`
 
 - [ ] **Step 7: Commit**
 

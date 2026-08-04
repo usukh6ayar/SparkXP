@@ -53,7 +53,7 @@ async function bootstrap() {
   const port = config.get<number>('PORT', 3000);
   // Bind 0.0.0.0 so the container is reachable on cloud hosts (Railway, Render).
   await app.listen(port, '0.0.0.0');
-  Logger.log(`EnglishXP API running on port ${port} (prefix /api)`, 'Bootstrap');
+  Logger.log(`SparkXP API running on port ${port} (prefix /api)`, 'Bootstrap');
 }
 
 // A rejected bootstrap (bad DB creds, missing JWT_SECRET) must exit non-zero so

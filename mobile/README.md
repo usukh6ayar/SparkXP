@@ -1,4 +1,4 @@
-# EnglishXP — Mobile (Expo)
+# SparkXP — Mobile (Expo)
 
 React Native + Expo student app. Talks to the backend in `/backend`.
 Roadmap: `../MOBILE_ROADMAP.md`.

@@ -1,11 +1,11 @@
 /**
  * Single source of truth for the class-join deep link encoded in QR codes.
  *
- * Format: `englishxp://join/<CODE>` (scheme = app.json "scheme").
+ * Format: `sparkxp://join/<CODE>` (scheme = app.json "scheme").
  * Keeping build + parse here means a printed QR stays compatible whenever the
  * student-side scanner / `join/[code]` route is built — both reuse this.
  */
-const JOIN_PREFIX = 'englishxp://join/';
+const JOIN_PREFIX = 'sparkxp://join/';
 
 /** The value to encode in a class's QR code. */
 export function buildJoinLink(code: string): string {

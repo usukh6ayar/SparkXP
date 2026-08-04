@@ -189,25 +189,53 @@ Store-д гарсны дараа **хэрэглэгчийн утсан дээр 
 буруу framework нь **идэвхтэй төөрөгдүүлж** байна (Next.js-ийн routing/SSR
 таамаглалаар код бичих эрсдэл). Хамгийн хямд, хамгийн шууд өгөөжтэй засвар.
 
-### M7. Апп-ын нэрлэлт `englishxp` хэвээр — rename хийх эсэхийг store-оос ӨМНӨ шийдэх
+### ~~M7. Апп-ын нэрлэлт `englishxp` хэвээр~~ — ✅ ШИЙДЭГДСЭН (2026-08-03)
 
-**Шинэчлэл 2026-08-03:** iOS дээр байсан **commit хийгээгүй** `com.usukhbayar.sparkxp`
-өөрчлөлтийг **буцаалаа** → одоо *зөрүү байхгүй*, бүх талбар нэг мөрөнд:
+`englishxp` нэрийг **бүрмөсөн** устгаж SparkXP болгов. Одоогийн төлөв:
 
 | Талбар | Утга |
 | --- | --- |
-| iOS `bundleIdentifier` | `com.usukh6ayar.englishxp` |
-| Android `package` | `com.usukh6ayar.englishxp` |
-| `slug` / `scheme` | `englishxp` |
-| `extra.eas.projectId` | `d5b190dd-…` (жинхэнэ, `owner: usukh6ayar`) |
+| iOS `bundleIdentifier` · Android `package` | **`mn.app.sparkxp`** |
+| `scheme` | **`sparkxp`** (`sparkxp://join/…` · `sparkxp://invite/…`) |
+| SecureStore key | **`sparkxp.*`** |
+| Dev DB default (`DB_NAME`) | **`sparkxp`** |
+| `slug` | **`sparkxp`** — 🚨 expo.dev дээр ч сольсон байх ёстой, эс бөгөөс EAS унана (доор) |
+| `extra.eas.projectId` | `d5b190dd-…` (өөрчлөгдөөгүй — төслийг холбогч жинхэнэ түлхүүр) |
+| `owner` | `usukh6ayar` (Expo **бүртгэлийн** нэр, брэнд биш → хэвээр) |
 
-Үлдсэн асуудал нь зөрүү биш, **брэндийн нэр**: апп нь SparkXP атлаа бүх
-техникийн танигч нь `englishxp`. **Шийдвэр хэрэгтэй:** (а) `englishxp`-ээр
-хэвээр илгээх — хамгийн хямд, хэрэглэгчид харагдахгүй; эсвэл (б) бүрэн rename
-(iOS + Android + `slug` + `scheme` + EAS дахин холбох) — store-д **нэг ч удаа
-илгээхээс өмнө** л боломжтой. Илгээсний дараа bundle ID солих нь App Store
-Connect / Play дээр **шинэ апп** үүсгэнэ (шинэчлэл болохгүй), EAS credential ч
-хуучин ID-д уягдсан. Хагас солих нь хамгийн муу төлөв.
+**Хэвээр үлдсэн `englishxp` бүхэн нь дата, брэнд биш:** R2 bucket дахь
+`englishxp/...` object key (`reorganize-r2-layout.ts`, `migrate-images-to-r2.ts`,
+`CLOUDFLARE_MIGRATION_PLAN.md`) — кодон дахь мөрийг солиход бодит объект
+шилждэггүй, зөвхөн байхгүй зам руу заана; `cleanup-demo.sql`-ын
+`admin@englishxp.mn` нь `WHERE` нөхцөл (одоо байгаа мөр рүү заадаг).
+`backfill-media-to-r2.ts`-ийн `R2_FOLDER` default `englishxp/media` ч хэвээр —
+энэ нь өмнөөс тодорхойлогдсон асуудал (Railway env хуучирсан), солих юм бол
+**гурав дахь** layout үүсгэнэ.
+
+⚠️ **Дараагийн хэрэглэгчид нэг удаа системээс гарна** (storage key солигдсон).
+Апп store-д гараагүй тул migration shim нэмээгүй.
+
+🚨 **ҮЛДСЭН ГАНЦ АЖИЛ — expo.dev дээр slug сольж өгөх.** `app.json`-ы
+`slug: "sparkxp"` нь EAS төслийн жинхэнэ slug (`englishxp`)-тэй зөрж байгаа тул
+одоогоор **бүх `eas` команд унана**:
+
+```
+Slug for project identified by "extra.eas.projectId" (englishxp)
+does not match the "slug" field (sparkxp).
+```
+
+`eas project:rename` гэсэн команд байхгүй → **expo.dev → Project settings**-ээс
+гараар сольно. Боломжгүй бол `app.json`-ы `slug`-ийг `englishxp` болгож нэг
+мөрөөр буцаахад л хангалттай (slug хэрэглэгчид харагддаггүй, төслийг холбогч нь
+`projectId`). **`eas init --force` бүү ажиллуул** — шинэ `projectId` үүсгэж OTA
+түүхийг тасална. Expo Go энэ шалгалтад ордоггүй тул Choi/Boju-д нөлөөгүй.
+
+⚠️ **Дараагийн native build-ийн өмнө:** локал `ios/` + `android/` фолдер
+(gitignore, prebuild-ээр үүсдэг) хуучин ID-тэй хэвээр →
+`PRODUCT_BUNDLE_IDENTIFIER` (pbxproj) ба `namespace` + `applicationId`
+(`android/app/build.gradle`)-ыг гараар засах эсвэл дахин prebuild хийнэ.
+iOS-д `mn.app.sparkxp`-д зориулсан **шинэ App ID + provisioning profile**
+(Push Notifications capability-тэй) хэрэгтэй — EAS үүсгэнэ, Apple эрх асууна.
 
 ### ~~M8. `splash` тохируулаагүй~~ — ✅ ЗАССАН (2026-08-03)
 

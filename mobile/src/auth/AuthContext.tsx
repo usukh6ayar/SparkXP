@@ -16,11 +16,11 @@ import { t } from '../i18n';
 import { isBiometricAvailable, authenticateBiometric } from './biometrics';
 import { createAppLockPolicy } from './appLockPolicy';
 
-const TOKEN_KEY = 'englishxp.token';
-const USER_KEY = 'englishxp.user';
-const ONBOARDED_KEY = 'englishxp.onboarded';
-const BIOMETRIC_KEY = 'englishxp.biometric';
-const BIOMETRIC_ASKED_KEY = 'englishxp.biometricAsked';
+const TOKEN_KEY = 'sparkxp.token';
+const USER_KEY = 'sparkxp.user';
+const ONBOARDED_KEY = 'sparkxp.onboarded';
+const BIOMETRIC_KEY = 'sparkxp.biometric';
+const BIOMETRIC_ASKED_KEY = 'sparkxp.biometricAsked';
 
 interface AuthState {
   token: string | null;

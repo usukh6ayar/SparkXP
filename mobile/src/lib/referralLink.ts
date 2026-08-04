@@ -2,7 +2,7 @@
  * Single source of truth for the referral (invite) deep link — the twin of
  * `joinLink.ts`, but for inviting friends instead of joining a class.
  *
- * Format: `englishxp://invite/<CODE>` (scheme = app.json "scheme"). The <CODE>
+ * Format: `sparkxp://invite/<CODE>` (scheme = app.json "scheme"). The <CODE>
  * is either a user's short referral code (e.g. `SPARK-7K2Q`) or their username —
  * the backend resolves either, case-insensitively, to the inviter.
  *
@@ -12,10 +12,10 @@
  */
 import * as SecureStore from 'expo-secure-store';
 
-const INVITE_PREFIX = 'englishxp://invite/';
+const INVITE_PREFIX = 'sparkxp://invite/';
 
 /** Key for the referral code captured from a deep link before registration. */
-const PENDING_REFERRAL_KEY = 'englishxp.pendingReferral';
+const PENDING_REFERRAL_KEY = 'sparkxp.pendingReferral';
 
 /** The value to encode in a user's invite QR code / share link. */
 export function buildInviteLink(code: string): string {

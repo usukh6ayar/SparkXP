@@ -2,7 +2,7 @@
  * E2e tests — Phase 1 core flows.
  *
  * Prerequisites:
- *   - Postgres running at DB_* env vars (use a separate test DB: DB_NAME=englishxp_test)
+ *   - Postgres running at DB_* env vars (use a separate test DB: DB_NAME=sparkxp_test)
  *   - Redis running at REDIS_* env vars
  *   - DB_SYNCHRONIZE=true so TypeORM creates tables automatically
  *

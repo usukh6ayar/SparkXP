@@ -122,7 +122,7 @@ with raw SQL `up`/`down`, filename `<epoch-ms>-Name.ts`).
 
 **Verify:** `cd backend && npm run build` passes; `npm run start:dev` boots and (dev has
 `DB_SYNCHRONIZE=true`) creates the tables — check with
-`psql -d englishxp -c "\d buddy_sessions"` and `"\d buddy_memories"`.
+`psql -d sparkxp -c "\d buddy_sessions"` and `"\d buddy_memories"`.
 
 ### Step B2 — Provider adapters (STT / LLM / TTS interfaces)
 

@@ -8,7 +8,7 @@ import { t } from '../../src/i18n';
 import { type AppColors } from '../../src/theme/theme';
 import { useColors } from '../../src/settings/SettingsContext';
 
-/** Deep-link target: `englishxp://join/CODE` → auto-submits the join request. */
+/** Deep-link target: `sparkxp://join/CODE` → auto-submits the join request. */
 export default function JoinWithCodeScreen() {
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);

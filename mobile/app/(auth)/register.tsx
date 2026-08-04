@@ -103,7 +103,7 @@ export default function RegisterScreen() {
     if (!reduce) shakeX.value = shake();
   };
 
-  // Pick up a referral code captured from an `englishxp://invite/CODE` deep link
+  // Pick up a referral code captured from an `sparkxp://invite/CODE` deep link
   // (stashed while the user was logged out). Applied when the account is created.
   useEffect(() => {
     peekPendingReferral().then(setReferral);

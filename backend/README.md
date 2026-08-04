@@ -1,6 +1,6 @@
-# EnglishXP — Backend
+# SparkXP — Backend
 
-NestJS + TypeScript API for EnglishXP. PostgreSQL via TypeORM, Redis for
+NestJS + TypeScript API for SparkXP. PostgreSQL via TypeORM, Redis for
 cache/queue. This is the **foundation only** — entities and infrastructure
 wiring, no feature endpoints yet.
 
@@ -72,7 +72,7 @@ npm run migration:run
 Connect with `psql`:
 
 ```bash
-PGPASSWORD=postgres psql -h localhost -U postgres -d englishxp
+PGPASSWORD=postgres psql -h localhost -U postgres -d sparkxp
 ```
 
 Useful commands once connected:
@@ -86,4 +86,4 @@ SELECT * FROM users;   view rows
 ```
 
 Or use a GUI (TablePlus / DBeaver) with: host `localhost`, port `5432`,
-database `englishxp`, user `postgres`, password `postgres`.
+database `sparkxp`, user `postgres`, password `postgres`.

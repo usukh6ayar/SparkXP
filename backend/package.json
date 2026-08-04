@@ -1,7 +1,7 @@
 {
-  "name": "englishxp-backend",
+  "name": "sparkxp-backend",
   "version": "0.1.0",
-  "description": "EnglishXP API — gamified English learning backend (NestJS)",
+  "description": "SparkXP API — gamified English learning backend (NestJS)",
   "author": "Hustle Hive LLC",
   "private": true,
   "license": "UNLICENSED",

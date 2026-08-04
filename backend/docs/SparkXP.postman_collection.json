@@ -1,7 +1,7 @@
 {
   "info": {
-    "name": "EnglishXP API",
-    "description": "EnglishXP backend endpoints. Set the {{baseUrl}} variable (default http://localhost:3000/api). The Register and Login requests auto-save the returned accessToken into {{token}}, which the 'Me' request uses automatically.",
+    "name": "SparkXP API",
+    "description": "SparkXP backend endpoints. Set the {{baseUrl}} variable (default http://localhost:3000/api). The Register and Login requests auto-save the returned accessToken into {{token}}, which the 'Me' request uses automatically.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [

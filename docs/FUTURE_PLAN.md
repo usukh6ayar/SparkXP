@@ -1,4 +1,4 @@
-# SparkXP (EnglishXP) — Багийн цаашдын төлөвлөгөө & хэрэгжүүлэх зүйлс
+# SparkXP — Багийн цаашдын төлөвлөгөө & хэрэгжүүлэх зүйлс
 
 > Эх сурвалж: `docs/` доторх бүх баримт (IT Team Brief, Strategy Recommendations,
 > 34,000₮ / 56,000₮ Plan cost breakdown, SparkXP Plan, Teacher Panel UI/UX).
