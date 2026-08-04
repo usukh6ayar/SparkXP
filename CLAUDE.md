@@ -188,6 +188,15 @@ migration `AddTrophyPinnedRank1786300000000`). ⚠️ **Choi/Boju:** трофе�
   дээр (`bottom: insets.bottom`) суух тул дүрс home-indicator руу шахагдахаа
   болив. Дүрс хэвээр **Ionicons** outline↔filled (Phosphor/Lucide рүү шилжих нь
   тусдаа ажил — бүх апп даяар нэг дор хийнэ).
+- **Navbar-ийн layout засвар (Choi, мөн 2026-08-03).** Дээрх бар нь **урсгал
+  дотор** 142+inset өндөртэй байсан тул (React Navigation таб барыг дэлгэцтэй нэг
+  flex багананд тавьдаг) таб бүрийн контент ~80px-ээр дээш шахагдаж байв. Одоо
+  `CustomTabBar` нь **`position: absolute` overlay**, харин `app/(tabs)/_layout.tsx`
+  нь `sceneStyle.paddingBottom = tabBarHeight(insets.bottom)` (= зөвхөн цул карт,
+  64+inset) өгнө. ⚠️ **Дүрэм: `geometry.ts`-ийн `TOTAL_H` (барын өөрийн өндөр)
+  ба `tabBarHeight()` (дэлгэцийн авах зай) хоёрыг хэзээ ч хольж болохгүй.** Buddy
+  66px болж давалгаанд суув, шошготой болов, таван шошго нэг шугам дээр
+  (`mobile/DESIGN.md` → Bottom Navigation).
 - **Streak freeze засвар (BE)** — `isStreakAlive()` (`src/xp/gamification.ts`)
   нэмэгдэж, `getGamification` нь freeze-ийг тооцдог болов. Өмнө нь өдөр
   алгассаны дараа Home **0** харуулж, худалдаж авсан freeze ажиллахгүй мэт
@@ -195,6 +204,33 @@ migration `AddTrophyPinnedRank1786300000000`). ⚠️ **Choi/Boju:** трофе�
   хэлбэр өөрчлөгдөөгүй.
 - ⚠️ **Choi/Boju:** `git pull` дараа **`npm install` заавал** — `expo-splash-screen`
   шинэ dependency.
+
+**AI Толь — 4 утгатай хайлт + тусдаа толины сан (2026-08-04).** Choi-н толины
+самбар (`dictionary/DictionaryPanel.tsx`) хүлээж байсан `meanings` талбар одоо
+бодитоор ирж байна: `GET /dictionary/search/:word` нь хэрэглээний давтамжаар
+эрэмбэлсэн **хамгийн ихдээ 4 утга** (үг · англи жишээ · монгол орчуулга)
+буцаадаг ба шинэ `dictionary_entries` санд үүрд cache-лэгдэнэ. Тайлбар,
+тодорхойлолт, шошго **байхгүй**. Admin-д шинэ **"Толь"** цэс (`/dictionary`)
+нэмэгдэж, утгыг гараар засах/устгах боломжтой (устгасан үгийг дараагийн хайлтад
+AI дахин үүсгэнэ).
+- ⚠️ **Choi/Boju:** `POST /dictionary/:word/save` **устсан**. ⭐ одоо
+  `POST /dictionary/saves/:word` (toggle) бөгөөд `words` банкинд `needs_review`
+  мөр **үүсгэхээ больсон** — admin-ы "Үгс" хуудас цаашид бохирдохгүй.
+  `mobile/src/api/dictionary.ts`-ээс `saveWord()` алга болсон; оронд нь
+  `searchWord()` / `getDictionarySaves()` / `toggleDictionarySave()`.
+- **`useWordLookup({ detailed: true })`** нь самбарыг 4 утгат endpoint рүү
+  чиглүүлнэ; `detailed`-гүй хувилбар нь **унших дэлгэцийн popover**-т зориулсан
+  богино нэг утга хэвээр (санаатай — унших үед хурдан, жижиг байх ёстой).
+  `openSearch(word?)` нь үг дамжуулбал шууд тэр үгийг хайж нээнэ.
+- "Хадгалсан үгс" дэлгэц одоо 2 хэсэгтэй: **Хичээлийн үгс** (flashcard дасгал
+  хэвээр) ба **Тольны үгс**.
+- Шинэ хүснэгтүүд (`dictionary_entries`, `user_dictionary_saves`) prod-д
+  migration `CreateDictionaryEntries1786500000000`-оор орно.
+- ⚠️ **Deploy дараалал:** mobile-ын шинэчлэлт backend-тэй **хамт эсвэл өмнө**
+  гарах ёстой. Эс бөгөөс хуучин апп `POST /:word/save` рүү 404 авна (аз болоход
+  `catch`-д баригдаж чимээгүй уначих тул апп унахгүй, зүгээр л ⭐ асахгүй).
+- Дэлгэрэнгүй: `API.md` §11 ·
+  `docs/superpowers/specs/2026-08-03-ai-dictionary-senses-design.md`.
 
 **Фонт: Onest → Manrope (2026-07-31).** Onest нь **Ө ө Ү ү**
 (U+04E8/04E9/04AE/04AF) глифгүй байсан тул гарчиг дотор эдгээр үсэг системийн

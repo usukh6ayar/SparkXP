@@ -2,22 +2,17 @@ import {
   Injectable,
   BadRequestException,
   ForbiddenException,
-  InternalServerErrorException,
-  Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../entities/user.entity';
 import { Word } from '../entities/word.entity';
-import { WordReview } from '../entities/word-review.entity';
 import { AiUsage } from '../entities/ai-usage.entity';
 import { Translation } from '../entities/translation.entity';
-import { AiUsageType, WordStatus, ContentLevel } from '../common/enums';
+import { AiUsageType } from '../common/enums';
 import { AiGatewayService } from '../ai-gateway/ai-gateway.service';
-import { geminiRetryDelayMs } from '../words/words.service';
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+import { runGeminiText } from './gemini-text';
 
 export interface WordLookup {
   word: string;
@@ -31,15 +26,11 @@ export interface WordLookup {
 
 @Injectable()
 export class DictionaryService {
-  private readonly logger = new Logger(DictionaryService.name);
-
   constructor(
     private readonly config: ConfigService,
     private readonly aiGateway: AiGatewayService,
     @InjectRepository(User) private readonly users: Repository<User>,
     @InjectRepository(Word) private readonly words: Repository<Word>,
-    @InjectRepository(WordReview)
-    private readonly reviews: Repository<WordReview>,
     @InjectRepository(AiUsage) private readonly aiUsages: Repository<AiUsage>,
     @InjectRepository(Translation)
     private readonly translations: Repository<Translation>,
@@ -167,46 +158,6 @@ export class DictionaryService {
   }
 
   /**
-   * Save a tapped word (with its Mongolian translation) to the user's saved
-   * vocabulary so it shows up in Saved Words / review. If the word isn't in the
-   * curated Word bank yet, create it as `needs_review` (kept out of everyone's
-   * learn deck, but visible in this user's saved list and reviewable by admin).
-   */
-  async saveWord(
-    userId: string,
-    word: string,
-  ): Promise<{ wordId: string; saved: boolean }> {
-    const normalised = word.trim().toLowerCase();
-
-    let dbWord = await this.words.findOne({ where: { english: normalised } });
-    if (!dbWord) {
-      // Reuse the cached translation; look it up (Gemini) if we somehow miss.
-      const cached = await this.translations.findOne({ where: { word: normalised } });
-      const mongolian = cached?.translation ?? (await this.explain(userId, normalised)).translation;
-      dbWord = await this.words.save(
-        this.words.create({
-          english: normalised,
-          mongolian,
-          status: WordStatus.NEEDS_REVIEW,
-          level: ContentLevel.A1,
-          audioUrl: cached?.audioUrl ?? null,
-        }),
-      );
-    }
-
-    let review = await this.reviews.findOne({
-      where: { userId, wordId: dbWord.id },
-    });
-    if (!review) {
-      review = this.reviews.create({ userId, wordId: dbWord.id });
-    }
-    review.saved = true;
-    await this.reviews.save(review);
-
-    return { wordId: dbWord.id, saved: true };
-  }
-
-  /**
    * Full Mongolian translation of an English sentence/phrase (reading reader:
    * long-press a sentence). Unlike `explain`, this is a complete sentence
    * translation, not a 1–4 word gloss. Cache order: translation cache → Gemini
@@ -303,8 +254,8 @@ export class DictionaryService {
   }
 
   /**
-   * Low-level Gemini text call shared by word + sentence translation. Retries
-   * transient 429/503/overload responses. `label` is used only for logging.
+   * Low-level Gemini text call shared by word + sentence translation.
+   * Delegates to the shared helper — see gemini-text.ts.
    */
   private async runGemini(
     prompt: string,
@@ -315,64 +266,6 @@ export class DictionaryService {
     promptTokens: number;
     completionTokens: number;
   }> {
-    const apiKey = this.config.get<string>('GEMINI_API_KEY');
-    if (!apiKey) {
-      throw new InternalServerErrorException('GEMINI_API_KEY тохируулаагүй байна');
-    }
-    const model = this.config.get<string>('GEMINI_MODEL', 'gemini-2.5-flash');
-
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-    const requestInit = {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.3 },
-      }),
-    };
-
-    const MAX_ATTEMPTS = 5;
-    for (let attempt = 1; ; attempt++) {
-      const response = await fetch(url, requestInit);
-      if (response.ok) {
-        const data = (await response.json()) as {
-          candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] } }[];
-          usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
-        };
-        const parts = data.candidates?.[0]?.content?.parts ?? [];
-        const text = parts
-          .filter((p) => !p.thought && p.text)
-          .map((p) => p.text)
-          .join('')
-          .trim();
-        if (!text) {
-          throw new InternalServerErrorException('AI хоосон хариу буцаалаа');
-        }
-        return {
-          text,
-          model,
-          promptTokens: data.usageMetadata?.promptTokenCount ?? 0,
-          completionTokens: data.usageMetadata?.candidatesTokenCount ?? 0,
-        };
-      }
-
-      const body = await response.text().catch(() => '');
-      const transient =
-        response.status === 429 ||
-        response.status === 503 ||
-        (response.status === 404 &&
-          /high demand|unavailable|overloaded|try again/i.test(body));
-      if (transient && attempt < MAX_ATTEMPTS) {
-        const waitMs = geminiRetryDelayMs(body, attempt);
-        this.logger.warn(
-          `Gemini ${response.status} for "${label}" — retry ${attempt}/${MAX_ATTEMPTS - 1} in ${waitMs}ms`,
-        );
-        await sleep(waitMs);
-        continue;
-      }
-
-      this.logger.error(`Gemini dictionary failed (${response.status}): ${body}`);
-      throw new InternalServerErrorException('Орчуулга үүсгэхэд алдаа гарлаа');
-    }
+    return runGeminiText(this.config, prompt, label);
   }
 }

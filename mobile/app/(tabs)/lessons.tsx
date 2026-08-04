@@ -23,6 +23,7 @@ import { tf } from '../../src/i18n';
 import { getGamification, type Gamification } from '../../src/api/gamification';
 import { AppText } from '../../src/components/Text';
 import { AppIcon } from '../../src/components/AppIcon';
+import { DictionaryButton } from '../../src/components/DictionaryButton';
 import { type AppIconName } from '../../src/constants/appIcons';
 import { islandMap, colors } from '../../src/theme/theme';
 import { bounded } from '../../src/theme/responsive';
@@ -250,6 +251,8 @@ export default function LessonsScreen() {
                 <View style={styles.titleRow}>
                   <AppText variant="h1" color={isLight ? LIGHT_SKY.title : '#FFFFFF'}>{t('lessonsWorldTitle')}</AppText>
                   <Ionicons name="sparkles" size={22} color={isLight ? '#E0A700' : SKY.gold} style={{ marginLeft: 8 }} />
+                  <View style={{ flex: 1 }} />
+                  <DictionaryButton size={40} />
                 </View>
                 <AppText variant="body" color={isLight ? LIGHT_SKY.titleDim : SKY.textDim} style={styles.subtitle}>
                   {t('lessonsWorldSubtitle')}

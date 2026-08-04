@@ -17,6 +17,7 @@ export const STAFF_ROLES = ['moderator', 'admin', 'super_admin'] as const;
 /** Paths a moderator (content writer) may open. Admins get everything. */
 export const MODERATOR_PATHS = [
   '/words',
+  '/dictionary',
   '/lessons',
   '/idioms',
   '/exercises',

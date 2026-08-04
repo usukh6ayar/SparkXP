@@ -1,6 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
-  BookOpen, FileText, HelpCircle, Users, BarChart2,
+  BookOpen, BookMarked, FileText, HelpCircle, Users, BarChart2,
   Settings, LogOut, Zap, Trophy, Bot, GraduationCap,
   Building2, Activity, Bell, LifeBuoy, Quote, Dumbbell, ShieldAlert, MessageSquareHeart, Award,
 } from 'lucide-react';
@@ -10,6 +10,7 @@ import { cn } from '../lib/utils';
 
 const nav = [
   { to: '/words',         label: 'Үгс',          icon: BookOpen },
+  { to: '/dictionary',    label: 'Толь',         icon: BookMarked },
   { to: '/lessons',       label: 'Хичээл',       icon: FileText },
   { to: '/idioms',        label: 'Хэлц үг',       icon: Quote },
   { to: '/exercises',     label: 'Дасгал',        icon: Dumbbell },

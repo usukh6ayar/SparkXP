@@ -1,14 +1,21 @@
 import { apiRequest } from './client';
 
+/** At most this many senses are shown for one word. */
+export const MAX_SENSES = 4;
+
 /**
- * One block of the richer AI dictionary explanation (Premium plan doc §2):
- * most-common meaning, common/secondary, special case, phrase/expression.
+ * One sense of an English word — deliberately just three lines, no definitions
+ * or grammar labels: the word (or phrase) it is used as, an English example,
+ * and that example's Mongolian translation. Learners read usage, not glossary
+ * entries.
  */
-export interface DictionarySection {
-  /** Section heading, e.g. "Most common", "Phrase / expression". */
-  title: string;
-  /** Mongolian explanation for this section. */
-  body: string;
+export interface DictionarySense {
+  /** The word or phrase form of this sense, e.g. "run" or "run out of". */
+  word: string;
+  /** English example sentence. */
+  example: string;
+  /** Mongolian translation of `example`. */
+  translation: string;
 }
 
 export interface WordLookup {
@@ -21,11 +28,13 @@ export interface WordLookup {
   /** True when served from the Words DB / cache (free), false when from AI. */
   cached: boolean;
   /**
-   * Optional 4-part detailed explanation. The backend only returns the short
-   * `translation` today; when Өсөхбаяр ships the fuller Gemini explanation the
-   * popover renders these sections automatically (see DictionaryProvider).
+   * Up to `MAX_SENSES` senses ordered by how often the word is really used in
+   * that sense — most common first, never random. Filled by `searchWord()`
+   * (the dictionary panel). Absent on the reader popover's `lookupWord()`,
+   * which deliberately stays a single short gloss, so the panel's fallback to
+   * `translation` is still the live path there.
    */
-  sections?: DictionarySection[];
+  meanings?: DictionarySense[];
 }
 
 /**
@@ -66,16 +75,45 @@ export function getWordAudio(
   );
 }
 
+/** One row of the user's ⭐ dictionary list. */
+export interface SavedDictionaryWord {
+  word: string;
+  /** Cached senses, or null when the word was starred from the reader. */
+  senses: DictionarySense[] | null;
+  /** One-line subtitle: short gloss, else the first sense's translation. */
+  translation: string;
+}
+
 /**
- * POST /api/dictionary/:word/save — save the word (+ translation) to the user's
- * saved vocabulary (creates the Word as needs_review if it isn't in the bank).
+ * GET /api/dictionary/search/:word — the Толь search result: up to MAX_SENSES
+ * senses, most-used first. Backend: `dictionary_entries` cache → Gemini
+ * (cached forever after). This is what fills `WordLookup.meanings`.
  */
-export function saveWord(
+export function searchWord(
   token: string,
   word: string,
-): Promise<{ wordId: string; saved: boolean }> {
-  return apiRequest<{ wordId: string; saved: boolean }>(
-    `/dictionary/${encodeURIComponent(word)}/save`,
+): Promise<{ word: string; senses: DictionarySense[]; cached: boolean }> {
+  return apiRequest(`/dictionary/search/${encodeURIComponent(word)}`, { token });
+}
+
+/** GET /api/dictionary/saves — the user's ⭐ dictionary words. */
+export function getDictionarySaves(token: string): Promise<SavedDictionaryWord[]> {
+  return apiRequest<SavedDictionaryWord[]>('/dictionary/saves', { token });
+}
+
+/**
+ * POST /api/dictionary/saves/:word — toggle ⭐.
+ *
+ * Replaces the old `POST /dictionary/:word/save`, which created a
+ * `needs_review` row in the curated word bank and polluted the admin panel.
+ * This one writes to `user_dictionary_saves` and touches nothing else.
+ */
+export function toggleDictionarySave(
+  token: string,
+  word: string,
+): Promise<{ word: string; saved: boolean }> {
+  return apiRequest<{ word: string; saved: boolean }>(
+    `/dictionary/saves/${encodeURIComponent(word)}`,
     { method: 'POST', token },
   );
 }

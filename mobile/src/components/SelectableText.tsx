@@ -5,6 +5,7 @@ import {
   StyleSheet,
   Dimensions,
   type TextStyle,
+  type TextProps,
   type GestureResponderEvent,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -28,6 +29,7 @@ export function SelectableText({
   variant = 'body',
   style,
   highlightRange,
+  onTextLayout,
 }: {
   text: string;
   variant?: React.ComponentProps<typeof AppText>['variant'];
@@ -37,6 +39,11 @@ export function SelectableText({
    * — used by read-along to mark the sentence being spoken. `to` is exclusive.
    */
   highlightRange?: { from: number; to: number } | null;
+  /**
+   * Line metrics of the laid-out passage. `PagedReader` uses these to work out
+   * where each page should start.
+   */
+  onTextLayout?: TextProps['onTextLayout'];
 }) {
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -88,14 +95,14 @@ export function SelectableText({
     if (!clean) return;
     const screen = Dimensions.get('window');
     const at = { x: screen.width / 2, y: screen.height * 0.34 };
-    // A single word still gets the richer word popover (audio + save).
+    // A single word still gets the word popover (audio + save).
     if (/^[A-Za-z]+$/.test(clean)) lookup(clean, at);
     else translatePhrase(clean, at);
   };
 
   return (
     <View>
-      <AppText variant={variant} style={style}>
+      <AppText variant={variant} style={style} onTextLayout={onTextLayout}>
         {tokens.map((tok, i) => {
           if (!isWord(tok)) {
             // Whitespace inside a range keeps that highlight continuous.
