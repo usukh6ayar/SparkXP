@@ -35,8 +35,12 @@ interface DictionaryState {
   lookup: (word: string, anchor: Anchor) => void;
   /** Reader gesture: translate a selected sentence, same popover. */
   translatePhrase: (text: string, anchor: Anchor) => void;
-  /** Dictionary button: open the search panel (detailed, multi-sense). */
-  openSearch: () => void;
+  /**
+   * Dictionary button: open the search panel (detailed, multi-sense).
+   * Pass a word to open it already looking that word up — the Saved-words
+   * screen uses this to reopen a starred word.
+   */
+  openSearch: (word?: string) => void;
 }
 
 const DictionaryContext = createContext<DictionaryState | undefined>(undefined);
@@ -44,7 +48,10 @@ const DictionaryContext = createContext<DictionaryState | undefined>(undefined);
 export function DictionaryProvider({ children }: { children: ReactNode }) {
   // One lookup per surface — separate on purpose (see the file note).
   const reader = useWordLookup();
-  const dictionary = useWordLookup();
+  // `detailed` is what makes the panel show four senses instead of one gloss:
+  // it routes through GET /dictionary/search/:word. The reader stays on the
+  // short-gloss endpoint on purpose.
+  const dictionary = useWordLookup({ detailed: true });
 
   const [anchor, setAnchor] = useState<Anchor>({ x: 0, y: 0 });
   const [panelOpen, setPanelOpen] = useState(false);
@@ -52,6 +59,7 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
   const readerLookup = reader.lookup;
   const readerTranslate = reader.translate;
   const dictionaryReset = dictionary.reset;
+  const dictionaryLookup = dictionary.lookup;
 
   const lookup = useCallback(
     (word: string, at: Anchor) => {
@@ -69,10 +77,14 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
     [readerTranslate],
   );
 
-  const openSearch = useCallback(() => {
-    dictionaryReset(); // every session starts on an empty search
-    setPanelOpen(true);
-  }, [dictionaryReset]);
+  const openSearch = useCallback(
+    (word?: string) => {
+      dictionaryReset(); // every session starts on an empty search
+      setPanelOpen(true);
+      if (word) dictionaryLookup(word);
+    },
+    [dictionaryReset, dictionaryLookup],
+  );
 
   // Stable context value: the callbacks are already useCallback-stable, so
   // lookup state changes (loading → result) DON'T change the context identity —

@@ -647,3 +647,247 @@ describe('Health', () => {
     expect(res.body.redis).toBe('ok');
   });
 });
+
+// ── Толь (dictionary senses) ─────────────────────────────────────────────────
+
+describe('Dictionary — Толь', () => {
+  let app: INestApplication;
+  let ds: DataSource;
+  let token: string;
+  let adminToken: string;
+  /** A word that only this run uses, so reruns don't collide. */
+  const word = `zzrun${RUN}`;
+  let entryId: string;
+  /** A second, clearly non-matching seeded word — proves the admin `search`
+   *  filter actually filters, and gives the DELETE test a row to sacrifice
+   *  without touching the entry the other tests depend on. */
+  const otherWord = `zzother${RUN}`;
+  let otherEntryId: string;
+
+  beforeAll(async () => {
+    app = await createApp();
+    ds = app.get(DataSource);
+    token = await registerAndLogin(app, mail('dict_user'));
+
+    // Promote to admin in the DB. No re-login needed: the JWT carries no role,
+    // JwtStrategy reads it from the DB on every request.
+    adminToken = await registerAndLogin(app, mail('dict_admin'));
+    const adminRes = await request(app.getHttpServer())
+      .get('/api/auth/me')
+      .set('Authorization', `Bearer ${adminToken}`);
+    await ds.query(`UPDATE users SET role = 'admin' WHERE id = $1`, [adminRes.body.id]);
+
+    // Seed the cache directly — the AI path is not exercised in e2e.
+    const senses = JSON.stringify([
+      { word, example: 'I run every morning.', translation: 'Би өглөө бүр гүйдэг.' },
+      { word: `${word} out of`, example: 'We ran out of food.', translation: 'Бидний хоол дууссан.' },
+    ]);
+    const rows = await ds.query(
+      `INSERT INTO dictionary_entries ("word", "senses", "search_count", "source")
+       VALUES ($1, $2::jsonb, 0, 'seed') RETURNING id`,
+      [word, senses],
+    );
+    entryId = rows[0].id;
+
+    const otherSenses = JSON.stringify([
+      { word: otherWord, example: 'Something else entirely.', translation: 'Өөр зүйл.' },
+    ]);
+    const otherRows = await ds.query(
+      `INSERT INTO dictionary_entries ("word", "senses", "search_count", "source")
+       VALUES ($1, $2::jsonb, 0, 'seed') RETURNING id`,
+      [otherWord, otherSenses],
+    );
+    otherEntryId = otherRows[0].id;
+  });
+
+  afterAll(async () => {
+    // ⭐ rows are keyed on the word, not on the entry — delete them first.
+    await ds.query(`DELETE FROM user_dictionary_saves WHERE word LIKE $1`, [`%${RUN}%`]);
+    await ds.query(`DELETE FROM translations WHERE word LIKE $1`, [`%${RUN}%`]);
+    await ds.query(`DELETE FROM dictionary_entries WHERE word LIKE $1`, [`%${RUN}%`]);
+    await app.close();
+  });
+
+  it('GET /api/dictionary/search/:word → cached senses', async () => {
+    const res = await request(app.getHttpServer())
+      .get(`/api/dictionary/search/${word}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+
+    expect(res.body.cached).toBe(true);
+    expect(res.body.senses).toHaveLength(2);
+    expect(res.body.senses[0].translation).toBe('Би өглөө бүр гүйдэг.');
+  });
+
+  it('a cache hit still increments search_count', async () => {
+    const before = await ds.query(
+      `SELECT search_count FROM dictionary_entries WHERE id = $1`,
+      [entryId],
+    );
+    await request(app.getHttpServer())
+      .get(`/api/dictionary/search/${word}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    const after = await ds.query(
+      `SELECT search_count, last_searched_at FROM dictionary_entries WHERE id = $1`,
+      [entryId],
+    );
+
+    expect(Number(after[0].search_count)).toBe(Number(before[0].search_count) + 1);
+    expect(after[0].last_searched_at).not.toBeNull();
+  });
+
+  it('POST /api/dictionary/saves/:word toggles the star both ways', async () => {
+    const on = await request(app.getHttpServer())
+      .post(`/api/dictionary/saves/${word}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(201);
+    expect(on.body.saved).toBe(true);
+
+    const listed = await request(app.getHttpServer())
+      .get('/api/dictionary/saves')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    expect(listed.body.map((r: { word: string }) => r.word)).toContain(word);
+    expect(listed.body[0].senses).toHaveLength(2);
+
+    const off = await request(app.getHttpServer())
+      .post(`/api/dictionary/saves/${word}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(201);
+    expect(off.body.saved).toBe(false);
+  });
+
+  it('starring never creates a row in the curated words bank', async () => {
+    await request(app.getHttpServer())
+      .post(`/api/dictionary/saves/${word}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(201);
+
+    const rows = await ds.query(`SELECT id FROM words WHERE english = $1`, [word]);
+    expect(rows).toHaveLength(0);
+  });
+
+  it('GET /api/dictionary/admin/entries is admin-only, and search actually filters', async () => {
+    await request(app.getHttpServer())
+      .get('/api/dictionary/admin/entries')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(403);
+
+    const res = await request(app.getHttpServer())
+      .get(`/api/dictionary/admin/entries?search=${word}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(res.body.total).toBe(1);
+    expect(res.body.items[0].word).toBe(word);
+    // Proves the filter excludes, not just includes: without this, `total: 1`
+    // would also pass if `search` were silently ignored.
+    expect(res.body.items.map((i: { word: string }) => i.word)).not.toContain(otherWord);
+  });
+
+  it('GET /api/dictionary/admin/entries without search → lists both seeded entries', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/api/dictionary/admin/entries')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(res.body.total).toBeGreaterThanOrEqual(2);
+    const words = res.body.items.map((i: { word: string }) => i.word);
+    expect(words).toContain(word);
+    expect(words).toContain(otherWord);
+  });
+
+  it('DELETE /api/dictionary/admin/entries/:id — admin-only, really deletes, 404 on repeat', async () => {
+    // Sacrifice the second entry, not the one later tests still depend on.
+    await request(app.getHttpServer())
+      .delete(`/api/dictionary/admin/entries/${otherEntryId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(403);
+
+    await request(app.getHttpServer())
+      .delete(`/api/dictionary/admin/entries/${otherEntryId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+
+    const rows = await ds.query(
+      `SELECT id FROM dictionary_entries WHERE id = $1`,
+      [otherEntryId],
+    );
+    expect(rows).toHaveLength(0);
+
+    await request(app.getHttpServer())
+      .delete(`/api/dictionary/admin/entries/${otherEntryId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(404);
+  });
+
+  // Runs BEFORE the PATCH test below: PATCH intentionally overwrites entryId's
+  // senses down to one edited sense, which would invalidate the "first sense
+  // translation" fallback this test asserts against the original seed data.
+  it('listSaves subtitle: sense translation, then the reader gloss outranks it', async () => {
+    // Don't assume `word`'s current saved state from earlier tests — read it
+    // back and flip once more if needed, so this test is self-contained.
+    let toggle = await request(app.getHttpServer())
+      .post(`/api/dictionary/saves/${word}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(201);
+    if (!toggle.body.saved) {
+      toggle = await request(app.getHttpServer())
+        .post(`/api/dictionary/saves/${word}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(201);
+    }
+    expect(toggle.body.saved).toBe(true);
+
+    // No `translations` row yet for `word` → subtitle falls back to the first
+    // sense's translation (design §4.3).
+    const before = await request(app.getHttpServer())
+      .get('/api/dictionary/saves')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    const beforeRow = before.body.find((r: { word: string }) => r.word === word);
+    expect(beforeRow).toBeDefined();
+    expect(beforeRow.translation).toBe('Би өглөө бүр гүйдэг.');
+
+    // A reader-tap gloss, once cached, outranks the sense translation.
+    await ds.query(
+      `INSERT INTO translations ("word", "translation") VALUES ($1, $2)`,
+      [word, 'Гүйх (тайлбар толь)'],
+    );
+    const after = await request(app.getHttpServer())
+      .get('/api/dictionary/saves')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    const afterRow = after.body.find((r: { word: string }) => r.word === word);
+    expect(afterRow.translation).toBe('Гүйх (тайлбар толь)');
+  });
+
+  it('PATCH /api/dictionary/admin/entries/:id marks the entry edited', async () => {
+    const res = await request(app.getHttpServer())
+      .patch(`/api/dictionary/admin/entries/${entryId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        senses: [
+          { word, example: 'Edited example.', translation: 'Зассан орчуулга.' },
+        ],
+      })
+      .expect(200);
+
+    expect(res.body.edited).toBe(true);
+    expect(res.body.senses).toHaveLength(1);
+  });
+
+  // The guard rails in search(). Both reject before any Gemini call is made,
+  // so they cost nothing to test — and an over-long word reaching the AI is a
+  // real way to make the server spend money on junk.
+  it('rejects a blank or over-long search word without calling the AI', async () => {
+    await request(app.getHttpServer())
+      .get(`/api/dictionary/search/${encodeURIComponent('   ')}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .get(`/api/dictionary/search/${'a'.repeat(121)}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(400);
+  });
+});

@@ -14,7 +14,8 @@ import {
   lookupWord,
   translateSentence,
   getWordAudio,
-  saveWord,
+  searchWord,
+  toggleDictionarySave,
   type WordLookup,
 } from '../../api/dictionary';
 import { ApiError } from '../../api/client';
@@ -44,7 +45,12 @@ export interface WordLookupState {
   reset: () => void;
 }
 
-export function useWordLookup(): WordLookupState {
+/**
+ * @param detailed  The dictionary panel passes `true` to get the full 4-sense
+ *                  result (`GET /dictionary/search/:word`). The reader popover
+ *                  leaves it off and keeps the single short gloss.
+ */
+export function useWordLookup({ detailed = false } = {}): WordLookupState {
   const { token } = useAuth();
   const player = useAudioPlayer();
 
@@ -81,18 +87,35 @@ export function useWordLookup(): WordLookupState {
 
   const lookup = useCallback(
     async (raw: string) => {
-      const clean = raw.trim().toLowerCase();
+      // Same normalisation as the server's `normaliseWord`, whitespace collapse
+      // included — the panel takes typed text, which can carry double spaces.
+      const clean = raw.trim().toLowerCase().replace(/\s+/g, ' ');
       if (!clean || !token) return;
       begin(clean, false);
       try {
-        setResult(await lookupWord(token, clean));
+        if (detailed) {
+          // Dictionary panel: the full 4-sense result. It carries no audioUrl —
+          // speak() fetches that lazily from /:word/audio, which is unchanged.
+          const { senses } = await searchWord(token, clean);
+          setResult({
+            word: clean,
+            translation: '',
+            audioUrl: null,
+            cached: false,
+            meanings: senses,
+          });
+        } else {
+          // Reader popover: deliberately still one short gloss, so a tap while
+          // reading stays fast and small.
+          setResult(await lookupWord(token, clean));
+        }
       } catch (err) {
         setError(err instanceof ApiError ? err.message : t('notFoundShort'));
       } finally {
         setLoading(false);
       }
     },
-    [token],
+    [token, detailed],
   );
 
   const translate = useCallback(
@@ -143,20 +166,24 @@ export function useWordLookup(): WordLookupState {
     speakEnglish(word);
   }, [word, result, token, player, isPhrase]);
 
-  /** Add the word (+ its translation) to the user's saved vocabulary. */
+  /**
+   * Toggle ⭐ for this word. Writes to `user_dictionary_saves` — unlike the old
+   * endpoint it replaces, it never creates a row in the curated word bank.
+   * Pressing again un-saves, so there is no `saved` guard here.
+   */
   const save = useCallback(async () => {
-    if (!word || !token || saved || saveBusy) return;
+    if (!word || !token || saveBusy) return;
     setSaveBusy(true);
     try {
-      await saveWord(token, word);
-      setSaved(true);
-      haptics.success();
+      const { saved: isSaved } = await toggleDictionarySave(token, word);
+      setSaved(isSaved);
+      if (isSaved) haptics.success();
     } catch {
-      // ignore — keep the icon un-saved so the user can retry
+      // ignore — leave the icon as it was so the user can retry
     } finally {
       setSaveBusy(false);
     }
-  }, [word, token, saved, saveBusy]);
+  }, [word, token, saveBusy]);
 
   return {
     word,

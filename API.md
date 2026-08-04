@@ -306,10 +306,22 @@ Controller-level: JWT. (Reading-ийн tap-to-translate ашигладаг.)
 
 | Method + Path | Auth | Зорилго | Params / Body |
 | --- | --- | --- | --- |
-| GET `/dictionary/:word` | JWT | Богино монгол утга (DB → cache → Gemini) | path `word` |
+| GET `/dictionary/search/:word` | JWT | **Толь:** хамгийн ихдээ 4 утга (үг · англи жишээ · монгол орчуулга), хэрэглээний давтамжаар. `dictionary_entries` cache → Gemini | path `word` |
+| GET `/dictionary/saves` | JWT | Хэрэглэгчийн ⭐ тольны үгс | — |
+| POST `/dictionary/saves/:word` | JWT | ⭐ toggle. `words` банкинд мөр үүсгэхгүй | path `word` |
+| GET `/dictionary/admin/entries` | admin/super_admin/moderator | Толины жагсаалт (хуудаслалт) | query `search`, `page`, `limit`, `sort=searches\|recent` |
+| PATCH `/dictionary/admin/entries/:id` | admin/super_admin/moderator | Утгуудыг гараар засах (`edited=true`) | body `{ senses: [{word, example, translation}] }` (1–4) |
+| DELETE `/dictionary/admin/entries/:id` | admin/super_admin/moderator | Толины бичлэг устгах (дараагийн хайлтад AI дахин үүсгэнэ) | path `id` |
+| GET `/dictionary/:word` | JWT | Богино монгол утга (DB → cache → Gemini) — унших дэлгэцийн давхар дарах | path `word` |
 | POST `/dictionary/translate` | JWT | Өгүүлбэрийн бүтэн монгол орчуулга (cache → Gemini) | body `{ text }` |
 | GET `/dictionary/:word/audio` | JWT | Дуудлагын аудио URL (ElevenLabs, cached) | path `word` |
-| POST `/dictionary/:word/save` | JWT | Үг + орчуулгыг хадгалсан үгэнд нэмэх | path `word` |
+
+> ⚠️ **`POST /dictionary/:word/save` устсан (2026-08-03).** Тэр нь `words` банкинд
+> `needs_review` мөр үүсгэдэг байсан. Оронд нь `POST /dictionary/saves/:word`
+> (toggle) — `user_dictionary_saves` хүснэгтэд бичнэ.
+>
+> ⚠️ **Route дараалал:** `@Get(':word')` нь нэг сегменттэй бүх GET-ийг залгидаг тул
+> `/saves`, `/search/:word`, `/admin/*` нь controller дотор түүнээс дээр байрлана.
 
 ## 12. Reviews (SRS) — `/api/reviews`
 Controller-level: JWT. Бүгд student-ийн өөрийн давталтын хуваарь.
@@ -613,7 +625,7 @@ Deploy хийсний дараа нэг удаа `src/scripts/backfill-trophies.
 | `reading.ts` | `getReadingList`→GET `/reading?limit=50` · `getReadingPassage`→GET `/reading/:id` · `completeReading`→POST `/reading/:id/complete` |
 | `reviews.ts` | `getDue`→GET `/reviews/due` · `submitReview`→POST `/reviews/:wordId` · `getLearnQueue`→GET `/reviews/learn` · `toggleSave`→POST `/reviews/:wordId/save` · `getSaved`→GET `/reviews/saved` · `getReviewStats`→GET `/reviews/stats` |
 | `words.ts` | `getWords`→GET `/words` · **`getSampleQuestions`→GET `/words/sample?count=`** (C4 ✅ бүртгэлийн өмнөх taste-task, token-гүй — Choi, 2026-07-22) |
-| `dictionary.ts` | `lookupWord`→GET `/dictionary/:word` · `translateSentence`→POST `/dictionary/translate` · `getWordAudio`→GET `/dictionary/:word/audio` · `saveWord`→POST `/dictionary/:word/save` |
+| `dictionary.ts` | `searchWord`→GET `/dictionary/search/:word` · `lookupWord`→GET `/dictionary/:word` · `translateSentence`→POST `/dictionary/translate` · `getWordAudio`→GET `/dictionary/:word/audio` · `getDictionarySaves`→GET `/dictionary/saves` · `toggleDictionarySave`→POST `/dictionary/saves/:word` |
 | `idioms.ts` | `getIdiomList`→GET `/idioms?limit=100` · `getIdiom`→GET `/idioms/:id` |
 | `leaderboard.ts` | `getLeaderboard`→GET `/leaderboard?period=&scope=` |
 | `ai.ts` | `sendMessage`→POST `/ai/chat` · `getHistory`→GET `/ai/conversations/:id` · (AI Buddy voice) `getBuddies`→GET `/ai/buddies` · `startSession`→POST `/ai/buddy/sessions` · `sendBuddyTextTurn`→POST `/ai/buddy/sessions/:id/turn/text` · `sendBuddyAudioTurn`→POST `/ai/buddy/sessions/:id/turn/audio` · `getBuddyUsage`→GET `/ai/buddy/usage` · memory GET/DELETE `/ai/buddy/memory` (Boju хийнэ) |
@@ -650,7 +662,8 @@ Token автоматаар залгагдана. Зураг байршуулал
 ## Cross-frontend тэмдэглэл
 
 - **Дундын нөөц** (mobile = унших/submit, admin = CRUD/authoring): `/lessons`, `/quizzes`, `/reading`, `/idioms`, `/words`, `/organizations`, `/classes`, `/assignments`, `/ai/*`. Mobile `?isPublished=true`/`standalone=true` уншина; admin `?all=true` + PATCH-аар `isPublished` toggle.
-- **Зөвхөн mobile:** `/auth/*`, `/users/me*`, `/gamification`, `/reviews/*`, `/dictionary/*`, `/words/quiz*`, `/leaderboard` (query), `/lessons/:id/access|unlock|complete`, `/reading/:id/complete`, `/quizzes/:id/submit`, `/classes/join`, `/assignments/mine`.
+- **Зөвхөн mobile:** `/auth/*`, `/users/me*`, `/gamification`, `/reviews/*`, `/dictionary/*` (гэхдээ `/dictionary/admin/*` нь
+  admin-web), `/words/quiz*`, `/leaderboard` (query), `/lessons/:id/access|unlock|complete`, `/reading/:id/complete`, `/quizzes/:id/submit`, `/classes/join`, `/assignments/mine`.
 - **Зөвхөн admin:** `/upload`, `/users/:id` (засах/устгах), `/payments*`, `/notifications`, `/ai/limits`, `/ai/buddies` + `/ai/buddy-stats`, `/leaderboard/top`, бүх `*/generate-*`, `*/ai-bulk*`, `*/bulk*`, `*/import`, `*-job`/`*-queue` poll, `/classes/all`, `/words/stats|analytics`.
 - **Нэрийн зөрүү (анхаар):**
   - Leaderboard: mobile `GET /leaderboard?period=&scope=` ↔ admin `GET /leaderboard/top`.
