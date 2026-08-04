@@ -71,7 +71,9 @@ export default function LessonsPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await api.get<{ items: Lesson[]; total: number }>(`/lessons?page=${page}&limit=${LIMIT}`);
+      // `sort=newest` so a lesson the author just saved is on top — the student
+      // order (level → position) would bury it at the end of its level.
+      const data = await api.get<{ items: Lesson[]; total: number }>(`/lessons?page=${page}&limit=${LIMIT}&sort=newest`);
       setLessons(data.items ?? []);
       setTotal(data.total ?? 0);
     } finally {

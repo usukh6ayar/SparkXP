@@ -116,9 +116,9 @@ export class LessonsService {
     return { ids: [...completed] };
   }
 
-  /** List lessons with optional filters and pagination. Ordered by `position`
-   *  (then oldest-first) so a level/track shows in the authored sequence — the
-   *  same order `getContinue` walks. */
+  /** List lessons with optional filters and pagination. Default order = level,
+   *  then `position` (the same order `getContinue` walks, so the student sees
+   *  one consistent sequence); `sort=newest` gives the admin its authoring view. */
   async findAll(query: QueryLessonsDto): Promise<PaginatedLessons> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
@@ -133,7 +133,12 @@ export class LessonsService {
 
     const [items, total] = await this.lessons.findAndCount({
       where,
-      order: { position: 'ASC', createdAt: 'ASC' },
+      // `position` is only unique inside a level, so `level` has to lead or the
+      // list interleaves levels. `newest` is the admin's authoring view.
+      order:
+        query.sort === 'newest'
+          ? { createdAt: 'DESC' }
+          : { level: 'ASC', position: 'ASC', createdAt: 'ASC' },
       skip: (page - 1) * limit,
       take: limit,
     });

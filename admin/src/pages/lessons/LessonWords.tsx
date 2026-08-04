@@ -66,6 +66,9 @@ export function LessonWords({ lessonId }: { lessonId: string }) {
       <h3 className="mb-1 text-sm font-semibold text-gray-800">Үгс (энэ хичээлийн үгсийн сан)</h3>
       <p className="mb-3 text-xs text-gray-400">
         Үгсийн сангаас хайж энэ хичээлд хавсаргана. Апп дээр хичээлийн доор "Хичээлийн үгс" болж гарна.
+        <br />
+        ⚠️ Зөвхөн <b>нийтэлсэн</b> (published) үг апп дээр харагдана — доор шар шошготой
+        (ноорог/хянагдаж буй) үгсийг "Үгс" хуудаснаас нийтэлж өгнө үү.
       </p>
 
       <div className="space-y-2">

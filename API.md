@@ -117,7 +117,7 @@ GET уншилт public. (Sparks endpoint-ууд мөн энэ base дээр —
 
 | Method + Path | Auth | Зорилго | Params / Body |
 | --- | --- | --- | --- |
-| GET `/lessons` | **Public** | Хичээлийн жагсаалт. Эрэмбэ: `position ASC, createdAt ASC` (`getContinue`-тэй ижил) | `QueryLessonsDto` (isPublished, level, type, parentId) |
+| GET `/lessons` | **Public** | Хичээлийн жагсаалт. Анхдагч эрэмбэ: `level ASC, position ASC, createdAt ASC` (`getContinue`-тэй ижил); `sort=newest` = шинэ нь эхэнд (админы жагсаалт) | `QueryLessonsDto` (isPublished, level, type, parentId, **sort**) |
 | GET `/lessons/continue` | JWT | "Continue learning" (C1) — дараагийн дуусгаагүй top-level хичээл + тухайн level-ийн бодит ахиц → `{ lesson\|null, level, levelDone, levelTotal, allCompleted }` | — |
 | GET `/lessons/completed` | JWT | Тухайн сурагчийн дуусгасан хичээлийн id-ууд → `{ ids: string[] }`. Түвшний зам ✓-г **id-гаар** тэмдэглэдэг (өмнө нь "эхний N" гэж тоолоод буруу хичээл дээр буудаг байсан) | — |
 | GET `/lessons/:id` | **Public** | Нэг хичээл | path `id` |
