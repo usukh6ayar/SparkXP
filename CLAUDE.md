@@ -241,6 +241,25 @@ AI дахин үүсгэнэ).
 - Дэлгэрэнгүй: `API.md` §11 ·
   `docs/superpowers/specs/2026-08-03-ai-dictionary-senses-design.md`.
 
+**Харагдац: "Систем" горим нэмэгдэв (2026-08-04).** Сэдэв нь өмнө нь зөвхөн
+гараар сонгодог light/dark байсан (анхдагч `light`) бөгөөд `useColorScheme()`-ийг
+огт уншдаггүй байв. Гэтэл native давхарга нь системийг дагаж тохируулагдсан
+(`app.json` → `userInterfaceStyle: "automatic"`, splash-ын light/dark хос, iOS
+`UIUserInterfaceStyle = Automatic`, Android `Theme.AppCompat.DayNight`) —
+энэ зөрүүгээс cold start дээр өнгө үсэрдэг байсан.
+- ⚠️ **Choi/Boju — `useSettings()` дээр шинэ талбар:** `theme` нь **шийдэгдсэн**
+  `'dark' | 'light'` хэвээр (өнгө авахад үүнийг ашигла), харин хэрэглэгчийн
+  сонголт нь шинэ **`themePref: 'dark' | 'light' | 'system'`**. Тохиргооны
+  toggle-оос өөр газар `themePref` **хэрэггүй**. `setTheme` одоо `'system'`-ийг
+  бас хүлээж авна.
+- **Шинэ хэрэглэгчийн анхдагч нь одоо `system`.** Аль хэдийн light/dark сонгосон
+  хэрэглэгчдийн сонголт хэвээр үлдэнэ (AsyncStorage `settings.theme`).
+- `app/_layout.tsx`-ийн фонт ачаалах үеийн View нь `#0B0716`-г шууд бичсэн
+  байсныг зассан — одоо `useColorScheme()`-ээр native splash-ийн сонголтыг
+  давхарлана. **Дүрэм:** `app.json`-ы splash `backgroundColor`/`dark` хосыг
+  солибол `_layout.tsx`-ийн `SPLASH_BG`-г мөн сольж өг (JS нь plugin-ы native
+  тохиргоог уншиж чадахгүй тул гараар синк байлгана).
+
 **Фонт: Onest → Manrope (2026-07-31).** Onest нь **Ө ө Ү ү**
 (U+04E8/04E9/04AE/04AF) глифгүй байсан тул гарчиг дотор эдгээр үсэг системийн
 фонтоор солигдож харагдаж байв (RN нь нэг `fontFamily` авдаг, CSS шиг fallback

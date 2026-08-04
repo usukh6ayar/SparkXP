@@ -1,5 +1,5 @@
 import { useEffect, useMemo, type ComponentType } from "react";
-import { View, ActivityIndicator, StyleSheet, Text } from "react-native";
+import { View, ActivityIndicator, StyleSheet, Text, useColorScheme } from "react-native";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -40,6 +40,13 @@ const PREVIEW_AUTH = false;
 // the fonts load. Errors are ignored: a splash that refuses to hide would brick
 // the app, and in Expo Go there is no native splash of ours to control.
 SplashScreen.preventAutoHideAsync().catch(() => {});
+
+/**
+ * The two splash backgrounds declared in `app.json` → `expo-splash-screen`
+ * (`backgroundColor` + its `dark` override). Kept in sync BY HAND — the plugin
+ * config is native, so JS cannot read it. Change one, change the other.
+ */
+const SPLASH_BG = { light: "#F6F4FD", dark: "#0B0716" } as const;
 
 function RootNavigator() {
   const { token, user, loading, onboarded, biometricEnabled, biometricLocked } = useAuth();
@@ -125,6 +132,9 @@ function ThemedNav() {
 }
 
 function RootLayout() {
+  // Which splash colour the OS already painted (see the pre-font return below).
+  const scheme = useColorScheme() === "dark" ? "dark" : "light";
+
   // Load the brand fonts (Manrope = display/headings, Inter = body/UI). Both
   // cover Mongolian Cyrillic Ө/ө/Ү/ү — Onest did NOT, so those letters fell back
   // to the system font mid-word. React Native takes a single `fontFamily` (no CSS
@@ -153,7 +163,11 @@ function RootLayout() {
     return (
       // Must match the splash `backgroundColor` in `app.json`, or a lost race
       // between `hideAsync` and the first render flashes a different colour.
-      <View style={[styles.center, { backgroundColor: "#0B0716" }]}>
+      // `app.json` declares BOTH (light `#F6F4FD` + `dark` `#0B0716`) and the
+      // native splash picks between them by SYSTEM scheme — so this has to read
+      // the system too, not the app theme. It also renders above
+      // `SettingsProvider`, so the app theme isn't available here anyway.
+      <View style={[styles.center, { backgroundColor: SPLASH_BG[scheme] }]}>
         <ActivityIndicator size="large" color="#6C3BFF" />
       </View>
     );
