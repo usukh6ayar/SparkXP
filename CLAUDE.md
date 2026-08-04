@@ -490,6 +490,17 @@ in `backend/src/entities/index.ts` (never this list).
 
 ### Running the mobile app — Expo Go vs native build
 
+> 🔒 **Expo SDK-г 54-өөс ДЭЭШЛҮҮЛЖ БОЛОХГҮЙ** (шийдвэр 2026-08-04).
+> App Store дээрх iOS Expo Go нь **54.0.2 дээр царцсан** (2025-09-23-нд гарсан);
+> Expo-гийн SDK 55 хувилбар 2026 оны 5-р сараас Apple-ийн зөвшөөрөл хүлээсээр
+> байна. Тэгэхээр **SDK 54 бол iPhone дээрх Expo Go-той ажиллах сүүлийн SDK.**
+> Choi, Boju **хоёулаа iPhone** дээр тестэлдэг тул шинэчилбэл хоёулаа зогсоно —
+> үлдэх зам (dev build эсвэл `eas go`) хоёулаа **$99 Apple Developer данс**
+> шаарддаг, тэр данс хараахан аваагүй (`ROADMAP.md` § Store setup).
+> **Данс авсны дараа** шинэчлэх боломжтой болно. Энэ нь App Store руу апп
+> илгээхэд ямар ч саад биш — Expo Go-гийн шалгалтын асуудал нь Expo-гийн
+> өөрийнх нь апп, бидэнд хамаагүй.
+
 Two ways to run the app; pick by role:
 
 - **Choi / Boju → Expo Go** (no native build). The project has
