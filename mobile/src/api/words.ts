@@ -28,11 +28,15 @@ export function getSampleQuestions(count = 3): Promise<SampleQuestion[]> {
   return apiRequest<SampleQuestion[]>(`/words/sample?count=${count}`);
 }
 
-/** GET /api/words — vocabulary bank (used to introduce new words to study). */
+/** GET /api/words — vocabulary bank (used to introduce new words to study).
+ *  `lessonId` narrows it to the words an admin attached to that lesson. */
 export function getWords(
   token: string,
-  params: { limit?: number } = {},
+  params: { limit?: number; lessonId?: string } = {},
 ): Promise<Paginated<Word>> {
-  const query = params.limit ? `?limit=${params.limit}` : '';
+  const parts: string[] = [];
+  if (params.limit) parts.push(`limit=${params.limit}`);
+  if (params.lessonId) parts.push(`lessonId=${params.lessonId}`);
+  const query = parts.length ? `?${parts.join('&')}` : '';
   return apiRequest<Paginated<Word>>(`/words${query}`, { token });
 }

@@ -105,7 +105,7 @@ DTO-д байхгүй талбарыг чимээгүй арчина).
 | GET `/words/image-batch/:batchId` | admin-баг | Batch зургийн job харах | path `batchId` |
 | POST `/words/image-batch/:batchId/ingest` | admin-баг | Дууссан batch-ийн зургийг хадгалах | path `batchId` |
 | POST `/words/import` | admin-баг | CSV импорт (шинэ → needs_review) | multipart `file` (.csv) |
-| PATCH `/words/bulk` | admin-баг | Олноор засах (нийтлэх/зөвшөөрөх/ангилах) | `{ ids, changes }` |
+| PATCH `/words/bulk` | admin-баг | Олноор засах (нийтлэх/зөвшөөрөх/ангилах/**хичээлд хавсаргах**) | `{ ids, changes }` — `changes.lessonId` = хичээлд хавсаргах, `null` = салгах |
 | POST `/words/dedupe` | admin-баг | Давхардсан үг устгах | — |
 | POST `/words/:id/generate-image` | admin-баг | Нэг үгэнд зураг үүсгэх | path `id` |
 | POST `/words/:id/generate-audio` | admin-баг | Нэг үгэнд дуудлагын аудио үүсгэх | path `id` |
@@ -117,10 +117,11 @@ GET уншилт public. (Sparks endpoint-ууд мөн энэ base дээр —
 
 | Method + Path | Auth | Зорилго | Params / Body |
 | --- | --- | --- | --- |
-| GET `/lessons` | **Public** | Хичээлийн жагсаалт | `QueryLessonsDto` (isPublished, level, type) |
+| GET `/lessons` | **Public** | Хичээлийн жагсаалт. Анхдагч эрэмбэ: `level ASC, position ASC, createdAt ASC` (`getContinue`-тэй ижил); `sort=newest` = шинэ нь эхэнд (админы жагсаалт) | `QueryLessonsDto` (isPublished, level, type, parentId, **sort**) |
 | GET `/lessons/continue` | JWT | "Continue learning" (C1) — дараагийн дуусгаагүй top-level хичээл + тухайн level-ийн бодит ахиц → `{ lesson\|null, level, levelDone, levelTotal, allCompleted }` | — |
+| GET `/lessons/completed` | JWT | Тухайн сурагчийн дуусгасан хичээлийн id-ууд → `{ ids: string[] }`. Түвшний зам ✓-г **id-гаар** тэмдэглэдэг (өмнө нь "эхний N" гэж тоолоод буруу хичээл дээр буудаг байсан) | — |
 | GET `/lessons/:id` | **Public** | Нэг хичээл | path `id` |
-| POST `/lessons` | admin-баг | Хичээл үүсгэх | `CreateLessonDto` |
+| POST `/lessons` | admin-баг | Хичээл үүсгэх. `position` дамжуулаагүй бол тухайн түвшний **хамгийн ард** нэмэгдэнэ (1-ээс эхэлдэг; 0 = эрэмбэлээгүй) | `CreateLessonDto` |
 | PATCH `/lessons/:id` | admin-баг | Хичээл засах | `UpdateLessonDto` |
 | DELETE `/lessons/:id` | admin-баг | Хичээл устгах | path `id` |
 | POST `/lessons/:id/complete` | JWT | Хичээл дуусгаж XP олгох (нэг удаа, idempotent) | path `id` |
@@ -619,7 +620,7 @@ Deploy хийсний дараа нэг удаа `src/scripts/backfill-trophies.
 | `users.ts` | `getStats`→GET `/users/me/stats` · `getMyPlan`→GET `/users/me/plan` · `updateProfile`→PATCH `/users/me` · `uploadAvatar`→POST `/users/me/avatar` |
 | `gamification.ts` | `getGamification`→GET `/gamification` |
 | **`achievements.ts`** 🆕 | `getAchievements`→GET `/achievements` · `markTrophiesSeen`→POST `/achievements/seen` · `setPinnedTrophies`→POST `/achievements/pinned`. Хэрэглэгч: **`app/trophies.tsx`** (100 цомын бүрэн дэлгэц, tier тус бүрээр, шүүлтүүр Бүгд/Авсан/Аваагүй, дэлгэрэнгүй sheet) · **`app/(tabs)/profile.tsx`** (**онцолсон** цомын хэвтээ мөр — онцлоогүй бол эзэмшсэн/түгжээтэй нь + `Бүгдийг харах` → `/trophies`) · **`src/lib/useCelebrations.ts`** (`unseen` трофей **+** `streakCelebration` → `AchievementModal` баяр хүргэл → `POST /seen` / `POST /gamification/streak-seen`; нэг дараалал — streak эхэлж, трофей дараа нь; host нь `src/components/CelebrationHost.tsx`, `app/_layout.tsx`-д суусан; дуусгах дэлгэцүүд (хичээл · сорил · унших · swipe · game) `checkCelebrations()` дуудна). Түгжээтэй цомын нөхцөлийг `src/lib/trophyCondition.ts` монголоор бичнэ |
-| `lessons.ts` | `getLessons`→GET `/lessons?isPublished=true` · `getLesson`→GET `/lessons/:id` · `checkAccess`→GET `/lessons/:id/access` · `unlockLesson`→POST `/lessons/:id/unlock` · `completeLesson`→POST `/lessons/:id/complete` · **`getContinue`→GET `/lessons/continue`** (C1 ✅ Home hero — Choi, 2026-07-22) |
+| `lessons.ts` | `getLessons`→GET `/lessons?isPublished=true` · `getLesson`→GET `/lessons/:id` · `checkAccess`→GET `/lessons/:id/access` · `unlockLesson`→POST `/lessons/:id/unlock` · `completeLesson`→POST `/lessons/:id/complete` · **`getContinue`→GET `/lessons/continue`** (C1 ✅ Home hero — Choi, 2026-07-22) · **`getCompletedLessonIds`→GET `/lessons/completed`** (түвшний замын ✓ — 2026-08-04) |
 | `quizzes.ts` | `getQuiz`→GET `/quizzes/:id` · `getQuizzes`→GET `/quizzes?isPublished=true[&lessonId=]` · `getExercises`→GET `/quizzes?standalone=true&isPublished=true&category=` · `submitQuiz`→POST `/quizzes/:id/submit` · **`checkAnswer`→POST `/quizzes/:id/check`** (C2 — Boju нэмнэ). **IELTS 3a ✅** (Choi, 2026-07-22): `getExercises`-ийг `category=ielts_listening\|ielts_reading`-аар дуудаж `/ielts` hub + `/skill/ielts_*` жагсаалт; runner нь `passageText`/`audioUrl`-ыг үзүүлж, `submit`-ийн `band`-ыг үр дүнд харуулна |
 | `quiz.ts` (vocab) | `getQuiz`→GET `/words/quiz?count=` · `submitQuiz`→POST `/words/quiz/submit` |
 | `reading.ts` | `getReadingList`→GET `/reading?limit=50` · `getReadingPassage`→GET `/reading/:id` · `completeReading`→POST `/reading/:id/complete` |

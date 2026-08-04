@@ -2,6 +2,7 @@ import { Type, Transform } from 'class-transformer';
 import {
   IsOptional,
   IsEnum,
+  IsIn,
   IsBoolean,
   IsInt,
   IsUUID,
@@ -34,6 +35,16 @@ export class QueryLessonsDto {
   @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
   isPublished?: boolean;
+
+  /**
+   * `order` (default) = the student order: level, then `position`.
+   * `newest` = most recently created first — what the admin list wants, so a
+   * lesson the author just saved is on top instead of buried at the end of its
+   * level.
+   */
+  @IsOptional()
+  @IsIn(['order', 'newest'])
+  sort?: 'order' | 'newest';
 
   @IsOptional()
   @Type(() => Number)

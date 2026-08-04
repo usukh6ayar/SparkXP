@@ -393,6 +393,9 @@ export class XpService {
         .select('l.level', 'level')
         .addSelect('COUNT(*)', 'n')
         .where('l.is_published = true')
+        // Top-level only — the level trail lists exactly these, so the header
+        // "done/total" and the number of nodes can't disagree.
+        .andWhere('l.parent_lesson_id IS NULL')
         .groupBy('l.level')
         .getRawMany<{ level: string; n: string }>(),
       // Distinct lessons this user finished per CEFR level → island "done".
@@ -403,6 +406,10 @@ export class XpService {
         .addSelect('COUNT(DISTINCT x.reference_id)', 'n')
         .where('x.user_id = :userId', { userId })
         .andWhere('x.source = :src', { src: XpSource.LESSON })
+        // Count only lessons the student can still see on the trail, so `done`
+        // can never exceed the ticks (an unpublished lesson drops from both).
+        .andWhere('l.is_published = true')
+        .andWhere('l.parent_lesson_id IS NULL')
         .groupBy('l.level')
         .getRawMany<{ level: string; n: string }>(),
     ]);

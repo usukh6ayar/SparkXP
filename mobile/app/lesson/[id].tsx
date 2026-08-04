@@ -11,6 +11,7 @@ import { useAuth } from '../../src/auth/AuthContext';
 import * as lessonsApi from '../../src/api/lessons';
 import type { Lesson } from '../../src/api/lessons';
 import { getQuizzes, type Quiz } from '../../src/api/quizzes';
+import { getWords, type Word } from '../../src/api/words';
 import { setLastLesson } from '../../src/lib/lastLesson';
 import { alertError, confirm } from '../../src/lib/alerts';
 import { TopBar } from '../../src/components/TopBar';
@@ -54,6 +55,8 @@ export default function LessonDetailScreen() {
   const [lesson, setLesson] = useState<Lesson | null>(null);
   const [hasAccess, setHasAccess] = useState(false);
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
+  // Words an admin attached to this lesson (empty for lessons with none).
+  const [words, setWords] = useState<Word[]>([]);
   const [done, setDone] = useState(false); // lesson watched → quizzes unlocked
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -65,6 +68,10 @@ export default function LessonDetailScreen() {
 
   const doneKey = `lesson_done:${id}`;
   const videoUrl = (lesson?.content as { videoUrl?: string } | undefined)?.videoUrl ?? null;
+  // Cover uploaded in admin. Newer lessons keep it on the column, older ones only
+  // inside `content` — read both so an authored image always shows.
+  const coverUrl =
+    lesson?.thumbnailUrl ?? (lesson?.content as { imageUrl?: string } | undefined)?.imageUrl ?? null;
   const player = useVideoPlayer(videoUrl, (p) => { p.loop = false; });
 
   // Load the real video source once the lesson (and its URL) arrives.
@@ -76,15 +83,18 @@ export default function LessonDetailScreen() {
     if (!token || !id) return;
     setLoading(true);
     try {
-      const [l, access, qz, savedDone] = await Promise.all([
+      const [l, access, qz, wordList, savedDone] = await Promise.all([
         lessonsApi.getLesson(id, token),
         lessonsApi.checkAccess(id, token),
         getQuizzes(token, { lessonId: id }),
+        // Optional section — a failure here must not blank the whole lesson.
+        getWords(token, { lessonId: id, limit: 100 }).catch(() => ({ items: [] as Word[] })),
         AsyncStorage.getItem(doneKey),
       ]);
       setLesson(l);
       setHasAccess(access.hasAccess);
       setQuizzes(qz.items);
+      setWords(wordList.items);
       setDone(savedDone === '1');
       setLastLesson({ id: l.id, title: l.title, thumbnailUrl: l.thumbnailUrl, type: l.type, level: l.level });
       setError(false);
@@ -201,7 +211,10 @@ export default function LessonDetailScreen() {
 
   const lvl = levelColor[lesson.level] ?? levelColor.a1;
   const skill = getSkill(lesson.type);
-  const num = String(lesson.position ?? 1).padStart(2, '0');
+  // `position` is 0 for lessons authored before the admin form had the field —
+  // and 0 is not nullish, so a `?? 1` fallback never fired and every lesson read
+  // "00". Un-ordered lessons show the skill icon instead of a fake number.
+  const num = lesson.position > 0 ? String(lesson.position).padStart(2, '0') : null;
   const CAT_LABELS = catLabels();
 
   return (
@@ -219,7 +232,11 @@ export default function LessonDetailScreen() {
         {/* Header */}
         <View style={styles.head}>
           <View style={[styles.numBadge, { backgroundColor: skill.tint.bg }]}>
-            <AppText variant="h2" color={skill.tint.fg}>{num}</AppText>
+            {num ? (
+              <AppText variant="h2" color={skill.tint.fg}>{num}</AppText>
+            ) : (
+              <AppIcon name={skill.img} size={32} />
+            )}
           </View>
           <View style={{ flex: 1 }}>
             <AppText variant="h2">{lesson.title}</AppText>
@@ -268,6 +285,13 @@ export default function LessonDetailScreen() {
                 allowsFullscreen
                 contentFit="cover"
               />
+            ) : coverUrl ? (
+              /* No video, but the author uploaded a cover — show THAT, not the
+                 generic bundled banner (the uploaded image otherwise appeared
+                 nowhere in the app). */
+              <View style={styles.video}>
+                <Image source={{ uri: coverUrl }} style={styles.videoImg} resizeMode="cover" />
+              </View>
             ) : (
               <View style={styles.video}>
                 <Image source={banner} style={styles.videoImg} resizeMode="cover" />
@@ -278,6 +302,35 @@ export default function LessonDetailScreen() {
                 </View>
               </View>
             )}
+
+            {/* Lesson vocabulary — the words an admin attached to this lesson.
+                Rendered only when there are any, so lessons without a word list
+                don't grow an empty section. */}
+            {words.length > 0 ? (
+              <>
+                <View style={styles.quizHead}>
+                  <AppText variant="h2">{t('lessonWords')}</AppText>
+                  <AppText variant="caption" color={c.textMuted}>{words.length}</AppText>
+                </View>
+                <View style={styles.wordCard}>
+                  {words.map((w, i) => (
+                    <View key={w.id} style={[styles.wordRow, i > 0 && styles.wordRowBorder]}>
+                      <View style={{ flex: 1 }}>
+                        <AppText variant="bodyStrong" numberOfLines={1}>{w.english}</AppText>
+                        {w.exampleSentence ? (
+                          <AppText variant="caption" color={c.textMuted} numberOfLines={1}>
+                            {w.exampleSentence}
+                          </AppText>
+                        ) : null}
+                      </View>
+                      <AppText variant="body" color={c.textSecondary} numberOfLines={1} style={styles.wordMn}>
+                        {w.mongolian}
+                      </AppText>
+                    </View>
+                  ))}
+                </View>
+              </>
+            ) : null}
 
             {/* Tests — unlocked once the lesson is marked watched */}
             <View style={styles.quizHead}>
@@ -294,6 +347,13 @@ export default function LessonDetailScreen() {
                 <AppText variant="caption" center color={c.textSecondary} style={{ marginTop: 2 }}>
                   {t('watchLessonFirstHint')}
                 </AppText>
+                {/* Say how many tests are waiting — otherwise a locked, silent
+                    section looks exactly like "my tests never arrived". */}
+                {quizzes.length > 0 ? (
+                  <AppText variant="caption" center color={c.primary} style={{ marginTop: 6 }}>
+                    {tf('testsReadyCount', { n: quizzes.length })}
+                  </AppText>
+                ) : null}
                 <Button label={t('lessonWatched')} icon="checkmark" onPress={markDone} style={{ marginTop: spacing.md, alignSelf: 'stretch' }} />
               </View>
             ) : quizzes.length === 0 ? (
@@ -359,6 +419,15 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
     borderWidth: 1, borderColor: c.border,
   },
   quizEmpty: { backgroundColor: c.surfaceAlt, borderRadius: radius.lg, padding: spacing.lg },
+
+  // Lesson vocabulary list
+  wordCard: {
+    backgroundColor: c.surface, borderRadius: radius.lg,
+    borderWidth: 1, borderColor: c.border, overflow: 'hidden',
+  },
+  wordRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  wordRowBorder: { borderTopWidth: 1, borderTopColor: c.border },
+  wordMn: { maxWidth: '45%', textAlign: 'right' },
   catGroup: { marginBottom: spacing.md },
   catLabel: { marginBottom: spacing.sm },
   quizRow: {

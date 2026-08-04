@@ -1,4 +1,4 @@
-import { IsArray, IsUUID, IsOptional, IsEnum, IsString, ValidateNested } from 'class-validator';
+import { IsArray, IsUUID, IsOptional, IsEnum, IsString, ValidateNested, ValidateIf } from 'class-validator';
 import { Type } from 'class-transformer';
 import { WordStatus, ContentLevel } from '../../common/enums';
 
@@ -15,6 +15,13 @@ export class BulkChangesDto {
   @IsOptional()
   @IsEnum(ContentLevel)
   level?: ContentLevel;
+
+  /** Attach these words to a lesson — `null` detaches them from any lesson.
+   *  Used by the lesson editor's "Үгс" panel. */
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsUUID()
+  lessonId?: string | null;
 }
 
 /** Body for PATCH /api/words/bulk. */

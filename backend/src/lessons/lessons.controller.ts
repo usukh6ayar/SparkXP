@@ -54,6 +54,14 @@ export class LessonsController {
     return this.lessonsService.getContinue(user.id);
   }
 
+  /** Lesson ids the student has completed — drives the level trail's
+   *  checkmarks. Declared before `:id` so "completed" isn't read as an id. */
+  @Get('completed')
+  @UseGuards(JwtAuthGuard)
+  completed(@CurrentUser() user: User) {
+    return this.lessonsService.completedIds(user.id);
+  }
+
   @Get(':id')
   findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.lessonsService.findOne(id);
