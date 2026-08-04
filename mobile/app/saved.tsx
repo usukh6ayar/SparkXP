@@ -14,6 +14,7 @@ import {
 } from '../src/api/reviews';
 import {
   getDictionarySaves,
+  toggleDictionarySave,
   type SavedDictionaryWord,
 } from '../src/api/dictionary';
 import { useDictionary } from '../src/components/DictionaryProvider';
@@ -45,7 +46,7 @@ export default function SavedScreen() {
   // Толь (dictionary) ⭐ saves — a separate table/endpoint, shown in their own
   // section below the curated words. See DictionarySensesService.listSaves.
   const [dictWords, setDictWords] = useState<SavedDictionaryWord[]>([]);
-  const { openWordCard, toggleStar } = useDictionary();
+  const { openSearch } = useDictionary();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(false);
@@ -93,15 +94,14 @@ export default function SavedScreen() {
     if (token) toggleSave(token, w.id).catch(() => {});
   }, [token]);
 
-  // Goes through the provider, not the API directly, so its in-memory ⭐ set
-  // stays in sync — otherwise the reader popover and the Толь card would keep
-  // showing this word as starred and the next tap would silently re-save it.
+  // The provider holds no shared ⭐ state (each dictionary surface owns its own
+  // useWordLookup), so calling the endpoint directly is safe here.
   const unsaveDictWord = useCallback(
     (word: string) => {
-      toggleStar(word);
-      setDictWords((list) => list.filter((r) => r.word !== word));
+      setDictWords((list) => list.filter((r) => r.word !== word)); // optimistic
+      if (token) toggleDictionarySave(token, word).catch(() => {});
     },
-    [toggleStar],
+    [token],
   );
 
   const renderItem = useCallback(
@@ -186,7 +186,7 @@ export default function SavedScreen() {
                   key={row.word}
                   row={row}
                   colors={c}
-                  onOpen={() => openWordCard(row.word)}
+                  onOpen={() => openSearch(row.word)}
                   onUnsave={() => unsaveDictWord(row.word)}
                 />
               ))}

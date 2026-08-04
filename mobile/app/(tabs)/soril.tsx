@@ -17,6 +17,7 @@ import { getGamification, type Gamification } from "../../src/api/gamification";
 import { loadDailyTasks, DAILY_TASK_GOAL } from "../../src/lib/dailyTasks";
 import { AppText } from "../../src/components/Text";
 import { AppIcon } from "../../src/components/AppIcon";
+import { DictionaryButton } from "../../src/components/DictionaryButton";
 import { appIcons } from "../../src/constants/appIcons";
 import { IconTile } from "../../src/components/IconTile";
 import { Pill } from "../../src/components/Pill";
@@ -160,11 +161,14 @@ export default function SorilScreen() {
         {/* Header */}
         <View style={styles.header}>
           <AppText variant="h1">{t("quiz")}</AppText>
-          <View style={styles.diamondBadge}>
-            <AppIcon name="sparks" size={20} />
-            <AppText variant="label" color={c.text}>
-              {user?.sparks ?? 0}
-            </AppText>
+          <View style={styles.headerActions}>
+            <DictionaryButton size={38} />
+            <View style={styles.diamondBadge}>
+              <AppIcon name="sparks" size={20} />
+              <AppText variant="label" color={c.text}>
+                {user?.sparks ?? 0}
+              </AppText>
+            </View>
           </View>
         </View>
         <AppText
@@ -367,6 +371,7 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   diamondBadge: {
     flexDirection: "row",
     alignItems: "center",

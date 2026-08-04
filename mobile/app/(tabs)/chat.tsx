@@ -364,6 +364,7 @@ export default function ChatScreen() {
       <SafeAreaView style={styles.safe} edges={['top']}>
         <TopBar
           title={t('buddySelectTitle')}
+          showDictionary
           onAddSparks={() => Alert.alert(t('buddyUnlockComingSoon'))}
         />
         <BuddySelector
@@ -383,6 +384,7 @@ export default function ChatScreen() {
       <TopBar
         title={selected?.name ?? t('aiBuddyShort')}
         subtitle={t('buddyOnline')}
+        showDictionary
         back
         onBack={() => {
           // Same rule as leaving the tab: the reply must not follow you back to
