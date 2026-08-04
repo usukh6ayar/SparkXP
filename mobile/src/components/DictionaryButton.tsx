@@ -32,7 +32,7 @@ export function DictionaryButton({
       variant={variant}
       style={style}
       accessibilityLabel={t('searchEnglishWord')}
-      onPress={openSearch}
+      onPress={() => openSearch()}
     />
   );
 }

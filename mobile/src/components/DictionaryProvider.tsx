@@ -81,7 +81,9 @@ export function DictionaryProvider({ children }: { children: ReactNode }) {
     (word?: string) => {
       dictionaryReset(); // every session starts on an empty search
       setPanelOpen(true);
-      if (word) dictionaryLookup(word);
+      // `typeof` and not just truthiness: passing this straight to an `onPress`
+      // hands it the press EVENT, which is truthy and would be looked up.
+      if (typeof word === 'string' && word) dictionaryLookup(word);
     },
     [dictionaryReset, dictionaryLookup],
   );

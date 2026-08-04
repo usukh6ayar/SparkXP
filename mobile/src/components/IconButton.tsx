@@ -1,4 +1,10 @@
-import { Pressable, View, StyleSheet, type ViewStyle } from 'react-native';
+import {
+  Pressable,
+  View,
+  StyleSheet,
+  type GestureResponderEvent,
+  type ViewStyle,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../settings/SettingsContext';
 import { radius, elevation, type AppColors } from '../theme/theme';
@@ -23,7 +29,13 @@ export function IconButton({
   style,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
-  onPress: () => void;
+  /**
+   * Typed with the press event even though we never read it: `() => void` also
+   * accepts `(word?: string) => void`, so a handler expecting an argument could
+   * be passed bare and silently receive the event instead. Naming the event
+   * type makes that a compile error.
+   */
+  onPress: (e: GestureResponderEvent) => void;
   size?: number;
   iconSize?: number;
   iconColor?: string;
