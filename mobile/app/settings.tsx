@@ -8,7 +8,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../src/auth/AuthContext';
 import { isBiometricAvailable } from '../src/auth/biometrics';
-import { useSettings } from '../src/settings/SettingsContext';
+import { useSettings, type ThemePref } from '../src/settings/SettingsContext';
 import { loadSoundEnabled, setSoundEnabled } from '../src/lib/sound';
 import { AppText } from '../src/components/Text';
 import { resolveAvatar } from '../src/lib/avatar';
@@ -144,7 +144,7 @@ function SectionLabel({ p, children }: { p: PremiumPalette; children: string }) 
 function SegToggle<T extends string>({
   p, options, value, onChange,
 }: {
-  p: PremiumPalette; options: [Option<T>, Option<T>]; value: T; onChange: (v: T) => void;
+  p: PremiumPalette; options: Option<T>[]; value: T; onChange: (v: T) => void;
 }) {
   return (
     <View style={[styles.toggle, { backgroundColor: p.track }]}>
@@ -157,7 +157,9 @@ function SegToggle<T extends string>({
             style={[styles.toggleItem, active && { backgroundColor: p.primary }]}
           >
             <Ionicons name={opt.icon} size={17} color={active ? colors.white : p.textSecondary} />
-            <AppText variant="bodyStrong" color={active ? colors.white : p.textSecondary}>{opt.label}</AppText>
+            {/* Three options share one row, so a long label must clip rather
+                than wrap and make the pills uneven. */}
+            <AppText variant="bodyStrong" numberOfLines={1} color={active ? colors.white : p.textSecondary}>{opt.label}</AppText>
           </Pressable>
         );
       })}
@@ -168,7 +170,7 @@ function SegToggle<T extends string>({
 export default function SettingsScreen() {
   const router = useRouter();
   const { user, biometricEnabled, setBiometricEnabled } = useAuth();
-  const { theme, lang, palette: p, setTheme, setLang, t } = useSettings();
+  const { themePref, lang, palette: p, setTheme, setLang, t } = useSettings();
 
   const [notifications, setNotifications] = usePref(KEYS.notifications);
   const [sound, setSound] = useSoundPref();
@@ -221,10 +223,13 @@ export default function SettingsScreen() {
                 <Ionicons name="color-palette" size={18} color={tints.purple.fg} />
                 <AppText variant="body" color={p.text}>{t('appearance')}</AppText>
               </View>
-              <SegToggle p={p} value={theme} onChange={setTheme}
+              {/* Bound to `themePref`, NOT `theme` — otherwise picking "Систем"
+                  would light up Хар/Цайвар instead, since `theme` is resolved. */}
+              <SegToggle<ThemePref> p={p} value={themePref} onChange={setTheme}
                 options={[
                   { value: 'dark', label: t('dark'), icon: 'moon' },
                   { value: 'light', label: t('light'), icon: 'sunny' },
+                  { value: 'system', label: t('themeSystem'), icon: 'phone-portrait' },
                 ]} />
             </View>
             <View style={[styles.divider, { backgroundColor: p.divider }]} />
