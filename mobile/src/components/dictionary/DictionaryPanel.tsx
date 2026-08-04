@@ -128,9 +128,12 @@ export function DictionaryPanel({
   );
 
   /**
-   * The senses to show, most-used first, capped at MAX_SENSES. Until the
-   * backend returns `meanings` this degrades to the single short `translation`
-   * it does return (no example to show with it).
+   * The senses to show, most-used first, capped at MAX_SENSES.
+   *
+   * The `translation` fallback is for a result with no senses at all — a
+   * translated sentence (`isPhrase`), or a lookup that only produced a short
+   * gloss. When senses ARE present the meaning is not repeated here: it already
+   * has its own line under the headword.
    */
   const senses: DictionarySense[] = useMemo(() => {
     if (result?.meanings?.length) return result.meanings.slice(0, MAX_SENSES);
@@ -197,6 +200,20 @@ export function DictionaryPanel({
               style={styles.heroWord}
             >
               {word}
+            </AppText>
+          ) : null}
+
+          {/* The word's own Mongolian meaning — one line, right under the
+              headword. Without it the panel answered "how is it used?" but
+              never "what does it mean?". Omitted entirely when the backend has
+              none, so no empty row is left behind. */}
+          {word && !isPhrase && result?.translation ? (
+            <AppText
+              variant="body"
+              color={colors.textOnDarkMuted}
+              style={styles.heroMeaning}
+            >
+              {result.translation}
             </AppText>
           ) : null}
 
@@ -332,6 +349,9 @@ const makeStyles = (colors: AppColors) => StyleSheet.create({
   heroTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   // A notch above h1 (27): the looked-up word is the whole point of the panel.
   heroWord: { fontSize: 32, lineHeight: 40 },
+  // Sits tight under the headword — `hero` has a gap of its own, which would
+  // otherwise read as two unrelated lines rather than word + meaning.
+  heroMeaning: { marginTop: -spacing.sm + 2 },
   searchBar: {
     flex: 1,
     flexDirection: 'row',

@@ -38,12 +38,16 @@ export async function runGeminiText(
 ): Promise<GeminiTextResult> {
   const apiKey = config.get<string>('GEMINI_API_KEY');
   if (!apiKey) {
-    throw new InternalServerErrorException('GEMINI_API_KEY тохируулаагүй байна');
+    throw new InternalServerErrorException(
+      'GEMINI_API_KEY тохируулаагүй байна',
+    );
   }
   const model = config.get<string>('GEMINI_MODEL', 'gemini-2.5-flash');
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-  const requestInit = {
+  /** Dropped after a 400, which is how Gemini rejects a schema it dislikes. */
+  let useSchema = Boolean(options.schema);
+  const buildRequest = () => ({
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -53,20 +57,25 @@ export async function runGeminiText(
         ...(options.json
           ? {
               responseMimeType: 'application/json',
-              ...(options.schema ? { responseSchema: options.schema } : {}),
+              ...(useSchema ? { responseSchema: options.schema } : {}),
             }
           : {}),
       },
     }),
-  };
+  });
 
   const MAX_ATTEMPTS = 5;
   for (let attempt = 1; ; attempt++) {
-    const response = await fetch(url, requestInit);
+    const response = await fetch(url, buildRequest());
     if (response.ok) {
       const data = (await response.json()) as {
-        candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] } }[];
-        usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
+        candidates?: {
+          content?: { parts?: { text?: string; thought?: boolean }[] };
+        }[];
+        usageMetadata?: {
+          promptTokenCount?: number;
+          candidatesTokenCount?: number;
+        };
       };
       const parts = data.candidates?.[0]?.content?.parts ?? [];
       const text = parts
@@ -86,6 +95,20 @@ export async function runGeminiText(
     }
 
     const body = await response.text().catch(() => '');
+
+    // A 400 with a schema attached is Gemini rejecting the schema itself, not
+    // the prompt — retrying it unchanged would fail forever. Drop the schema
+    // and ask once more in plain JSON mode: the callers' parsers already treat
+    // the reply as untrusted and accept the unstructured shape, so a schema the
+    // API stops liking degrades the answer instead of taking the feature down.
+    if (response.status === 400 && useSchema) {
+      logger.warn(
+        `Gemini rejected the schema for "${label}" — retrying without it`,
+      );
+      useSchema = false;
+      continue;
+    }
+
     const transient =
       response.status === 429 ||
       response.status === 503 ||
