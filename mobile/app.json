@@ -12,9 +12,9 @@
       "bundleIdentifier": "mn.app.sparkxp",
       "icon": "./assets/icon-ios.png",
       "infoPlist": {
-        "NSCameraUsageDescription": "\u0410\u043d\u0433\u0438 \u043d\u044d\u0433\u0434\u044d\u0445 QR \u043a\u043e\u0434 \u0443\u043d\u0448\u0438\u0445\u0430\u0434 \u043a\u0430\u043c\u0435\u0440 \u0430\u0448\u0438\u0433\u043b\u0430\u043d\u0430.",
-        "NSMicrophoneUsageDescription": "AI Buddy-\u0442\u0430\u0439 \u0434\u0443\u0443\u0442 \u044f\u0440\u0438\u0430 \u0445\u0438\u0439\u0445\u044d\u0434 \u043c\u0438\u043a\u0440\u043e\u0444\u043e\u043d \u0430\u0448\u0438\u0433\u043b\u0430\u043d\u0430.",
-        "NSFaceIDUsageDescription": "\u0410\u043f\u043f-\u044b\u0433 Face ID-\u0430\u0430\u0440 \u0442\u04af\u0433\u0436\u0438\u0436 \u0445\u0430\u043c\u0433\u0430\u0430\u043b\u0430\u0445\u0430\u0434 \u0430\u0448\u0438\u0433\u043b\u0430\u043d\u0430.",
+        "NSCameraUsageDescription": "Анги нэгдэх QR код уншихад камер ашиглана.",
+        "NSMicrophoneUsageDescription": "AI Buddy-тай дуут яриа хийхэд микрофон ашиглана.",
+        "NSFaceIDUsageDescription": "Апп-ыг Face ID-аар түгжиж хамгаалахад ашиглана.",
         "UIBackgroundModes": [
           "audio"
         ]
@@ -30,7 +30,9 @@
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS"
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT"
       ]
     },
     "web": {
@@ -54,7 +56,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "\u0410\u043d\u0433\u0438 \u043d\u044d\u0433\u0434\u044d\u0445 QR \u043a\u043e\u0434 \u0443\u043d\u0448\u0438\u0445\u0430\u0434 \u043a\u0430\u043c\u0435\u0440 \u0430\u0448\u0438\u0433\u043b\u0430\u043d\u0430."
+          "cameraPermission": "Анги нэгдэх QR код уншихад камер ашиглана."
         }
       ],
       "expo-audio",
@@ -70,7 +72,7 @@
       [
         "expo-local-authentication",
         {
-          "faceIDPermission": "Face ID \u0430\u0448\u0438\u0433\u043b\u0430\u043d \u0445\u0443\u0440\u0434\u0430\u043d \u0431\u04e9\u0433\u04e9\u04e9\u0434 \u0430\u044e\u0443\u043b\u0433\u04af\u0439 \u043d\u044d\u0432\u0442\u0440\u044d\u0445."
+          "faceIDPermission": "Face ID ашиглан хурдан бөгөөд аюулгүй нэвтрэх."
         }
       ],
       [
@@ -85,7 +87,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "d5b190dd-0fb6-4684-8aff-4648fb0f0357"
+        "projectId": "302d838f-49f9-4abe-8179-d3d180940fe7"
       }
     }
   }

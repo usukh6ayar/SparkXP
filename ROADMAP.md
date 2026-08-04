@@ -1015,9 +1015,9 @@ Migration шаардлагагүй (багана аль хэдийн бий). З
 - [ ] Багшийн урсгал (анги үүсгэх → QR/код → сурагч батлах → даалгавар) бүрэн тест.
 
 ### 🚨 Store setup — бодит blocker (шинэчилсэн 2026-07-28, кодоос баталсан)
-- [x] **EAS холбогдсон** — `eas init` (2026-07-21). Expo project үүссэн
-      (`@usukh6ayar/sparkxp` — slug солигдсон), `app.json` `extra.eas.projectId` =
-      `d5b190dd-0fb6-4684-8aff-4648fb0f0357`.
+- [x] **EAS холбогдсон** — Expo project `@usukh6ayar/sparkxp`, `app.json`
+      `extra.eas.projectId` = `302d838f-49f9-4abe-8179-d3d180940fe7`
+      (2026-08-04-нд дахин үүсгэсэн — доорх "EAS төсөл `sparkxp` болов"-ыг үз).
 - [x] **App icon холбогдсон** (2026-07-23) — `assets/icon-ios.png` **1024×1024**
       (iOS) + `assets/icon.png` **1254×1254** (Android adaptive, bg `#191040`).
       `app.json` эдгээр рүү зааж байна.
@@ -1047,19 +1047,30 @@ Migration шаардлагагүй (багана аль хэдийн бий). З
       ⚠️ **Choi/Boju:** pull хийсний дараа `npm install`; аппаас нэг удаа
       автоматаар гарна (дахин нэвтэр); локал DB-гээ
       `ALTER DATABASE englishxp RENAME TO sparkxp;` гэж сольж өг.
-- [ ] 🚨 **expo.dev дээр төслийн slug-ийг `englishxp` → `sparkxp` болго —
-      EAS build хийхээс ӨМНӨ.** `app.json`-д `slug: "sparkxp"` болсон бөгөөд
-      EAS үүнийг `extra.eas.projectId`-тай тааруулж шалгадаг. Одоо ажиллуулбал:
-      `Slug for project identified by "extra.eas.projectId" (englishxp) does not
-      match the "slug" field (sparkxp)` → **бүх `eas` команд унана**
-      (`project:info`-оор баталсан). `eas project:rename` команд байхгүй тул
-      **expo.dev → Project settings**-ээс гараар сольно.
-      *Хэрэв dashboard slug rename-ийг зөвшөөрөхгүй бол:* `app.json`-ы `slug`-ийг
-      `englishxp` болгож нэг мөрөөр буцаа (`projectId` нь төслийг холбогч
-      жинхэнэ түлхүүр учир slug нь хэрэглэгчид харагддаггүй). `eas init --force`
-      **бүү** ажиллуул — шинэ `projectId` үүсгэж, OTA түүхийг тасална.
-      Expo Go (`npm run go`) энэ шалгалтад ороогүй тул Choi/Boju-д саад болохгүй.
-      ⚠️ Дараагийн native build-ийн ӨМНӨ: локал `ios/`+`android/` (gitignore)
+- [x] 🆕 **EAS төсөл `sparkxp` болов (2026-08-04)** — хуучныг устгаж шинийг
+      үүсгэсэн. Шалтгаан: `slug` нь `sparkxp` болсон ч EAS түүнийг
+      `extra.eas.projectId`-ийн ард байгаа төслийн slug-тай тулгаж шалгадаг тул
+      бүх `eas` команд `Slug for project identified by "extra.eas.projectId"
+      (englishxp) does not match the "slug" field (sparkxp)` гэж унаж байв.
+      `eas project:rename` команд **байхгүй** (21.5.0 дээр ч), зөвхөн dashboard.
+      Сонгосон зам: **delete → `eas init --force`**.
+      | Юу | Утга |
+      | --- | --- |
+      | Шинэ төсөл | `@usukh6ayar/sparkxp` |
+      | Шинэ `projectId` | `302d838f-49f9-4abe-8179-d3d180940fe7` |
+      | Хуучин `projectId` | ~~`d5b190dd-0fb6-4684-8aff-4648fb0f0357`~~ (устсан) |
+      **Устгахад алдсан зүйл:** 1 Android build-ийн түүх (`preview`, 2026-07-24)
+      + EAS-ийн үүсгэсэн Android keystore. Play Store дээр нийтлээгүй, мөн
+      bundle id хамаагүй солигдож байсан тул бодит хохирол гараагүй. EAS env
+      vars (3 орчин) болон EAS Update branch хоосон байсан. **Hot Updater OTA
+      огт хөндөгдөөгүй** — тэр Cloudflare R2/D1/Worker дээр, Expo-д хамаагүй.
+      ⚠️ Хуучин `preview` APK суусан төхөөрөмж дээр шинэ build **тусдаа апп**
+      болж суух болно (bundle id + keystore хоёулаа өөр).
+      ⚠️ `eas init` нь `app.json`-г дахин бичихдээ кирилл escape-ийг задалж,
+      `expo-local-authentication`-ы `USE_BIOMETRIC`/`USE_FINGERPRINT`
+      зөвшөөрлийг Android дээр тодорхой бичсэн (plugin prebuild дээр ямар ч
+      байсан нэмдэг — зөв).
+- [ ] ⚠️ Дараагийн native build-ийн ӨМНӨ: локал `ios/`+`android/` (gitignore)
       хуучин ID-тэй хэвээр → `PRODUCT_BUNDLE_IDENTIFIER` (pbxproj) +
       `namespace`/`applicationId` (`android/app/build.gradle`)-ыг гараар засах
       эсвэл дахин prebuild. iOS-д шинэ App ID + provisioning profile хэрэгтэй

@@ -155,6 +155,15 @@ WHERE нөхцөл; `owner: usukh6ayar` (Expo бүртгэлийн нэр, бр�
 ID-тэй хэвээр → гараар засах эсвэл prebuild; iOS шинэ App ID + provisioning
 profile авна.
 
+**EAS төсөл дахин үүсгэгдэв (2026-08-04).** `slug` нь `sparkxp` болмогц EAS
+түүнийг `extra.eas.projectId`-ийн ард байгаа төслийн slug-тай тулгаж шалгаад бүх
+`eas` командыг унагаж байв. `eas project:rename` **байхгүй** тул хуучин төслийг
+устгаад шинийг үүсгэсэн: **`@usukh6ayar/sparkxp`**, `projectId` =
+`302d838f-49f9-4abe-8179-d3d180940fe7`. 1 хуучин Android build-ийн түүх + EAS-ийн
+Android keystore устсан (Play Store дээр нийтлээгүй тул хохирол алга).
+**Hot Updater OTA хөндөгдөөгүй** — Cloudflare дээр байдаг. Дэлгэрэнгүй →
+`ROADMAP.md` § Store setup.
+
 **Still pending (launch blockers), re-verified 2026-08-03:** eas.json submit creds empty;
 Lucide migration; real gamification data (streak/level/progress placeholders);
 real video player. Full list: `ROADMAP.md §3` + `docs/LAUNCH_FROM_SCRATCH.md`.
