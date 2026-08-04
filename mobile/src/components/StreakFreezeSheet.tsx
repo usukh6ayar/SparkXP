@@ -44,6 +44,8 @@ export function StreakFreezeSheet({
   const [busy, setBusy] = useState(false);
 
   const held = gam?.streakFreezes ?? 0;
+  /** Missed days this streak has already survived. 0 when the API omits it. */
+  const used = gam?.streakFreezesUsed ?? 0;
   const cost = gam?.streakFreezeCost ?? STREAK_FREEZE_FALLBACK.cost;
   const max = gam?.maxStreakFreezes ?? STREAK_FREEZE_FALLBACK.max;
   const atCap = held >= max;
@@ -77,13 +79,31 @@ export function StreakFreezeSheet({
       </AppText>
 
       {/* How many are banked — the number that decides whether buying is even
-          possible, so it gets its own line rather than hiding in the button. */}
+          possible, so it gets its own line rather than hiding in the button.
+          Restated in DAYS underneath, because "2 freezes" only means something
+          once you know each one buys you one missed day. */}
       <View style={[styles.heldBox, { backgroundColor: c.surfaceAlt }]}>
         <Ionicons name="snow-outline" size={20} color={c.sparks} />
-        <AppText variant="bodyStrong" color={c.text}>
-          {tf('streakFreezeHeld', { held, max })}
-        </AppText>
+        <View>
+          <AppText variant="bodyStrong" color={c.text}>
+            {tf('streakFreezeHeld', { held, max })}
+          </AppText>
+          <AppText variant="caption" color={c.textSecondary}>
+            {held > 0 ? tf('streakFreezeCoverNote', { n: held }) : t('streakFreezeNone')}
+          </AppText>
+        </View>
       </View>
+
+      {/* What the freezes have actually done for this streak. Only rendered
+          when the server reports it — see `streakFreezesUsed`. */}
+      {used > 0 ? (
+        <View style={styles.usedRow}>
+          <Ionicons name="snow" size={16} color={c.sparks} />
+          <AppText variant="caption" color={c.textSecondary}>
+            {tf('streakFreezeUsedNote', { n: used })}
+          </AppText>
+        </View>
+      ) : null}
 
       <View style={styles.balance}>
         <AppIcon name="sparks" size={18} />
@@ -128,6 +148,14 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     borderRadius: radius.md,
     paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.md,
+  },
+  usedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
     marginBottom: spacing.md,
   },
   balance: {

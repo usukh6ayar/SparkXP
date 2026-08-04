@@ -294,6 +294,23 @@ export default function SettingsScreen() {
             <Row p={p} icon="shield" tint={tints.green} label={t('privacyPolicy')} onPress={soon} />
           </Card>
 
+          {/* Dev tools — `__DEV__` only, so this never ships to a student.
+              Metro strips the whole block from a release bundle. */}
+          {__DEV__ ? (
+            <>
+              <SectionLabel p={p}>DEV</SectionLabel>
+              <Card p={p}>
+                <Row
+                  p={p}
+                  icon="color-palette"
+                  tint={tints.pink}
+                  label="Celebration scenes"
+                  onPress={() => router.push('/celebration-preview')}
+                />
+              </Card>
+            </>
+          ) : null}
+
           {/* Logout */}
           <View style={{ marginTop: spacing.lg }}>
             <Card p={p}>

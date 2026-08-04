@@ -28,6 +28,8 @@ import { FlashCard, type MemoryStatus } from '../src/components/FlashCard';
 import { ReviewStats } from '../src/components/ReviewStats';
 import { IconButton } from '../src/components/IconButton';
 import { checkCelebrations } from '../src/lib/useCelebrations';
+import { CelebrationScreen } from '../src/components/celebration/CelebrationScreen';
+import { celebrationCopy } from '../src/components/celebration/copy';
 import { t } from '../src/i18n';
 import { useColors } from '../src/settings/SettingsContext';
 import { spacing, radius, progressGradients, type AppColors } from '../src/theme/theme';
@@ -91,9 +93,15 @@ export default function ReviewFlashcardsScreen() {
   const current = queue[index];
   const next = queue[index + 1];
   const done = total > 0 && index >= total;
-  // Reviewing words earns XP, so finishing the deck can be what completes the
-  // daily goal — check once, when the deck flips to done.
-  useEffect(() => { if (done) checkCelebrations(); }, [done]);
+  /** The full-screen celebration, raised once as the deck flips to done. */
+  const [celebrating, setCelebrating] = useState(false);
+  useEffect(() => { if (done) setCelebrating(true); }, [done]);
+
+  /** Dismissing releases any trophy/streak queued behind it (never two modals). */
+  const closeCelebration = useCallback(() => {
+    setCelebrating(false);
+    checkCelebrations(); // review XP may have completed the daily goal
+  }, []);
 
   /* ── Audio ─────────────────────────────────────────────────────────────── */
   function playAudio(word?: LearnWord) {
@@ -354,6 +362,20 @@ export default function ReviewFlashcardsScreen() {
         </View>
         </>
       )}
+
+      {/* The shared completion celebration — same ceremony as a lesson or a
+          quiz. Dismissing it reveals the `ReviewStats` summary underneath. */}
+      <CelebrationScreen
+        visible={celebrating}
+        {...celebrationCopy('review', { perfect: total > 0 && known === total })}
+        stats={[
+          { icon: 'checkmark-circle', label: t('celebrationStatKnown'), value: `${known}/${total}`, color: c.success },
+          { icon: 'refresh', label: t('swipeReview'), value: String(review), color: c.danger },
+          { icon: 'flame', label: t('streak'), value: String(streak), color: c.streak },
+        ]}
+        primary={{ label: t('continue'), onPress: () => { closeCelebration(); router.back(); } }}
+        secondary={{ label: t('close'), onPress: closeCelebration }}
+      />
     </SafeAreaView>
   );
 }

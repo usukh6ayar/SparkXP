@@ -39,6 +39,8 @@ import { sound } from '../../src/lib/sound';
 import { markExerciseCompleted } from '../../src/lib/exerciseProgress';
 import { markDailyTask } from '../../src/lib/dailyTasks';
 import { showXpToast } from '../../src/lib/xpToast';
+import { CelebrationScreen } from '../../src/components/celebration/CelebrationScreen';
+import { celebrationCopy } from '../../src/components/celebration/copy';
 import { alertError } from '../../src/lib/alerts';
 import { t, tf, type TranslationKey } from '../../src/i18n';
 import { formatBand } from '../../src/constants/ielts';
@@ -116,8 +118,14 @@ function bestCombo(breakdown: QuizResult['breakdown']): number {
   return best;
 }
 
-/** Performance grade shown on a pass — "EXCELLENT" for a near-perfect score down
- *  to a plain "GOOD", so finishing feels rewarding (not just a bare percentage). */
+/**
+ * Performance grade — "ГАЙХАЛТАЙ!" for a near-perfect score down to a plain
+ * "САЙН!", so finishing feels earned rather than measured.
+ *
+ * It used to be a small badge on the result hero; now it IS the celebration's
+ * headline, which is a better home for it — the one line the student reads
+ * first should be the one that grades them.
+ */
 function gradeKey(percentage: number): 'gradeExcellent' | 'gradeGreat' | 'gradeGood' {
   if (percentage >= 90) return 'gradeExcellent';
   if (percentage >= 75) return 'gradeGreat';
@@ -197,6 +205,8 @@ export default function QuizScreen() {
   // word_match: leftIndex → chosen right value (drag/tap handled in WordMatchBoard).
   const [matches, setMatches] = useState<Record<number, string>>({});
   const [result, setResult] = useState<QuizResult | null>(null);
+  /** The full-screen celebration sits over the result on a pass. */
+  const [celebrating, setCelebrating] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   // Instant per-question feedback (C2): after answering, we grade THIS question
   // via /check and show ✓/✗ (+ the correct answer) before letting the student
@@ -461,6 +471,12 @@ export default function QuizScreen() {
     setAttempt((n) => n + 1);
   }
 
+  /** Dismissing releases any trophy/streak queued behind it (never two modals). */
+  const closeCelebration = useCallback(() => {
+    setCelebrating(false);
+    checkCelebrations();
+  }, []);
+
   async function submit(all: AnswerItem[]) {
     setSubmitting(true);
     try {
@@ -471,7 +487,11 @@ export default function QuizScreen() {
       }
       setResult(res);
       setPhase('result');
-      checkCelebrations(); // a passing score may have unlocked a badge or the streak
+      // Only a PASS gets the ceremony. Celebrating a failed attempt would make
+      // the celebration meaningless everywhere else it appears; the result
+      // screen underneath is already the right response to a miss.
+      if (res.passed) setCelebrating(true);
+      else checkCelebrations();
     } catch {
       alertError(t('submitAnswerError'));
     } finally {
@@ -518,62 +538,57 @@ export default function QuizScreen() {
       .sort((a, b) => a - b);
     return (
       <SafeAreaView style={styles.safe}>
-        {result.passed && <Confetti />}
+        {result.passed && !celebrating && <Confetti />}
         <ScrollView contentContainerStyle={[styles.resultContainer, bounded]}>
-          {/* Hero: a celebratory gradient card on a pass (white text + bright
-              grade badge + ring), a calm neutral card on a miss. */}
-          <Animated.View entering={FadeInDown.springify().damping(14)} style={styles.heroShadow}>
-            <LinearGradient
-              colors={result.passed ? colors.primaryGradient : [c.surfaceAlt, c.surface]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.hero}
-            >
-              <AwardBadge
-                icon={result.passed ? 'trophy' : 'refresh'}
-                color={result.passed ? colors.white : c.textSecondary}
-                bg={result.passed ? 'rgba(255,255,255,0.22)' : c.surfaceAlt}
-              />
-              {/* Performance grade badge — EXCELLENT / GREAT / GOOD on a pass. */}
-              {result.passed ? (
-                <View style={styles.gradeBadge}>
-                  <AppText variant="label" color={colors.primary}>{t(gradeKey(result.percentage))}</AppText>
-                </View>
-              ) : null}
-              <AppText variant="h1" center color={result.passed ? colors.white : c.text}>
-                {result.passed ? t('quizPassed') : t('quizTryAgain')}
-              </AppText>
-              <View style={[styles.scoreRing, { borderColor: result.passed ? 'rgba(255,255,255,0.85)' : accent }]}>
-                <CountUp value={result.percentage} suffix="%" variant="display"
-                  color={result.passed ? colors.white : accent} style={styles.ringScore} />
-              </View>
-              <AppText variant="caption" center color={result.passed ? 'rgba(255,255,255,0.85)' : c.textSecondary}>
-                {tf('scoreLine', { score: result.score, total: result.total })}
-              </AppText>
-              {/* IELTS Listening/Reading — the server's approximate band (0–9). */}
-              {result.band !== undefined ? (
-                <View style={styles.bandBox}>
-                  <AppText variant="overline" color={result.passed ? 'rgba(255,255,255,0.85)' : c.textSecondary}>{t('ieltsBandLabel')}</AppText>
-                  <AppText variant="display" color={result.passed ? colors.white : c.xp}>{formatBand(result.band)}</AppText>
-                  <AppText variant="caption" center color={result.passed ? 'rgba(255,255,255,0.7)' : c.textMuted}>{t('ieltsBandHint')}</AppText>
-                </View>
-              ) : null}
-            </LinearGradient>
-          </Animated.View>
+          {/* On a PASS the ceremony belongs to `CelebrationScreen` — trophy,
+              grade, score ring and stats all live there now. Repeating them
+              here made pressing "see my answers" land on a second, duller
+              victory screen. What is left below is the only thing the
+              celebration cannot give: WHICH questions went wrong.
 
-          {/* At-a-glance stats */}
-          <Animated.View entering={FadeInDown.delay(200).springify()} style={styles.statRow}>
-            <StatTile value={`${result.score}/${result.total}`} label={t('resultCorrectLabel')}
-              color={c.success} bg={c.surfaceAlt} sub={c.textSecondary} />
-            {result.xpEarned > 0 && (
-              <StatTile value={`+${result.xpEarned}`} label={t('xp')}
-                color={c.primary} bg={c.surfaceAlt} sub={c.textSecondary} />
-            )}
-            {combo >= 2 && (
-              <StatTile value={`×${combo}`} label={t('resultComboLabel')}
-                color={c.streak} bg={c.surfaceAlt} sub={c.textSecondary} />
-            )}
-          </Animated.View>
+              A MISS still gets this card, because there is no celebration on a
+              miss and the student still needs the score and the way back. */}
+          {!result.passed ? (
+            <>
+              <Animated.View entering={FadeInDown.springify().damping(14)} style={styles.heroShadow}>
+                <LinearGradient
+                  colors={[c.surfaceAlt, c.surface]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.hero}
+                >
+                  <AwardBadge icon="refresh" color={c.textSecondary} bg={c.surfaceAlt} />
+                  <AppText variant="h1" center color={c.text}>{t('quizTryAgain')}</AppText>
+                  <View style={[styles.scoreRing, { borderColor: accent }]}>
+                    <CountUp value={result.percentage} suffix="%" variant="display"
+                      color={accent} style={styles.ringScore} />
+                  </View>
+                  <AppText variant="caption" center color={c.textSecondary}>
+                    {tf('scoreLine', { score: result.score, total: result.total })}
+                  </AppText>
+                </LinearGradient>
+              </Animated.View>
+
+              <Animated.View entering={FadeInDown.delay(200).springify()} style={styles.statRow}>
+                <StatTile value={`${result.score}/${result.total}`} label={t('resultCorrectLabel')}
+                  color={c.success} bg={c.surfaceAlt} sub={c.textSecondary} />
+                {combo >= 2 && (
+                  <StatTile value={`×${combo}`} label={t('resultComboLabel')}
+                    color={c.streak} bg={c.surfaceAlt} sub={c.textSecondary} />
+                )}
+              </Animated.View>
+            </>
+          ) : null}
+
+          {/* IELTS band — the one figure the celebration does NOT carry, so it
+              gets its own card on both paths rather than riding in the hero. */}
+          {result.band !== undefined ? (
+            <Animated.View entering={FadeInDown.delay(120).springify()} style={styles.bandCard}>
+              <AppText variant="overline" color={c.textSecondary}>{t('ieltsBandLabel')}</AppText>
+              <AppText variant="display" color={c.xp}>{formatBand(result.band)}</AppText>
+              <AppText variant="caption" center color={c.textMuted}>{t('ieltsBandHint')}</AppText>
+            </Animated.View>
+          ) : null}
 
           {/* Per-question breakdown as compact chips */}
           <AppText variant="overline" color={c.textSecondary} style={styles.breakdownTitle}>
@@ -665,6 +680,47 @@ export default function QuizScreen() {
 
           <Button label={t('finish')} onPress={() => router.back()} style={{ marginTop: spacing.xl }} />
         </ScrollView>
+
+        {/* The shared completion celebration, over the result. Dismissing it
+            reveals the breakdown underneath — the ceremony must never cost the
+            student the one screen that tells them WHAT they got wrong. */}
+        <CelebrationScreen
+          visible={celebrating}
+          {...celebrationCopy('quiz', { perfect: result.percentage === 100 })}
+          // The grade replaces the generic headline on anything but a perfect
+          // run, where "Төгс!" already says more than "ГАЙХАЛТАЙ!" would.
+          title={result.percentage === 100
+            ? t('celebrationTitlePerfect')
+            : t(gradeKey(result.percentage))}
+          xp={result.xpEarned}
+          stats={[
+            {
+              icon: 'checkmark-circle',
+              label: t('celebrationStatCorrect'),
+              value: `${result.score}/${result.total}`,
+              color: c.success,
+            },
+            {
+              icon: 'stats-chart',
+              label: t('scoreTitle'),
+              value: `${result.percentage}%`,
+              color: c.sparks,
+            },
+            ...(combo >= 2
+              ? [{
+                  icon: 'flame' as const,
+                  label: t('celebrationStatCombo'),
+                  value: `×${combo}`,
+                  color: c.streak,
+                }]
+              : []),
+          ]}
+          // Finishing is the DEFAULT action: the student came to do a quiz, not
+          // to be walked through a second results screen. The breakdown is one
+          // tap away for anyone who wants to know what they missed.
+          primary={{ label: t('finish'), onPress: () => { closeCelebration(); router.back(); } }}
+          secondary={{ label: t('resultBreakdownTitle'), onPress: closeCelebration }}
+        />
       </SafeAreaView>
     );
   }
@@ -950,7 +1006,15 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   },
   passageHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   passageText: { lineHeight: 24 },
-  bandBox: { alignItems: 'center', marginTop: spacing.md, gap: 2 },
+  bandCard: {
+    alignItems: 'center',
+    gap: 2,
+    backgroundColor: c.surface,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: c.border,
+    paddingVertical: spacing.lg,
+  },
   questionText: {
     fontSize: fontSize.lg,
     fontWeight: '700',

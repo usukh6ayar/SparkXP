@@ -25,6 +25,7 @@ import { EmptyState } from '../src/components/EmptyState';
 import { IconButton } from '../src/components/IconButton';
 import { Button } from '../src/components/Button';
 import { Card } from '../src/components/Card';
+import { PeriodTabs } from '../src/components/PeriodTabs';
 import { SavedFlashcards } from '../src/components/SavedFlashcards';
 import { VocabStats } from '../src/components/VocabStats';
 import { SwipeToDelete } from '../src/components/SwipeToDelete';
@@ -34,17 +35,37 @@ import { haptics } from '../src/lib/haptics';
 import { spacing, radius, type AppColors } from '../src/theme/theme';
 import { bounded } from '../src/theme/responsive';
 
+/** The two kinds of saved word, each its own tab. */
+type Tab = 'lesson' | 'dictionary';
+
+const TABS = [
+  { key: 'lesson', labelKey: 'lessonWords' },
+  { key: 'dictionary', labelKey: 'dictionaryWords' },
+] as const;
+
+/** A row in whichever tab is open. `id` only exists on curated lesson words. */
+type Row = LearnWord | SavedDictionaryWord;
+const isLessonWord = (row: Row): row is LearnWord => 'id' in row;
+
 /**
- * Saved words (⭐). Lists everything the user starred from the flashcard deck.
- * Tap 🔊 to hear it (uploaded audio or device TTS); tap ★ to unsave.
+ * Saved words (⭐).
+ *
+ * Two separate lists live here and they are NOT the same thing: curated lesson
+ * words (image, level, SM-2 state → they can be practised as flashcards) and
+ * plain Толь lookups (a word + one gloss). They used to be stacked in one
+ * scroll, which stops working the moment a student saves a few hundred words —
+ * so each is now its own tab, and only the open one renders.
+ *
+ * Rows are thrown away with a Gmail-style sideways swipe (see `SwipeToDelete`).
  */
 export default function SavedScreen() {
   const { token } = useAuth();
   const c = useColors();
   const styles = useMemo(() => makeStyles(c), [c]);
+  const [tab, setTab] = useState<Tab>('lesson');
   const [words, setWords] = useState<LearnWord[]>([]);
-  // Толь (dictionary) ⭐ saves — a separate table/endpoint, shown in their own
-  // section below the curated words. See DictionarySensesService.listSaves.
+  // Толь (dictionary) ⭐ saves — a separate table/endpoint from the curated
+  // lesson words above. See DictionarySensesService.listSaves.
   const [dictWords, setDictWords] = useState<SavedDictionaryWord[]>([]);
   const { openSearch } = useDictionary();
   const [loading, setLoading] = useState(true);
@@ -60,7 +81,7 @@ export default function SavedScreen() {
     // Stats are a nice-to-have: a failure there must not blank the word list.
     getReviewStats(token).then(setStats).catch(() => {});
     // Толь saves are a separate list — a failure there must not blank the
-    // curated words above it.
+    // curated words in the other tab.
     getDictionarySaves(token).then(setDictWords).catch(() => {});
     try {
       setWords(await getSaved(token));
@@ -104,11 +125,22 @@ export default function SavedScreen() {
     [token],
   );
 
+  const isLesson = tab === 'lesson';
+  const data: Row[] = isLesson ? words : dictWords;
+
   const renderItem = useCallback(
-    ({ item }: { item: LearnWord }) => (
-      <SavedRow item={item} styles={styles} c={c} onPlay={play} onUnsave={unsave} />
-    ),
-    [styles, c, play, unsave],
+    ({ item }: { item: Row }) =>
+      isLessonWord(item) ? (
+        <SavedRow item={item} styles={styles} c={c} onPlay={play} onUnsave={unsave} />
+      ) : (
+        <DictRow
+          row={item}
+          colors={c}
+          onOpen={() => openSearch(item.word)}
+          onUnsave={() => unsaveDictWord(item.word)}
+        />
+      ),
+    [styles, c, play, unsave, openSearch, unsaveDictWord],
   );
 
   if (loading) {
@@ -120,7 +152,7 @@ export default function SavedScreen() {
     );
   }
 
-  if (error && words.length === 0) {
+  if (error && words.length === 0 && dictWords.length === 0) {
     return (
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <TopBar title={t('savedWords')} back showBadges={false} />
@@ -138,12 +170,12 @@ export default function SavedScreen() {
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <TopBar title={t('savedWords')} back showBadges={false} />
       <FlatList
-        data={words}
-        keyExtractor={(w) => w.id}
-        contentContainerStyle={[
-          words.length === 0 && dictWords.length === 0 ? styles.emptyWrap : styles.list,
-          bounded,
-        ]}
+        // Remount on tab change so the new list starts at the top and no row
+        // keeps a half-open swipe from the list it no longer belongs to.
+        key={tab}
+        data={data}
+        keyExtractor={(row) => (isLessonWord(row) ? row.id : row.word)}
+        contentContainerStyle={[styles.list, bounded]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.primary} />}
         initialNumToRender={10}
         maxToRenderPerBatch={10}
@@ -154,55 +186,62 @@ export default function SavedScreen() {
             {/* Vocabulary size + mastery — shown even with nothing starred, since
                 knowing words and saving words are different things. */}
             <VocabStats stats={stats} />
-            {words.length > 0 ? (
+            <PeriodTabs
+              value={tab}
+              options={[
+                { ...TABS[0], count: words.length },
+                { ...TABS[1], count: dictWords.length },
+              ]}
+              onChange={(key) => { haptics.select(); setTab(key); }}
+              style={styles.tabs}
+            />
+            {data.length > 0 ? (
               <>
-                <AppText variant="overline" color={c.textMuted} style={styles.overline}>
-                  {t('lessonWords')}
-                </AppText>
-                <View style={styles.practiceBar}>
+                <View style={styles.actionBar}>
                   <AppText variant="caption" color={c.textSecondary}>
-                    {words.length} {t('unitWords')}
+                    {data.length} {t('unitWords')}
                   </AppText>
-                  <Button
-                    label={t('startReview')}
-                    icon="school-outline"
-                    size="md"
-                    fullWidth={false}
-                    onPress={() => { haptics.tap(); setPracticing(true); }}
-                  />
+                  {isLesson ? (
+                    <Button
+                      label={t('startReview')}
+                      icon="school-outline"
+                      size="md"
+                      fullWidth={false}
+                      onPress={() => { haptics.tap(); setPracticing(true); }}
+                    />
+                  ) : (
+                    <Button
+                      label={t('dictionary')}
+                      icon="search-outline"
+                      variant="secondary"
+                      size="md"
+                      fullWidth={false}
+                      onPress={() => { haptics.tap(); openSearch(); }}
+                    />
+                  )}
                 </View>
+                {/* The delete gesture is invisible until you try it — say it once. */}
+                <AppText variant="caption" color={c.textMuted} style={styles.hint}>
+                  {t('swipeToDeleteHint')}
+                </AppText>
               </>
             ) : null}
           </>
         }
-        ListFooterComponent={
-          dictWords.length > 0 ? (
-            <View style={styles.dictSection}>
-              <AppText variant="overline" color={c.textMuted} style={styles.overline}>
-                {t('dictionaryWords')}
-              </AppText>
-              {dictWords.map((row) => (
-                <DictRow
-                  key={row.word}
-                  row={row}
-                  colors={c}
-                  onOpen={() => openSearch(row.word)}
-                  onUnsave={() => unsaveDictWord(row.word)}
-                />
-              ))}
-            </View>
-          ) : null
-        }
         ListEmptyComponent={
-          dictWords.length === 0 ? (
-            <View style={styles.empty}>
-              <AppText style={styles.emptyEmoji}>⭐</AppText>
-              <AppText variant="h3" center>{t('noSavedWords')}</AppText>
-              <AppText variant="body" color={c.textSecondary} center style={styles.emptyHint}>
-                {t('noSavedWordsHint')}
-              </AppText>
-            </View>
-          ) : null
+          isLesson ? (
+            <EmptyState
+              icon="star-outline"
+              title={t('noSavedWords')}
+              hint={t('noSavedWordsHint')}
+            />
+          ) : (
+            <EmptyState
+              icon="book-outline"
+              title={t('noDictionaryWords')}
+              hint={t('noDictionaryWordsHint')}
+            />
+          )
         }
         renderItem={renderItem}
       />
@@ -229,26 +268,30 @@ const SavedRow = memo(function SavedRow({
   onUnsave: (w: LearnWord) => void;
 }) {
   return (
-    <SwipeToDelete onDelete={() => onUnsave(item)} label={`${t('removeFromSaved')}: ${item.english}`}>
-    <Card variant="raised" padding="md" style={styles.row}>
-      <View style={styles.thumb}>
-        {item.imageUrl ? (
-          <AppImage source={{ uri: item.imageUrl }} width={120} style={styles.thumbImg} contentFit="cover" recyclingKey={item.id} />
-        ) : (
-          // Words saved from the tap-to-translate dictionary have no picture —
-          // show a clean letter tile instead of a broken-image icon.
-          <AppText variant="h3" color={c.primary}>
-            {(item.english?.trim().charAt(0) || '?').toUpperCase()}
-          </AppText>
-        )}
-      </View>
-      <View style={styles.info}>
-        <AppText variant="h3" color={c.navy} numberOfLines={1}>{item.english}</AppText>
-        <AppText variant="caption" color={c.primary} numberOfLines={1}>{item.mongolian}</AppText>
-      </View>
-      <IconButton icon="volume-high" size={38} variant="filled" iconColor={c.primary} accessibilityLabel={t('playAudio')} onPress={() => onPlay(item)} />
-      <IconButton icon="star" size={38} variant="filled" iconColor={c.xp} accessibilityLabel={t('removeFromSaved')} onPress={() => onUnsave(item)} />
-    </Card>
+    <SwipeToDelete onDelete={() => onUnsave(item)}>
+      {/* `remove` = the same animated removal the swipe uses, so un-starring
+          leaves the list the same way instead of blinking out. */}
+      {(remove) => (
+        <Card variant="raised" padding="md" style={styles.row}>
+          <View style={styles.thumb}>
+            {item.imageUrl ? (
+              <AppImage source={{ uri: item.imageUrl }} width={120} style={styles.thumbImg} contentFit="cover" recyclingKey={item.id} />
+            ) : (
+              // Words saved from the tap-to-translate dictionary have no picture —
+              // show a clean letter tile instead of a broken-image icon.
+              <AppText variant="h3" color={c.primary}>
+                {(item.english?.trim().charAt(0) || '?').toUpperCase()}
+              </AppText>
+            )}
+          </View>
+          <View style={styles.info}>
+            <AppText variant="h3" color={c.navy} numberOfLines={1}>{item.english}</AppText>
+            <AppText variant="caption" color={c.primary} numberOfLines={1}>{item.mongolian}</AppText>
+          </View>
+          <IconButton icon="volume-high" size={38} variant="filled" iconColor={c.primary} accessibilityLabel={t('playAudio')} onPress={() => onPlay(item)} />
+          <IconButton icon="star" size={38} variant="filled" iconColor={c.xp} accessibilityLabel={t('removeFromSaved')} onPress={remove} />
+        </Card>
+      )}
     </SwipeToDelete>
   );
 });
@@ -270,50 +313,57 @@ const DictRow = memo(function DictRow({
   onUnsave: () => void;
 }) {
   return (
-    <Card variant="raised" padding="md" style={{ marginBottom: spacing.sm }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-        <View style={{ flex: 1 }}>
-          <AppText variant="label">{row.word}</AppText>
-          {row.translation ? (
-            <AppText variant="caption" color={c.textSecondary} numberOfLines={1}>
-              {row.translation}
-            </AppText>
-          ) : null}
-        </View>
-        <IconButton
-          icon="book-outline"
-          size={38}
-          variant="filled"
-          iconColor={c.primary}
-          accessibilityLabel={t('openInDictionary')}
-          onPress={onOpen}
-        />
-        <IconButton
-          icon="bookmark"
-          size={38}
-          variant="filled"
-          iconColor={c.xp}
-          accessibilityLabel={t('removeFromSaved')}
-          onPress={onUnsave}
-        />
-      </View>
-    </Card>
+    <SwipeToDelete onDelete={onUnsave}>
+      {(remove) => (
+        <Card variant="raised" padding="md">
+          <View style={dictStyles.row}>
+            <View style={dictStyles.info}>
+              <AppText variant="label">{row.word}</AppText>
+              {row.translation ? (
+                <AppText variant="caption" color={c.textSecondary} numberOfLines={1}>
+                  {row.translation}
+                </AppText>
+              ) : null}
+            </View>
+            <IconButton
+              icon="book-outline"
+              size={38}
+              variant="filled"
+              iconColor={c.primary}
+              accessibilityLabel={t('openInDictionary')}
+              onPress={onOpen}
+            />
+            <IconButton
+              icon="bookmark"
+              size={38}
+              variant="filled"
+              iconColor={c.xp}
+              accessibilityLabel={t('removeFromSaved')}
+              onPress={remove}
+            />
+          </View>
+        </Card>
+      )}
+    </SwipeToDelete>
   );
+});
+
+const dictStyles = StyleSheet.create({
+  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  info: { flex: 1 },
 });
 
 const makeStyles = (c: AppColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: c.background },
-  list: { padding: spacing.lg, gap: spacing.sm },
-  practiceBar: {
+  list: { padding: spacing.lg, gap: spacing.sm, flexGrow: 1 },
+  tabs: { marginTop: spacing.md },
+  actionBar: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    gap: spacing.md,
     marginTop: spacing.md,
-    marginBottom: spacing.md,
   },
+  hint: { marginTop: spacing.xs, marginBottom: spacing.sm },
   skeleton: { margin: spacing.lg },
-  overline: { marginBottom: spacing.sm },
-  dictSection: { marginTop: spacing.lg },
-  // Still padded: the vocabulary card sits above the "nothing saved" art.
-  emptyWrap: { flexGrow: 1, padding: spacing.lg },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   thumb: {
     width: 48, height: 48, borderRadius: radius.md,
@@ -323,7 +373,4 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   // 48×48 tile even though the tile centers its content for the letter fallback.
   thumbImg: { ...StyleSheet.absoluteFillObject },
   info: { flex: 1 },
-  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
-  emptyEmoji: { fontSize: 52, marginBottom: spacing.md },
-  emptyHint: { marginTop: spacing.xs },
 });

@@ -35,6 +35,17 @@ export interface Achievement {
    * replaces `icon`, which stays the fallback for callers that have no artwork.
    */
   imageUrl?: string;
+  /**
+   * A number to print large inside the badge, under a shrunken icon — the
+   * streak count. A trophy IS its artwork, but "your streak is now 12" is a
+   * number first, and reading it off the title line wastes the badge.
+   */
+  badgeValue?: string;
+  /** One extra line below the subtitle, in its own tinted chip (e.g. how many
+   *  days of freeze protection are left). Omitted when there is nothing to say. */
+  note?: string;
+  /** Icon for `note`'s chip. */
+  noteIcon?: IconName;
 }
 
 /**
@@ -100,6 +111,14 @@ export function AchievementModal({
           >
             {achievement.imageUrl ? (
               <AppImage source={achievement.imageUrl} width={220} contentFit="contain" style={styles.badgeImg} />
+            ) : achievement.badgeValue ? (
+              // Icon shrinks and sits over the number: the count is the news.
+              <>
+                <Ionicons name={achievement.icon} size={30} color={achievement.tint.fg} />
+                <AppText style={[styles.badgeValue, { color: achievement.tint.fg }]}>
+                  {achievement.badgeValue}
+                </AppText>
+              </>
             ) : (
               <Ionicons name={achievement.icon} size={54} color={achievement.tint.fg} />
             )}
@@ -110,6 +129,15 @@ export function AchievementModal({
             <AppText variant="body" color={c.textSecondary} center style={styles.subtitle}>
               {achievement.subtitle}
             </AppText>
+          ) : null}
+
+          {achievement.note ? (
+            <View style={[styles.note, { backgroundColor: achievement.tint.bg }]}>
+              {achievement.noteIcon ? (
+                <Ionicons name={achievement.noteIcon} size={14} color={achievement.tint.fg} />
+              ) : null}
+              <AppText variant="caption" color={achievement.tint.fg}>{achievement.note}</AppText>
+            </View>
           ) : null}
 
           <Button label={t('nice')} onPress={onClose} style={styles.btn} />
@@ -149,6 +177,16 @@ const styles = StyleSheet.create({
   },
   /** Trophy artwork fills the circle, inset so the ring stays visible. */
   badgeImg: { width: '86%', height: '86%' },
+  badgeValue: { fontSize: ms(40), lineHeight: ms(46), fontWeight: '800' },
   subtitle: { marginTop: 2 },
+  note: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 7,
+    borderRadius: radius.full,
+  },
   btn: { marginTop: spacing.lg, alignSelf: 'stretch' },
 });

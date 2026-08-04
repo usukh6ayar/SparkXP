@@ -26,6 +26,16 @@ export interface Gamification {
   streakFreezeCost?: number;
   maxStreakFreezes?: number;
   /**
+   * How many freezes the CURRENT streak has already spent — i.e. how many
+   * missed days it survived. Shown as "энэ streak-ийг 2 хоног хамгаалсан".
+   *
+   * Optional because the backend does not send it yet: `isStreakAlive()`
+   * consumes freezes but never reports how many were used. Requested from
+   * Өсөхбаяр in `docs/REQUEST_choi_streak_freeze_used.md`; until it lands the
+   * UI simply omits that line (it never guesses a number).
+   */
+  streakFreezesUsed?: number;
+  /**
    * Set on the first read of a day the streak advanced — show the celebration,
    * then POST /gamification/streak-seen so it never repeats. Optional so an
    * older backend (which omits it) simply never celebrates.

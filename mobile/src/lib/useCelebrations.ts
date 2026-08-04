@@ -5,7 +5,7 @@ import {
   markTrophiesSeen,
   type Trophy,
 } from '../api/achievements';
-import { getGamification, markStreakSeen } from '../api/gamification';
+import { getGamification, markStreakSeen, type Gamification } from '../api/gamification';
 import type { Achievement } from '../components/AchievementModal';
 import { t, tf } from '../i18n';
 import { tints } from '../theme/theme';
@@ -84,7 +84,7 @@ export function useCelebrations() {
     const streak = gam?.streakCelebration;
     if (streak && !handled.current.has(streakKey(streak.streak))) {
       handled.current.add(streakKey(streak.streak));
-      fresh.push({ kind: 'streak', achievement: streakAchievement(streak) });
+      fresh.push({ kind: 'streak', achievement: streakAchievement(streak, gam!) });
     }
 
     for (const tr of ach?.trophies ?? []) {
@@ -130,14 +130,38 @@ export function useCelebrations() {
 /** A streak number is reached once, so it doubles as the de-dup key. */
 const streakKey = (streak: number) => `streak:${streak}`;
 
-function streakAchievement(streak: { streak: number; bonusXp: number }): Achievement {
+/**
+ * "Your streak reached N." The number goes IN the badge — it is the whole
+ * point of the moment — and the freeze line below answers the question the
+ * celebration always raises next: what happens if I miss tomorrow?
+ */
+function streakAchievement(
+  streak: { streak: number; bonusXp: number },
+  gam: Gamification,
+): Achievement {
   return {
     icon: 'flame',
     overline: t('streakCelebrationOverline'),
-    title: tf('streakCelebrationTitle', { n: streak.streak }),
+    badgeValue: String(streak.streak),
+    title: t('streakCelebrationExtended'),
     subtitle: tf('streakCelebrationBonus', { n: streak.bonusXp }),
     tint: tints.orange,
+    ...freezeNote(gam),
   };
+}
+
+/**
+ * The freeze line for the streak card. Prefers the concrete fact ("this streak
+ * has already survived N missed days") when the backend reports it, and
+ * otherwise states the cover the student is holding. Says nothing at all when
+ * there is neither — an empty chip is worse than no chip.
+ */
+function freezeNote(gam: Gamification): Pick<Achievement, 'note' | 'noteIcon'> {
+  const used = gam.streakFreezesUsed ?? 0;
+  const held = gam.streakFreezes ?? 0;
+  if (used > 0) return { note: tf('streakFreezeUsedNote', { n: used }), noteIcon: 'snow' };
+  if (held > 0) return { note: tf('streakFreezeCoverNote', { n: held }), noteIcon: 'snow-outline' };
+  return {};
 }
 
 function trophyAchievement(trophy: Trophy): Achievement {

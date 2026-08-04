@@ -3,6 +3,8 @@ import { View, StyleSheet, Pressable, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { checkCelebrations } from "../../src/lib/useCelebrations";
+import { CelebrationScreen } from "../../src/components/celebration/CelebrationScreen";
+import { celebrationCopy } from "../../src/components/celebration/copy";
 import { Ionicons } from "@expo/vector-icons";
 import { AppIcon } from "../../src/components/AppIcon";
 import { useAudioPlayer } from "expo-audio";
@@ -73,6 +75,14 @@ function VocabGame({ mode }: { mode: McMode }) {
   const [error, setError] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<QuizResult | null>(null);
+  /** The full-screen celebration, over the score summary. */
+  const [celebrating, setCelebrating] = useState(false);
+
+  /** Dismissing releases any trophy/streak queued behind it (never two modals). */
+  const closeCelebration = useCallback(() => {
+    setCelebrating(false);
+    checkCelebrations();
+  }, []);
   const [timeLeft, setTimeLeft] = useState(SPEED_SECONDS);
   const player = useAudioPlayer();
 
@@ -123,7 +133,7 @@ function VocabGame({ mode }: { mode: McMode }) {
         setResult(res);
         if (res.xpAwarded > 0) sound.xp(); // win chime (per-question sound needs BE — answer is hidden)
         getMe(token).then(updateUser).catch(() => {});
-        checkCelebrations(); // that XP may have unlocked a badge or the streak
+        setCelebrating(true); // trophies/streak wait until it is dismissed
       } catch {
         setError(true);
       } finally {
@@ -258,6 +268,30 @@ function VocabGame({ mode }: { mode: McMode }) {
             </AppText>
           </Pressable>
         </View>
+
+        {/* The shared completion celebration — same ceremony as every other
+            finish in the app. Dismissing it reveals the score summary. */}
+        <CelebrationScreen
+          visible={celebrating}
+          {...celebrationCopy("game", { perfect })}
+          xp={result.xpAwarded}
+          stats={[
+            {
+              icon: "checkmark-circle",
+              label: t("celebrationStatCorrect"),
+              value: `${result.correct}/${result.total}`,
+              color: colors.success,
+            },
+            {
+              icon: "diamond",
+              label: t("celebrationStatSparks"),
+              value: `+${result.sparksAwarded}`,
+              color: colors.sparks,
+            },
+          ]}
+          primary={{ label: t("playAgain"), onPress: closeCelebration }}
+          secondary={{ label: t("backToQuizzes"), onPress: () => { closeCelebration(); router.back(); } }}
+        />
       </SafeAreaView>
     );
   }

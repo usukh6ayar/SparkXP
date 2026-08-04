@@ -122,6 +122,19 @@ const GRASS_Y = Math.round(SCENE_TOP + GRASS * SCENE_H);
 const HERO_H = Math.round(GRASS_Y + SCENE_H * 0.12);
 const BODY_OVERLAP = Math.round(SCENE_H * 0.08);
 
+/**
+ * Breathing room inside the "Бас үзээрэй" rail so each card's shadow can fade
+ * out before the ScrollView's frame — a ScrollView clips its content, and a
+ * frame sitting flush on the cards cut `elevation.sm`'s violet glow into hard
+ * square corners around their rounded ones.
+ *
+ * Must exceed the shadow's reach (offset 2 + ~1.5 × radius 6 ≈ 11). The list is
+ * grown by this on the top, bottom and left, then pulled back by the same
+ * negative margin, so nothing around it moves. Same mechanism as
+ * `BuddySelector`'s `SHADOW_PAD`.
+ */
+const RAIL_SHADOW_PAD = 12;
+
 // Translucent dark pill used for the hero overlay badges.
 const HERO_PILL = "rgba(18,10,40,0.45)";
 
@@ -665,6 +678,7 @@ export default function HomeScreen() {
               todayXp={gam.todayXp}
               dailyGoal={gam.dailyGoal}
               onPress={() => { haptics.tap(); setGoalSheet(true); }}
+              style={styles.goalCard}
             />
           ) : null}
 
@@ -797,7 +811,12 @@ export default function HomeScreen() {
           <View style={styles.learnHead}>
             <AppText variant="h2">{t("alsoTry")}</AppText>
           </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.railScroll}
+            contentContainerStyle={styles.rail}
+          >
             <PressableScale style={styles.railCard} onPress={() => { haptics.tap(); router.push("/ielts"); }}>
               <View style={[styles.railIcon, { backgroundColor: tints.amber.bg, borderColor: tints.amber.fg }]}>
                 <Ionicons name="school" size={24} color={tints.amber.fg} />
@@ -970,6 +989,11 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   },
   continueThumb: { width: "100%", height: "100%" },
 
+  // Every block on Home owns the gap ABOVE it (see reviewCard/joinCard). The
+  // daily-goal strip had none, so it sat flush against the glowing "continue"
+  // card and the two read as one merged shape.
+  goalCard: { marginTop: spacing.lg },
+
   // Review reminder — full-width card: icon chip + title/subtitle + due badge,
   // with the "start review" button on its own line underneath.
   reviewCard: {
@@ -1069,7 +1093,15 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   skillText: { alignSelf: "stretch" },
 
   // "Бас үзээрэй" horizontal rail.
-  rail: { gap: spacing.md, paddingRight: spacing.lg },
+  // The negative margin cancels the padding below, so the cards sit exactly
+  // where they did — the pad only buys the shadow room inside the clip.
+  railScroll: { marginVertical: -RAIL_SHADOW_PAD, marginLeft: -RAIL_SHADOW_PAD },
+  rail: {
+    gap: spacing.md,
+    paddingLeft: RAIL_SHADOW_PAD,
+    paddingRight: spacing.lg,
+    paddingVertical: RAIL_SHADOW_PAD,
+  },
   railCard: {
     width: 232,
     gap: spacing.xs,
