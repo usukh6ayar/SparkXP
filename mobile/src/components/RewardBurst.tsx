@@ -1,5 +1,6 @@
 import { StyleSheet, View } from 'react-native';
-import Animated, { FadeInDown, FadeOutUp } from 'react-native-reanimated';
+import Animated, { FadeOutUp } from 'react-native-reanimated';
+import { enter } from '../lib/motion';
 import { Ionicons } from '@expo/vector-icons';
 import { AppText } from './Text';
 import { Confetti } from './Confetti';
@@ -34,7 +35,7 @@ export function RewardBurst({
     <View pointerEvents="none" style={styles.overlay}>
       <Confetti count={confettiCount} />
       <Animated.View
-        entering={FadeInDown.springify().damping(13)}
+        entering={enter()}
         exiting={FadeOutUp.duration(180)}
         style={[styles.card, { top: topOffset }]}
       >

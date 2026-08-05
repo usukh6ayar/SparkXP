@@ -24,7 +24,6 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import Animated, {
-  FadeInDown,
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
@@ -36,7 +35,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppText } from '../Text';
 import { haptics } from '../../lib/haptics';
-import { DURATION, useReduceMotion } from '../../lib/motion';
+import { DURATION, enter, useReduceMotion } from '../../lib/motion';
 import { MAX_SENSES, type DictionarySense } from '../../api/dictionary';
 import { t } from '../../i18n';
 import { spacing, radius, elevation, type AppColors } from '../../theme/theme';
@@ -299,7 +298,7 @@ export function DictionaryPanel({
                 // Keyed by the word too, so each new lookup re-mounts the list
                 // and the entries stagger in again.
                 key={`${word}-${i}`}
-                entering={reduce ? undefined : FadeInDown.delay(i * 60).duration(260)}
+                entering={reduce ? undefined : enter(i * 60, 260)}
                 style={[styles.sense, i > 0 && styles.senseRule]}
               >
                 <AppText variant="h3" color={colors.textMuted} style={styles.senseNum}>

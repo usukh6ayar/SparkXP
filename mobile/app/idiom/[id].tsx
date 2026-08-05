@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, useMemo } from 'react';
 import { View, StyleSheet, ScrollView, Pressable } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated from 'react-native-reanimated';
+import { enter } from '../../src/lib/motion';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { haptics } from '../../src/lib/haptics';
 import { AppImage } from '../../src/components/AppImage';
@@ -164,7 +165,7 @@ function Section({ label, children, delay = 0 }: { label: string; children: Reac
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
-    <Animated.View entering={FadeInDown.delay(delay).duration(280)} style={styles.section}>
+    <Animated.View entering={enter(delay, 280)} style={styles.section}>
       <AppText variant="overline" color={colors.textMuted} style={styles.sectionLabel}>{label}</AppText>
       {children}
     </Animated.View>

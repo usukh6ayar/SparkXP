@@ -21,6 +21,7 @@ import {
 import { MatchGame } from "../../src/components/MatchGame";
 import { TopBar } from "../../src/components/TopBar";
 import { AwardBadge } from "../../src/components/AwardBadge";
+import { AnswerReview } from "../../src/components/AnswerReview";
 import { AppText } from "../../src/components/Text";
 import { Skeleton } from "../../src/components/Skeleton";
 import { EmptyState } from "../../src/components/EmptyState";
@@ -230,25 +231,52 @@ function VocabGame({ mode }: { mode: McMode }) {
     return (
       <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
         <TopBar title={t("scoreTitle")} back />
-        <View style={styles.center}>
-          <AwardBadge icon={perfect ? "trophy" : "sparkles"} color={colors.white} bg={colors.primary} size={84} />
-          <AppText variant="h1" center>
-            {result.correct} / {result.total} {t("correctSuffix")}
-          </AppText>
-          <View style={styles.rewards}>
-            <View style={[styles.rewardPill, { backgroundColor: colors.cream }]}>
-              <AppIcon name="xp" size={16} />
-              <AppText variant="label" color={colors.xp}>
-                +{result.xpAwarded} XP
-              </AppText>
-            </View>
-            <View style={[styles.rewardPill, { backgroundColor: colors.primarySoft }]}>
-              <AppIcon name="sparks" size={16} />
-              <AppText variant="label" color={colors.primary}>
-                +{result.sparksAwarded}
-              </AppText>
+        {/* A ScrollView, not a centred block: the score used to be the whole
+            screen, but it now sits above a per-word review that can run ten
+            rows long. */}
+        <ScrollView contentContainerStyle={[styles.resultScroll, bounded]}>
+          <View style={styles.resultHero}>
+            <AwardBadge icon={perfect ? "trophy" : "sparkles"} color={colors.white} bg={colors.primary} size={84} />
+            <AppText variant="h1" center>
+              {result.correct} / {result.total} {t("correctSuffix")}
+            </AppText>
+            <View style={styles.rewards}>
+              <View style={[styles.rewardPill, { backgroundColor: colors.cream }]}>
+                <AppIcon name="xp" size={16} />
+                <AppText variant="label" color={colors.xp}>
+                  +{result.xpAwarded} XP
+                </AppText>
+              </View>
+              <View style={[styles.rewardPill, { backgroundColor: colors.primarySoft }]}>
+                <AppIcon name="sparks" size={16} />
+                <AppText variant="label" color={colors.primary}>
+                  +{result.sparksAwarded}
+                </AppText>
+              </View>
             </View>
           </View>
+
+          {/* Which WORDS went wrong — the reason to play a vocabulary game
+              twice. `results` is absent on older backends, and `AnswerReview`
+              renders nothing for an empty list, so this stays safe either way.
+              Questions are listed in the order they were asked, not the order
+              the server graded them in. */}
+          <AnswerReview
+            items={questions.flatMap((q, i) => {
+              const graded = result.results?.find((r) => r.wordId === q.wordId);
+              if (!graded) return [];
+              const given = choices[q.wordId];
+              return [{
+                index: i,
+                question: q.english,
+                correct: graded.correct,
+                // An empty choice is the speed timer running out, not an answer.
+                given: graded.correct ? undefined : (given || t("gameNoAnswer")),
+                correctAnswer: graded.correct ? undefined : graded.correctAnswer,
+              }];
+            })}
+          />
+
           <Button
             label={t("playAgain")}
             icon="refresh"
@@ -260,14 +288,14 @@ function VocabGame({ mode }: { mode: McMode }) {
               setTimeLeft(SPEED_SECONDS);
               load();
             }}
-            style={{ marginTop: spacing.xl, alignSelf: "stretch" }}
+            style={{ marginTop: spacing.md }}
           />
           <Pressable onPress={() => router.back()} style={styles.backLink}>
-            <AppText variant="label" color={colors.textSecondary}>
+            <AppText variant="label" center color={colors.textSecondary}>
               {t("backToQuizzes")}
             </AppText>
           </Pressable>
-        </View>
+        </ScrollView>
 
         {/* The shared completion celebration — same ceremony as every other
             finish in the app. Dismissing it reveals the score summary. */}
@@ -391,7 +419,6 @@ function VocabGame({ mode }: { mode: McMode }) {
 const makeStyles = (colors: AppColors) =>
   StyleSheet.create({
     safe: { flex: 1, backgroundColor: colors.background },
-    center: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl },
     emoji: { fontSize: 56, marginBottom: spacing.md },
     progressWrap: { paddingHorizontal: spacing.lg, marginTop: spacing.xs },
     progressText: { textAlign: "right", marginTop: spacing.xs },
@@ -443,6 +470,9 @@ const makeStyles = (colors: AppColors) =>
       paddingVertical: spacing.sm,
       borderRadius: radius.full,
     },
-    backLink: { marginTop: spacing.lg, padding: spacing.sm },
+    // The score block, now a header above the review rather than the screen.
+    resultScroll: { padding: spacing.lg, gap: spacing.lg },
+    resultHero: { alignItems: "center", paddingVertical: spacing.lg },
+    backLink: { marginTop: spacing.sm, padding: spacing.sm },
     submitting: { padding: spacing.lg, alignItems: "center" },
   });

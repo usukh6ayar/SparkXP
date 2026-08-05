@@ -3,14 +3,8 @@ import {
   View, Text, StyleSheet, ScrollView, TextInput,
   Pressable,
 } from 'react-native';
-import Animated, {
-  FadeInDown,
-  useSharedValue,
-  useAnimatedStyle,
-  withSequence,
-  withTiming,
-} from 'react-native-reanimated';
-import { LinearGradient } from 'expo-linear-gradient';
+import Animated, { useSharedValue, useAnimatedStyle } from 'react-native-reanimated';
+import { enter, shake } from '../../src/lib/motion';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,14 +17,16 @@ import { getStats } from '../../src/api/users';
 import { HeartsRow } from '../../src/components/HeartsRow';
 import { HeartsSheet } from '../../src/components/HeartsSheet';
 import { Button } from '../../src/components/Button';
-import { AwardBadge } from '../../src/components/AwardBadge';
 import { Skeleton } from '../../src/components/Skeleton';
 import { EmptyState } from '../../src/components/EmptyState';
 import { PressableScale } from '../../src/components/PressableScale';
 import { AppImage } from '../../src/components/AppImage';
 import { WordMatchBoard } from '../../src/components/WordMatchBoard';
 import { ProgressBar } from '../../src/components/ProgressBar';
-import { Confetti } from '../../src/components/Confetti';
+import { ProgressRing } from '../../src/components/ProgressRing';
+import { Pill } from '../../src/components/Pill';
+import { AnswerReview } from '../../src/components/AnswerReview';
+import { TopBar } from '../../src/components/TopBar';
 import { RewardBurst } from '../../src/components/RewardBurst';
 import { CountUp } from '../../src/components/CountUp';
 import { AppText } from '../../src/components/Text';
@@ -45,7 +41,7 @@ import { alertError } from '../../src/lib/alerts';
 import { t, tf, type TranslationKey } from '../../src/i18n';
 import { formatBand } from '../../src/constants/ielts';
 import { useColors } from '../../src/settings/SettingsContext';
-import { colors, spacing, radius, fontSize, type AppColors } from '../../src/theme/theme';
+import { spacing, radius, fontSize, type AppColors } from '../../src/theme/theme';
 import { bounded } from '../../src/theme/responsive';
 import { checkCelebrations } from '../../src/lib/useCelebrations';
 
@@ -53,6 +49,16 @@ type Phase = 'loading' | 'quiz' | 'result' | 'error';
 
 /** Wrong attempts at one question before the correct answer is revealed. */
 const REVEAL_AFTER_TRIES = 2;
+
+/**
+ * How long the last question's ✓ stays on screen before the run submits itself.
+ *
+ * The final answer used to need a second tap on "Дуусгах" — a button that told
+ * the student nothing they couldn't already see from the green banner. Now the
+ * run ends itself; this pause is only so the ✓ registers before the celebration
+ * takes the screen.
+ */
+const FINISH_HOLD_MS = 700;
 
 type RewardFlash = {
   id: number;
@@ -138,28 +144,6 @@ function praiseKey(run: number): TranslationKey {
   return run === 2 ? 'correctPraise2' : 'correctPraise1';
 }
 
-/** One stat pill on the result screen (correct count / XP / combo). */
-function StatTile({ value, label, color, bg, sub }: {
-  value: string; label: string; color: string; bg: string; sub: string;
-}) {
-  return (
-    <View style={[tileStyles.tile, { backgroundColor: bg }]}>
-      <AppText variant="h2" color={color}>{value}</AppText>
-      <AppText variant="caption" color={sub}>{label}</AppText>
-    </View>
-  );
-}
-
-const tileStyles = StyleSheet.create({
-  tile: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: spacing.md,
-    borderRadius: radius.md,
-    gap: 2,
-  },
-});
-
 export default function QuizScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { token } = useAuth();
@@ -208,6 +192,9 @@ export default function QuizScreen() {
   /** The full-screen celebration sits over the result on a pass. */
   const [celebrating, setCelebrating] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  /** The last question is right and the run is ending itself — see `FINISH_HOLD_MS`. */
+  const [finishing, setFinishing] = useState(false);
+  const finishTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Instant per-question feedback (C2): after answering, we grade THIS question
   // via /check and show ✓/✗ (+ the correct answer) before letting the student
   // move on — instead of silently advancing and only revealing the score at the end.
@@ -226,16 +213,10 @@ export default function QuizScreen() {
   // senses at once (kept from Boju's #184 when the two quiz reworks merged).
   const shakeX = useSharedValue(0);
   const shakeStyle = useAnimatedStyle(() => ({ transform: [{ translateX: shakeX.value }] }));
+  // The shared `shake()` (±8, five steps) rather than a local ±12 over seven:
+  // a wrong answer should register, not throw the question across the screen.
   function triggerShake() {
-    shakeX.value = withSequence(
-      withTiming(-12, { duration: 40 }),
-      withTiming(12, { duration: 40 }),
-      withTiming(-10, { duration: 40 }),
-      withTiming(10, { duration: 40 }),
-      withTiming(-6, { duration: 40 }),
-      withTiming(6, { duration: 40 }),
-      withTiming(0, { duration: 40 }),
-    );
+    shakeX.value = shake();
   }
   const [rewardFlash, setRewardFlash] = useState<RewardFlash | null>(null);
   const rewardTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -304,6 +285,7 @@ export default function QuizScreen() {
 
   useEffect(() => () => {
     if (rewardTimer.current) clearTimeout(rewardTimer.current);
+    if (finishTimer.current) clearTimeout(finishTimer.current);
   }, []);
 
   // Load the IELTS Listening recording once the quiz arrives (nothing to do for
@@ -331,7 +313,9 @@ export default function QuizScreen() {
   const currentQ = quiz?.questions[currentIndex];
   // "Last" only if this answer is right — a wrong one re-queues, so the run
   // isn't over. Computed from the feedback we already have.
-  const solved = total - queue.length;
+  // `finishing` counts the last question as done so the bar fills to 100% the
+  // moment the ✓ lands, rather than sitting one short until the result arrives.
+  const solved = total - queue.length + (finishing ? 1 : 0);
   // Only give the answer away once they've really tried — see `wrongTries`.
   const revealAnswer = (wrongTries[currentIndex] ?? 0) >= REVEAL_AFTER_TRIES;
   /**
@@ -380,7 +364,7 @@ export default function QuizScreen() {
    * only appears at the end.
    */
   async function advance() {
-    if (!canAnswer() || submitting || checking) return;
+    if (!canAnswer() || submitting || checking || finishing) return;
     // Phase 1 — answer is in, but not yet checked: grade THIS question, show
     // ✓/✗ feedback, and wait for a second tap before moving on.
     if (!feedback) {
@@ -401,6 +385,16 @@ export default function QuizScreen() {
             rewardTimer.current = setTimeout(() => setRewardFlash(null), 1250);
             return nextRun;
           });
+          // Last question, answered right → the run is over, so end it here
+          // instead of parking a "Дуусгах" button in front of the celebration.
+          // The hearts gate in `proceed` is skipped on purpose: someone who just
+          // answered the final question correctly has earned their result screen.
+          if (queue.length === 1) {
+            const all = answersWithCurrent();
+            setAnswers(all);
+            setFinishing(true);
+            finishTimer.current = setTimeout(() => submit(all), FINISH_HOLD_MS);
+          }
         } else {
           setCorrectRun(0);
           setRewardFlash(null);
@@ -494,6 +488,8 @@ export default function QuizScreen() {
       else checkCelebrations();
     } catch {
       alertError(t('submitAnswerError'));
+      // Hand the button back so a failed auto-finish can be retried by tapping.
+      setFinishing(false);
     } finally {
       setSubmitting(false);
     }
@@ -532,154 +528,89 @@ export default function QuizScreen() {
   if (phase === 'result' && result) {
     const combo = bestCombo(result.breakdown);
     const accent = result.passed ? c.success : c.danger;
-    // Missed questions in the order they were asked (object keys are strings).
-    const missed = Object.keys(mistakes)
-      .map(Number)
-      .sort((a, b) => a - b);
     return (
       <SafeAreaView style={styles.safe}>
-        {result.passed && !celebrating && <Confetti />}
+        {/* A header, because this screen is reached by DISMISSING the
+            celebration — without one the student lands on a bare page that
+            opens on a tiny caption, with no title and no way back but a scroll
+            to the bottom. Badges off: this is a review, not a dashboard. */}
+        <TopBar title={t('scoreTitle')} back showBadges={false} />
+
+        {/* No confetti here. It belongs to the celebration that was just
+            dismissed; firing it again over the review rained paper on the one
+            screen the student came here to READ. */}
         <ScrollView contentContainerStyle={[styles.resultContainer, bounded]}>
-          {/* On a PASS the ceremony belongs to `CelebrationScreen` — trophy,
-              grade, score ring and stats all live there now. Repeating them
-              here made pressing "see my answers" land on a second, duller
-              victory screen. What is left below is the only thing the
-              celebration cannot give: WHICH questions went wrong.
+          <Animated.View entering={enter()} style={styles.scoreCard}>
+            <ProgressRing
+              progress={result.percentage / 100}
+              size={116}
+              stroke={9}
+              color={accent}
+              track={c.surfaceAlt}
+            >
+              <CountUp value={result.percentage} suffix="%" variant="h1" color={accent} />
+            </ProgressRing>
 
-              A MISS still gets this card, because there is no celebration on a
-              miss and the student still needs the score and the way back. */}
-          {!result.passed ? (
-            <>
-              <Animated.View entering={FadeInDown.springify().damping(14)} style={styles.heroShadow}>
-                <LinearGradient
-                  colors={[c.surfaceAlt, c.surface]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.hero}
-                >
-                  <AwardBadge icon="refresh" color={c.textSecondary} bg={c.surfaceAlt} />
-                  <AppText variant="h1" center color={c.text}>{t('quizTryAgain')}</AppText>
-                  <View style={[styles.scoreRing, { borderColor: accent }]}>
-                    <CountUp value={result.percentage} suffix="%" variant="display"
-                      color={accent} style={styles.ringScore} />
-                  </View>
-                  <AppText variant="caption" center color={c.textSecondary}>
-                    {tf('scoreLine', { score: result.score, total: result.total })}
-                  </AppText>
-                </LinearGradient>
-              </Animated.View>
+            <AppText variant="h2" center>
+              {result.passed ? t(gradeKey(result.percentage)) : t('quizTryAgain')}
+            </AppText>
 
-              <Animated.View entering={FadeInDown.delay(200).springify()} style={styles.statRow}>
-                <StatTile value={`${result.score}/${result.total}`} label={t('resultCorrectLabel')}
-                  color={c.success} bg={c.surfaceAlt} sub={c.textSecondary} />
-                {combo >= 2 && (
-                  <StatTile value={`×${combo}`} label={t('resultComboLabel')}
-                    color={c.streak} bg={c.surfaceAlt} sub={c.textSecondary} />
-                )}
-              </Animated.View>
-            </>
-          ) : null}
+            <View style={styles.pillRow}>
+              <Pill
+                icon="checkmark-circle"
+                label={tf('scoreLine', { score: result.score, total: result.total })}
+                bg={c.successSoft}
+                fg={c.success}
+              />
+              {result.xpEarned > 0 ? (
+                <Pill icon="flash" label={`+${result.xpEarned} XP`} bg={c.surfaceAlt} fg={c.xp} />
+              ) : null}
+              {combo >= 2 ? (
+                <Pill
+                  icon="flame"
+                  label={`×${combo} ${t('resultComboLabel')}`}
+                  bg={c.surfaceAlt}
+                  fg={c.streak}
+                />
+              ) : null}
+            </View>
+          </Animated.View>
 
           {/* IELTS band — the one figure the celebration does NOT carry, so it
               gets its own card on both paths rather than riding in the hero. */}
           {result.band !== undefined ? (
-            <Animated.View entering={FadeInDown.delay(120).springify()} style={styles.bandCard}>
+            <Animated.View entering={enter(120)} style={styles.bandCard}>
               <AppText variant="overline" color={c.textSecondary}>{t('ieltsBandLabel')}</AppText>
               <AppText variant="display" color={c.xp}>{formatBand(result.band)}</AppText>
               <AppText variant="caption" center color={c.textMuted}>{t('ieltsBandHint')}</AppText>
             </Animated.View>
           ) : null}
 
-          {/* Per-question breakdown as compact chips */}
-          <AppText variant="overline" color={c.textSecondary} style={styles.breakdownTitle}>
-            {t('resultBreakdownTitle')}
-          </AppText>
-          <View style={styles.chipWrap}>
-            {result.breakdown.map((b, i) => (
-              <Animated.View
-                key={b.questionIndex}
-                entering={FadeInDown.delay(300 + i * 40)}
-                style={[styles.chip, { backgroundColor: b.correct ? c.successSoft : c.dangerSoft }]}
-              >
-                <Text style={[styles.chipNum, { color: b.correct ? c.success : c.danger }]}>
-                  {b.questionIndex + 1}
-                </Text>
-                <Text style={[styles.chipMark, { color: b.correct ? c.success : c.danger }]}>
-                  {b.correct ? '✓' : '✗'}
-                </Text>
-              </Animated.View>
-            ))}
-          </View>
-
-          {/* Where it actually went wrong. The chips above only say WHICH
-              questions were missed; a student can't learn from a red ✗. Note
-              this lists every question missed at least once, so a question
-              retried into a ✓ still shows up — that first wrong answer is the
-              one worth re-reading. */}
-          <AppText variant="overline" color={c.textSecondary} style={styles.breakdownTitle}>
-            {t('resultMistakesTitle')}
-          </AppText>
-          {missed.length === 0 ? (
-            <View style={styles.noMistakes}>
-              <Ionicons name="sparkles" size={18} color={c.success} />
-              <AppText variant="body" color={c.success} style={{ flex: 1 }}>
-                {t('resultNoMistakes')}
-              </AppText>
-            </View>
-          ) : (
-            <>
-              <AppText variant="caption" color={c.textMuted}>
-                {t('resultMistakesHint')}
-              </AppText>
-              {missed.map((qi, i) => {
-                const m = mistakes[qi];
-                const q = quiz?.questions[qi];
-                return (
-                  <Animated.View
-                    key={qi}
-                    entering={FadeInDown.delay(400 + i * 60)}
-                    style={styles.missCard}
-                  >
-                    <AppText variant="overline" color={c.textMuted}>
-                      {tf('resultQuestionNo', { n: qi + 1 })}
-                    </AppText>
-                    {q?.question ? (
-                      <AppText variant="bodyStrong">{q.question}</AppText>
-                    ) : null}
-                    <View style={styles.missLine}>
-                      <Ionicons name="close-circle" size={16} color={c.danger} />
-                      <View style={styles.missLineBody}>
-                        <AppText variant="caption" color={c.textMuted}>
-                          {t('resultYourAnswer')}
-                        </AppText>
-                        <AppText variant="body" color={c.danger}>
-                          {formatAnswer(q, m.given)}
-                        </AppText>
-                      </View>
-                    </View>
-                    {/* `correctAnswer` is absent only if an older backend omitted
-                        it — hide the row rather than print an empty one. */}
-                    {m.correctAnswer !== undefined ? (
-                      <View style={styles.missLine}>
-                        <Ionicons name="checkmark-circle" size={16} color={c.success} />
-                        <View style={styles.missLineBody}>
-                          <AppText variant="caption" color={c.textMuted}>
-                            {t('resultCorrectAnswer')}
-                          </AppText>
-                          <AppText variant="body" color={c.success}>
-                            {formatAnswer(q, m.correctAnswer)}
-                          </AppText>
-                        </View>
-                      </View>
-                    ) : null}
-                  </Animated.View>
-                );
-              })}
-            </>
-          )}
-
-          <Button label={t('finish')} onPress={() => router.back()} style={{ marginTop: spacing.xl }} />
+          {/* Every question, in order. `mistakes` is what turns a bare ✓ into
+              "right, but only on the retry" — the row that is worth re-reading. */}
+          <AnswerReview
+            items={result.breakdown.map((b) => {
+              const q = quiz?.questions[b.questionIndex];
+              const m = mistakes[b.questionIndex];
+              return {
+                index: b.questionIndex,
+                question: q?.question,
+                correct: b.correct,
+                retried: b.correct && m !== undefined,
+                given: m ? formatAnswer(q, m.given) : undefined,
+                correctAnswer: m?.correctAnswer !== undefined
+                  ? formatAnswer(q, m.correctAnswer)
+                  : undefined,
+              };
+            })}
+          />
         </ScrollView>
+
+        {/* Pinned, not parked at the end of the scroll: the way out shouldn't
+            depend on how many questions were missed. */}
+        <View style={styles.resultFooter}>
+          <Button label={t('finish')} onPress={() => router.back()} />
+        </View>
 
         {/* The shared completion celebration, over the result. Dismissing it
             reveals the breakdown underneath — the ceremony must never cost the
@@ -922,7 +853,10 @@ export default function QuizScreen() {
 
         <Button
           label={
-            checking ? t('checking')
+            // `finishing` first: the last correct answer submits itself, so the
+            // button is only ever a progress indicator from that point on.
+            finishing ? t('submitting')
+              : checking ? t('checking')
               : !feedback ? t('check')
               : isLast ? (submitting ? t('submitting') : t('finish'))
               // Wrong and coming back → say so; "continue" would imply we're
@@ -932,7 +866,7 @@ export default function QuizScreen() {
               : t('retryAnswer')
           }
           onPress={advance}
-          disabled={!canAnswer() || submitting || checking}
+          disabled={!canAnswer() || submitting || checking || finishing}
           style={{ marginTop: spacing.xl }}
         />
       </ScrollView>
@@ -1072,59 +1006,29 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   errorText: { color: c.danger, fontSize: fontSize.md },
   // Result styles
   resultContainer: { padding: spacing.lg, paddingTop: spacing.md, gap: spacing.lg },
-  heroShadow: {
-    borderRadius: radius.xl,
-    shadowColor: colors.primary, shadowOpacity: 0.3, shadowRadius: 18,
-    shadowOffset: { width: 0, height: 10 }, elevation: 8,
+  resultFooter: {
+    padding: spacing.lg,
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: c.border,
+    backgroundColor: c.background,
   },
-  hero: {
-    alignItems: 'center', gap: spacing.sm,
-    borderRadius: radius.xl, overflow: 'hidden',
-    paddingVertical: spacing.xl, paddingHorizontal: spacing.lg,
-  },
-  // lineHeight ≥ fontSize so the celebration emoji isn't clipped on Android.
-  resultEmoji: { fontSize: 60, lineHeight: 72, textAlign: 'center' },
-  gradeBadge: {
-    backgroundColor: colors.white,
-    paddingHorizontal: spacing.md, paddingVertical: 4, borderRadius: radius.full,
-  },
-  scoreRing: {
-    width: 132, height: 132, borderRadius: 66,
-    borderWidth: 6,
-    alignItems: 'center', justifyContent: 'center',
-    marginTop: spacing.sm,
-  },
-  ringScore: { fontSize: 40, lineHeight: 44, fontWeight: '900' },
-  statRow: { flexDirection: 'row', gap: spacing.sm },
-  breakdownTitle: { marginBottom: -spacing.xs },
-  chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  chip: {
-    minWidth: 46,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
-    paddingVertical: spacing.sm, paddingHorizontal: spacing.md,
-    borderRadius: radius.md,
-  },
-  chipNum: { fontWeight: '800', fontSize: fontSize.sm },
-  chipMark: { fontWeight: '800', fontSize: fontSize.md },
 
-  // "What you missed" review cards. Left-aligned and roomy on purpose: this is
-  // the one block on the result screen meant to be READ, not glanced at.
-  missCard: {
-    gap: spacing.sm,
-    backgroundColor: c.surface,
-    borderRadius: radius.lg,
+  /**
+   * The score card — ONE card for a pass and a miss alike.
+   *
+   * They differ only in accent colour and headline, so giving each its own
+   * layout is what left the pass path looking half-built once its hero was
+   * removed. The celebration is still the ceremony; this is the receipt.
+   */
+  scoreCard: {
+    alignItems: 'center',
+    gap: spacing.md,
+    padding: spacing.lg,
+    borderRadius: radius.xl,
     borderWidth: 1,
     borderColor: c.border,
-    padding: spacing.md,
+    backgroundColor: c.surface,
   },
-  missLine: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
-  missLineBody: { flex: 1, gap: 1 },
-  noMistakes: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    backgroundColor: c.successSoft,
-    borderRadius: radius.md,
-    padding: spacing.md,
-  },
+  pillRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: spacing.xs },
 });

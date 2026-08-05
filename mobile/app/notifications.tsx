@@ -3,7 +3,7 @@ import { View, StyleSheet, ScrollView, RefreshControl, Pressable, Alert } from '
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, type Href } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import Animated, { FadeInDown, FadeOut, LinearTransition, ZoomIn } from 'react-native-reanimated';
+import Animated, { FadeOut, LinearTransition, ZoomIn } from 'react-native-reanimated';
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { useAuth } from '../src/auth/AuthContext';
 import { AppText } from '../src/components/Text';
@@ -14,7 +14,7 @@ import { Skeleton } from '../src/components/Skeleton';
 import { getMyNotifications, type AppNotification } from '../src/api/notifications';
 import { markNotificationsSeen } from '../src/lib/useUnreadNotifications';
 import { haptics } from '../src/lib/haptics';
-import { useReduceMotion } from '../src/lib/motion';
+import { enter, useReduceMotion } from '../src/lib/motion';
 import {
   categorize, chipOf, bucketOf, notifStore, DEV_MOCK_NOTIFICATIONS,
   type NotifCategory, type ChipKey, type TimeBucket,
@@ -127,7 +127,7 @@ const NotificationCard = memo(function NotificationCard({
 
   return (
     <Animated.View
-      entering={reduce ? undefined : FadeInDown.duration(220)}
+      entering={reduce ? undefined : enter(0, 220)}
       exiting={reduce ? undefined : FadeOut.duration(160)}
       style={styles.cardOuter}
     >

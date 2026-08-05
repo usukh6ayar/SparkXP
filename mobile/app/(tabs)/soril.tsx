@@ -8,7 +8,8 @@ import {
   Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import Animated, { FadeInDown } from "react-native-reanimated";
+import Animated from "react-native-reanimated";
+import { enter } from "../../src/lib/motion";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { haptics } from "../../src/lib/haptics";
@@ -248,7 +249,7 @@ export default function SorilScreen() {
         {/* Games grid */}
         <View style={styles.grid}>
           {GAMES.map((g, i) => (
-            <Animated.View key={g.title} entering={FadeInDown.delay(i * 60)} style={styles.cardWrap}>
+            <Animated.View key={g.title} entering={enter(i * 60)} style={styles.cardWrap}>
             <Pressable
               style={({ pressed }) => [styles.card, pressed && styles.pressed]}
               onPress={() => openGame(g)}

@@ -387,7 +387,7 @@ export default function ProfileScreen() {
               <View style={styles.premGlow} pointerEvents="none" />
               <View style={{ flex: 1 }}>
                 <View style={styles.premiumTitleRow}>
-                  <AppText style={styles.crown}>👑</AppText>
+                  <AppIcon name="gem" size={20} />
                   <AppText variant="h3" color={colors.white}>SparkXP Premium</AppText>
                 </View>
                 <AppText variant="caption" color="rgba(255,255,255,0.85)" style={styles.premiumSub}>
@@ -397,7 +397,7 @@ export default function ProfileScreen() {
                   <AppText variant="bodyStrong" color={colors.primary}>{t('learnMore')} →</AppText>
                 </View>
               </View>
-              <AppText style={styles.treasure}>💎</AppText>
+              <AppIcon name="sparks" size={44} style={styles.treasure} />
             </LinearGradient>
           </Pressable>
 
@@ -547,10 +547,9 @@ const makeStyles = (p: PremiumPalette, isDark: boolean) => {
   },
   premGlow: { position: 'absolute', top: -40, right: -20, width: 160, height: 160, borderRadius: 80, backgroundColor: 'rgba(255,255,255,0.12)' },
   premiumTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  crown: { fontSize: 18 },
   premiumSub: { marginTop: 4, marginBottom: spacing.md },
   premiumBtn: { alignSelf: 'flex-start', backgroundColor: colors.white, borderRadius: radius.md, paddingVertical: 10, paddingHorizontal: spacing.lg },
-  treasure: { fontSize: 52 },
+  treasure: { alignSelf: 'center' },
 
   logout: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
