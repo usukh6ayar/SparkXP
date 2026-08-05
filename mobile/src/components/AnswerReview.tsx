@@ -2,7 +2,6 @@ import { StyleSheet, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { AppText } from './Text';
-import { Pill } from './Pill';
 import { enter } from '../lib/motion';
 import { t, tf } from '../i18n';
 import { useColors } from '../settings/SettingsContext';
@@ -22,8 +21,6 @@ export interface AnswerReviewItem {
   /** The prompt. Falls back to "N-р асуулт" for flows that have no text. */
   question?: string;
   correct: boolean;
-  /** Wrong at first, right in the end — see the component doc. */
-  retried?: boolean;
   /** What the student answered. Omit when nothing was recorded. */
   given?: string;
   /** What it should have been. Omit when the flow can't supply it. */
@@ -44,11 +41,10 @@ function AnswerLine({ label, value, color }: { label: string; value: string; col
 /**
  * One question row.
  *
- * **Three states, not two.** Where a flow lets a wrong answer come back to be
- * retried, a question can be right, wrong, or *right in the end* — and that
- * third one is the whole point of this screen. A plain green tick would hide
- * exactly the question worth re-reading, so a retried question keeps its own
- * colour and still opens to show what was tried first.
+ * Right or wrong — and "wrong" means **wrong on first sight**, which is what
+ * every flow here grades. A quiz that repeats a question until it is answered
+ * correctly still lists it red, because the run being finished says nothing
+ * about what the student knew when the question first appeared.
  */
 function AnswerRow({ item, last, delay }: {
   item: AnswerReviewItem;
@@ -57,16 +53,13 @@ function AnswerRow({ item, last, delay }: {
   delay: number;
 }) {
   const c = useColors();
-  const state = !item.correct ? 'wrong' : item.retried ? 'retried' : 'correct';
-  const tint = state === 'wrong' ? c.danger : state === 'retried' ? c.streak : c.success;
-  const icon = state === 'wrong'
-    ? 'close-circle'
-    : state === 'retried' ? 'refresh-circle' : 'checkmark-circle';
+  const tint = item.correct ? c.success : c.danger;
+  const icon = item.correct ? 'checkmark-circle' : 'close-circle';
   // A right-first-time question has nothing to explain, and some flows can't
   // supply the answer at all (an ungraded open response, a backend that only
   // returns a score) — both stay one clean line rather than opening onto an
   // empty panel.
-  const open = state !== 'correct' && item.given !== undefined;
+  const open = !item.correct && item.given !== undefined;
 
   return (
     <Animated.View
@@ -87,9 +80,6 @@ function AnswerRow({ item, last, delay }: {
 
       {open ? (
         <View style={[styles.detail, { backgroundColor: c.surfaceAlt }]}>
-          {state === 'retried' ? (
-            <Pill icon="refresh" label={t('resultRetriedTag')} bg={`${c.streak}1F`} fg={c.streak} />
-          ) : null}
           <AnswerLine label={t('resultYourAnswer')} value={item.given!} color={c.danger} />
           {item.correctAnswer !== undefined ? (
             <AnswerLine
@@ -123,7 +113,7 @@ export function AnswerReview({ items, title }: {
   if (items.length === 0) return null;
 
   // Right first time, every time — the only case that earns the badge.
-  const flawless = items.every((i) => i.correct && !i.retried);
+  const flawless = items.every((i) => i.correct);
 
   return (
     <View style={styles.block}>

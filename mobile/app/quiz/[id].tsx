@@ -27,7 +27,6 @@ import { ProgressRing } from '../../src/components/ProgressRing';
 import { Pill } from '../../src/components/Pill';
 import { AnswerReview } from '../../src/components/AnswerReview';
 import { TopBar } from '../../src/components/TopBar';
-import { RewardBurst } from '../../src/components/RewardBurst';
 import { CountUp } from '../../src/components/CountUp';
 import { AppText } from '../../src/components/Text';
 import { haptics } from '../../src/lib/haptics';
@@ -47,9 +46,6 @@ import { checkCelebrations } from '../../src/lib/useCelebrations';
 
 type Phase = 'loading' | 'quiz' | 'result' | 'error';
 
-/** Wrong attempts at one question before the correct answer is revealed. */
-const REVEAL_AFTER_TRIES = 2;
-
 /**
  * How long the last question's ✓ stays on screen before the run submits itself.
  *
@@ -59,12 +55,6 @@ const REVEAL_AFTER_TRIES = 2;
  * takes the screen.
  */
 const FINISH_HOLD_MS = 700;
-
-type RewardFlash = {
-  id: number;
-  run: number;
-  titleKey: TranslationKey;
-};
 
 /**
  * One question the student got wrong, kept so the result screen can explain it.
@@ -132,16 +122,13 @@ function bestCombo(breakdown: QuizResult['breakdown']): number {
  * headline, which is a better home for it — the one line the student reads
  * first should be the one that grades them.
  */
-function gradeKey(percentage: number): 'gradeExcellent' | 'gradeGreat' | 'gradeGood' {
+function gradeKey(percentage: number): TranslationKey {
   if (percentage >= 90) return 'gradeExcellent';
   if (percentage >= 75) return 'gradeGreat';
-  return 'gradeGood';
-}
-
-function praiseKey(run: number): TranslationKey {
-  if (run >= 5) return 'correctPraise5';
-  if (run >= 3) return 'correctPraise3';
-  return run === 2 ? 'correctPraise2' : 'correctPraise1';
+  if (percentage >= 50) return 'gradeGood';
+  // Below half on first sight. The run was still completed, so the headline
+  // says so plainly instead of praising a score that wasn't there.
+  return 'gradeDone';
 }
 
 export default function QuizScreen() {
@@ -156,26 +143,18 @@ export default function QuizScreen() {
   /**
    * Question indices still to answer, in order — the head is what's on screen.
    *
-   * A wrong answer moves its question to the BACK to be retried instead of
-   * being scored and forgotten — that retry is what makes hearts meaningful.
-   * After REVEAL_AFTER_TRIES wrong tries the answer is shown and the question
-   * is dropped, so nobody can be stuck on one question forever.
-   * `/submit` keeps the LAST answer per question and grants XP once per quiz,
-   * so re-answering can't be farmed.
+   * A wrong answer moves its question to the BACK and keeps coming back until
+   * it is answered correctly — the run cannot end with a miss left in it.
+   * The BACK matters: the right answer lights up green the instant a question
+   * is missed, so asking it again immediately would only be asking the student
+   * to copy it. A whole lap later, it is a recall test again.
+   *
+   * What gets SUBMITTED is the first answer to each question — see
+   * `answersWithCurrent`, which is also why re-answering can't be farmed.
    */
   const [queue, setQueue] = useState<number[]>([]);
   /** Bumped on every question change — re-shuffles a re-queued word_match. */
   const [attempt, setAttempt] = useState(0);
-  /**
-   * Wrong attempts per question index.
-   *
-   * Since a wrong answer comes back to be retried, revealing the right one
-   * straight away would make the retry pointless — the student just copies what
-   * they were shown. So the answer stays hidden until they have genuinely tried
-   * `REVEAL_AFTER_TRIES` times; at that point it is shown AND the question is
-   * dropped from the queue, so nobody loops on one question forever.
-   */
-  const [wrongTries, setWrongTries] = useState<Record<number, number>>({});
   const [answers, setAnswers] = useState<AnswerItem[]>([]);
   /**
    * Questions missed at least once, by index → what the result screen reviews.
@@ -200,7 +179,10 @@ export default function QuizScreen() {
   // move on — instead of silently advancing and only revealing the score at the end.
   const [feedback, setFeedback] = useState<quizzesApi.CheckResult | null>(null);
   const [checking, setChecking] = useState(false);
-  const [correctRun, setCorrectRun] = useState(0);
+  // Only the setter: the streak length is read inside the updater to escalate
+  // the haptic. Nothing on screen shows a combo any more — the result screen's
+  // "Цуваа" pill is recomputed from the graded breakdown at the end.
+  const [, setCorrectRun] = useState(0);
   // Hearts ("lives"). The server owns the count — every /check response carries
   // the new state, so this is only ever assigned from the API, never decremented
   // here. `sparks` is what the refill sheet needs to know if refilling is possible.
@@ -218,8 +200,6 @@ export default function QuizScreen() {
   function triggerShake() {
     shakeX.value = shake();
   }
-  const [rewardFlash, setRewardFlash] = useState<RewardFlash | null>(null);
-  const rewardTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // IELTS Reading passage panel + Listening playback.
   const [passageOpen, setPassageOpen] = useState(true);
   const audio = useAudioPlayer();
@@ -238,7 +218,6 @@ export default function QuizScreen() {
       .then((q) => {
         setQuiz(q);
         setQueue(q.questions.map((_, i) => i));
-        setWrongTries({}); // a reloaded quiz starts a fresh run
         setMistakes({});
         setPhase('quiz');
       })
@@ -284,7 +263,6 @@ export default function QuizScreen() {
   }, [heartsSheet, hearts]);
 
   useEffect(() => () => {
-    if (rewardTimer.current) clearTimeout(rewardTimer.current);
     if (finishTimer.current) clearTimeout(finishTimer.current);
   }, []);
 
@@ -299,12 +277,11 @@ export default function QuizScreen() {
   useEffect(() => {
     if (phase !== 'result' || !result) return;
     if (quiz?.audioUrl) audio.pause(); // the IELTS recording shouldn't outlive the test
-    if (result.passed) {
-      if (result.xpEarned > 0) { showXpToast(result.xpEarned); sound.xp(); }
-      else haptics.success();
-    } else {
-      haptics.error();
-    }
+    // No error haptic on a low score any more: the celebration is already
+    // playing over this screen, and buzzing "wrong" underneath a trophy is a
+    // contradiction. Reaching the end is the win; the score is just the detail.
+    if (result.xpEarned > 0) { showXpToast(result.xpEarned); sound.xp(); }
+    else haptics.success();
   }, [phase, result]);
 
   const total = quiz?.questions.length ?? 0;
@@ -316,15 +293,42 @@ export default function QuizScreen() {
   // `finishing` counts the last question as done so the bar fills to 100% the
   // moment the ✓ lands, rather than sitting one short until the result arrives.
   const solved = total - queue.length + (finishing ? 1 : 0);
-  // Only give the answer away once they've really tried — see `wrongTries`.
-  const revealAnswer = (wrongTries[currentIndex] ?? 0) >= REVEAL_AFTER_TRIES;
   /**
-   * Does the current answer take us off this question? True when it's right,
-   * and also when it's wrong for the REVEAL_AFTER_TRIES-th time — the answer is
-   * on screen by then, so asking again would only be asking them to copy it.
+   * Does the current answer take us off this question?
+   *
+   * **Only a right answer does.** A miss sends the question to the BACK of the
+   * queue and it keeps coming back until it is answered correctly — the run
+   * cannot be finished with a wrong answer left in it (Choi, 2026-08-05: "буруу
+   * бол үргэлжлүүлээд дараа нь зөв болтол хийдэг болго"). The back of the queue
+   * matters: asked again immediately, it would only be a copying exercise.
+   *
+   * Nobody loops forever, because a wrong answer costs a heart and an empty
+   * heart bar ends the run (see `proceed`).
    */
-  const advances = feedback !== null && (feedback.correct || revealAnswer);
+  const advances = feedback?.correct === true;
   const isLast = queue.length === 1 && advances;
+
+  /**
+   * word_match verdicts — leftIndex → was this pairing right?
+   *
+   * `undefined` until the answer is checked, which is also what keeps the board
+   * editable: `WordMatchBoard` locks itself as soon as it is graded.
+   */
+  const matchGrades = useMemo(() => {
+    if (currentQ?.type !== 'word_match' || !feedback) return undefined;
+    const grades: Record<number, boolean> = {};
+    // A correct answer means every row is right; no need to consult the key.
+    if (feedback.correct) {
+      (currentQ.pairs ?? []).forEach((_, i) => { grades[i] = true; });
+      return grades;
+    }
+    const key = parsePairs(feedback.correctAnswer);
+    if (key.length === 0) return undefined; // older backend → no key, no colours
+    (currentQ.pairs ?? []).forEach((p, i) => {
+      grades[i] = matches[i] === key.find((k) => k.left === p.left)?.right;
+    });
+    return grades;
+  }, [currentQ, feedback, matches]);
 
   // word_match: right column shuffled once per question. `attempt` is in the
   // deps so a re-queued question comes back shuffled differently instead of
@@ -352,10 +356,18 @@ export default function QuizScreen() {
     return fillText.trim().length > 0;
   }
 
-  /** The full answer list including the current question's choice. */
+  /**
+   * The full answer list including the current question's choice.
+   *
+   * **The FIRST answer to a question wins.** Since a question now repeats until
+   * it is right, the last answer is always the correct one — grading that would
+   * score every single run 100% and make the result screen meaningless. What
+   * the student knew on first sight is the honest measure, and it is exactly
+   * what the "эхэндээ андуурсан" rows on the result screen already show.
+   */
   function answersWithCurrent(): AnswerItem[] {
-    const rest = answers.filter((a) => a.questionIndex !== currentIndex);
-    return [...rest, { questionIndex: currentIndex, answer: currentAnswer() }];
+    if (answers.some((a) => a.questionIndex === currentIndex)) return answers;
+    return [...answers, { questionIndex: currentIndex, answer: currentAnswer() }];
   }
 
   /**
@@ -376,13 +388,12 @@ export default function QuizScreen() {
         // authoritative count (an older backend simply omits it).
         if (fb.hearts) setHearts(fb.hearts);
         if (fb.correct) {
+          // Haptics + sound only. The streak length still escalates the buzz,
+          // it just no longer throws a card over the top of the question.
           setCorrectRun((run) => {
             const nextRun = run + 1;
             haptics.combo(nextRun);
             sound.correct();
-            setRewardFlash({ id: Date.now(), run: nextRun, titleKey: praiseKey(nextRun) });
-            if (rewardTimer.current) clearTimeout(rewardTimer.current);
-            rewardTimer.current = setTimeout(() => setRewardFlash(null), 1250);
             return nextRun;
           });
           // Last question, answered right → the run is over, so end it here
@@ -397,14 +408,9 @@ export default function QuizScreen() {
           }
         } else {
           setCorrectRun(0);
-          setRewardFlash(null);
           haptics.error();
           sound.wrong();
           triggerShake();
-          setWrongTries((w) => ({
-            ...w,
-            [currentIndex]: (w[currentIndex] ?? 0) + 1,
-          }));
           // Keep the FIRST miss only: later tries drift towards the answer as
           // the student narrows it down, and "what I thought at the time" is
           // what makes the review worth reading. `open_response` is skipped —
@@ -475,17 +481,24 @@ export default function QuizScreen() {
     setSubmitting(true);
     try {
       const res = await quizzesApi.submitQuiz(id!, all, token!);
-      if (res.passed && id) {
+      if (id) {
         markExerciseCompleted(id); // local mirror → checkmark on the list
         markDailyTask(); // feeds the Soril daily path (Өнөөдрийн зам)
       }
       setResult(res);
       setPhase('result');
-      // Only a PASS gets the ceremony. Celebrating a failed attempt would make
-      // the celebration meaningless everywhere else it appears; the result
-      // screen underneath is already the right response to a miss.
-      if (res.passed) setCelebrating(true);
-      else checkCelebrations();
+      /**
+       * **Reaching the end always celebrates.** A run cannot end with a wrong
+       * answer left in it — every question repeats until it is right — so
+       * getting here IS the achievement, whatever the first-sight score was.
+       *
+       * It used to be gated on `res.passed`, which stopped making sense the
+       * moment grading moved to first answers: a student who worked through
+       * every question and corrected all of them could still land on a "you
+       * failed" screen with no ceremony. The score is now information on the
+       * card below, not a verdict on whether the work counted.
+       */
+      setCelebrating(true);
     } catch {
       alertError(t('submitAnswerError'));
       // Hand the button back so a failed auto-finish can be retried by tapping.
@@ -527,7 +540,11 @@ export default function QuizScreen() {
 
   if (phase === 'result' && result) {
     const combo = bestCombo(result.breakdown);
-    const accent = result.passed ? c.success : c.danger;
+    // Banded, not pass/fail: the run was completed either way, so the colour
+    // reports how much was known on first sight rather than passing judgement.
+    const accent = result.percentage >= 75 ? c.success
+      : result.percentage >= 50 ? c.streak
+      : c.danger;
     return (
       <SafeAreaView style={styles.safe}>
         {/* A header, because this screen is reached by DISMISSING the
@@ -551,8 +568,9 @@ export default function QuizScreen() {
               <CountUp value={result.percentage} suffix="%" variant="h1" color={accent} />
             </ProgressRing>
 
-            <AppText variant="h2" center>
-              {result.passed ? t(gradeKey(result.percentage)) : t('quizTryAgain')}
+            <AppText variant="h2" center>{t(gradeKey(result.percentage))}</AppText>
+            <AppText variant="caption" color={c.textMuted} center>
+              {t('resultAccuracyNote')}
             </AppText>
 
             <View style={styles.pillRow}>
@@ -586,8 +604,10 @@ export default function QuizScreen() {
             </Animated.View>
           ) : null}
 
-          {/* Every question, in order. `mistakes` is what turns a bare ✓ into
-              "right, but only on the retry" — the row that is worth re-reading. */}
+          {/* Every question, in order. The grade is the FIRST answer, so a red
+              row is a question the student did not know — even though the run
+              could only end once they had corrected it. `mistakes` supplies
+              what they actually typed or picked that first time. */}
           <AnswerReview
             items={result.breakdown.map((b) => {
               const q = quiz?.questions[b.questionIndex];
@@ -596,7 +616,6 @@ export default function QuizScreen() {
                 index: b.questionIndex,
                 question: q?.question,
                 correct: b.correct,
-                retried: b.correct && m !== undefined,
                 given: m ? formatAnswer(q, m.given) : undefined,
                 correctAnswer: m?.correctAnswer !== undefined
                   ? formatAnswer(q, m.correctAnswer)
@@ -658,17 +677,6 @@ export default function QuizScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      {rewardFlash ? (
-        <RewardBurst
-          key={rewardFlash.id}
-          title={t(rewardFlash.titleKey)}
-          subtitle={rewardFlash.run >= 2
-            ? tf('correctComboToast', { n: rewardFlash.run })
-            : t('correctInstantToast')}
-          icon={rewardFlash.run >= 3 ? 'flame' : 'flash'}
-          confettiCount={rewardFlash.run >= 3 ? 24 : 14}
-        />
-      ) : null}
       <View style={styles.header}>
         <Pressable
           onPress={() => router.back()}
@@ -751,15 +759,13 @@ export default function QuizScreen() {
             {currentQ!.options!.map((opt, i) => {
               const isSel = selected === i;
               const showFb = feedback !== null;
-              // On a correct answer the picked option IS the right one. On a
-              // wrong one the backend hands back the correct index, but we only
-              // point at it after REVEAL_AFTER_TRIES — otherwise the retry is
-              // just "tap the option with the green tick".
+              // On a correct answer the picked option IS the right one; on a
+              // wrong one the backend hands back the correct index. Either way
+              // the right option lights up green immediately — the wrong pick
+              // sitting in red next to it is the whole lesson.
               const correctIdx = feedback?.correct
                 ? selected
-                : (revealAnswer && typeof feedback?.correctAnswer === 'number'
-                    ? feedback.correctAnswer
-                    : null);
+                : (typeof feedback?.correctAnswer === 'number' ? feedback.correctAnswer : null);
               const isCorrectOpt = showFb && correctIdx === i;
               const isWrongSel = showFb && isSel && !feedback!.correct;
               return (
@@ -790,15 +796,29 @@ export default function QuizScreen() {
         )}
 
         {currentQ!.type === 'fill_blank' && (
-          <TextInput
-            style={styles.fillInput}
-            value={fillText}
-            onChangeText={setFillText}
-            placeholder={t('yourAnswer')}
-            placeholderTextColor={c.textMuted}
-            autoCapitalize="none"
-            editable={!feedback}
-          />
+          <>
+            <TextInput
+              style={[
+                styles.fillInput,
+                feedback?.correct && styles.fillInputCorrect,
+                feedback && !feedback.correct && styles.fillInputWrong,
+              ]}
+              value={fillText}
+              onChangeText={setFillText}
+              placeholder={t('yourAnswer')}
+              placeholderTextColor={c.textMuted}
+              autoCapitalize="none"
+              editable={!feedback}
+            />
+            {/* The one place a colour cannot do the job: a red box does not say
+                what the word was. Options and pairs light up green on their own,
+                so this is the only written correction left in the quiz. */}
+            {feedback && !feedback.correct && typeof feedback.correctAnswer === 'string' ? (
+              <AppText variant="bodyStrong" color={c.success} style={styles.fillAnswer}>
+                {feedback.correctAnswer}
+              </AppText>
+            ) : null}
+          </>
         )}
 
         {currentQ!.type === 'word_match' && (
@@ -815,41 +835,10 @@ export default function QuizScreen() {
                 return next;
               });
             }}
+            graded={matchGrades}
           />
         )}
         </Animated.View>
-
-        {/* Instant ✓/✗ feedback banner (all question types). A wrong answer
-            gets a nudge, not the solution — the question is coming back. After
-            REVEAL_AFTER_TRIES attempts it does spell the answer out. */}
-        {feedback ? (
-          <View style={[styles.fbBanner, { backgroundColor: feedback.correct ? c.successSoft : c.dangerSoft }]}>
-            <Ionicons
-              name={feedback.correct ? 'checkmark-circle' : 'close-circle'}
-              size={24}
-              color={feedback.correct ? c.success : c.danger}
-            />
-            <View style={{ flex: 1 }}>
-              <AppText variant="bodyStrong" color={feedback.correct ? c.success : c.danger}>
-                {feedback.correct
-                  ? `${t('answerCorrect')} ${correctRun >= 2 ? tf('correctComboInline', { n: correctRun }) : ''}`
-                  : t('answerWrong')}
-              </AppText>
-              {!feedback.correct ? (
-                revealAnswer && currentQ!.type === 'fill_blank' && typeof feedback.correctAnswer === 'string' ? (
-                  <AppText variant="caption" color={c.textSecondary}>
-                    {tf('correctAnswerLabel', { answer: feedback.correctAnswer })}
-                  </AppText>
-                ) : !revealAnswer ? (
-                  // Nudge instead of the answer — the question is coming back.
-                  <AppText variant="caption" color={c.textSecondary}>
-                    {t('tryAgainHint')}
-                  </AppText>
-                ) : null
-              ) : null}
-            </View>
-          </View>
-        ) : null}
 
         <Button
           label={
@@ -859,11 +848,10 @@ export default function QuizScreen() {
               : checking ? t('checking')
               : !feedback ? t('check')
               : isLast ? (submitting ? t('submitting') : t('finish'))
-              // Wrong and coming back → say so; "continue" would imply we're
-              // moving past it. Once the answer has been revealed we ARE moving
-              // on, so it reads as "continue" again.
-              : advances ? t('continue')
-              : t('retryAnswer')
+              // Always "continue" now: right or wrong, the next tap moves to the
+              // next question. "Дахин оролдох" belonged to the old flow where a
+              // miss put you straight back on the same question.
+              : t('continue')
           }
           onPress={advance}
           disabled={!canAnswer() || submitting || checking || finishing}
@@ -991,10 +979,6 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   // Instant-feedback option states.
   optionCorrect: { borderColor: c.success, backgroundColor: c.successSoft },
   optionWrong: { borderColor: c.danger, backgroundColor: c.dangerSoft },
-  fbBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    padding: spacing.md, borderRadius: radius.md, marginTop: spacing.lg,
-  },
   fillInput: {
     borderWidth: 2,
     borderColor: c.border,
@@ -1003,6 +987,9 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
     fontSize: fontSize.md,
     color: c.text,
   },
+  fillInputCorrect: { borderColor: c.success, backgroundColor: c.successSoft },
+  fillInputWrong: { borderColor: c.danger, backgroundColor: c.dangerSoft },
+  fillAnswer: { marginTop: spacing.sm },
   errorText: { color: c.danger, fontSize: fontSize.md },
   // Result styles
   resultContainer: { padding: spacing.lg, paddingTop: spacing.md, gap: spacing.lg },

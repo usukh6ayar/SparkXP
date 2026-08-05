@@ -719,10 +719,13 @@ const mn = {
   // Quiz runner
   submitAnswerError: 'Хариулт илгээхэд алдаа гарлаа.',
   quizPassed: 'Тэнцлээ!',
-  quizTryAgain: 'Дахин оролдоорой',
   gradeExcellent: 'ГАЙХАЛТАЙ!',
   gradeGreat: 'МАШ САЙН!',
   gradeGood: 'САЙН!',
+  /** Эхний хараагаараа тэн хагасаас бага — гэхдээ бүгдийг нь зассан. */
+  gradeDone: 'ДУУСГАЛАА!',
+  /** Оноо юуг хэмждэгийг тайлбарлана (бүгдийг зөв болтол хийсэн тул). */
+  resultAccuracyNote: 'Эхний оролдлогоор',
   pointsUnit: 'оноо',
   finish: 'Дуусгах',
   matchPairsPrompt: 'Зөв хосыг нь холбоно уу',
@@ -733,24 +736,11 @@ const mn = {
   resultComboLabel: 'Комбо',
   resultBreakdownTitle: 'Хариултын дэлгэрэнгүй',
   check: 'Шалгах',
-  retryAnswer: 'Дахин оролдох',
-  answerCorrect: 'Зөв!',
-  answerWrong: 'Буруу хариулт',
-  correctPraise1: 'Яг зөв!',
-  correctPraise2: 'Дараалж зөв!',
-  correctPraise3: 'Галтай байна!',
-  correctPraise5: 'Зогсоохын аргагүй!',
-  correctInstantToast: 'Ингээд үргэлжлүүл!',
-  correctComboToast: '{n} дараалсан зөв',
-  correctComboInline: '×{n} комбо',
-  correctAnswerLabel: 'Зөв хариу: {answer}',
   // Дүнгийн дэлгэц — асуулт бүрийн хариултын жагсаалт
   resultQuestionNo: '{n}-р асуулт',
   resultYourAnswer: 'Таны хариулт',
   resultCorrectAnswer: 'Зөв хариу',
   resultNoMistakes: 'Нэг ч алдаагүй',
-  /** Эцэст нь зөв болсон ч эхэндээ андуурсан асуултын шошго. */
-  resultRetriedTag: 'Эхэндээ андуурсан',
 
   // Hearts (зүрх / амь) — buruu hariult бүр 1 зүрх авна
   heartsCountA11y: 'Зүрх {n} / {max}',
@@ -801,7 +791,6 @@ const mn = {
   streakFreezeNone: 'Мөстөлт аваад streak-ээ хамгаал',
   checkAnswerError: 'Хариултыг шалгаж чадсангүй. Дахин оролдоно уу.',
   cardsReviewed: 'Үзсэн карт',
-  tryAgainHint: 'Энэ асуулт дахин ирнэ — бодоод үзээрэй.',
 
   // Tab bar
   tabLessons: 'Хичээл',
@@ -1686,10 +1675,11 @@ const en: Record<TranslationKey, string> = {
   // Quiz runner
   submitAnswerError: 'Failed to submit your answer.',
   quizPassed: 'You passed!',
-  quizTryAgain: 'Try again',
   gradeExcellent: 'EXCELLENT!',
   gradeGreat: 'GREAT!',
   gradeGood: 'GOOD!',
+  gradeDone: 'COMPLETE!',
+  resultAccuracyNote: 'On first try',
   pointsUnit: 'pts',
   finish: 'Finish',
   matchPairsPrompt: 'Match the correct pairs',
@@ -1700,23 +1690,11 @@ const en: Record<TranslationKey, string> = {
   resultComboLabel: 'Combo',
   resultBreakdownTitle: 'Answer breakdown',
   check: 'Check',
-  retryAnswer: 'Try again',
-  answerCorrect: 'Correct!',
-  answerWrong: 'Not quite',
-  correctPraise1: 'Nice!',
-  correctPraise2: 'Two in a row!',
-  correctPraise3: 'On fire!',
-  correctPraise5: 'Unstoppable!',
-  correctInstantToast: 'Keep going!',
-  correctComboToast: '{n} correct in a row',
-  correctComboInline: '×{n} combo',
-  correctAnswerLabel: 'Correct answer: {answer}',
   // Result screen — the per-question answer list
   resultQuestionNo: 'Question {n}',
   resultYourAnswer: 'Your answer',
   resultCorrectAnswer: 'Correct answer',
   resultNoMistakes: 'No mistakes at all',
-  resultRetriedTag: 'Missed at first',
 
   // Hearts
   heartsCountA11y: '{n} of {max} hearts',
@@ -1767,7 +1745,6 @@ const en: Record<TranslationKey, string> = {
   streakFreezeNone: 'Get a freeze to protect your streak',
   checkAnswerError: "Couldn't check that answer. Please try again.",
   cardsReviewed: 'Cards reviewed',
-  tryAgainHint: "This one comes back — have another think.",
 
   // Tab bar
   tabLessons: 'Lessons',
