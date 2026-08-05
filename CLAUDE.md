@@ -241,6 +241,31 @@ AI дахин үүсгэнэ).
 - Дэлгэрэнгүй: `API.md` §11 ·
   `docs/superpowers/specs/2026-08-03-ai-dictionary-senses-design.md`.
 
+**Onboarding бүрэн шинэчлэгдэв — Hybrid flow (2026-08-05).** Хуучин 3 слайд
+(гарчиг нь зураг дотроо шатаасан) нь **7 алхамт интерактив урсгал** боллоо:
+`welcome → сурах зорилго → түвшин → өдрийн минут → AI Buddy demo →
+хувийн төлөвлөгөө → бүртгэл/зочин`.
+- ⚠️ **Choi/Boju:** `app/(auth)/onboarding.tsx` **файл биш болж, фолдер боллоо**
+  (`app/(auth)/onboarding/` — алхам бүр тусдаа route). `/(auth)/onboarding` href
+  хэвээр тул auth gate (`app/index.tsx`, `app/_layout.tsx`) хөндөгдөөгүй.
+  Хуваалцсан `src/i18n` (шинэ `onb*` түлхүүрүүд, хуучин `onb1Title…onb3Body`,
+  `onbNext` устсан) ба шинэ `src/components/onboarding/` хавтас нэмэгдсэн.
+  **Шинэ dependency алга** — `npm install` шаардлагагүй.
+- Хариултууд `_layout`-ийн context + AsyncStorage-д (`src/lib/onboardingAnswers.ts`)
+  хадгалагдана → back дарахад сонголт алдагдахгүй. Бүртгэлийн дэлгэц түвшинг
+  урьдчилж сонгоод, OTP баталгаажсаны **дараа** өдрийн зорилтыг тавина
+  (зөвхөн шинэ данс — нэвтэрсэн хэрэглэгчийнхийг хэзээ ч дарж бичихгүй).
+- **Дүрэм: бүртгэлгүй хэрэглэгчид XP амлахдаа `ONBOARDING_BONUS_XP`
+  (`src/lib/tasteTask.ts`, = 10) ашиглана.** Backend зөвхөн `tasteCompleted`
+  тугаар, `rewards().onboarding` хэмжээгээр, нэг л удаа олгодог — өөр тоо бичвэл
+  хэзээ ч ирэхгүй XP амласан болно.
+- **AI Buddy demo нь төхөөрөмж дээрх скрипт** (`/ai/*` бүгд JWT шаарддаг).
+  Микрофон нь MVP дүрмээр "Тун удахгүй", Google/Apple мөн адил — fake success
+  хийхгүй. Зочин "Бүртгэлгүй үргэлжлүүлэх" → одоо байгаа `/(auth)/taste`.
+- Шаардлагатай 3 mascot зураг → `mobile/assets/onboarding/HYBRID_ASSETS.md`
+  (`onb-*.webp` placeholder-ууд бүгд ижил файл тул ашиглаагүй; шинэ урсгал
+  жинхэнэ `logo.webp` / `buddy-menu.webp`-ийг ашиглана).
+
 **Толь: үгийн өөрийнх нь орчуулга нэмэгдэв (2026-08-05).** Хайлт хийхэд зөвхөн
 4 жишээ өгүүлбэр + тэдгээрийн орчуулга гардаг, хайсан үгийн монгол утга хаана ч
 харагддаггүй байсныг зассан (`useWordLookup` нь `detailed` горимд `translation`-г
