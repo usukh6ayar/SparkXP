@@ -34,6 +34,11 @@ import { checkCelebrations } from '../../src/lib/useCelebrations';
 
 const banner = require('../../assets/home-banner.webp');
 
+/** Replaces the deprecated `allowsFullscreen` prop. Module-level so the object
+ *  identity is stable — an inline literal re-sends the prop to native every
+ *  render. */
+const FULLSCREEN = { enable: true } as const;
+
 /** Nice labels for the 4 lesson-test categories. */
 function catLabels(): Record<string, string> {
   return {
@@ -77,10 +82,10 @@ export default function LessonDetailScreen() {
     lesson?.thumbnailUrl ?? (lesson?.content as { imageUrl?: string } | undefined)?.imageUrl ?? null;
   const player = useVideoPlayer(videoUrl, (p) => { p.loop = false; });
 
-  // Load the real video source once the lesson (and its URL) arrives.
-  useEffect(() => {
-    if (videoUrl) { try { player.replace(videoUrl); } catch { /* ignore */ } }
-  }, [videoUrl, player]);
+  // No manual `player.replace(videoUrl)` here: `useVideoPlayer` is keyed on the
+  // source (`useReleasingSharedObject`), so the player is rebuilt by itself when
+  // the lesson finally supplies its URL. Replacing it again only loaded the same
+  // video a second time — and the sync `replace()` did it on the iOS main thread.
 
   const load = useCallback(async () => {
     if (!token || !id) return;
@@ -290,7 +295,7 @@ export default function LessonDetailScreen() {
                 player={player}
                 style={styles.video}
                 nativeControls
-                allowsFullscreen
+                fullscreenOptions={FULLSCREEN}
                 contentFit="cover"
               />
             ) : coverUrl ? (
