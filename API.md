@@ -307,7 +307,7 @@ Controller-level: JWT. (Reading-ийн tap-to-translate ашигладаг.)
 
 | Method + Path | Auth | Зорилго | Params / Body |
 | --- | --- | --- | --- |
-| GET `/dictionary/search/:word` | JWT | **Толь:** хамгийн ихдээ 4 утга (үг · англи жишээ · монгол орчуулга), хэрэглээний давтамжаар. `dictionary_entries` cache → Gemini | path `word` |
+| GET `/dictionary/search/:word` | JWT | **Толь:** `{ word, translation, senses[], cached }` — `translation` нь **үгийн өөрийнх нь** монгол утга ("гүйх; ажиллуулах; урсах", утга олдоогүй бол `null`), `senses` нь хамгийн ихдээ 4 утга (үг · англи жишээ · тэр өгүүлбэрийн орчуулга) хэрэглээний давтамжаар. `dictionary_entries` cache → Gemini (нэг дуудлагаар хоёулаа) | path `word` |
 | GET `/dictionary/saves` | JWT | Хэрэглэгчийн ⭐ тольны үгс | — |
 | POST `/dictionary/saves/:word` | JWT | ⭐ toggle. `words` банкинд мөр үүсгэхгүй | path `word` |
 | GET `/dictionary/admin/entries` | admin/super_admin/moderator | Толины жагсаалт (хуудаслалт) | query `search`, `page`, `limit`, `sort=searches\|recent` |
@@ -626,7 +626,7 @@ Deploy хийсний дараа нэг удаа `src/scripts/backfill-trophies.
 | `reading.ts` | `getReadingList`→GET `/reading?limit=50` · `getReadingPassage`→GET `/reading/:id` · `completeReading`→POST `/reading/:id/complete` |
 | `reviews.ts` | `getDue`→GET `/reviews/due` · `submitReview`→POST `/reviews/:wordId` · `getLearnQueue`→GET `/reviews/learn` · `toggleSave`→POST `/reviews/:wordId/save` · `getSaved`→GET `/reviews/saved` · `getReviewStats`→GET `/reviews/stats` |
 | `words.ts` | `getWords`→GET `/words` · **`getSampleQuestions`→GET `/words/sample?count=`** (C4 ✅ бүртгэлийн өмнөх taste-task, token-гүй — Choi, 2026-07-22) |
-| `dictionary.ts` | `searchWord`→GET `/dictionary/search/:word` · `lookupWord`→GET `/dictionary/:word` · `translateSentence`→POST `/dictionary/translate` · `getWordAudio`→GET `/dictionary/:word/audio` · `getDictionarySaves`→GET `/dictionary/saves` · `toggleDictionarySave`→POST `/dictionary/saves/:word` |
+| `dictionary.ts` | `searchWord`→GET `/dictionary/search/:word` (**`translation` = үгийн утга, 2026-08-05**) · `lookupWord`→GET `/dictionary/:word` · `translateSentence`→POST `/dictionary/translate` · `getWordAudio`→GET `/dictionary/:word/audio` · `getDictionarySaves`→GET `/dictionary/saves` · `toggleDictionarySave`→POST `/dictionary/saves/:word` |
 | `idioms.ts` | `getIdiomList`→GET `/idioms?limit=100` · `getIdiom`→GET `/idioms/:id` |
 | `leaderboard.ts` | `getLeaderboard`→GET `/leaderboard?period=&scope=` |
 | `ai.ts` | `sendMessage`→POST `/ai/chat` · `getHistory`→GET `/ai/conversations/:id` · (AI Buddy voice) `getBuddies`→GET `/ai/buddies` · `startSession`→POST `/ai/buddy/sessions` · `sendBuddyTextTurn`→POST `/ai/buddy/sessions/:id/turn/text` · `sendBuddyAudioTurn`→POST `/ai/buddy/sessions/:id/turn/audio` · `getBuddyUsage`→GET `/ai/buddy/usage` · memory GET/DELETE `/ai/buddy/memory` (Boju хийнэ) |

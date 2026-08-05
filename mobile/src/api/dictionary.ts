@@ -85,14 +85,22 @@ export interface SavedDictionaryWord {
 }
 
 /**
- * GET /api/dictionary/search/:word — the Толь search result: up to MAX_SENSES
- * senses, most-used first. Backend: `dictionary_entries` cache → Gemini
- * (cached forever after). This is what fills `WordLookup.meanings`.
+ * GET /api/dictionary/search/:word — the Толь search result: the word's own
+ * meaning + up to MAX_SENSES senses, most-used first. Backend:
+ * `dictionary_entries` cache → Gemini (cached forever after). This is what
+ * fills `WordLookup.translation` + `WordLookup.meanings`.
  */
 export function searchWord(
   token: string,
   word: string,
-): Promise<{ word: string; senses: DictionarySense[]; cached: boolean }> {
+): Promise<{
+  word: string;
+  /** The word's own Mongolian meaning, e.g. "гүйх; ажиллуулах; урсах". Null on
+   *  entries cached before the backend stored it (it backfills on next search). */
+  translation: string | null;
+  senses: DictionarySense[];
+  cached: boolean;
+}> {
   return apiRequest(`/dictionary/search/${encodeURIComponent(word)}`, { token });
 }
 

@@ -94,12 +94,15 @@ export function useWordLookup({ detailed = false } = {}): WordLookupState {
       begin(clean, false);
       try {
         if (detailed) {
-          // Dictionary panel: the full 4-sense result. It carries no audioUrl —
-          // speak() fetches that lazily from /:word/audio, which is unchanged.
-          const { senses } = await searchWord(token, clean);
+          // Dictionary panel: the word's own meaning + the full 4-sense result.
+          // It carries no audioUrl — speak() fetches that lazily from
+          // /:word/audio, which is unchanged.
+          const { translation, senses } = await searchWord(token, clean);
           setResult({
             word: clean,
-            translation: '',
+            // '' (not null) so the panel's `translation ? ...` checks stay
+            // simple — an empty string means "no meaning line".
+            translation: translation ?? '',
             audioUrl: null,
             cached: false,
             meanings: senses,

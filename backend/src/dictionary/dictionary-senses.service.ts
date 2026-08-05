@@ -14,18 +14,26 @@ import { DictionaryEntry } from '../entities/dictionary-entry.entity';
 import { UserDictionarySave } from '../entities/user-dictionary-save.entity';
 import { AiUsageType } from '../common/enums';
 import { runGeminiText } from './gemini-text';
+import { DictionaryService } from './dictionary.service';
 import {
-  parseSenses,
+  parseEntry,
   sensesPrompt,
   MAX_SENSES,
   SENSE_FIELD_MAX,
   SENSES_SCHEMA,
+  WORD_TRANSLATION_MAX,
   type WordSense,
 } from './senses';
 
 /** Search result returned to the mobile Толь card. */
 export interface SensesResult {
   word: string;
+  /**
+   * The word's own Mongolian meaning ("гүйх; ажиллуулах; урсах"), or null when
+   * neither the entry nor the gloss cache could supply one — the panel then
+   * simply omits that line rather than showing an empty row.
+   */
+  translation: string | null;
   senses: WordSense[];
   /** True when served from dictionary_entries (no AI call, no plan usage). */
   cached: boolean;
@@ -63,6 +71,8 @@ export class DictionarySensesService {
     private readonly entries: Repository<DictionaryEntry>,
     @InjectRepository(UserDictionarySave)
     private readonly saves: Repository<UserDictionarySave>,
+    /** Short-gloss path — only used to backfill pre-2026-08-05 entries. */
+    private readonly dictionary: DictionaryService,
   ) {}
 
   /**
@@ -88,7 +98,12 @@ export class DictionarySensesService {
     if (hit) {
       await this.entries.increment({ id: hit.id }, 'searchCount', 1);
       await this.entries.update({ id: hit.id }, { lastSearchedAt: new Date() });
-      return { word, senses: hit.senses ?? [], cached: true };
+      return {
+        word,
+        translation: await this.translationFor(hit, userId),
+        senses: hit.senses ?? [],
+        cached: true,
+      };
     }
 
     // 2. Plan limit — only enforced when we are actually about to call the AI.
@@ -111,7 +126,7 @@ export class DictionarySensesService {
       `senses:${word}`,
       { json: true, schema: SENSES_SCHEMA },
     );
-    const senses = parseSenses(text);
+    const { translation, senses } = parseEntry(text);
     if (senses.length === 0) {
       // Nothing trustworthy came back — report not-found and cache NOTHING, so
       // a bad reply doesn't become a permanent row.
@@ -125,6 +140,7 @@ export class DictionarySensesService {
       await this.entries.save(
         this.entries.create({
           word,
+          translation,
           senses,
           searchCount: 1,
           lastSearchedAt: new Date(),
@@ -166,8 +182,43 @@ export class DictionarySensesService {
       await this.users.increment({ id: userId }, 'dictionaryAiCount', 1);
     }
 
-    if (racedTo) return { word, senses: racedTo.senses ?? [], cached: true };
-    return { word, senses, cached: false };
+    if (racedTo) {
+      return {
+        word,
+        translation: racedTo.translation,
+        senses: racedTo.senses ?? [],
+        cached: true,
+      };
+    }
+    return { word, translation, senses, cached: false };
+  }
+
+  /**
+   * The word meaning for a cached entry, backfilling rows written before the
+   * column existed.
+   *
+   * No new AI request is made for the meaning itself: `explain()` answers from
+   * the curated word bank or the `translations` cache first, and only reaches
+   * Gemini for a word nobody has ever tapped in the reader. The result is
+   * written back so the fill happens at most once per word.
+   *
+   * Never throws — a search must still return its senses if the gloss path is
+   * down or the user is over their AI limit.
+   */
+  private async translationFor(
+    entry: DictionaryEntry,
+    userId: string,
+  ): Promise<string | null> {
+    if (entry.translation) return entry.translation;
+    try {
+      const { translation } = await this.dictionary.explain(userId, entry.word);
+      const clean = translation?.trim().slice(0, WORD_TRANSLATION_MAX) ?? '';
+      if (!clean) return null;
+      await this.entries.update({ id: entry.id }, { translation: clean });
+      return clean;
+    } catch {
+      return null;
+    }
   }
 
   /** The user's ⭐ words, newest first. */
@@ -195,7 +246,11 @@ export class DictionarySensesService {
       return {
         word: r.word,
         senses: entry?.senses ?? null,
-        translation: gloss || entry?.senses?.[0]?.translation || '',
+        // The entry's own word meaning now sits between the gloss and the
+        // example-sentence fallback — it says what the word means, which the
+        // sentence translation only implies.
+        translation:
+          gloss || entry?.translation || entry?.senses?.[0]?.translation || '',
       };
     });
   }
@@ -254,10 +309,18 @@ export class DictionarySensesService {
     return { items, total, page, limit };
   }
 
-  /** Replace an entry's senses by hand; marks it as edited. */
-  async adminUpdate(id: string, senses: WordSense[]): Promise<DictionaryEntry> {
+  /** Replace an entry's meaning + senses by hand; marks it as edited. */
+  async adminUpdate(
+    id: string,
+    senses: WordSense[],
+    translation?: string | null,
+  ): Promise<DictionaryEntry> {
     const entry = await this.entries.findOne({ where: { id } });
     if (!entry) throw new NotFoundException('Толины бичлэг олдсонгүй');
+    // `undefined` = field not sent (leave as is); '' = cleared on purpose.
+    if (translation !== undefined) {
+      entry.translation = translation?.trim() || null;
+    }
     // Trim like parseSenses does, so a hand-edited sense and an AI-generated
     // one are stored the same way.
     entry.senses = senses.slice(0, MAX_SENSES).map((s) => ({

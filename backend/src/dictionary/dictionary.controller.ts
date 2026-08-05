@@ -52,7 +52,7 @@ export class DictionaryController {
     return this.senses.adminList(query);
   }
 
-  /** PATCH /api/dictionary/admin/entries/:id — hand-edit the senses. */
+  /** PATCH /api/dictionary/admin/entries/:id — hand-edit meaning + senses. */
   @Patch('admin/entries/:id')
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
@@ -60,7 +60,7 @@ export class DictionaryController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateSensesDto,
   ) {
-    return this.senses.adminUpdate(id, dto.senses);
+    return this.senses.adminUpdate(id, dto.senses, dto.translation);
   }
 
   /** DELETE /api/dictionary/admin/entries/:id — the next search regenerates it. */

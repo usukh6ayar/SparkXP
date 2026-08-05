@@ -1,4 +1,10 @@
-import { parseSenses, MAX_SENSES, SENSE_FIELD_MAX } from './senses';
+import {
+  parseEntry,
+  parseSenses,
+  MAX_SENSES,
+  SENSE_FIELD_MAX,
+  WORD_TRANSLATION_MAX,
+} from './senses';
 
 /**
  * parseSenses is the only thing standing between Gemini's free-form output and
@@ -96,5 +102,70 @@ describe('parseSenses', () => {
 
   it('returns [] for empty input', () => {
     expect(parseSenses('')).toEqual([]);
+  });
+});
+
+/**
+ * `parseEntry` adds the WORD's own meaning to the same reply. A bad meaning
+ * must never cost us good senses, and an old-shaped reply (bare array) must
+ * still parse — prompts and cached replies from before 2026-08-05 have no
+ * `translation` at all.
+ */
+describe('parseEntry', () => {
+  const sense = (n: number) => ({
+    word: `w${n}`,
+    example: `Example ${n}.`,
+    translation: `Орчуулга ${n}.`,
+  });
+
+  it('reads the word meaning alongside the senses', () => {
+    const raw = JSON.stringify({
+      translation: 'гүйх; ажиллуулах; урсах',
+      senses: [sense(1), sense(2)],
+    });
+    expect(parseEntry(raw)).toEqual({
+      translation: 'гүйх; ажиллуулах; урсах',
+      senses: [sense(1), sense(2)],
+    });
+  });
+
+  it('trims the word meaning', () => {
+    const raw = JSON.stringify({ translation: '  гүйх  ', senses: [sense(1)] });
+    expect(parseEntry(raw).translation).toBe('гүйх');
+  });
+
+  it('returns a null meaning for the old bare-array shape', () => {
+    const raw = JSON.stringify([sense(1)]);
+    expect(parseEntry(raw)).toEqual({ translation: null, senses: [sense(1)] });
+  });
+
+  it('returns a null meaning when the field is missing', () => {
+    const raw = JSON.stringify({ senses: [sense(1)] });
+    expect(parseEntry(raw).translation).toBeNull();
+  });
+
+  it('drops an over-long meaning but keeps the senses', () => {
+    const raw = JSON.stringify({
+      translation: 'у'.repeat(WORD_TRANSLATION_MAX + 1),
+      senses: [sense(1)],
+    });
+    expect(parseEntry(raw)).toEqual({ translation: null, senses: [sense(1)] });
+  });
+
+  it('drops a non-string meaning but keeps the senses', () => {
+    const raw = JSON.stringify({ translation: 42, senses: [sense(1)] });
+    expect(parseEntry(raw)).toEqual({ translation: null, senses: [sense(1)] });
+  });
+
+  it('keeps the meaning out of the way when nothing parses', () => {
+    expect(parseEntry('not json at all')).toEqual({
+      translation: null,
+      senses: [],
+    });
+  });
+
+  it('parseSenses stays a projection of parseEntry', () => {
+    const raw = JSON.stringify({ translation: 'гүйх', senses: [sense(1)] });
+    expect(parseSenses(raw)).toEqual(parseEntry(raw).senses);
   });
 });

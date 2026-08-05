@@ -16,6 +16,9 @@ interface Sense {
 interface Entry {
   id: string;
   word: string;
+  /** The word's own Mongolian meaning ("гүйх; ажиллуулах; урсах"), or null on
+   *  rows cached before the column existed. */
+  translation: string | null;
   senses: Sense[];
   searchCount: number;
   lastSearchedAt: string | null;
@@ -105,6 +108,7 @@ export default function DictionaryPage() {
           <thead className="bg-gray-50 text-left text-gray-500">
             <tr>
               <th className="px-4 py-3 font-medium">Үг</th>
+              <th className="px-4 py-3 font-medium">Орчуулга</th>
               <th className="px-4 py-3 font-medium">Утга</th>
               <th className="px-4 py-3 font-medium">Хайлт</th>
               <th className="px-4 py-3 font-medium">Сүүлд</th>
@@ -116,6 +120,9 @@ export default function DictionaryPage() {
             {data.items.map((e) => (
               <tr key={e.id} className="hover:bg-gray-50">
                 <td className="px-4 py-3 font-medium text-gray-800">{e.word}</td>
+                <td className="max-w-[16rem] truncate px-4 py-3 text-gray-600" title={e.translation ?? ''}>
+                  {e.translation || <span className="text-gray-300">—</span>}
+                </td>
                 <td className="px-4 py-3 text-gray-600">{e.senses.length}</td>
                 <td className="px-4 py-3 text-gray-600">{e.searchCount}</td>
                 <td className="whitespace-nowrap px-4 py-3 text-gray-500">
@@ -138,7 +145,7 @@ export default function DictionaryPage() {
             ))}
             {data.items.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-gray-400">
+                <td colSpan={7} className="px-4 py-10 text-center text-gray-400">
                   Одоогоор хайсан үг алга байна
                 </td>
               </tr>
@@ -160,7 +167,7 @@ export default function DictionaryPage() {
   );
 }
 
-/** Edit up to 4 senses by hand. Blank rows are dropped, not saved. */
+/** Edit the word meaning + up to 4 senses by hand. Blank rows are dropped. */
 function EditSensesModal({
   entry,
   onClose,
@@ -176,6 +183,7 @@ function EditSensesModal({
     while (filled.length < 4) filled.push({ word: '', example: '', translation: '' });
     return filled.slice(0, 4);
   });
+  const [translation, setTranslation] = useState(entry.translation ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -193,7 +201,12 @@ function EditSensesModal({
     setSaving(true);
     setError('');
     try {
-      await api.patch(`/dictionary/admin/entries/${entry.id}`, { senses });
+      // Sent even when empty: '' clears the meaning, and the next search then
+      // refills it from the gloss path.
+      await api.patch(`/dictionary/admin/entries/${entry.id}`, {
+        senses,
+        translation: translation.trim(),
+      });
       onSaved();
     } catch (e) {
       setError((e as Error).message);
@@ -205,6 +218,19 @@ function EditSensesModal({
   return (
     <Modal title={`"${entry.word}" — утгууд`} onClose={onClose} size="lg">
       <div className="flex flex-col gap-5">
+        <div className="rounded-lg border border-gray-200 p-3">
+          <Input
+            label="Үгийн орчуулга (апп дээр гарчгийн доор гарна)"
+            value={translation}
+            maxLength={200}
+            placeholder="гүйх; ажиллуулах; урсах"
+            onChange={(e) => setTranslation(e.target.value)}
+          />
+          <p className="mt-1 text-xs text-gray-400">
+            Хамгийн түгээмэл 1–3 утгыг "; "-ээр тусгаарла. Хоосон орхивол дараагийн
+            хайлтад автоматаар нөхөгдөнө.
+          </p>
+        </div>
         {rows.map((row, i) => (
           <div key={i} className="flex flex-col gap-2 rounded-lg border border-gray-200 p-3">
             <span className="text-xs font-semibold text-gray-400">{i + 1}.</span>

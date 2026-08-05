@@ -28,6 +28,17 @@ export class DictionaryEntry extends BaseEntity {
   @Column()
   word: string;
 
+  /**
+   * The WORD's own Mongolian meaning — the one line under the headword in the
+   * Толь panel, e.g. "гүйх; ажиллуулах; урсах". Null on rows cached before
+   * 2026-08-05; those are filled from the short-gloss path on the next search.
+   *
+   * ⚠️ Distinct from `WordSense.translation` inside `senses`, which translates
+   * that sense's EXAMPLE SENTENCE.
+   */
+  @Column({ type: 'varchar', length: 200, nullable: true })
+  translation: string | null;
+
   /** 1–4 senses, ordered most-common first. See WordSense. */
   @Column({ type: 'jsonb', default: () => "'[]'" })
   senses: WordSense[];
