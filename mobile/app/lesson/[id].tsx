@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { View, StyleSheet, ScrollView, Pressable, Image, Alert } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated from 'react-native-reanimated';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -25,7 +25,7 @@ import { celebrationCopy } from '../../src/components/celebration/copy';
 import { getSkill } from '../../src/constants/skills';
 import { haptics } from '../../src/lib/haptics';
 import { showXpToast } from '../../src/lib/xpToast';
-import { useReduceMotion } from '../../src/lib/motion';
+import { enter, useReduceMotion } from '../../src/lib/motion';
 import { t, tf } from '../../src/i18n';
 import { useColors } from '../../src/settings/SettingsContext';
 import { spacing, radius, levelColor, type AppColors } from '../../src/theme/theme';
@@ -166,8 +166,8 @@ export default function LessonDetailScreen() {
     }
     confirm({
       title: t('unlockConfirmTitle'),
-      message: `${lesson.priceSparks} 💎 ${t('unlockConfirmBodySuffix')}`,
-      confirmLabel: `${t('unlockLabel')} (${lesson.priceSparks} 💎)`,
+      message: `${lesson.priceSparks} ${t('sparksUnit')} ${t('unlockConfirmBodySuffix')}`,
+      confirmLabel: `${t('unlockLabel')} (${lesson.priceSparks} ${t('sparksUnit')})`,
       onConfirm: async () => {
         setUnlocking(true);
         try {
@@ -280,7 +280,7 @@ export default function LessonDetailScreen() {
               <AppText variant="bodyStrong" color={c.sparks}>{t('balanceLabel')}: {user?.sparks ?? 0}</AppText>
             </View>
             <Button
-              label={unlocking ? t('unlocking') : `${t('unlockLabel')} · ${lesson.priceSparks} 💎`}
+              label={unlocking ? t('unlocking') : `${t('unlockLabel')} · ${lesson.priceSparks} ${t('sparksUnit')}`}
               icon="lock-open"
               onPress={unlock}
               disabled={unlocking}
@@ -382,7 +382,7 @@ export default function LessonDetailScreen() {
                   {group.quizzes.map((q, i) => (
                     <Animated.View
                       key={q.id}
-                      entering={reduceMotion ? undefined : FadeInDown.delay(i * 60).springify()}
+                      entering={reduceMotion ? undefined : enter(i * 60)}
                     >
                       <Pressable
                         style={({ pressed }) => [styles.quizRow, pressed && styles.quizRowPressed]}

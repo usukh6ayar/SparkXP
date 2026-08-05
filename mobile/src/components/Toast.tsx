@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { FadeInUp, FadeOutUp } from 'react-native-reanimated';
+import Animated, { FadeOutUp } from 'react-native-reanimated';
+import { enterUp } from '../lib/motion';
 import { Ionicons } from '@expo/vector-icons';
 import { AppText } from './Text';
 import { useColors } from '../settings/SettingsContext';
@@ -81,7 +82,7 @@ export function ToastHost() {
         return (
           <Animated.View
             key={item.id}
-            entering={FadeInUp.springify().damping(16)}
+            entering={enterUp()}
             exiting={FadeOutUp.duration(180)}
             style={[styles.toast, { backgroundColor: tone.bg }]}
           >

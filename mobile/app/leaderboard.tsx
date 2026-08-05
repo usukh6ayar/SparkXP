@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { View, StyleSheet, ScrollView, Pressable, RefreshControl } from 'react-native';
-import Animated, { FadeInDown, FadeInUp, FadeOutDown } from 'react-native-reanimated';
+import Animated, { FadeOutDown } from 'react-native-reanimated';
+import { enter, enterUp } from '../src/lib/motion';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppIcon } from '../src/components/AppIcon';
 import { haptics } from '../src/lib/haptics';
@@ -122,7 +123,7 @@ export default function LeaderboardScreen() {
             // via isSelf) — so they see their rank among neighbours *and* in the
             // pinned "my standing" card above (two places, as requested).
             data.entries.map((e, i) => (
-              <Animated.View key={e.userId} entering={FadeInDown.delay(Math.min(i, 8) * 50)}>
+              <Animated.View key={e.userId} entering={enter(Math.min(i, 8) * 50)}>
                 <LeaderboardRow
                   rank={e.rank}
                   name={e.fullName}
@@ -141,7 +142,7 @@ export default function LeaderboardScreen() {
       {/* Sticky "my rank" bar — appears once the hero card scrolls away. */}
       {showSelfBar && data?.me && (
         <Animated.View
-          entering={FadeInUp.springify().damping(16)}
+          entering={enterUp()}
           exiting={FadeOutDown.duration(160)}
           style={styles.selfBar}
         >

@@ -6,7 +6,6 @@ import { Ionicons } from '@expo/vector-icons';
 import Animated, {
   Easing,
   FadeIn,
-  FadeInDown,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
@@ -23,7 +22,7 @@ import { CountUp } from '../CountUp';
 import { CelebrationBackground } from './CelebrationBackground';
 import { SCENES, type SceneKey } from './palette';
 import { haptics } from '../../lib/haptics';
-import { SPRING, useReduceMotion } from '../../lib/motion';
+import { SPRING, enter, useReduceMotion } from '../../lib/motion';
 import { colors, radius, spacing } from '../../theme/theme';
 import { bounded, ms } from '../../theme/responsive';
 
@@ -154,7 +153,7 @@ export function CelebrationScreen({
             {/* --- Reward card ------------------------------------------------ */}
             {showXp || stats.length > 0 ? (
               <Animated.View
-                entering={reduce ? undefined : FadeInDown.delay(280).springify().damping(16)}
+                entering={reduce ? undefined : enter(280)}
                 style={styles.glass}
               >
                 {/* Real blur with a translucent fill under it: BlurView alone is
@@ -201,7 +200,7 @@ export function CelebrationScreen({
 
             {/* --- Actions ---------------------------------------------------- */}
             <Animated.View
-              entering={reduce ? undefined : FadeInDown.delay(420).springify().damping(16)}
+              entering={reduce ? undefined : enter(420)}
               style={styles.actions}
             >
               <Button label={primary.label} icon="arrow-forward" onPress={primary.onPress} />

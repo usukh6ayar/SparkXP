@@ -25,7 +25,7 @@ import { getLessons, getCompletedLessonIds, type Lesson } from '../../src/api/le
 import { getGamification, type Gamification } from '../../src/api/gamification';
 import { AppText } from '../../src/components/Text';
 import { haptics } from '../../src/lib/haptics';
-import { useReduceMotion } from '../../src/lib/motion';
+import { DURATION, useReduceMotion } from '../../src/lib/motion';
 import { colors, islandMap } from '../../src/theme/theme';
 import { bounded, CONTENT_MAX_WIDTH } from '../../src/theme/responsive';
 
@@ -295,7 +295,7 @@ export default function LevelScreen() {
                   {/* Node — fill + glyph vary by state. */}
                   <Animated.View
                     style={[styles.nodeWrap, { left: c.x - NODE / 2, top: c.y - NODE / 2 }]}
-                    entering={reduceMotion ? undefined : ZoomIn.delay(i * 45).springify()}
+                    entering={reduceMotion ? undefined : ZoomIn.delay(i * 45).duration(DURATION.base)}
                   >
                     <Pressable
                       onPress={lesson ? () => { haptics.tap(); router.push(`/lesson/${lesson.id}`); } : undefined}

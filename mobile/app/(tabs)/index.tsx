@@ -9,13 +9,13 @@ import {
   Dimensions,
 } from "react-native";
 import Animated, {
-  FadeInDown,
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
   withSequence,
   withTiming,
 } from "react-native-reanimated";
+import { enter } from "../../src/lib/motion";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -531,7 +531,7 @@ export default function HomeScreen() {
             <View style={styles.header}>
               <View style={styles.headerText}>
                 {/* On the dark sky hero — always light text, both themes. */}
-                <AppText variant="h1" color={c.white}>{t("greeting")}, {displayName} 👋</AppText>
+                <AppText variant="h1" color={c.white}>{t("greeting")}, {displayName}</AppText>
               </View>
               <View style={styles.headerIcons}>
                 <IconButton icon="notifications-outline" dot={hasUnread} size={44} style={styles.headerIconBtn} accessibilityLabel={t('notifications')} onPress={() => router.push('/notifications')} />
@@ -756,7 +756,7 @@ export default function HomeScreen() {
                     <Animated.View
                       key={task.key}
                       style={styles.skillWrap}
-                      entering={reduceMotion ? undefined : FadeInDown.delay(i * 60).springify()}
+                      entering={reduceMotion ? undefined : enter(i * 60)}
                     >
                       <PressableScale
                         style={styles.skillTile}

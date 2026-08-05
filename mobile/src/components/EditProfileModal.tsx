@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ScrollView, Alert } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated from 'react-native-reanimated';
+import { enter } from '../lib/motion';
 import { useAuth } from '../auth/AuthContext';
 import { ApiError } from '../api/client';
 import { haptics } from '../lib/haptics';
@@ -85,7 +86,7 @@ export function EditProfileModal({ visible, onClose }: { visible: boolean; onClo
 
   return (
     <ModalScreen visible={visible} onClose={onClose} animationType="fade">
-      <Animated.View entering={FadeInDown.duration(200)} style={{ flex: 1 }}>
+      <Animated.View entering={enter(0, 200)} style={{ flex: 1 }}>
       <TopBar title={t('editProfile')} showBadges={false} />
       {/* `automaticallyAdjustKeyboardInsets`: iOS doesn't resize for the keyboard
           like Android does, so lower fields hide behind it. No-op on Android. */}
