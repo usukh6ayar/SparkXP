@@ -53,6 +53,21 @@ export function updateProfile(
   return apiRequest<AuthUser>('/users/me', { method: 'PATCH', body: payload, token });
 }
 
+/**
+ * DELETE /users/me — permanently delete the signed-in account.
+ *
+ * Required by App Store Review Guideline 5.1.1(v): deleting an account has to
+ * be possible from inside the app. Irreversible — the password is re-checked
+ * server-side so a borrowed unlocked phone cannot do this in two taps.
+ */
+export function deleteAccount(password: string, token: string): Promise<{ ok: true }> {
+  return apiRequest<{ ok: true }>('/users/me', {
+    method: 'DELETE',
+    body: { password },
+    token,
+  });
+}
+
 /** Upload a custom avatar image from the device → returns the updated user. */
 export function uploadAvatar(uri: string, token: string): Promise<AuthUser> {
   const name = uri.split('/').pop() || 'avatar.jpg';

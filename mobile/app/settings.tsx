@@ -13,6 +13,7 @@ import { loadSoundEnabled, setSoundEnabled } from '../src/lib/sound';
 import { AppText } from '../src/components/Text';
 import { resolveAvatar } from '../src/lib/avatar';
 import { useLogoutConfirm, useComingSoon } from '../src/lib/useLogoutConfirm';
+import { DeleteAccountSheet } from '../src/components/DeleteAccountSheet';
 import { ROLE_TKEY } from '../src/constants/roles';
 import { colors, spacing, radius, tints, type PremiumPalette } from '../src/theme/theme';
 import type { Lang } from '../src/i18n';
@@ -187,6 +188,7 @@ export default function SettingsScreen() {
 
   const soon = useComingSoon();
   const confirmLogout = useLogoutConfirm();
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   return (
     <View style={[styles.root, { backgroundColor: p.bgFlat }]}>
@@ -311,10 +313,21 @@ export default function SettingsScreen() {
             </>
           ) : null}
 
-          {/* Logout */}
+          {/* Logout + permanent account deletion.
+              Deletion has to be reachable from inside the app — App Store
+              Review Guideline 5.1.1(v). The sheet spells out what is lost and
+              re-asks for the password before doing anything. */}
           <View style={{ marginTop: spacing.lg }}>
             <Card p={p}>
               <Row p={p} icon="log-out-outline" tint={tints.coral} label={t('logout')} danger onPress={confirmLogout} />
+              <Row
+                p={p}
+                icon="trash-outline"
+                tint={tints.coral}
+                label={t('deleteAccount')}
+                danger
+                onPress={() => setDeleteOpen(true)}
+              />
             </Card>
           </View>
 
@@ -325,6 +338,8 @@ export default function SettingsScreen() {
           </View>
         </ScrollView>
       </SafeAreaView>
+
+      <DeleteAccountSheet visible={deleteOpen} onClose={() => setDeleteOpen(false)} />
     </View>
   );
 }
