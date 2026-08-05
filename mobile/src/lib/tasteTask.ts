@@ -8,6 +8,17 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
  */
 const KEY = 'taste_completed';
 
+/**
+ * The one-time pre-signup bonus, in XP. Mirrors the backend's configurable
+ * `rewards().onboarding`, which is granted on the first email verification when
+ * registration sends `tasteCompleted`.
+ *
+ * Anything shown to a guest as "+N XP" must use THIS number: it is the only
+ * amount that actually lands in the account. Both pre-signup surfaces — the
+ * taste-task and the onboarding AI-buddy demo — promise it and set the flag.
+ */
+export const ONBOARDING_BONUS_XP = 10;
+
 export async function markTasteCompleted(): Promise<void> {
   try {
     await AsyncStorage.setItem(KEY, '1');

@@ -81,7 +81,16 @@
           "icon": "./assets/icon.png",
           "color": "#6C3BFF"
         }
-      ]
+      ],
+      [
+        "@sentry/react-native",
+        {
+          "organization": "REPLACE_WITH_SENTRY_ORG_SLUG",
+          "project": "REPLACE_WITH_SENTRY_PROJECT_SLUG",
+          "url": "https://sentry.io/"
+        }
+      ],
+      "expo-localization"
     ],
     "owner": "usukh6ayar",
     "extra": {

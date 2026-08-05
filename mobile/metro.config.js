@@ -3,10 +3,14 @@
 // ⚠️ Native/build config — lead-owned (see CLAUDE.md). After pulling a change
 // here everyone must restart Metro with a cleared cache (`npm run go`, which
 // already passes `-c`).
-const { getDefaultConfig } = require('expo/metro-config');
+const { getSentryExpoConfig } = require('@sentry/react-native/metro');
 const path = require('path');
 
-const config = getDefaultConfig(__dirname);
+// Sentry's Expo config = Expo's `getDefaultConfig` plus a Debug ID stamped into
+// every bundle. Without that ID, uploaded source maps can't be matched to a
+// crash and every stack trace stays minified. Sentry must be the BASE here —
+// our resolver tweak below chains onto whatever it installed.
+const config = getSentryExpoConfig(__dirname);
 
 // --- One copy of three.js -----------------------------------------------
 // three ships two builds and lists both in its `exports` map: `three.module.js`

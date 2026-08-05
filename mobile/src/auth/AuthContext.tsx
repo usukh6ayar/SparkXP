@@ -15,6 +15,8 @@ import type { AuthResult, AuthUser } from '../api/auth';
 import { t } from '../i18n';
 import { isBiometricAvailable, authenticateBiometric } from './biometrics';
 import { createAppLockPolicy } from './appLockPolicy';
+import { setMonitoringUser } from '../lib/monitoring';
+import { identifyUser, resetAnalytics, track } from '../lib/analytics';
 
 const TOKEN_KEY = 'sparkxp.token';
 const USER_KEY = 'sparkxp.user';
@@ -101,7 +103,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const cachedUser = await SecureStore.getItemAsync(USER_KEY);
       if (cachedUser) {
         try {
-          setUser(JSON.parse(cachedUser) as AuthUser);
+          const parsed = JSON.parse(cachedUser) as AuthUser;
+          setUser(parsed);
+          // Re-attach on every cold start, not just at login — otherwise a
+          // crash on a restored session is reported with no user at all.
+          attachIdentity(parsed);
         } catch {
           // Corrupt cache — will refresh from /me below.
         }
@@ -110,6 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const me = await authApi.getMe(saved);
         setUser(me);
+        attachIdentity(me);
         await SecureStore.setItemAsync(USER_KEY, JSON.stringify(me));
       } catch (err) {
         // Only clear the session when the token is actually invalid/expired.
@@ -155,10 +162,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => sub.remove();
   }, [runBiometricUnlock]);
 
+  /**
+   * Tell the monitoring + analytics layers who is signed in.
+   *
+   * Only the UUID and two coarse traits are shared — never email, username or
+   * full name (see the privacy notes in `lib/monitoring.ts` / `lib/analytics.ts`).
+   */
+  function attachIdentity(next: AuthUser) {
+    setMonitoringUser(next.id);
+    identifyUser(next.id, { role: next.role, level: next.level });
+  }
+
   async function clearSession() {
     await SecureStore.deleteItemAsync(TOKEN_KEY);
     await SecureStore.deleteItemAsync(USER_KEY);
     clearApiCache(); // don't leak this user's cached reads into the next session
+    // Same reasoning as the cache wipe: the next person on this device must not
+    // inherit the previous user's crash reports or analytics profile.
+    setMonitoringUser(null);
+    resetAnalytics();
     setToken(null);
     setUser(null);
     setLocked(false);
@@ -173,6 +195,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await SecureStore.setItemAsync(USER_KEY, JSON.stringify(result.user));
     setToken(result.accessToken);
     setUser(result.user);
+    attachIdentity(result.user);
     setLocked(false); // just authenticated with a password — start unlocked
   }
 
@@ -202,11 +225,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function login(identifier: string, password: string) {
     await persist(await authApi.login(identifier, password));
+    track('logged_in');
     maybeOfferBiometric();
   }
 
   async function applySession(result: AuthResult) {
     await persist(result);
+    // The only caller is the register screen, after the email OTP is verified —
+    // so this is the moment an account is genuinely created.
+    track('signed_up');
   }
 
   async function updateUser(next: AuthUser) {
@@ -220,6 +247,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function logout() {
+    // Before clearSession(), which resets the analytics identity — afterwards
+    // the event would be attributed to a brand-new anonymous person.
+    track('logged_out');
     await clearSession();
   }
 

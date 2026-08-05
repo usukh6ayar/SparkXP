@@ -1,6 +1,6 @@
 import { useEffect, useMemo, type ComponentType } from "react";
 import { View, ActivityIndicator, StyleSheet, Text, useColorScheme } from "react-native";
-import { Stack, useRouter, useSegments } from "expo-router";
+import { Stack, useRouter, useSegments, useNavigationContainerRef } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
@@ -24,6 +24,15 @@ import { DictionaryProvider } from "../src/components/DictionaryProvider";
 import { ToastHost } from "../src/components/Toast";
 import { CelebrationHost } from "../src/components/CelebrationHost";
 import { LockScreen } from "../src/components/LockScreen";
+import { AnalyticsProvider } from "../src/components/AnalyticsProvider";
+import {
+  initMonitoring, monitoringEnabled, navigationIntegration, wrapRoot,
+} from "../src/lib/monitoring";
+
+// Start crash reporting before anything renders, or boot-time crashes — the
+// ones we can least afford to miss — happen with no reporter listening. Inert
+// unless EXPO_PUBLIC_SENTRY_DSN is set (see src/lib/monitoring.ts).
+initMonitoring();
 
 /**
  * Auth gate: redirects based on whether the user is logged in.
@@ -135,6 +144,19 @@ function RootLayout() {
   // Which splash colour the OS already painted (see the pre-font return below).
   const scheme = useColorScheme() === "dark" ? "dark" : "light";
 
+  // Hand the router's navigation container to Sentry so every screen change
+  // becomes a performance transaction (screen load time + the API calls it
+  // makes). This is what stands in for EAS Observe, which needs SDK 55.
+  // Guarded on `monitoringEnabled`: with no DSN configured — the default for
+  // every dev right now — Sentry.init() never ran, and there is no reason to
+  // hand instrumentation to a client that does not exist.
+  const navigationRef = useNavigationContainerRef();
+  useEffect(() => {
+    if (monitoringEnabled && navigationRef) {
+      navigationIntegration.registerNavigationContainer(navigationRef);
+    }
+  }, [navigationRef]);
+
   // Load the brand fonts (Manrope = display/headings, Inter = body/UI). Both
   // cover Mongolian Cyrillic Ө/ө/Ү/ү — Onest did NOT, so those letters fell back
   // to the system font mid-word. React Native takes a single `fontFamily` (no CSS
@@ -177,15 +199,19 @@ function RootLayout() {
     <GestureHandlerRootView style={styles.flex}>
       <SafeAreaProvider>
         <SettingsProvider>
-          <AuthProvider>
-            <DictionaryProvider>
-              <BottomSheetModalProvider>
-                <ThemedNav />
-                <ToastHost />
-                <CelebrationHost />
-              </BottomSheetModalProvider>
-            </DictionaryProvider>
-          </AuthProvider>
+          {/* Outside AuthProvider so login/logout can identify + reset through
+              the already-mounted client (see src/lib/analytics.ts). */}
+          <AnalyticsProvider>
+            <AuthProvider>
+              <DictionaryProvider>
+                <BottomSheetModalProvider>
+                  <ThemedNav />
+                  <ToastHost />
+                  <CelebrationHost />
+                </BottomSheetModalProvider>
+              </DictionaryProvider>
+            </AuthProvider>
+          </AnalyticsProvider>
         </SettingsProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
@@ -262,7 +288,9 @@ function withHotUpdater(App: ComponentType): ComponentType {
   })(App);
 }
 
-export default withHotUpdater(RootLayout);
+// Sentry wraps OUTSIDE the OTA wrapper so a crash in the update screen itself
+// is still reported. `wrapRoot` is a passthrough when monitoring is off.
+export default wrapRoot(withHotUpdater(RootLayout));
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },

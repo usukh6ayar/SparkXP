@@ -9,15 +9,16 @@ import { ProgressBar } from '../../src/components/ProgressBar';
 import { PressableScale } from '../../src/components/PressableScale';
 import { Loading } from '../../src/components/Loading';
 import { getSampleQuestions, type SampleQuestion } from '../../src/api/words';
-import { markTasteCompleted } from '../../src/lib/tasteTask';
+import { markTasteCompleted, ONBOARDING_BONUS_XP } from '../../src/lib/tasteTask';
 import { haptics } from '../../src/lib/haptics';
 import { t, tf } from '../../src/i18n';
 import { useColors } from '../../src/settings/SettingsContext';
 import { spacing, radius, fontSize, progressGradients, type AppColors } from '../../src/theme/theme';
 
 const COUNT = 3;
-/** Server-fixed onboarding bonus (backend `ONBOARDING_XP`), shown as a promise. */
-const TASTE_XP = 10;
+/** Server-fixed onboarding bonus, shown as a promise. Shared with the
+ *  onboarding AI-buddy demo so the two screens can never quote different XP. */
+const TASTE_XP = ONBOARDING_BONUS_XP;
 
 /**
  * Pre-signup taste-task (C4): a guest answers a few vocab questions BEFORE
