@@ -50,8 +50,15 @@ Apple данс аваад SDK 55 рүү шилжсэний дараа Observe-и
    ```bash
    eas env:create --name SENTRY_AUTH_TOKEN --value "sntrys_…" --visibility sensitive
    ```
-   Байхгүй байсан ч build амжилттай болно — зүгээр л stack trace минифайкдсан
-   хэвээр байна.
+   ⚠️ **Байхгүй бол build УНАНА** (эхлээд "build амжилттай болно" гэж бичсэн
+   нь буруу байсан — 2026-08-05-ны iOS build яг үүнээс болж унасан):
+   `sentry-cli` нь `Auth token is required for this request` гэж алдаа өгөөд
+   Xcode-ын build алхмыг таслана.
+
+   Тиймээс `eas.json`-ы бүх profile-д `SENTRY_DISABLE_AUTO_UPLOAD=true`
+   тавьсан. Sentry-гээ бүрэн тохируулаад `SENTRY_AUTH_TOKEN` нэмсний дараа
+   тэр мөрийг ХАСААРАЙ — эс бөгөөс source map үүрд илгээгдэхгүй, stack trace
+   минифайкдсан хэвээр үлдэнэ.
 
 Прод дээр эхлээд `EXPO_PUBLIC_SENTRY_TRACES_RATE`-ийг `0.2` (20%) хэвээр үлдээ.
 Мөрдөн шалгах үедээ түр өсгө, дараа нь буцааж бууруул — trace бүр мөнгө.

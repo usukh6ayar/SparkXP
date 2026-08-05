@@ -23,6 +23,7 @@
     },
     "android": {
       "package": "mn.app.sparkxp",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#3D0BA0",
         "foregroundImage": "./assets/icon-adaptive.png"
