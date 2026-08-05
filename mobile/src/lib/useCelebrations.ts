@@ -8,20 +8,27 @@ import {
 import { getGamification, markStreakSeen, type Gamification } from '../api/gamification';
 import type { Achievement } from '../components/AchievementModal';
 import { t, tf } from '../i18n';
-import { tints } from '../theme/theme';
+import { tintThemes, type Tints } from '../theme/theme';
+import { useSettings } from '../settings/SettingsContext';
 
-/** Tier → badge ring colour. Unlisted tiers fall back to the brand purple. */
-const TIER_TINT: Record<string, { bg: string; fg: string }> = {
-  starter: tints.blue,
-  bronze: tints.orange,
-  silver: tints.blue,
-  gold: tints.amber,
-  sapphire: tints.blue,
-  crystal: tints.green,
-  ruby: tints.pink,
-  emerald: tints.green,
-  mythic: tints.purple,
-  celestial: tints.amber,
+/**
+ * Tier → badge ring colour, **by name**. Unlisted tiers fall back to purple.
+ *
+ * Names rather than colour pairs, because the pair has to come from the ACTIVE
+ * theme: this file used to read the static `tints` (the DARK set), so on the
+ * light theme the celebration painted pale-orange text on a near-white card.
+ */
+const TIER_TINT: Record<string, keyof Tints> = {
+  starter: 'blue',
+  bronze: 'orange',
+  silver: 'blue',
+  gold: 'amber',
+  sapphire: 'blue',
+  crystal: 'green',
+  ruby: 'pink',
+  emerald: 'green',
+  mythic: 'purple',
+  celestial: 'amber',
 };
 
 /**
@@ -64,6 +71,9 @@ export function checkCelebrations(): void {
  */
 export function useCelebrations() {
   const { token } = useAuth();
+  // The celebration is built inside `check()`, so the palette has to be read
+  // here and passed down — a hook can't be called from that callback.
+  const tints = tintThemes[useSettings().theme];
   const [queue, setQueue] = useState<Celebration[]>([]);
   // Guards against a second check() (e.g. two screens finishing at once, or a
   // stale /gamification cache) re-adding something already on screen or
@@ -84,17 +94,17 @@ export function useCelebrations() {
     const streak = gam?.streakCelebration;
     if (streak && !handled.current.has(streakKey(streak.streak))) {
       handled.current.add(streakKey(streak.streak));
-      fresh.push({ kind: 'streak', achievement: streakAchievement(streak, gam!) });
+      fresh.push({ kind: 'streak', achievement: streakAchievement(streak, gam!, tints.orange) });
     }
 
     for (const tr of ach?.trophies ?? []) {
       if (!ach!.unseen.includes(tr.slug) || handled.current.has(tr.slug)) continue;
       handled.current.add(tr.slug);
-      fresh.push({ kind: 'trophy', slug: tr.slug, achievement: trophyAchievement(tr) });
+      fresh.push({ kind: 'trophy', slug: tr.slug, achievement: trophyAchievement(tr, tints) });
     }
 
     if (fresh.length) setQueue((q) => [...q, ...fresh]);
-  }, [token]);
+  }, [token, tints]);
 
   /** Dismiss the front celebration and tell the server it has been shown. */
   const dismiss = useCallback(() => {
@@ -131,21 +141,30 @@ export function useCelebrations() {
 const streakKey = (streak: number) => `streak:${streak}`;
 
 /**
- * "Your streak reached N." The number goes IN the badge — it is the whole
- * point of the moment — and the freeze line below answers the question the
- * celebration always raises next: what happens if I miss tomorrow?
+ * "Your streak reached N."
+ *
+ * The badge is the app's own flame — the same picture the streak badge uses on
+ * the home header and the tab bar, not an Ionicons glyph. The number then owns
+ * the line under it, so the card reads top to bottom as: what happened → how
+ * many days → what it paid → what protects it tomorrow.
+ *
+ * There is no separate "Дараалал сунгагдлаа!" line any more: "Өдрийн зорилго
+ * биеллээ" above a large "12 өдрийн дараалал" already says it, and saying it
+ * three times is what made the card feel padded.
  */
 function streakAchievement(
   streak: { streak: number; bonusXp: number },
   gam: Gamification,
+  tint: { bg: string; fg: string },
 ): Achievement {
   return {
     icon: 'flame',
+    appIcon: 'streak',
     overline: t('streakCelebrationOverline'),
     badgeValue: String(streak.streak),
-    title: t('streakCelebrationExtended'),
+    badgeValueLabel: t('streakCelebrationDays'),
     subtitle: tf('streakCelebrationBonus', { n: streak.bonusXp }),
-    tint: tints.orange,
+    tint,
     ...freezeNote(gam),
   };
 }
@@ -164,11 +183,15 @@ function freezeNote(gam: Gamification): Pick<Achievement, 'note' | 'noteIcon'> {
   return {};
 }
 
-function trophyAchievement(trophy: Trophy): Achievement {
+function trophyAchievement(trophy: Trophy, tints: Tints): Achievement {
   return {
     icon: 'trophy',
+    // Fallback only — a trophy that HAS artwork shows the artwork. This is the
+    // brand gold cup rather than an Ionicons outline, so a trophy whose image
+    // hasn't been uploaded yet still looks like it belongs in a celebration.
+    appIcon: 'trophy',
     title: trophy.name,
-    tint: TIER_TINT[trophy.tier] ?? tints.purple,
+    tint: tints[TIER_TINT[trophy.tier] ?? 'purple'],
     imageUrl: trophy.image,
   };
 }

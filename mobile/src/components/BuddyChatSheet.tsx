@@ -12,9 +12,10 @@ import {
   type BottomSheetBackgroundProps,
 } from '@gorhom/bottom-sheet';
 import Animated, {
-  FadeIn, FadeInDown, interpolate, useAnimatedStyle, useSharedValue,
+  FadeIn, interpolate, useAnimatedStyle, useSharedValue,
   withRepeat, withTiming, withDelay, withSequence, Extrapolation,
 } from 'react-native-reanimated';
+import { enter } from '../lib/motion';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { haptics } from '../lib/haptics';
@@ -249,7 +250,7 @@ function MessageBubble({
 
   return (
     <Animated.View
-      entering={FadeInDown.duration(220)}
+      entering={enter(0, 220)}
       style={[styles.bubbleRow, isUser && styles.bubbleRowUser]}
     >
       {!isUser && <AppImage source={brandAvatar} width={28} style={styles.avatarImg} contentFit="contain" />}

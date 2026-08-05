@@ -336,13 +336,16 @@ export default function ReviewFlashcardsScreen() {
 
                   {/* Stamps */}
                   <Animated.View pointerEvents="none" style={[styles.stamp, styles.stampLeft, { borderColor: c.success, transform: [{ rotate: '-16deg' }] }, knowStamp]}>
-                    <AppText style={[styles.stampText, { color: c.success }]}>✓ {t('swipeKnow')}</AppText>
+                    <Ionicons name="checkmark" size={20} color={c.success} />
+                    <AppText style={[styles.stampText, { color: c.success }]}>{t('swipeKnow')}</AppText>
                   </Animated.View>
                   <Animated.View pointerEvents="none" style={[styles.stamp, styles.stampRight, { borderColor: c.danger, transform: [{ rotate: '16deg' }] }, reviewStamp]}>
-                    <AppText style={[styles.stampText, { color: c.danger }]}>✕ {t('swipeReview')}</AppText>
+                    <Ionicons name="close" size={20} color={c.danger} />
+                    <AppText style={[styles.stampText, { color: c.danger }]}>{t('swipeReview')}</AppText>
                   </Animated.View>
                   <Animated.View pointerEvents="none" style={[styles.stamp, styles.stampTop, { borderColor: c.xp }, favStamp]}>
-                    <AppText style={[styles.stampText, { color: c.xp }]}>♥ {t('swipeFav')}</AppText>
+                    <Ionicons name="heart" size={18} color={c.xp} />
+                    <AppText style={[styles.stampText, { color: c.xp }]}>{t('swipeFav')}</AppText>
                   </Animated.View>
                 </Pressable>
               </Animated.View>
@@ -414,6 +417,11 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   tint: { ...StyleSheet.absoluteFillObject, borderRadius: 30 },
   stamp: {
     position: 'absolute',
+    // Row, because the mark is now a real icon beside the word rather than a
+    // ✕ / ♥ glyph inside it.
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     borderWidth: 4,
     borderRadius: radius.md,
     paddingHorizontal: spacing.md,

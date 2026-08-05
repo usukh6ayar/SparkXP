@@ -12,12 +12,31 @@ export interface QuizQuestion {
   options: string[];
 }
 
+/** One graded answer, so the result screen can say WHICH word went wrong. */
+export interface QuizAnswerResult {
+  wordId: string;
+  correct: boolean;
+  /** The word's Mongolian meaning — what the student should have picked. */
+  correctAnswer: string;
+}
+
 /** Result of POST /api/words/quiz/submit. */
 export interface QuizResult {
   total: number;
   correct: number;
   xpAwarded: number;
   sparksAwarded: number;
+  /**
+   * Per-answer grading, newest backends only.
+   *
+   * The server already computes this to count the score, it just used to throw
+   * it away — so a student finished a vocabulary game knowing only "7/10", with
+   * no way to learn which three words they don't know yet.
+   *
+   * **Optional on purpose:** an app that ships ahead of the backend simply hides
+   * the review instead of crashing. See ROADMAP → "Өсөхбаяр — BE хүсэлт".
+   */
+  results?: QuizAnswerResult[];
 }
 
 /** GET /api/words/quiz?count= — generate a vocabulary quiz. */

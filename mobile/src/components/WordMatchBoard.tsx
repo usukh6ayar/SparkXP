@@ -29,11 +29,21 @@ export function WordMatchBoard({
   rights,
   matches,
   onAssign,
+  graded,
 }: {
   pairs: Pair[];
   rights: string[];
   matches: Record<number, string>;
   onAssign: (leftIndex: number, right: string) => void;
+  /**
+   * leftIndex → was this pairing right? Present only AFTER the answer has been
+   * checked, and that presence is what locks the board.
+   *
+   * Colour is the whole correction here: there is no "correct answer" line for
+   * word_match (Choi, 2026-08-05: "хүмүүс улаан ногоон өнгөөр нь таньдаг
+   * болгий"), so a red row is the student's cue to re-pair it next time round.
+   */
+  graded?: Record<number, boolean>;
 }) {
   const c = useColors();
   const styles = useMemo(() => makeStyles(c), [c]);
@@ -47,14 +57,14 @@ export function WordMatchBoard({
     const hit = Object.entries(leftFrames).find(
       ([, f]) => dropY >= f.y && dropY <= f.y + f.height,
     );
-    if (hit) {
+    if (hit && !graded) {
       haptics.success();
       onAssign(Number(hit[0]), right);
     }
   }
 
   function tapRight(right: string) {
-    if (selLeft === null) return;
+    if (selLeft === null || graded) return;
     haptics.select();
     onAssign(selLeft, right);
     setSelLeft(null);
@@ -67,6 +77,7 @@ export function WordMatchBoard({
         {pairs.map((p, i) => {
           const done = !!matches[i];
           const active = selLeft === i;
+          const verdict = graded?.[i];
           return (
             <View
               key={i}
@@ -79,11 +90,26 @@ export function WordMatchBoard({
               }}
             >
               <Animated.View
-                style={[styles.item, active && styles.itemSel, done && styles.itemDone]}
-                onTouchEnd={() => setSelLeft(i)}
+                style={[
+                  styles.item,
+                  active && styles.itemSel,
+                  done && styles.itemDone,
+                  verdict === true && styles.itemCorrect,
+                  verdict === false && styles.itemWrong,
+                ]}
+                onTouchEnd={() => { if (!graded) setSelLeft(i); }}
               >
-                <View style={[styles.indexDot, done && styles.indexDotDone, active && styles.indexDotActive]}>
-                  {done ? (
+                <View
+                  style={[
+                    styles.indexDot,
+                    done && styles.indexDotDone,
+                    active && styles.indexDotActive,
+                    verdict === false && styles.indexDotWrong,
+                  ]}
+                >
+                  {verdict === false ? (
+                    <Ionicons name="close" size={14} color={c.white} />
+                  ) : done ? (
                     <Ionicons name="checkmark" size={14} color={c.white} />
                   ) : (
                     <AppText variant="label" color={active ? c.white : c.primary}>{i + 1}</AppText>
@@ -93,8 +119,14 @@ export function WordMatchBoard({
                 {/* The answer slot: a filled success pill once matched, else a
                     dashed drop target so it reads as a fill-in game (not a list). */}
                 {done ? (
-                  <View style={styles.answerPill}>
-                    <AppText variant="label" color={c.success} numberOfLines={1}>{matches[i]}</AppText>
+                  <View style={[styles.answerPill, verdict === false && styles.answerPillWrong]}>
+                    <AppText
+                      variant="label"
+                      color={verdict === false ? c.danger : c.success}
+                      numberOfLines={1}
+                    >
+                      {matches[i]}
+                    </AppText>
                   </View>
                 ) : (
                   <View style={[styles.slot, active && styles.slotActive]}>
@@ -200,12 +232,18 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
     shadowColor: c.primary, shadowOpacity: 0.3, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 5,
   },
   itemDone: { borderColor: c.success, backgroundColor: c.successSoft },
+  // Graded states. `itemDone` already paints a filled row green, so only the
+  // wrong one really changes — but both are set explicitly so a row can never
+  // stay green just because it was filled in.
+  itemCorrect: { borderColor: c.success, backgroundColor: c.successSoft },
+  itemWrong: { borderColor: c.danger, backgroundColor: c.dangerSoft },
   indexDot: {
     width: 26, height: 26, borderRadius: 13, backgroundColor: c.primarySoft,
     alignItems: 'center', justifyContent: 'center',
   },
   indexDotActive: { backgroundColor: c.primary },
   indexDotDone: { backgroundColor: c.success },
+  indexDotWrong: { backgroundColor: c.danger },
   leftWord: { flex: 1 },
   // Empty dashed drop target so the row reads as "fill me in".
   slot: {
@@ -218,6 +256,7 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
     maxWidth: 112, backgroundColor: c.successSoft, borderRadius: radius.full,
     paddingHorizontal: spacing.sm, paddingVertical: 6,
   },
+  answerPillWrong: { backgroundColor: c.dangerSoft },
 
   // Right draggable answer chip: grip icon + word, raised pill so it clearly
   // invites a drag (or tap) onto a left card.

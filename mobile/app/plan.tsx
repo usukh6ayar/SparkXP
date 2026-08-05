@@ -3,6 +3,7 @@ import { View, StyleSheet, ScrollView, Pressable, Alert, ActivityIndicator } fro
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { AppIcon } from '../src/components/AppIcon';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../src/auth/AuthContext';
 import { useSettings } from '../src/settings/SettingsContext';
@@ -128,7 +129,7 @@ export default function PlanScreen() {
             style={({ pressed }) => [onCurrentPlan && styles.ctaDisabled, pressed && styles.pressed]}
           >
             <LinearGradient colors={colors.primaryGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.upgradeBtn}>
-              <AppText style={styles.crown}>👑</AppText>
+              <AppIcon name="gem" size={18} />
               <AppText variant="bodyStrong" color={colors.white}>{ctaLabel}</AppText>
             </LinearGradient>
           </Pressable>
@@ -259,7 +260,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm,
     marginTop: spacing.sm, paddingVertical: spacing.md, borderRadius: radius.lg,
   },
-  crown: { fontSize: 18 },
   note: { textAlign: 'center', marginTop: spacing.lg, paddingHorizontal: spacing.md },
 
   pressed: { opacity: 0.85 },

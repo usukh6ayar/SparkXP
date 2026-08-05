@@ -10,6 +10,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { AppText } from './Text';
 import { AppImage } from './AppImage';
+import { AppIcon } from './AppIcon';
 import { Button } from './Button';
 import { Confetti } from './Confetti';
 import { useColors } from '../settings/SettingsContext';
@@ -17,13 +18,22 @@ import { haptics } from '../lib/haptics';
 import { useReduceMotion, SPRING } from '../lib/motion';
 import { t } from '../i18n';
 import { spacing, radius, elevation } from '../theme/theme';
+import type { AppIconName } from '../constants/appIcons';
 import { ms } from '../theme/responsive';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
 export interface Achievement {
+  /** Ionicons fallback, used only when there is no `appIcon` and no `imageUrl`. */
   icon: IconName;
-  title: string;
+  /**
+   * A brand 3D icon from `assets/icons` (the same flame the streak badge uses
+   * everywhere else in the app). **Preferred over `icon`** — a flat Ionicons
+   * glyph in the middle of a celebration is the cheapest thing on the screen.
+   */
+  appIcon?: AppIconName;
+  /** Headline. Optional: when `badgeValue` is set, the number IS the headline. */
+  title?: string;
   /** Small header above the badge. Defaults to "Шинэ амжилт нээгдлээ!". */
   overline?: string;
   /** Short description of what was unlocked. */
@@ -32,15 +42,19 @@ export interface Achievement {
   tint: { bg: string; fg: string };
   /**
    * Real trophy artwork (the 640px `image` from GET /achievements). When set it
-   * replaces `icon`, which stays the fallback for callers that have no artwork.
+   * replaces the icon, which stays the fallback for callers with no artwork.
    */
   imageUrl?: string;
   /**
-   * A number to print large inside the badge, under a shrunken icon — the
-   * streak count. A trophy IS its artwork, but "your streak is now 12" is a
-   * number first, and reading it off the title line wastes the badge.
+   * A number to print large UNDER the badge — the streak count.
+   *
+   * It used to be crammed inside the badge beneath a shrunken icon, which left
+   * the badge doing two jobs badly. Now the artwork owns the badge and the
+   * number owns the line below it, where it can be as big as its news.
    */
   badgeValue?: string;
+  /** Caption under `badgeValue` ("өдрийн дараалал"). */
+  badgeValueLabel?: string;
   /** One extra line below the subtitle, in its own tinted chip (e.g. how many
    *  days of freeze protection are left). Omitted when there is nothing to say. */
   note?: string;
@@ -84,6 +98,11 @@ export function AchievementModal({
 
   if (!achievement) return null;
 
+  // A streak card has no `title` (its number is the headline), so the remount
+  // key can't be the title alone — without this a streak followed by the trophy
+  // it just unlocked would keep the first card's mounted confetti.
+  const key = achievement.title ?? `${achievement.overline}:${achievement.badgeValue}`;
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.backdrop}>
@@ -92,9 +111,9 @@ export function AchievementModal({
         {/* `key` matters when two celebrations queue back to back (a streak and
             the trophy it just unlocked): the modal never closes between them,
             so without a remount the second one would inherit spent confetti. */}
-        {visible && <Confetti key={achievement.title} count={50} />}
+        {visible && <Confetti key={key} count={50} />}
         <Animated.View
-          key={achievement.title}
+          key={key}
           entering={FadeIn}
           style={[styles.card, { backgroundColor: c.surface }]}
         >
@@ -102,29 +121,43 @@ export function AchievementModal({
             {achievement.overline ?? t('achievementUnlocked')}
           </AppText>
 
-          <Animated.View
-            style={[
-              styles.badge,
-              { backgroundColor: achievement.tint.bg, borderColor: achievement.tint.fg },
-              badgeStyle,
-            ]}
-          >
-            {achievement.imageUrl ? (
-              <AppImage source={achievement.imageUrl} width={220} contentFit="contain" style={styles.badgeImg} />
-            ) : achievement.badgeValue ? (
-              // Icon shrinks and sits over the number: the count is the news.
-              <>
-                <Ionicons name={achievement.icon} size={30} color={achievement.tint.fg} />
-                <AppText style={[styles.badgeValue, { color: achievement.tint.fg }]}>
-                  {achievement.badgeValue}
-                </AppText>
-              </>
-            ) : (
-              <Ionicons name={achievement.icon} size={54} color={achievement.tint.fg} />
-            )}
-          </Animated.View>
+          {/* The badge sits inside a soft halo of its own tint. One flat
+              circle read as a sticker; the halo is what makes it look lit. */}
+          <View style={styles.badgeWrap}>
+            <View style={[styles.glow, { backgroundColor: `${achievement.tint.fg}1F` }]} />
+            <Animated.View
+              style={[
+                styles.badge,
+                { backgroundColor: achievement.tint.bg, borderColor: achievement.tint.fg },
+                badgeStyle,
+              ]}
+            >
+              {achievement.imageUrl ? (
+                <AppImage source={achievement.imageUrl} width={220} contentFit="contain" style={styles.badgeImg} />
+              ) : achievement.appIcon ? (
+                // ≤64pt on purpose: the brand PNGs are ~200px wide, so anything
+                // larger goes soft (see `appIcons.ts`).
+                <AppIcon name={achievement.appIcon} size={ms(64)} />
+              ) : (
+                <Ionicons name={achievement.icon} size={54} color={achievement.tint.fg} />
+              )}
+            </Animated.View>
+          </View>
 
-          <AppText variant="h2" center>{achievement.title}</AppText>
+          {achievement.badgeValue ? (
+            <View style={styles.valueBlock}>
+              <AppText style={[styles.badgeValue, { color: achievement.tint.fg }]}>
+                {achievement.badgeValue}
+              </AppText>
+              {achievement.badgeValueLabel ? (
+                <AppText variant="bodyStrong" color={c.textSecondary}>
+                  {achievement.badgeValueLabel}
+                </AppText>
+              ) : null}
+            </View>
+          ) : null}
+
+          {achievement.title ? <AppText variant="h2" center>{achievement.title}</AppText> : null}
           {achievement.subtitle ? (
             <AppText variant="body" color={c.textSecondary} center style={styles.subtitle}>
               {achievement.subtitle}
@@ -140,7 +173,7 @@ export function AchievementModal({
             </View>
           ) : null}
 
-          <Button label={t('nice')} onPress={onClose} style={styles.btn} />
+          <Button label={t('continue')} onPress={onClose} style={styles.btn} />
         </Animated.View>
       </View>
     </Modal>
@@ -165,6 +198,18 @@ const styles = StyleSheet.create({
     zIndex: 2,
     ...(elevation.float as object),
   },
+  badgeWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: spacing.md,
+  },
+  /** The halo. Sits BEHIND the badge, which clips its own contents. */
+  glow: {
+    position: 'absolute',
+    width: ms(152),
+    height: ms(152),
+    borderRadius: radius.full,
+  },
   badge: {
     width: ms(110),
     height: ms(110),
@@ -172,12 +217,13 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
-    marginVertical: spacing.md,
     overflow: 'hidden',
   },
   /** Trophy artwork fills the circle, inset so the ring stays visible. */
   badgeImg: { width: '86%', height: '86%' },
-  badgeValue: { fontSize: ms(40), lineHeight: ms(46), fontWeight: '800' },
+  /** The streak number, on its own line under the badge. */
+  valueBlock: { alignItems: 'center', gap: 2 },
+  badgeValue: { fontSize: ms(52), lineHeight: ms(58), fontWeight: '800' },
   subtitle: { marginTop: 2 },
   note: {
     flexDirection: 'row',

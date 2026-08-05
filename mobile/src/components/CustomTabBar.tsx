@@ -10,7 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { useSettings } from '../settings/SettingsContext';
 import { haptics } from '../lib/haptics';
-import { SPRING, useReduceMotion } from '../lib/motion';
+import { DURATION, SPRING, useReduceMotion } from '../lib/motion';
 import { spacing } from '../theme/theme';
 import type { AppIconName } from '../constants/appIcons';
 import { WaveCard } from './tabbar/WaveCard';
@@ -103,7 +103,7 @@ export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
     <Animated.View
       pointerEvents="box-none"
       style={[styles.root, { height: TOTAL_H + bottom }]}
-      entering={reduce ? undefined : SlideInDown.springify().damping(18).mass(0.7)}
+      entering={reduce ? undefined : SlideInDown.duration(DURATION.base)}
     >
       <WaveCard width={width} bottomInset={bottom} splash={splash} />
 
