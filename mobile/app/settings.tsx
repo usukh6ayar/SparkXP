@@ -14,6 +14,7 @@ import { AppText } from '../src/components/Text';
 import { resolveAvatar } from '../src/lib/avatar';
 import { useLogoutConfirm, useComingSoon } from '../src/lib/useLogoutConfirm';
 import { DeleteAccountSheet } from '../src/components/DeleteAccountSheet';
+import { openLegal } from '../src/constants/legal';
 import { ROLE_TKEY } from '../src/constants/roles';
 import { colors, spacing, radius, tints, type PremiumPalette } from '../src/theme/theme';
 import type { Lang } from '../src/i18n';
@@ -274,7 +275,7 @@ export default function SettingsScreen() {
           <SectionLabel p={p}>{t('account').toUpperCase()}</SectionLabel>
           <Card p={p}>
             <Row p={p} icon="sparkles" tint={tints.purple} label={t('buddyMemory')} onPress={() => router.push('/buddy-memory')} />
-            <Row p={p} icon="shield-checkmark" tint={tints.green} label={t('privacy')} onPress={soon} />
+            <Row p={p} icon="shield-checkmark" tint={tints.green} label={t('privacy')} onPress={() => openLegal('privacy')} />
           </Card>
 
           {/* Support */}
@@ -292,8 +293,8 @@ export default function SettingsScreen() {
           {/* Legal */}
           <SectionLabel p={p}>{t('legal').toUpperCase()}</SectionLabel>
           <Card p={p}>
-            <Row p={p} icon="document-text" tint={tints.purple} label={t('terms')} onPress={soon} />
-            <Row p={p} icon="shield" tint={tints.green} label={t('privacyPolicy')} onPress={soon} />
+            <Row p={p} icon="document-text" tint={tints.purple} label={t('terms')} onPress={() => openLegal('terms')} />
+            <Row p={p} icon="shield" tint={tints.green} label={t('privacyPolicy')} onPress={() => openLegal('privacy')} />
           </Card>
 
           {/* Dev tools — `__DEV__` only, so this never ships to a student.

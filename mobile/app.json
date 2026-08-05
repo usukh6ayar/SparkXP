@@ -23,8 +23,8 @@
     "android": {
       "package": "mn.app.sparkxp",
       "adaptiveIcon": {
-        "backgroundColor": "#191040",
-        "foregroundImage": "./assets/icon.png"
+        "backgroundColor": "#3D0BA0",
+        "foregroundImage": "./assets/icon-adaptive.png"
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [
