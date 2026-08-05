@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 
@@ -10,13 +10,51 @@ import * as nodemailer from 'nodemailer';
  *
  * `MAIL_FROM` sets the From address (default a Resend test sender). Switching
  * providers is purely env config — no code change needed.
+ *
+ * ⚠️ **The stub must never run in production.** Registration emails the user a
+ * 6-digit code and cannot complete without it, so an unconfigured production
+ * deploy would look healthy while every single signup silently dead-ends —
+ * and the codes would sit in the server logs, where anyone with log access
+ * could verify anyone's account. `onModuleInit` therefore refuses to boot
+ * instead of degrading quietly.
  */
 @Injectable()
-export class MailService {
+export class MailService implements OnModuleInit {
   private readonly logger = new Logger('MailService');
   private transporter: nodemailer.Transporter | null = null;
 
   constructor(private readonly config: ConfigService) {}
+
+  /** True when a real provider (Resend or SMTP) is configured. */
+  private get configured(): boolean {
+    return !!(
+      this.config.get<string>('RESEND_API_KEY') ||
+      this.config.get<string>('SMTP_HOST')
+    );
+  }
+
+  private get isProduction(): boolean {
+    return (this.config.get<string>('NODE_ENV') ?? 'development') === 'production';
+  }
+
+  onModuleInit(): void {
+    if (this.configured) return;
+
+    if (this.isProduction) {
+      // Fail the deploy, loudly. A silent stub here is indistinguishable from
+      // a working app until the first real user tries to sign up.
+      throw new Error(
+        'MailService: no email provider configured. Set RESEND_API_KEY or ' +
+          'SMTP_HOST — without one, nobody can verify their email and no ' +
+          'account can be created. See backend/.env.example.',
+      );
+    }
+
+    this.logger.warn(
+      'No email provider configured — OTP codes will be logged, not emailed. ' +
+        'Fine for local dev; set RESEND_API_KEY or SMTP_HOST before deploying.',
+    );
+  }
 
   private get from(): string {
     return (
