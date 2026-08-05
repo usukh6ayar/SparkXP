@@ -50,4 +50,3 @@ keys/
 
 # Store submit credentials (never commit)
 google-service-account.json
-google-services.json

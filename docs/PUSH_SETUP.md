@@ -35,8 +35,13 @@ SDK 54 дээр түгжээтэй, Choi/Boju хоёул Expo Go дээр ажи
 ## 1. Firebase төсөл (Android)
 
 1. [console.firebase.google.com](https://console.firebase.google.com) → **Add project**
-   → нэр `SparkXP`. Google Analytics-ийг **асаах шаардлагагүй** (PostHog аль
-   хэдийн байгаа).
+   → нэр `SparkXP`. **Google Analytics-ийг АСААХГҮЙ.**
+   >
+   > Firebase доторх Gemini "заавал асаа, мэдэгдлийн нээлтийг хэмждэг" гэж
+   > зөвлөсөн нь **манай тохиргоонд буруу**: тэр event-үүд зөвхөн апп дотор
+   > Firebase Analytics SDK байвал бүртгэгддэг. Бид ямар ч Firebase SDK
+   > суулгахгүй (Expo Go эвдэрнэ) тул дашбоард **хоосон** байна. Мэдэгдлийн
+   > нээлтийг PostHog-оор хэмжинэ — доорх §7-г үз.
 2. Төсөл дотор **Android апп нэмэх**:
    - **Package name:** `mn.app.sparkxp` ← яг ийм байх ёстой, `app.json`-той таарна
    - Nickname, SHA-1 → хоосон орхиж болно
@@ -50,9 +55,21 @@ SDK 54 дээр түгжээтэй, Choi/Boju хоёул Expo Go дээр ажи
      …
    }
    ```
-   > ⚠️ Энэ файл нь нууц биш ч git-д оруулахгүй байх нь зөв —
-   > `mobile/.gitignore`-д `google-services.json` нэмээрэй. EAS build дээр
-   > `eas secret:create --type file` -ээр өгнө.
+   > ✅ **Энэ файлыг git-д commit хийнэ.** Нууц биш — Google өөрөө ингэж
+   > хэлдэг, бас APK дотор ямар ч тохиолдолд шигтгэгддэг тул хэн ч задлаж
+   > авч чадна. Repo нь public ч гэсэн адилхан.
+   >
+   > `.gitignore`-д хийвэл `app.json`-оос `app.config.js` рүү шилжих
+   > шаардлагатай болно (static JSON нь env хувьсагч уншиж чадахгүй, EAS file
+   > secret нь тэрийг шаарддаг) — launch-ийн өмнө үүнийг хийх нь эрсдэл.
+   >
+   > ⚠️ Оронд нь **API key-г хязгаарла**: Google Cloud Console →
+   > APIs & Services → Credentials → тухайн Android key → Application
+   > restrictions → **Android apps** → `mn.app.sparkxp` + SHA-1 нэмнэ.
+   > Ингэснээр хуулсан түлхүүр өөр аппаас ажиллахгүй.
+   >
+   > ❌ Харин **service account JSON бол жинхэнэ нууц** — git-д хэзээ ч
+   > бүү оруул. Зөвхөн `eas credentials`-аар upload хийнэ.
 
 4. **FCM V1 service account key:**
    Firebase Console → ⚙️ **Project settings** → **Service accounts** →
@@ -159,3 +176,23 @@ curl -X POST https://exp.host/--/api/v2/push/send \
 5. Нэвтрээд token DB-д орсныг шалга
 6. Гараар тест мэдэгдэл илгээ
 7. 20:00-ийн сануулга ирж байгааг маргааш нь батал
+
+
+---
+
+## 7. Мэдэгдлийн нээлтийг хэмжих (Firebase Analytics-гүйгээр)
+
+Firebase Analytics суулгах шаардлагагүй — `expo-notifications`-ийн
+response listener-ээр PostHog руу event илгээж болно:
+
+```ts
+// src/lib/pushRegistration.ts дотор нэмэх боломжтой
+Notifications.addNotificationResponseReceivedListener((response) => {
+  track('push_opened', {
+    id: response.notification.request.identifier,
+  });
+});
+```
+
+`AnalyticsEvent` union-д `'push_opened'` нэмэхээ бүү мартаарай
+(`src/lib/analytics.ts`). Хүсвэл хэлээрэй, холбоод өгье.
