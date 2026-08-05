@@ -1,7 +1,7 @@
 {
   "name": "sparkxp-backend",
   "version": "0.1.0",
-  "description": "SparkXP API — gamified English learning backend (NestJS)",
+  "description": "SparkXP API \u2014 gamified English learning backend (NestJS)",
   "author": "Hustle Hive LLC",
   "private": true,
   "license": "UNLICENSED",
@@ -26,7 +26,8 @@
     "typeorm": "typeorm-ts-node-commonjs",
     "migration:generate": "npm run typeorm -- migration:generate -d src/config/data-source.ts",
     "migration:run": "npm run typeorm -- migration:run -d src/config/data-source.ts",
-    "migration:revert": "npm run typeorm -- migration:revert -d src/config/data-source.ts"
+    "migration:revert": "npm run typeorm -- migration:revert -d src/config/data-source.ts",
+    "test:email": "ts-node -r tsconfig-paths/register src/scripts/send-test-email.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.1",
