@@ -13,11 +13,19 @@ export function RewardBurst({
   subtitle,
   icon = 'sparkles',
   confettiCount = 18,
+  topOffset = spacing.xl,
 }: {
   title: string;
   subtitle?: string;
   icon?: IconName;
   confettiCount?: number;
+  /**
+   * Distance from the top of the parent. Screens with their own header must
+   * push it clear of theirs — the card is `pointerEvents="none"`, so landing on
+   * a back button does not break the press, but it hides it, and a back button
+   * you cannot see reads as a broken one.
+   */
+  topOffset?: number;
 }) {
   const c = useColors();
   const styles = makeStyles(c);
@@ -28,7 +36,7 @@ export function RewardBurst({
       <Animated.View
         entering={FadeInDown.springify().damping(13)}
         exiting={FadeOutUp.duration(180)}
-        style={styles.card}
+        style={[styles.card, { top: topOffset }]}
       >
         <View style={styles.icon}>
           <Ionicons name={icon} size={22} color={c.xp} />
@@ -52,7 +60,6 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   overlay: { ...StyleSheet.absoluteFillObject, zIndex: 50, elevation: 50 },
   card: {
     position: 'absolute',
-    top: spacing.xl,
     left: spacing.lg,
     right: spacing.lg,
     flexDirection: 'row',

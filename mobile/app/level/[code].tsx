@@ -355,7 +355,19 @@ export default function LevelScreen() {
         <View style={bounded}>
         {/* Top row: back + streak + gems */}
         <View style={styles.topRow}>
-          <Pressable onPress={() => router.back()} hitSlop={12} style={[styles.backBtn, { backgroundColor: C.back }]}>
+          {/* Same fallback as `TopBar`: opened from a deep link there is
+              nothing to pop, and a bare `router.back()` is then a dead press. */}
+          <Pressable
+            onPress={() => {
+              haptics.tap();
+              if (router.canGoBack()) router.back();
+              else router.replace('/(tabs)/lessons');
+            }}
+            hitSlop={12}
+            style={[styles.backBtn, { backgroundColor: C.back }]}
+            accessibilityRole="button"
+            accessibilityLabel={t('back')}
+          >
             <Ionicons name="chevron-back" size={24} color={C.backIcon} />
           </Pressable>
           <View style={{ flex: 1 }} />

@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, type ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AppText } from './Text';
 import { AppIcon } from './AppIcon';
@@ -21,10 +21,13 @@ export function DailyGoalCard({
   todayXp,
   dailyGoal,
   onPress,
+  style,
 }: {
   todayXp: number;
   dailyGoal: number;
   onPress: () => void;
+  /** Outer spacing. The screen owns it, like every other card on Home. */
+  style?: ViewStyle;
 }) {
   const c = useColors();
   const styles = useMemo(() => makeStyles(c), [c]);
@@ -37,7 +40,7 @@ export function DailyGoalCard({
   return (
     <PressableScale
       onPress={onPress}
-      style={styles.card}
+      style={[styles.card, style]}
       accessibilityLabel={tf('dailyGoalProgress', { done: todayXp, goal: dailyGoal })}
     >
       <ProgressRing
@@ -79,16 +82,22 @@ const makeStyles = (c: AppColors) =>
   StyleSheet.create({
     // Slim by design: this is a status strip, not a feature card — it sits
     // between "continue learning" and the next-step tiles and should not
-    // out-weigh either. Spacing below is left to the following block, so the
-    // two margins cannot stack into a visible hole.
+    // out-weigh either. Outer spacing comes from the screen (`style`), so the
+    // margins of two neighbours can never stack into a visible hole.
+    //
+    // The border is not decoration: without it this white strip landed flush
+    // under the glowing purple "continue" card and the two read as one merged
+    // block. It now matches the review/join cards below it.
     card: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: spacing.md,
       backgroundColor: c.surface,
       borderRadius: radius.lg,
+      borderWidth: 1,
+      borderColor: c.border,
       paddingHorizontal: spacing.md,
-      paddingVertical: spacing.sm,
+      paddingVertical: spacing.md,
     },
     copy: { flex: 1, gap: 0 },
     editHint: { alignSelf: 'flex-start' },

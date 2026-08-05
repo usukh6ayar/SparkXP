@@ -8,7 +8,7 @@ import Animated, {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppImage } from '../../src/components/AppImage';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/auth/AuthContext';
 import { ApiError } from '../../src/api/client';
@@ -24,7 +24,8 @@ import { useDictionary } from '../../src/components/DictionaryProvider';
 import { Skeleton } from '../../src/components/Skeleton';
 import { EmptyState } from '../../src/components/EmptyState';
 import { ReadingQuiz } from '../../src/components/ReadingQuiz';
-import { Confetti } from '../../src/components/Confetti';
+import { CelebrationScreen } from '../../src/components/celebration/CelebrationScreen';
+import { celebrationCopy } from '../../src/components/celebration/copy';
 import { AwardBadge } from '../../src/components/AwardBadge';
 import { haptics } from '../../src/lib/haptics';
 import { DURATION } from '../../src/lib/motion';
@@ -49,14 +50,21 @@ const DEFAULT_FONT_INDEX = BODY_FONT_SIZES.indexOf(20);
  * sentence being spoken (`useReadAlong`).
  *
  * XP is gated on the comprehension test, not on the reading: "Уншсан" only
- * marks the passage read (and reveals the test), and the +15 XP lands once the
- * reader passes the questions the admin authored. Passages with no questions
- * fall back to awarding on "read", since there is nothing to gate on.
+ * marks the passage read (and reveals the test), and the XP lands once the
+ * reader passes the questions the admin authored.
+ *
+ * ⚠️ A passage the admin authored NO questions for therefore earns nothing and
+ * never reaches the celebration — `markRead` deliberately pays out nothing, so
+ * that no button anywhere hands out XP for scrolling to the bottom. (An older
+ * comment here claimed such passages "fall back to awarding on read"; the code
+ * never did that, and the anti-abuse rule is the one to keep.) Admin has to
+ * author the questions — see ROADMAP.
  */
 export default function ReadingDetailScreen() {
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
   const { token } = useAuth();
   const { lookup } = useDictionary();
   const insets = useSafeAreaInsets();
@@ -68,6 +76,9 @@ export default function ReadingDetailScreen() {
   const [markedRead, setMarkedRead] = useState(false);
   /** XP awarded (the passage is complete). */
   const [done, setDone] = useState(false);
+  /** The full-screen celebration is up, and the XP it announces. */
+  const [celebrating, setCelebrating] = useState(false);
+  const [earnedXp, setEarnedXp] = useState(0);
   const [fontIndex, setFontIndex] = useState(DEFAULT_FONT_INDEX);
 
   // Reading progress (0..1) → thin bar under the top bar. It tracks PAGES, not
@@ -104,16 +115,26 @@ export default function ReadingDetailScreen() {
   const award = useCallback(async () => {
     if (!token || !id || done) return;
     try {
-      await completeReading(id, token);
+      // The server owns the number: a re-read pays 0, and the celebration must
+      // never announce XP the student did not actually get.
+      const res = await completeReading(id, token);
+      setEarnedXp(res.xpAwarded);
     } catch {
       // ignore — still show as done locally
     } finally {
       markReadingCompleted(id); // local mirror → checkmark on the list
       setDone(true);
-      haptics.success(); // celebratory tick as the confetti fires
-      checkCelebrations(); // reading XP may have unlocked a badge or the streak
+      setCelebrating(true); // full-screen celebration over a rotating scene
+      // The trophy/streak check runs only once the celebration is dismissed —
+      // two modals stacked on each other is a worse moment than either alone.
     }
   }, [token, id, done]);
+
+  /** Dismissing the celebration is what releases any queued trophy or streak. */
+  const closeCelebration = useCallback(() => {
+    setCelebrating(false);
+    checkCelebrations();
+  }, []);
 
   const hasQuiz = (passage?.comprehensionQuestions?.length ?? 0) > 0;
 
@@ -450,10 +471,42 @@ export default function ReadingDetailScreen() {
             </Pressable>
           </View>
         )}
-        {/* One-shot confetti burst over the whole screen on finish. */}
-        {done && <Confetti />}
         </>
       )}
+
+      {/* The shared completion celebration — a different world every time (see
+          `CelebrationBackground`). Finishing a passage gets exactly the same
+          ceremony as finishing a lesson or a quiz, on purpose. */}
+      <CelebrationScreen
+        visible={celebrating}
+        {...celebrationCopy('reading')}
+        xp={earnedXp}
+        stats={[
+          {
+            icon: 'document-text-outline',
+            label: t('celebrationStatWords'),
+            value: String(passage?.wordCount ?? 0),
+            color: colors.sparks,
+          },
+          {
+            icon: 'list-outline',
+            label: t('celebrationStatSentences'),
+            value: String(passage?.sentences.length ?? 0),
+            color: colors.success,
+          },
+          {
+            icon: 'flash',
+            label: t('celebrationStatXp'),
+            value: `+${earnedXp}`,
+            color: colors.xp,
+          },
+        ]}
+        primary={{
+          label: t('continue'),
+          onPress: () => { closeCelebration(); router.back(); },
+        }}
+        secondary={{ label: t('close'), onPress: closeCelebration }}
+      />
     </SafeAreaView>
   );
 }

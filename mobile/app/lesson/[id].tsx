@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { View, StyleSheet, ScrollView, Pressable, Image, Alert } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
@@ -20,7 +20,8 @@ import { Pill } from '../../src/components/Pill';
 import { Button } from '../../src/components/Button';
 import { Skeleton } from '../../src/components/Skeleton';
 import { EmptyState } from '../../src/components/EmptyState';
-import { RewardBurst } from '../../src/components/RewardBurst';
+import { CelebrationScreen } from '../../src/components/celebration/CelebrationScreen';
+import { celebrationCopy } from '../../src/components/celebration/copy';
 import { getSkill } from '../../src/constants/skills';
 import { haptics } from '../../src/lib/haptics';
 import { showXpToast } from '../../src/lib/xpToast';
@@ -61,10 +62,12 @@ export default function LessonDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [unlocking, setUnlocking] = useState(false);
-  const [lessonReward, setLessonReward] = useState<number | null>(null);
-  const lessonRewardSubtitle = lessonReward && lessonReward > 0
-    ? `${t('lessonCompletePrefix')} +${lessonReward} XP ${t('lessonCompleteSuffix')}`
-    : t('lessonCompleteUnlocked');
+  /** The full-screen celebration, and the XP the server actually paid out. */
+  const [celebrating, setCelebrating] = useState(false);
+  const [earnedXp, setEarnedXp] = useState(0);
+
+  /** Lets the celebration land the student on the tests it just unlocked. */
+  const scrollRef = useRef<ScrollView>(null);
 
   const doneKey = `lesson_done:${id}`;
   const videoUrl = (lesson?.content as { videoUrl?: string } | undefined)?.videoUrl ?? null;
@@ -114,23 +117,36 @@ export default function LessonDetailScreen() {
     }, [doneKey]),
   );
 
+  /**
+   * Finish the lesson: unlock the tests, bank the XP, then celebrate.
+   *
+   * The celebration opens only once `completeLesson` has answered, so the
+   * number it announces is the server's — a re-watch pays 0 and must not claim
+   * otherwise. If the call fails the celebration still runs, just without XP:
+   * the student did the work either way.
+   */
   async function markDone() {
     await AsyncStorage.setItem(doneKey, '1');
     setDone(true);
-    setLessonReward(0);
-    setTimeout(() => setLessonReward(null), 1800);
-    haptics.celebrate(); // tests unlocked — reward the milestone
+    let xp = 0;
     if (token && id) {
       try {
         const res = await lessonsApi.completeLesson(id, token);
-        if (res.xpAwarded > 0) {
-          setLessonReward(res.xpAwarded);
-          showXpToast(res.xpAwarded);
-        }
-        checkCelebrations(); // that XP may have unlocked a badge or the streak
+        xp = res.xpAwarded;
+        if (xp > 0) showXpToast(xp);
       } catch { /* non-critical */ }
     }
+    setEarnedXp(xp);
+    setCelebrating(true);
   }
+
+  /** Dismissing releases any trophy/streak queued behind it (never two modals). */
+  const closeCelebration = useCallback(() => {
+    setCelebrating(false);
+    checkCelebrations();
+    // The tests mount below the fold — land the student on them.
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 260);
+  }, []);
 
   function unlock() {
     if (!lesson) return;
@@ -177,7 +193,7 @@ export default function LessonDetailScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <TopBar back />
+        <TopBar title={t('lessonScreenTitle')} back showBadges={false} />
         <View style={styles.container}>
           <View style={styles.head}>
             <Skeleton width={56} height={56} radius={radius.md} />
@@ -198,7 +214,7 @@ export default function LessonDetailScreen() {
   if (error || !lesson) {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <TopBar back />
+        <TopBar title={t('lessonScreenTitle')} back showBadges={false} />
         <EmptyState
           icon="alert-circle-outline"
           title={t('error')}
@@ -219,16 +235,8 @@ export default function LessonDetailScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <TopBar back />
-      {lessonReward !== null ? (
-        <RewardBurst
-          title={t('lessonCompleteTitle')}
-          subtitle={lessonRewardSubtitle}
-          icon="trophy"
-          confettiCount={34}
-        />
-      ) : null}
-      <ScrollView contentContainerStyle={[styles.container, bounded]} showsVerticalScrollIndicator={false}>
+      <TopBar title={t('lessonScreenTitle')} back showBadges={false} />
+      <ScrollView ref={scrollRef} contentContainerStyle={[styles.container, bounded]} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.head}>
           <View style={[styles.numBadge, { backgroundColor: skill.tint.bg }]}>
@@ -393,6 +401,29 @@ export default function LessonDetailScreen() {
         )}
         <View style={{ height: spacing.xl }} />
       </ScrollView>
+
+      {/* The shared completion celebration — a different world every time. */}
+      <CelebrationScreen
+        visible={celebrating}
+        {...celebrationCopy('lesson')}
+        xp={earnedXp}
+        stats={[
+          {
+            icon: 'clipboard-outline',
+            label: t('celebrationStatTests'),
+            value: String(quizzes.length),
+            color: c.sparks,
+          },
+          {
+            icon: 'ribbon-outline',
+            label: t('levelLabel'),
+            value: lesson.level.toUpperCase(),
+            color: c.success,
+          },
+        ]}
+        primary={{ label: t('testsHeading'), onPress: closeCelebration }}
+        secondary={{ label: t('close'), onPress: closeCelebration }}
+      />
     </SafeAreaView>
   );
 }
