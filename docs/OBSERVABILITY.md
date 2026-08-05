@@ -64,8 +64,12 @@ Apple данс аваад SDK 55 рүү шилжсэний дараа Observe-и
 
 - Sentry: `sendDefaultPii: false`, `beforeSend` нь `email` / `username` /
   `ip_address`-ийг устгана. Sentry зөвхөн **UUID** мэднэ.
-- PostHog: `identify` нь UUID + `role` + `level` л явуулна. Имэйл, нэр,
-  байршил **явахгүй**.
+- PostHog: `identify` нь UUID + `role` + `level` л явуулна. Имэйл, нэр
+  **явахгүй**.
+- **`disableGeoip: true` заавал үлдээнэ.** PostHog нь анхдагчаар (`false`)
+  хүсэлтийн IP-гээс `$geoip_city_name`, `$geoip_country_name` г.м-ийг **сервер
+  талдаа** гаргаж авдаг — өөрөөр хэлбэл `identify`-д байршил бичээгүй нь
+  хангалтгүй. Энэ тохиргоо л "байршил явахгүй" гэдгийг үнэн болгож байгаа юм.
 - **Touch autocapture унтраалттай** — бичсэн текст элементийн шошгонд орж
   болзошгүй.
 - **Session replay унтраалттай** — дэлгэц бичих нь native build + тусдаа

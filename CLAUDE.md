@@ -262,8 +262,9 @@ event цуглуулж байгаа, нууцлалын дүрэм).
   `AnalyticsEvent` union-д нэрийг бич (хаалттай union — typo бол compile алдаа).
 - **Нууцлал (сурагчийн апп!):** Sentry зөвхөн UUID мэднэ (`sendDefaultPii:
   false` + `beforeSend` нь email/username/IP устгана); PostHog нь UUID + role +
-  level. Touch autocapture ба session replay **унтраалттай**. Сулруулах бол
-  эзэмшигчээс зөвшөөрөл ав.
+  level. Touch autocapture ба session replay **унтраалттай**. PostHog-ийн
+  `disableGeoip: true`-г бүү ав — эс бөгөөс сервер тал нь IP-гээс байршлыг
+  автоматаар гаргаж авна. Сулруулах бол эзэмшигчээс зөвшөөрөл ав.
 - `api/client.ts` нь **5xx**-ийг л Sentry рүү явуулна (4xx бол хэвийн
   татгалзал; сүлжээ тасрахад зөвхөн breadcrumb).
 - ⚠️ **Source map:** `app.json`-ы Sentry plugin дотор org/project slug нь

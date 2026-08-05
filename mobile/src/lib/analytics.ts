@@ -18,8 +18,7 @@
  * `AnalyticsProvider`), so no typed text or screen recording ever leaves the
  * device.
  */
-import PostHog from 'posthog-react-native';
-import { captureError } from './monitoring';
+import PostHog, { PostHogPersistedProperty } from 'posthog-react-native';
 
 const KEY = process.env.EXPO_PUBLIC_POSTHOG_KEY?.trim();
 /** PostHog Cloud region — US is PostHog's default; EU is `https://eu.i.posthog.com`. */
@@ -66,6 +65,12 @@ export const posthog: PostHog | null = analyticsEnabled
       // Screen recording is off; turning it on would need a native build AND a
       // fresh privacy review, since lesson screens show student work.
       enableSessionReplay: false,
+      // MUST stay true. PostHog defaults this to false, and then derives
+      // $geoip_city_name / $geoip_country_name and friends from the request IP
+      // SERVER-side — so leaving traits out of `identify` is not enough to keep
+      // location off a student's profile. This is what makes the "no location"
+      // promise in docs/OBSERVABILITY.md actually true.
+      disableGeoip: true,
     })
   : null;
 
@@ -100,18 +105,11 @@ export function identifyUser(
  * does not inherit the previous user's analytics profile.
  */
 export function resetAnalytics(): void {
-  posthog?.reset();
-}
-
-/**
- * Push anything still queued. Worth awaiting before a deliberate teardown
- * (logout) so the last events are not lost if the app is killed right after.
- */
-export async function flushAnalytics(): Promise<void> {
-  try {
-    await posthog?.flush();
-  } catch (err) {
-    // A failed flush must never break the action that triggered it.
-    captureError(err, { where: 'flushAnalytics' });
-  }
+  // Keep the QUEUE. A bare `reset()` clears every persisted property, and the
+  // pending-event queue is one of them — which would silently drop the
+  // `logged_out` event captured moments earlier, plus anything else not yet
+  // uploaded. Those events were serialised with the old distinct id already, so
+  // keeping them attributes them correctly and still gives the next user of
+  // this device a clean identity.
+  posthog?.reset([PostHogPersistedProperty.Queue]);
 }

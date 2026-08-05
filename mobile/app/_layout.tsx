@@ -25,7 +25,9 @@ import { ToastHost } from "../src/components/Toast";
 import { CelebrationHost } from "../src/components/CelebrationHost";
 import { LockScreen } from "../src/components/LockScreen";
 import { AnalyticsProvider } from "../src/components/AnalyticsProvider";
-import { initMonitoring, navigationIntegration, wrapRoot } from "../src/lib/monitoring";
+import {
+  initMonitoring, monitoringEnabled, navigationIntegration, wrapRoot,
+} from "../src/lib/monitoring";
 
 // Start crash reporting before anything renders, or boot-time crashes — the
 // ones we can least afford to miss — happen with no reporter listening. Inert
@@ -145,9 +147,14 @@ function RootLayout() {
   // Hand the router's navigation container to Sentry so every screen change
   // becomes a performance transaction (screen load time + the API calls it
   // makes). This is what stands in for EAS Observe, which needs SDK 55.
+  // Guarded on `monitoringEnabled`: with no DSN configured — the default for
+  // every dev right now — Sentry.init() never ran, and there is no reason to
+  // hand instrumentation to a client that does not exist.
   const navigationRef = useNavigationContainerRef();
   useEffect(() => {
-    if (navigationRef) navigationIntegration.registerNavigationContainer(navigationRef);
+    if (monitoringEnabled && navigationRef) {
+      navigationIntegration.registerNavigationContainer(navigationRef);
+    }
   }, [navigationRef]);
 
   // Load the brand fonts (Manrope = display/headings, Inter = body/UI). Both
