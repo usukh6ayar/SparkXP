@@ -9,6 +9,7 @@
  */
 import Constants from 'expo-constants';
 import { t } from '../i18n';
+import { captureError, addTrace } from '../lib/monitoring';
 import {
   clearPersistedCache,
   loadPersistedCache,
@@ -110,6 +111,10 @@ export async function apiRequest<T>(
       // without this the cache was written but never actually read back, and
       // every screen showed its error state the moment the signal dropped.
       // Writes still fail loudly: silently "succeeding" a mutation is worse.
+      // A breadcrumb, NOT a reported error: patchy signal is the normal case
+      // for our users, so reporting every dropped request would bury the real
+      // faults. It still gives a later crash the context of what failed first.
+      addTrace('api request failed (network)', { endpoint: keyOf(method, path) });
       if (isGet) {
         const cached = cache.get(key);
         if (cached) return cached.v as T;
@@ -126,7 +131,15 @@ export async function apiRequest<T>(
       const err = data as { message?: string | string[]; code?: string } | null;
       const raw = err?.message;
       const message = Array.isArray(raw) ? raw.join(', ') : raw ?? t('errorFallback');
-      throw new ApiError(res.status, message, err?.code);
+      const apiError = new ApiError(res.status, message, err?.code);
+
+      // Report SERVER faults only. 4xx is the backend correctly refusing
+      // something the user did (bad password, expired OTP, out of hearts) —
+      // those are normal and would drown the real 5xx signal.
+      if (res.status >= 500) {
+        captureError(apiError, { endpoint: keyOf(method, path), status: res.status });
+      }
+      throw apiError;
     }
 
     return data as T;

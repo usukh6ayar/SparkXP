@@ -9,6 +9,7 @@ import { PressableScale } from '../../../src/components/PressableScale';
 import { useAuth } from '../../../src/auth/AuthContext';
 import { ONBOARDING_TOTAL_STEPS } from '../../../src/lib/onboardingAnswers';
 import { useOncePress } from '../../../src/lib/useOncePress';
+import { track } from '../../../src/lib/analytics';
 import { useColors, useSettings, useT } from '../../../src/settings/SettingsContext';
 import { spacing, radius, type AppColors } from '../../../src/theme/theme';
 
@@ -33,7 +34,10 @@ export default function OnboardingAccount() {
 
   // `replace`, not `push`: onboarding is done, and back from registration
   // should leave the app rather than re-enter the flow.
-  const leave = useOncePress(async (href: Href) => {
+  const leave = useOncePress(async (href: Href, exit: string) => {
+    // Which door they left by is the whole point of this screen's metrics:
+    // register vs guest vs existing-account tells us if the flow is converting.
+    track('onboarding_finished', { exit });
     await completeOnboarding();
     router.replace(href);
   });
@@ -58,7 +62,7 @@ export default function OnboardingAccount() {
           icon="mail"
           label={t('continueWithEmail')}
           filled
-          onPress={() => leave('/(auth)/register')}
+          onPress={() => leave('/(auth)/register', 'register')}
         />
 
         {notice ? (
@@ -77,8 +81,8 @@ export default function OnboardingAccount() {
       <View style={styles.secondaryActions}>
         {/* Guest: the pre-signup taste-task is the app's guest-safe surface —
             it needs no token and ends by offering registration. */}
-        <AuthOption icon="play-circle" label={t('onbAccountGuest')} onPress={() => leave('/(auth)/taste')} />
-        <AuthOption icon="log-in" label={t('login')} onPress={() => leave('/(auth)/login?signin=1')} />
+        <AuthOption icon="play-circle" label={t('onbAccountGuest')} onPress={() => leave('/(auth)/taste', 'guest')} />
+        <AuthOption icon="log-in" label={t('login')} onPress={() => leave('/(auth)/login?signin=1', 'login')} />
       </View>
     </OnboardingStep>
   );

@@ -11,6 +11,7 @@ import { PressableScale } from '../../../src/components/PressableScale';
 import { ONBOARDING_TOTAL_STEPS } from '../../../src/lib/onboardingAnswers';
 import { markTasteCompleted, ONBOARDING_BONUS_XP } from '../../../src/lib/tasteTask';
 import { haptics } from '../../../src/lib/haptics';
+import { track } from '../../../src/lib/analytics';
 import { useColors, useT } from '../../../src/settings/SettingsContext';
 import { spacing, radius, type AppColors } from '../../../src/theme/theme';
 import { ms } from '../../../src/theme/responsive';
@@ -46,6 +47,7 @@ export default function OnboardingBuddy() {
     setNotice(null);
     setAnswered(true);
     update({ completedBuddyDemo: true, earnedDemoXp: ONBOARDING_BONUS_XP });
+    track('onboarding_buddy_demo_completed');
     // Same flag the pre-signup taste-task sets — it is what makes registration
     // send `tasteCompleted`, so the XP promised below is actually granted.
     markTasteCompleted();

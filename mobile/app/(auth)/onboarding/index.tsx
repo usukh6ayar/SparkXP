@@ -6,6 +6,7 @@ import { OnboardingFooter } from '../../../src/components/onboarding/OnboardingF
 import { AppText } from '../../../src/components/Text';
 import { AuthFooter } from '../../../src/components/AuthFooter';
 import { useAuth } from '../../../src/auth/AuthContext';
+import { track } from '../../../src/lib/analytics';
 import { useColors } from '../../../src/settings/SettingsContext';
 import { t } from '../../../src/i18n';
 import { spacing, type AppColors } from '../../../src/theme/theme';
@@ -41,7 +42,10 @@ export default function OnboardingWelcome() {
         <>
           <OnboardingFooter
             label={t('onbWelcomeCta')}
-            onPress={() => router.push('/(auth)/onboarding/goal')}
+            onPress={() => {
+              track('onboarding_started');
+              router.push('/(auth)/onboarding/goal');
+            }}
           />
           <AuthFooter prompt={t('haveAccount')} linkLabel={t('login')} onPress={goSignIn} />
         </>

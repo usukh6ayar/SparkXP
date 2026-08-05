@@ -241,6 +241,37 @@ AI дахин үүсгэнэ).
 - Дэлгэрэнгүй: `API.md` §11 ·
   `docs/superpowers/specs/2026-08-03-ai-dictionary-senses-design.md`.
 
+**Observability: Sentry + PostHog нэмэгдэв (2026-08-05, зөвхөн `/mobile`).**
+Crash/алдаа + performance нь **Sentry**, product analytics нь **PostHog**.
+Дэлгэрэнгүй заавар → **`docs/OBSERVABILITY.md`** (кодоос хэрхэн ашиглах, ямар
+event цуглуулж байгаа, нууцлалын дүрэм).
+- ⛔ **EAS Observe суулгах БОЛОМЖГҮЙ** — `expo-observe` нь SDK 55+ шаарддаг,
+  бид SDK 54 дээр түгжээтэй. Оронд нь **Sentry Performance** (navigation
+  trace + startup) ажиллаж байна. SDK 55 рүү шилжсэний дараа нэмнэ.
+- ⚠️ **Choi/Boju — `git pull` дараа `npm install` ЗААВАЛ** (шинэ dependency:
+  `@sentry/react-native`, `posthog-react-native`, `expo-application`,
+  `expo-device`, `expo-localization`). `metro.config.js` мөн өөрчлөгдсөн тул
+  Metro-г cache цэвэрлээд эхлүүл (`npm run go` аль хэдийн `-c` дамжуулдаг).
+- **Түлхүүргүй бол бүх зүйл унтраалттай.** `EXPO_PUBLIC_SENTRY_DSN` /
+  `EXPO_PUBLIC_POSTHOG_KEY` тавигдаагүй бол апп яг урьдын адил ажиллана —
+  тиймээс `.env`-гүй хүн ямар ч алдаа хүлээхгүй. Dev дээр ч анхдагчаар
+  чимээгүй (`*_IN_DEV=1` гэж асаана).
+- **Дүрэм: `@sentry/react-native` / `posthog-react-native`-ийг дэлгэцээс шууд
+  import хийхгүй.** Зөвхөн `src/lib/monitoring.ts` (`captureError`, `addTrace`)
+  ба `src/lib/analytics.ts` (`track`) дамжина. Шинэ event нэмэхдээ эхлээд
+  `AnalyticsEvent` union-д нэрийг бич (хаалттай union — typo бол compile алдаа).
+- **Нууцлал (сурагчийн апп!):** Sentry зөвхөн UUID мэднэ (`sendDefaultPii:
+  false` + `beforeSend` нь email/username/IP устгана); PostHog нь UUID + role +
+  level. Touch autocapture ба session replay **унтраалттай**. Сулруулах бол
+  эзэмшигчээс зөвшөөрөл ав.
+- `api/client.ts` нь **5xx**-ийг л Sentry рүү явуулна (4xx бол хэвийн
+  татгалзал; сүлжээ тасрахад зөвхөн breadcrumb).
+- ⚠️ **Source map:** `app.json`-ы Sentry plugin дотор org/project slug нь
+  `REPLACE_WITH_…` placeholder хэвээр. Түүнийг нөхөөд `SENTRY_AUTH_TOKEN`-ыг
+  **EAS sensitive env** болгож нэм (`.env`-д БҮҮ бич). Байхгүй бол build
+  унахгүй, зүгээр л stack trace минифайкдсан хэвээр.
+- JS bundle 12.7 MB → **14.6 MB** болж өссөн (OTA татах хэмжээнд нөлөөлнө).
+
 **Onboarding бүрэн шинэчлэгдэв — Hybrid flow (2026-08-05).** Хуучин 3 слайд
 (гарчиг нь зураг дотроо шатаасан) нь **7 алхамт интерактив урсгал** боллоо:
 `welcome → сурах зорилго → түвшин → өдрийн минут → AI Buddy demo →

@@ -4,6 +4,7 @@ import { OnboardingStep } from './OnboardingStep';
 import { OnboardingOptionCard } from './OnboardingOptionCard';
 import { OnboardingFooter } from './OnboardingFooter';
 import { haptics } from '../../lib/haptics';
+import { track } from '../../lib/analytics';
 import { spacing, type Tints } from '../../theme/theme';
 import { t } from '../../i18n';
 
@@ -64,7 +65,12 @@ export function OnboardingChoiceScreen<V extends string | number>({
       footer={
         <OnboardingFooter
           label={t('continue')}
-          onPress={onContinue}
+          onPress={() => {
+            // One event for all three choice steps — `step` and the chosen
+            // value are what turn it into a drop-off funnel.
+            track('onboarding_step_completed', { step, answer: String(value) });
+            onContinue();
+          }}
           disabled={value === null}
         />
       }
