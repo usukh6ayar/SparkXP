@@ -12,6 +12,14 @@ import { shake, useReduceMotion } from '../../src/lib/motion';
 import * as authApi from '../../src/api/auth';
 import { peekPendingReferral, clearPendingReferral } from '../../src/lib/referralLink';
 import { peekTasteCompleted, clearTasteCompleted } from '../../src/lib/tasteTask';
+import {
+  loadAnswers,
+  clearAnswers,
+  levelForRegister,
+  MINUTES_TO_DAILY_XP,
+  type OnboardingAnswers,
+} from '../../src/lib/onboardingAnswers';
+import { setDailyGoal } from '../../src/api/gamification';
 import type { AuthResult } from '../../src/api/auth';
 import { t } from '../../src/i18n';
 import { spacing, radius, type AppColors } from '../../src/theme/theme';
@@ -89,6 +97,9 @@ export default function RegisterScreen() {
   const [referral, setReferral] = useState<string | null>(null);
   // Guest finished the pre-signup taste-task → claim its one-time XP bonus (C4).
   const [tasteDone, setTasteDone] = useState(false);
+  // Answers from the onboarding flow — used to pre-select the level and to set
+  // the daily goal once the new account has a session.
+  const [answers, setAnswers] = useState<OnboardingAnswers | null>(null);
   const [result, setResult] = useState<AuthResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -108,6 +119,13 @@ export default function RegisterScreen() {
   useEffect(() => {
     peekPendingReferral().then(setReferral);
     peekTasteCompleted().then(setTasteDone);
+    // Pre-select the level the user already told onboarding about, so the
+    // placement step confirms a choice instead of re-asking it. "Түвшнээ
+    // мэдэхгүй" resolves to undefined — that user must still pick a real one.
+    loadAnswers().then((a) => {
+      setAnswers(a);
+      setLevel((current) => current ?? levelForRegister(a.level));
+    });
   }, []);
 
   const isUB = province === 'Улаанбаатар';
@@ -155,12 +173,31 @@ export default function RegisterScreen() {
     }
   }
 
+  /**
+   * Carry the onboarding daily-goal choice onto the brand-new account.
+   *
+   * Called only right after the first verification of a NEW account — never on
+   * login — so a returning user who happens to walk the flow can't have their
+   * existing goal silently overwritten. Best-effort: the sign-up has already
+   * succeeded by this point and must not fail over a preference.
+   */
+  async function applyOnboardingGoal(accessToken: string) {
+    if (!answers) return;
+    try {
+      await setDailyGoal(MINUTES_TO_DAILY_XP[answers.dailyMinutes], accessToken);
+    } catch {
+      // Changeable any time from Home — not worth surfacing an error here.
+    }
+    clearAnswers();
+  }
+
   // OTP → verify the email, get a session, then show success.
   async function verify() {
     setError(null);
     setBusy(true);
     try {
       const res = await authApi.verifyOtp(email.trim(), code.trim());
+      await applyOnboardingGoal(res.accessToken);
       setResult(res);
       setStep('success');
     } catch (e) {
