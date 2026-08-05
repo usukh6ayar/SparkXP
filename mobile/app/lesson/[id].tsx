@@ -34,6 +34,11 @@ import { checkCelebrations } from '../../src/lib/useCelebrations';
 
 const banner = require('../../assets/home-banner.webp');
 
+/** Replaces the deprecated `allowsFullscreen` prop. Module-level so the object
+ *  identity is stable — an inline literal re-sends the prop to native every
+ *  render. */
+const FULLSCREEN = { enable: true } as const;
+
 /** Nice labels for the 4 lesson-test categories. */
 function catLabels(): Record<string, string> {
   return {
@@ -78,8 +83,10 @@ export default function LessonDetailScreen() {
   const player = useVideoPlayer(videoUrl, (p) => { p.loop = false; });
 
   // Load the real video source once the lesson (and its URL) arrives.
+  // `replaceAsync`, not `replace`: on iOS the sync version loads the asset on
+  // the main thread, which freezes the UI while the video is fetched.
   useEffect(() => {
-    if (videoUrl) { try { player.replace(videoUrl); } catch { /* ignore */ } }
+    if (videoUrl) player.replaceAsync(videoUrl).catch(() => { /* keep the fallback image */ });
   }, [videoUrl, player]);
 
   const load = useCallback(async () => {
@@ -290,7 +297,7 @@ export default function LessonDetailScreen() {
                 player={player}
                 style={styles.video}
                 nativeControls
-                allowsFullscreen
+                fullscreenOptions={FULLSCREEN}
                 contentFit="cover"
               />
             ) : coverUrl ? (
