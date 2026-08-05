@@ -82,12 +82,10 @@ export default function LessonDetailScreen() {
     lesson?.thumbnailUrl ?? (lesson?.content as { imageUrl?: string } | undefined)?.imageUrl ?? null;
   const player = useVideoPlayer(videoUrl, (p) => { p.loop = false; });
 
-  // Load the real video source once the lesson (and its URL) arrives.
-  // `replaceAsync`, not `replace`: on iOS the sync version loads the asset on
-  // the main thread, which freezes the UI while the video is fetched.
-  useEffect(() => {
-    if (videoUrl) player.replaceAsync(videoUrl).catch(() => { /* keep the fallback image */ });
-  }, [videoUrl, player]);
+  // No manual `player.replace(videoUrl)` here: `useVideoPlayer` is keyed on the
+  // source (`useReleasingSharedObject`), so the player is rebuilt by itself when
+  // the lesson finally supplies its URL. Replacing it again only loaded the same
+  // video a second time — and the sync `replace()` did it on the iOS main thread.
 
   const load = useCallback(async () => {
     if (!token || !id) return;
