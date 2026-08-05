@@ -11,8 +11,12 @@ type IconName = keyof typeof Ionicons.glyphMap;
 interface Props {
   label: string;
   onPress: () => void;
-  /** primary = glowing violet gradient · secondary = surface outline · ghost = text only */
-  variant?: 'primary' | 'secondary' | 'ghost';
+  /**
+   * primary = glowing violet gradient · secondary = surface outline ·
+   * ghost = text only · danger = solid red, for destructive confirms
+   * (the brand gradient reads as "safe", which is the wrong signal there).
+   */
+  variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
   size?: 'md' | 'lg';
   icon?: IconName;
   /** Trailing icon shown after the label (e.g. arrow-forward). */
@@ -44,8 +48,9 @@ export function Button({
   const c = useColors();
   const isPrimary = variant === 'primary';
   const isSecondary = variant === 'secondary';
+  const isDanger = variant === 'danger';
   const blocked = disabled || loading;
-  const fg = isPrimary ? c.white : c.primary;
+  const fg = isPrimary || isDanger ? c.white : c.primary;
   const iconSize = size === 'lg' ? 20 : 18;
 
   return (
@@ -57,6 +62,7 @@ export function Button({
         styles.base,
         size === 'lg' ? styles.lg : styles.md,
         isSecondary && { backgroundColor: c.surface, borderWidth: 1.5, borderColor: c.primary },
+        isDanger && { backgroundColor: c.danger },
         variant === 'ghost' && styles.ghost,
         isPrimary && elevation.md,
         fullWidth && styles.fullWidth,

@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
+import { PaymentsEnabledGuard } from './guards/payments-enabled.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { UserRole } from '../common/enums';
@@ -23,16 +24,28 @@ import { CreatePlanDto } from './dto/create-plan.dto';
 export class PaymentsController {
   constructor(private readonly service: PaymentsService) {}
 
-  /** Create a payment intent (QPay QR stub). Requires login. */
+  /**
+   * Create a payment intent (QPay QR stub). Requires login.
+   *
+   * Disabled unless `PAYMENTS_ENABLED=true` — see PaymentsEnabledGuard for why
+   * the whole flow is closed by default.
+   */
   @Post()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PaymentsEnabledGuard)
   createIntent(@Body() dto: CreatePaymentDto, @CurrentUser() user: User) {
     return this.service.createIntent(dto, user);
   }
 
-  /** Confirm payment after QPay callback. Requires login. */
+  /**
+   * Confirm payment after QPay callback. Requires login.
+   *
+   * ⚠️ This route grants a plan / credits Sparks and verifies NOTHING with
+   * QPay, so a caller can pay themselves. It stays shut behind
+   * PaymentsEnabledGuard until it is replaced by a signature-verified QPay
+   * callback — do not just flip the env flag.
+   */
   @Post(':id/confirm')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PaymentsEnabledGuard)
   confirm(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: ConfirmPaymentDto,

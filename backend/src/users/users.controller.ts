@@ -27,8 +27,10 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { UserRole } from '../common/enums';
 import { User } from '../entities/user.entity';
 import { UsersService } from './users.service';
+import { AccountDeletionService } from './account-deletion.service';
 import { ImageStorageService } from '../ai-gateway/image-storage.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { DeleteAccountDto } from './dto/delete-account.dto';
 
 const AVATAR_EXT = ['.jpg', '.jpeg', '.png', '.webp'];
 const AVATAR_MAX = 5 * 1024 * 1024; // 5 MB
@@ -38,6 +40,7 @@ const AVATAR_MAX = 5 * 1024 * 1024; // 5 MB
 export class UsersController {
   constructor(
     private readonly usersService: UsersService,
+    private readonly accountDeletion: AccountDeletionService,
     private readonly storage: ImageStorageService,
   ) {}
 
@@ -45,6 +48,18 @@ export class UsersController {
   @Patch('me')
   updateMe(@CurrentUser() user: User, @Body() dto: UpdateProfileDto) {
     return this.usersService.updateProfile(user.id, dto);
+  }
+
+  /**
+   * Current user: permanently delete their own account.
+   *
+   * Required by App Store Review Guideline 5.1.1(v) — deletion has to be
+   * possible from inside the app. Irreversible; see AccountDeletionService for
+   * exactly what is removed and what is kept (detached) instead.
+   */
+  @Delete('me')
+  deleteMe(@CurrentUser() user: User, @Body() dto: DeleteAccountDto) {
+    return this.accountDeletion.deleteOwnAccount(user, dto.password);
   }
 
   /** Current user: get XP and Sparks balance. */

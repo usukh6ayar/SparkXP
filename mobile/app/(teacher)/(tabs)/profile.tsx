@@ -13,10 +13,12 @@ import { Button } from '../../../src/components/Button';
 import { EditProfileModal } from '../../../src/components/EditProfileModal';
 import { spacing, radius, elevation, type AppColors } from '../../../src/theme/theme';
 import { useColors } from '../../../src/settings/SettingsContext';
+import { useLogoutConfirm } from '../../../src/lib/useLogoutConfirm';
 import { bounded } from '../../../src/theme/responsive';
 
 export default function TeacherProfileScreen() {
-  const { user, token, logout } = useAuth();
+  const { user, token } = useAuth();
+  const confirmLogout = useLogoutConfirm();
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
@@ -119,11 +121,13 @@ export default function TeacherProfileScreen() {
           style={styles.editBtn}
         />
 
+        {/* Confirmed, like everywhere else in the app — a single mis-tap used
+            to log a teacher straight out, mid-class. */}
         <Button
           label={t('logout')}
           variant="secondary"
           icon="log-out-outline"
-          onPress={logout}
+          onPress={confirmLogout}
           style={styles.logout}
         />
       </ScrollView>

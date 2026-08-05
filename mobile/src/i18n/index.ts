@@ -20,6 +20,16 @@ const mn = {
   province: 'Аймаг / Хот',
   district: 'Дүүрэг / Сум',
   logout: 'Гарах',
+
+  // Аккаунт устгах (App Store 5.1.1(v) — апп дотроос устгах боломж заавал)
+  deleteAccount: 'Аккаунт устгах',
+  deleteAccountBody: 'Энэ үйлдлийг буцаах боломжгүй. Таны бүртгэл болон доорх бүх мэдээлэл бүрмөсөн устана.',
+  deleteAccountLoss1: 'Бүх XP, streak, түвшин, цом',
+  deleteAccountLoss2: 'Хадгалсан үгс, давталтын ахиц, хичээлийн түүх',
+  deleteAccountLoss3: 'AI Buddy-тай хийсэн яриа болон дурсамж',
+  deleteAccountPasswordHint: 'Баталгаажуулахын тулд нууц үгээ оруулна уу',
+  deleteAccountConfirm: 'Бүрмөсөн устгах',
+
   noAccount: 'Бүртгэлгүй юу?',
   haveAccount: 'Бүртгэлтэй юу?',
   selectProvince: 'Аймаг/хот сонгох',
@@ -1084,6 +1094,15 @@ const en: Record<TranslationKey, string> = {
   province: 'Province / City',
   district: 'District',
   logout: 'Log out',
+
+  deleteAccount: 'Delete account',
+  deleteAccountBody: 'This cannot be undone. Your account and everything below is permanently erased.',
+  deleteAccountLoss1: 'All XP, streak, level and trophies',
+  deleteAccountLoss2: 'Saved words, review progress and lesson history',
+  deleteAccountLoss3: 'Your AI Buddy conversations and memories',
+  deleteAccountPasswordHint: 'Enter your password to confirm',
+  deleteAccountConfirm: 'Delete permanently',
+
   noAccount: "Don't have an account?",
   haveAccount: 'Already have an account?',
   selectProvince: 'Select province/city',
