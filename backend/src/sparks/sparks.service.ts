@@ -36,6 +36,10 @@ export class SparksService {
    * Log a Sparks change and update the User.sparks cache atomically.
    * Positive amount = earn; negative = spend.
    *
+   * Pass an existing `manager` to run inside a caller's transaction (so a
+   * purchase's deduction + item grant commit or roll back together); omit it
+   * and the change runs in its own transaction.
+   *
    * **Spending is guarded here, not by the caller.** Callers check the balance
    * with a plain `SELECT` before opening their transaction, which is a
    * time-of-check/time-of-use race: two concurrent purchases of *different*
@@ -47,25 +51,29 @@ export class SparksService {
    * row lock, so the second writer sees the first one's deduction and matches
    * zero rows. One guard in the shared ledger protects every spender.
    */
-  async change(opts: AwardSparksOptions): Promise<SparksLog> {
-    return this.dataSource.transaction(async (manager) => {
-      const log = manager.create(SparksLog, {
+  async change(
+    opts: AwardSparksOptions,
+    manager?: EntityManager,
+  ): Promise<SparksLog> {
+    const run = async (m: EntityManager): Promise<SparksLog> => {
+      const log = m.create(SparksLog, {
         userId: opts.userId,
         amount: opts.amount,
         source: opts.source,
         referenceId: opts.referenceId ?? null,
         metadata: opts.metadata ?? null,
       });
-      await manager.save(log);
+      await m.save(log);
 
       if (opts.amount >= 0) {
-        await manager.increment(User, { id: opts.userId }, 'sparks', opts.amount);
+        await m.increment(User, { id: opts.userId }, 'sparks', opts.amount);
       } else {
-        await this.deduct(manager, opts.userId, Math.abs(opts.amount));
+        await this.deduct(m, opts.userId, Math.abs(opts.amount));
       }
 
       return log;
-    });
+    };
+    return manager ? run(manager) : this.dataSource.transaction(run);
   }
 
   /**

@@ -11,6 +11,8 @@ import {
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
@@ -41,6 +43,19 @@ export class BuddyController {
   @Post('sessions')
   startSession(@Body() dto: StartSessionDto, @CurrentUser() user: User) {
     return this.buddy.startSession(user.id, dto);
+  }
+
+  /** End a session and get its length (idempotent). */
+  @Post('sessions/:id/end')
+  @HttpCode(HttpStatus.OK)
+  endSession(@Param('id', ParseUUIDPipe) sessionId: string, @CurrentUser() user: User) {
+    return this.buddy.endSession(user.id, sessionId);
+  }
+
+  /** AI Buddy usage stats (session counts + practice minutes, today + all-time). */
+  @Get('statistics')
+  statistics(@CurrentUser() user: User) {
+    return this.buddy.getStatistics(user.id);
   }
 
   /** Voice turn: upload audio → transcript + reply + audio + avatar instruction. */

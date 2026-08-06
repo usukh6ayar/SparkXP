@@ -24,6 +24,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { UserRole } from '../common/enums';
 import { QuizzesService } from './quizzes.service';
 import { XpService } from '../xp/xp.service';
+import { StarsService } from '../xp/stars.service';
 import { XpSource } from '../common/enums';
 import { CreateQuizDto } from './dto/create-quiz.dto';
 import { IELTS_OBJECTIVE_CATEGORIES, ieltsBand } from './ielts';
@@ -40,6 +41,7 @@ export class QuizzesController {
   constructor(
     private readonly quizzesService: QuizzesService,
     private readonly xpService: XpService,
+    private readonly stars: StarsService,
     private readonly progress: ProgressService,
     private readonly assignments: AssignmentsService,
     private readonly hearts: HeartsService,
@@ -137,6 +139,14 @@ export class QuizzesController {
 
     if (dto.assignmentId) {
       await this.assignments.recordSubmission(dto.assignmentId, user.id, result.percentage);
+    }
+
+    // A lesson's test permanently sets that lesson's star rating (0–3, best
+    // kept). Drives the stars under lesson cards and the star-gated castle
+    // unlocks. Homework still counts — stars are the learner's own progress.
+    if (quiz.lessonId) {
+      const starsEarned = await this.stars.awardFromScore(user.id, quiz.lessonId, result.percentage);
+      return { ...result, starsEarned };
     }
 
     return result;

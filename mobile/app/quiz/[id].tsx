@@ -583,6 +583,11 @@ export default function QuizScreen() {
               {result.xpEarned > 0 ? (
                 <Pill icon="flash" label={`+${result.xpEarned} XP`} bg={c.surfaceAlt} fg={c.xp} />
               ) : null}
+              {/* A lesson test reports its 0–3 star rating; a standalone
+                  exercise has no `starsEarned` at all, so the pill is hidden. */}
+              {result.starsEarned != null ? (
+                <Pill icon="star" label={`${result.starsEarned}/3 ⭐`} bg={c.surfaceAlt} fg="#FFC93C" />
+              ) : null}
               {combo >= 2 ? (
                 <Pill
                   icon="flame"

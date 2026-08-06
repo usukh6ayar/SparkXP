@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { View, StyleSheet, ActivityIndicator } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
-  useAnimatedStyle, useSharedValue, withRepeat, withTiming, withSpring,
+  useAnimatedStyle, useSharedValue, withRepeat, withTiming, withSpring, withSequence,
   interpolate, Extrapolation, runOnJS, cancelAnimation, FadeIn,
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -39,9 +39,12 @@ type Phase = 'idle' | 'recording' | 'locked';
 export function BuddyVoiceStage({
   buddy, greeting, speaking, thinking, voiceLimited, usageLabel, usageLevel,
   captions, onToggleCaptions, onRecordStart, onRecordCommit, onRecordCancel, onOpenText,
+  backgroundUrl,
 }: {
   buddy: Buddy | null;
   greeting: string;
+  /** Equipped background scene (from the shop) shown behind the buddy. */
+  backgroundUrl?: string | null;
   speaking: boolean;
   thinking: boolean;
   voiceLimited?: boolean;
@@ -67,6 +70,7 @@ export function BuddyVoiceStage({
   const active = useSharedValue(0); // 0 idle → 1 recording (drives mic scale/tint)
   const pulse = useSharedValue(0);  // buddy breathing / speaking pulse (backdrop glow)
   const float = useSharedValue(0);  // slow vertical bob so the buddy feels alive
+  const think = useSharedValue(0);  // gentle head-tilt wobble while thinking (-1…1)
   const ripple = useSharedValue(0); // expanding mic rings while recording
   const didLock = useSharedValue(false); // fire lock() once per gesture, not per frame
 
@@ -80,6 +84,21 @@ export function BuddyVoiceStage({
   useEffect(() => {
     float.value = withRepeat(withTiming(1, { duration: 2600 }), -1, true);
   }, [float]);
+
+  // "Thinking" state: a small left↔right head tilt while the buddy processes a
+  // turn — a distinct third state next to idle (float) and speaking (pulse).
+  useEffect(() => {
+    cancelAnimation(think);
+    if (thinking) {
+      think.value = withRepeat(
+        withSequence(withTiming(1, { duration: 620 }), withTiming(-1, { duration: 620 })),
+        -1,
+        false,
+      );
+    } else {
+      think.value = withTiming(0, { duration: 300 });
+    }
+  }, [thinking, think]);
 
   // Mic "listening" rings only run while actually recording.
   const recording = phase === 'recording' || phase === 'locked';
@@ -170,6 +189,7 @@ export function BuddyVoiceStage({
     transform: [
       { translateY: interpolate(float.value, [0, 1], [6, -6], Extrapolation.CLAMP) },
       { scale: interpolate(pulse.value, [0, 1], [1, speaking ? 1.04 : 1.015], Extrapolation.CLAMP) },
+      { rotate: `${think.value * 3}deg` },
     ],
   }));
 
@@ -178,6 +198,14 @@ export function BuddyVoiceStage({
 
   return (
     <View style={[styles.wrap, bounded]}>
+      {/* Equipped background scene (shop) behind everything, with a scrim so the
+          buddy + controls stay legible over any image. */}
+      {backgroundUrl ? (
+        <>
+          <AppImage source={backgroundUrl} width={800} style={StyleSheet.absoluteFill} contentFit="cover" />
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(10,6,26,0.45)' }]} pointerEvents="none" />
+        </>
+      ) : null}
       {/* Top row: voice-minutes meter (left) + CC caption toggle (right). */}
       <View style={styles.topRow}>
         {usageLabel ? (() => {

@@ -32,6 +32,9 @@ import { IdiomsModule } from './idioms/idioms.module';
 import { ReferralsModule } from './referrals/referrals.module';
 import { AchievementsModule } from './achievements/achievements.module';
 import { TeacherModule } from './teacher/teacher.module';
+import { EventsModule } from './events/events.module';
+import { BuddyBackgroundsModule } from './buddy-backgrounds/buddy-backgrounds.module';
+import { AnalyticsModule } from './analytics/analytics.module';
 
 @Module({
   imports: [
@@ -72,6 +75,9 @@ import { TeacherModule } from './teacher/teacher.module';
     ReferralsModule,
     AchievementsModule,
     TeacherModule,
+    EventsModule,
+    BuddyBackgroundsModule,
+    AnalyticsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

@@ -13,7 +13,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   useSharedValue, useAnimatedStyle, withRepeat, withSequence, withTiming,
 } from 'react-native-reanimated';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/auth/AuthContext';
 import { useSettings } from '../../src/settings/SettingsContext';
@@ -23,6 +23,7 @@ import { tf } from '../../src/i18n';
 import { getGamification, type Gamification } from '../../src/api/gamification';
 import { AppText } from '../../src/components/Text';
 import { AppIcon } from '../../src/components/AppIcon';
+import { AnimatedFlame } from '../../src/components/AnimatedFlame';
 import { DictionaryButton } from '../../src/components/DictionaryButton';
 import { type AppIconName } from '../../src/constants/appIcons';
 import { islandMap, colors } from '../../src/theme/theme';
@@ -140,6 +141,19 @@ function HerePulse({ style }: { style: object }) {
   return <Animated.View pointerEvents="none" style={[style, styles.hereGlow, anim]} />;
 }
 
+/** A one-shot gold burst played when an island unlocks — expands + fades once. */
+function UnlockBurst({ style }: { style: object }) {
+  const s = useSharedValue(0);
+  useEffect(() => {
+    s.value = withTiming(1, { duration: 900 });
+  }, [s]);
+  const anim = useAnimatedStyle(() => ({
+    transform: [{ scale: 0.6 + s.value * 0.9 }],
+    opacity: 1 - s.value,
+  }));
+  return <Animated.View pointerEvents="none" style={[style, styles.unlockBurst, anim]} />;
+}
+
 export default function LessonsScreen() {
   const { token, user } = useAuth();
   const { theme, t } = useSettings();
@@ -155,6 +169,10 @@ export default function LessonsScreen() {
 
   const [gam, setGam] = useState<Gamification | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  // Islands that flipped locked → unlocked since the last load — they play a
+  // one-shot unlock burst. Never fires on the very first load (see effect).
+  const [justUnlocked, setJustUnlocked] = useState<Set<string>>(new Set());
+  const prevUnlocked = useRef<Set<string> | null>(null);
   // The climb starts at the bottom (A1), so jump there once on first render.
   const scrollRef = useRef<ScrollView>(null);
   const didInitialScroll = useRef(false);
@@ -170,9 +188,35 @@ export default function LessonsScreen() {
     }
   }, [token]);
 
+  // Detect islands that just unlocked (enough stars earned since last time) and
+  // fire their burst. Skips the first load so the whole map doesn't celebrate on
+  // open — only a genuine transition animates.
   useEffect(() => {
-    load();
-  }, [load]);
+    if (!gam?.levelUnlocks) return;
+    const now = new Set(
+      Object.entries(gam.levelUnlocks)
+        .filter(([, u]) => u.unlocked)
+        .map(([code]) => code),
+    );
+    if (prevUnlocked.current) {
+      const fresh = [...now].filter((code) => !prevUnlocked.current!.has(code));
+      if (fresh.length) {
+        setJustUnlocked(new Set(fresh));
+        const timer = setTimeout(() => setJustUnlocked(new Set()), 1600);
+        prevUnlocked.current = now;
+        return () => clearTimeout(timer);
+      }
+    }
+    prevUnlocked.current = now;
+  }, [gam?.levelUnlocks]);
+
+  // Refetch on focus so castle/island unlocks reflect stars earned since the
+  // map was last opened (returning from a level test, not just first mount).
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load]),
+  );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -187,10 +231,17 @@ export default function LessonsScreen() {
   const userLevel = Math.floor(xp / 100);
   const streak = gam?.currentStreak ?? 0;
 
-  // Four island states (§3.2). Locked = XP-gated; mastered = every lesson done;
-  // "current" = the lowest unlocked island you have not finished — the one that
-  // pulses and owns the initial scroll. Everything else is unlocked-not-started.
-  const isLocked = (n: LevelNode) => n.unlockAt != null && userLevel < n.unlockAt;
+  // Four island states (§3.2). Locked = star-gated (server-authoritative
+  // `levelUnlocks`); mastered = every lesson done; "current" = the lowest
+  // unlocked island you have not finished — the one that pulses and owns the
+  // initial scroll. Everything else is unlocked-not-started.
+  const unlockOf = (n: LevelNode) => gam?.levelUnlocks?.[n.code.toLowerCase()];
+  const isLocked = (n: LevelNode) => {
+    const u = unlockOf(n);
+    // Star gate when the backend sends it; else fall back to the old XP gate.
+    if (u) return !u.unlocked;
+    return n.unlockAt != null && userLevel < n.unlockAt;
+  };
   const isMastered = (n: LevelNode) => {
     const pr = gam?.progressByLevel?.[n.code.toLowerCase()];
     return !!pr && pr.total > 0 && pr.done >= pr.total;
@@ -334,6 +385,19 @@ export default function LessonsScreen() {
                     />
                   ) : null}
 
+                  {/* One-shot gold burst when this island just unlocked. */}
+                  {justUnlocked.has(node.code.toLowerCase()) ? (
+                    <UnlockBurst
+                      style={{
+                        position: 'absolute',
+                        left: islLeft + islW / 2 - glowSize / 2,
+                        top: islTop + islH / 2 - glowSize / 2,
+                        width: glowSize,
+                        height: glowSize,
+                      }}
+                    />
+                  ) : null}
+
                   {/* Island artwork — the whole image is the tap target */}
                   <Pressable
                     onPress={onPress}
@@ -373,7 +437,7 @@ export default function LessonsScreen() {
                       { width: CARD_W, left: cardLeft, top: cardTop },
                     ]}
                   >
-                    <Label node={node} locked={locked} mastered={mastered} progress={progress} />
+                    <Label node={node} locked={locked} mastered={mastered} progress={progress} starsRequired={unlockOf(node)?.starsRequired ?? node.unlockAt ?? 0} />
                   </Pressable>
                 </Fragment>
               );
@@ -402,7 +466,7 @@ function StatPill({
   return (
     <View style={styles.pill}>
       <View style={[styles.pillIcon, { backgroundColor: `${tint}26` }]}>
-        <AppIcon name={icon} size={30} />
+        {icon === 'streak' ? <AnimatedFlame size={30} /> : <AppIcon name={icon} size={30} />}
       </View>
       <View style={{ flex: 1 }}>
         <AppText variant="bodyStrong" color="#FFFFFF" numberOfLines={1}>{value}</AppText>
@@ -415,7 +479,7 @@ function StatPill({
 /** Label-card contents: badge + name, then progress or a lock. Four states:
  *  mastered (gold star + success count), current/unlocked (level badge + track),
  *  locked (lockedInk badge + unlock condition). */
-function Label({ node, locked, mastered, progress }: { node: LevelNode; locked: boolean; mastered: boolean; progress: LevelProgress }) {
+function Label({ node, locked, mastered, progress, starsRequired }: { node: LevelNode; locked: boolean; mastered: boolean; progress: LevelProgress; starsRequired: number }) {
   const pct = progress && progress.total > 0 ? progress.done / progress.total : 0;
   const badgeBg = mastered ? SKY.gold : locked ? colors.lockedInk : node.color;
   return (
@@ -437,7 +501,7 @@ function Label({ node, locked, mastered, progress }: { node: LevelNode; locked: 
         <View style={styles.lockRow}>
           <Ionicons name="lock-closed" size={18} color={colors.lockedInk} />
           <AppText variant="caption" color={colors.lockedInk} center style={{ marginTop: 4 }}>
-            {tf('unlockAtLevel', { n: node.unlockAt ?? 0 })}
+            {tf('unlockAtStars', { n: starsRequired })}
           </AppText>
         </View>
       ) : (
@@ -494,6 +558,12 @@ const styles = StyleSheet.create({
   },
   // "You are here": soft violet halo (pulses) + a waypoint chip above the island.
   hereGlow: { borderRadius: 999, backgroundColor: 'rgba(157,123,255,0.30)' },
+  unlockBurst: {
+    borderRadius: 999,
+    borderWidth: 3,
+    borderColor: islandMap.gold,
+    backgroundColor: 'rgba(255,201,60,0.22)',
+  },
   hereChip: {
     backgroundColor: colors.primary,
     paddingHorizontal: 10,

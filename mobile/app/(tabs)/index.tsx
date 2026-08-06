@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo } from "react";
 import {
   View,
   StyleSheet,
@@ -8,14 +8,8 @@ import {
   RefreshControl,
   Dimensions,
 } from "react-native";
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withRepeat,
-  withSequence,
-  withTiming,
-} from "react-native-reanimated";
-import { enter } from "../../src/lib/motion";
+import Animated from "react-native-reanimated";
+import { enter, useReduceMotion } from "../../src/lib/motion";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -34,12 +28,17 @@ import { getContinue } from "../../src/api/lessons";
 import { getExercises } from "../../src/api/quizzes";
 import { getReadingList } from "../../src/api/reading";
 import { getMyClasses } from "../../src/api/classes";
+import { getLeaderboardPreview, type LeaderboardEntry } from "../../src/api/leaderboard";
+import { getActiveEvents, type AppEvent } from "../../src/api/events";
+import { Avatar } from "../../src/components/Avatar";
+import { EventsCard } from "../../src/components/EventsCard";
 import { getLastLesson, type LastLesson } from "../../src/lib/lastLesson";
 import { useUnreadNotifications } from "../../src/lib/useUnreadNotifications";
 import { useDictionary } from "../../src/components/DictionaryProvider";
 import { AppText } from "../../src/components/Text";
 import { AppImage } from "../../src/components/AppImage";
 import { AppIcon } from "../../src/components/AppIcon";
+import { AnimatedFlame } from "../../src/components/AnimatedFlame";
 import { type AppIconName } from "../../src/constants/appIcons";
 import { IconButton } from "../../src/components/IconButton";
 import { Button } from "../../src/components/Button";
@@ -47,7 +46,6 @@ import { PressableScale } from "../../src/components/PressableScale";
 import { Skeleton } from "../../src/components/Skeleton";
 import { ProgressBar } from "../../src/components/ProgressBar";
 import { useColors, useSettings } from "../../src/settings/SettingsContext";
-import { useReduceMotion } from "../../src/lib/motion";
 import { haptics } from "../../src/lib/haptics";
 import { tf, type TranslationKey } from "../../src/i18n";
 import {
@@ -138,6 +136,9 @@ const RAIL_SHADOW_PAD = 12;
 // Translucent dark pill used for the hero overlay badges.
 const HERO_PILL = "rgba(18,10,40,0.45)";
 
+// Gold · silver · bronze medal fills for the top-3 leaderboard ranks.
+const RANK_COLORS = ["#FFC93C", "#B9C0C9", "#CD7F32"] as const;
+
 // "Өнөөдрийн даалгавар" tiles → the 4 Дасгал skill categories. Each tile opens
 // the matching skill screen (/skill/<key>), which lists that category's
 // standalone exercises (quizzes with standalone=true) from the SAME database
@@ -172,36 +173,12 @@ const TASKS: {
 ];
 
 /**
- * Streak flame that gently pulses (scale) while the streak is alive, so the
- * hero feels "on fire" instead of static. Freezes when streak is 0 or the user
- * has Reduce Motion enabled.
+ * Streak flame — always gently burning (Reduce Motion turns it still).
+ * Delegates to the shared `AnimatedFlame` so the hero, the Lessons map and the
+ * top bar all burn identically.
  */
-function StreakFlame({ streak }: { streak: number }) {
-  const scale = useSharedValue(1);
-  const reduce = useReduceMotion();
-
-  useEffect(() => {
-    if (streak > 0 && !reduce) {
-      scale.value = withRepeat(
-        withSequence(
-          withTiming(1.18, { duration: 650 }),
-          withTiming(1, { duration: 650 }),
-        ),
-        -1,
-        false,
-      );
-    } else {
-      scale.value = withTiming(1);
-    }
-  }, [streak, reduce, scale]);
-
-  const style = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
-
-  return (
-    <Animated.View style={style}>
-      <AppIcon name="streak" size={STAT_ICON} />
-    </Animated.View>
-  );
+function StreakFlame() {
+  return <AnimatedFlame size={STAT_ICON} />;
 }
 
 /**
@@ -368,6 +345,10 @@ export default function HomeScreen() {
   // Quiz lives. Shown here (not only inside a quiz) so a student knows what
   // they have BEFORE starting — otherwise the limit is invisible until it bites.
   const [hearts, setHearts] = useState<HeartsState | null>(null);
+  // Top-3 leaderboard preview (weekly · global) → taps into the full board.
+  const [leaders, setLeaders] = useState<LeaderboardEntry[]>([]);
+  // Live Home events (Daily · Weekly · Double XP), with a countdown.
+  const [events, setEvents] = useState<AppEvent[]>([]);
   const [goalSheet, setGoalSheet] = useState(false);
   const [heartsSheet, setHeartsSheet] = useState(false);
   const [freezeSheet, setFreezeSheet] = useState(false);
@@ -387,18 +368,22 @@ export default function HomeScreen() {
     if (!token) return;
     try {
       setLoadFailed(false);
-      const [stats, dueList, gamification, myClasses, heartsState] = await Promise.all([
+      const [stats, dueList, gamification, myClasses, heartsState, lb, evts] = await Promise.all([
         getStats(token),
         getDue(token),
         getGamification(token).catch(() => null),
         getMyClasses(token).catch(() => null),
         getHearts(token).catch(() => null),
+        getLeaderboardPreview(token, 3).catch(() => null),
+        getActiveEvents(token).catch(() => null),
       ]);
       setXp(stats.xp);
       setSparks(stats.sparks);
       setDue(dueList.length);
       if (gamification) setGam(gamification);
       if (heartsState) setHearts(heartsState);
+      if (lb) setLeaders(lb);
+      if (evts) setEvents(evts);
       setEnrolled((myClasses?.enrolled?.length ?? 0) > 0);
     } catch {
       setLoadFailed(true); // keep last values, but surface a retry cue
@@ -564,7 +549,7 @@ export default function HomeScreen() {
                   </View>
                 ) : null}
               >
-                <StreakFlame streak={streak} />
+                <StreakFlame />
               </StatPill>
 
               {/* Hearts first: they are the only stat that gates play, so they
@@ -806,6 +791,42 @@ export default function HomeScreen() {
                   );
                 })}
           </View>
+
+          {/* Live events (Daily · Weekly · Double XP) — hidden when none. */}
+          <EventsCard events={events} />
+
+          {/* Top-3 leaderboard preview — the whole card taps into the full board. */}
+          {leaders.length > 0 ? (
+            <>
+              <View style={styles.learnHead}>
+                <AppText variant="h2">{t("leaderboardTitle")}</AppText>
+              </View>
+              <Pressable
+                style={({ pressed }) => [styles.lbCard, pressed && styles.pressed]}
+                onPress={() => { haptics.tap(); router.push("/leaderboard"); }}
+                accessibilityRole="button"
+                accessibilityLabel={t("leaderboardTitle")}
+              >
+                {leaders.map((e, i) => (
+                  <View key={e.userId} style={[styles.lbRow, i > 0 && styles.lbRowBorder]}>
+                    {/* Gold / silver / bronze medal so the podium reads at a glance. */}
+                    <View style={[styles.lbMedal, { backgroundColor: RANK_COLORS[i] ?? c.surfaceAlt }]}>
+                      <AppText variant="label" color="#2A1E00">{e.rank}</AppText>
+                    </View>
+                    <Avatar avatarUrl={e.avatarUrl} name={e.fullName} size={36} />
+                    <AppText variant="bodyStrong" numberOfLines={1} style={styles.lbName}>{e.fullName}</AppText>
+                    <View style={styles.lbXp}>
+                      <AppIcon name="xp" size={16} />
+                      <AppText variant="label" color={c.textSecondary}>{e.xp.toLocaleString()}</AppText>
+                    </View>
+                  </View>
+                ))}
+                <View style={styles.lbFooter}>
+                  <AppText variant="label" color={c.primary}>{t("seeAll")} ›</AppText>
+                </View>
+              </Pressable>
+            </>
+          ) : null}
 
           {/* Occasional verticals drop into a horizontal rail ("Бас үзээрэй"). */}
           <View style={styles.learnHead}>
@@ -1056,6 +1077,30 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
 
   // Section eyebrow + title (skill grid / rail).
   learnHead: { marginTop: spacing.xl, marginBottom: spacing.md, gap: 2 },
+
+  // Leaderboard preview — top-3 rows in one tappable card.
+  lbCard: {
+    backgroundColor: c.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: c.border,
+    paddingHorizontal: spacing.md,
+    ...(elevation.sm as object),
+  },
+  lbRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingVertical: spacing.md },
+  lbRowBorder: { borderTopWidth: 1, borderTopColor: c.border },
+  lbMedal: {
+    width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center",
+    shadowColor: "#000", shadowOpacity: 0.18, shadowRadius: 3, shadowOffset: { width: 0, height: 1 },
+  },
+  lbName: { flex: 1 },
+  lbXp: { flexDirection: "row", alignItems: "center", gap: 4 },
+  lbFooter: {
+    alignItems: "center",
+    paddingVertical: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: c.border,
+  },
 
   // Skill menu — ONE row of 4 gradient tiles, never wrapping.
   skillGrid: { flexDirection: "row", gap: spacing.sm },

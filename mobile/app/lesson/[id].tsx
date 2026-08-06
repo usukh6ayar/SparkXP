@@ -10,6 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../../src/auth/AuthContext';
 import * as lessonsApi from '../../src/api/lessons';
 import type { Lesson } from '../../src/api/lessons';
+import { postLessonResult } from '../../src/api/gamification';
 import { getQuizzes, type Quiz } from '../../src/api/quizzes';
 import { getWords, type Word } from '../../src/api/words';
 import { setLastLesson } from '../../src/lib/lastLesson';
@@ -115,6 +116,20 @@ export default function LessonDetailScreen() {
   }, [id, token, doneKey]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Stars for a lesson with NO test: such a lesson can never earn stars from a
+  // quiz, so finishing it IS its mastery → award full stars once it's done. This
+  // covers both a fresh finish (markDone flips `done`) and a lesson completed
+  // before this rule existed. Idempotent (awardFromScore is monotonic best-of)
+  // and gated to fire once per open, only after the load resolved so
+  // `quizzes.length` is accurate (a lesson WITH a test keeps its test-driven stars).
+  const starBackfilled = useRef(false);
+  useEffect(() => {
+    if (!loading && lesson && done && quizzes.length === 0 && token && id && !starBackfilled.current) {
+      starBackfilled.current = true;
+      postLessonResult(id, 100, token).catch(() => {});
+    }
+  }, [loading, lesson, done, quizzes.length, token, id]);
 
   useFocusEffect(
     useCallback(() => {

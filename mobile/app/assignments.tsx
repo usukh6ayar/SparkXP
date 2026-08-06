@@ -1,5 +1,6 @@
 import { useCallback, useState, useMemo } from 'react';
 import { View, ScrollView, StyleSheet, RefreshControl } from 'react-native';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useAuth } from '../src/auth/AuthContext';
@@ -14,6 +15,7 @@ import { AppText } from '../src/components/Text';
 import { SkeletonRows } from '../src/components/SkeletonRows';
 import { EmptyState } from '../src/components/EmptyState';
 import { t } from '../src/i18n';
+import { enter, useReduceMotion } from '../src/lib/motion';
 import { useColors } from '../src/settings/SettingsContext';
 import { spacing, type AppColors } from '../src/theme/theme';
 import { bounded } from '../src/theme/responsive';
@@ -22,6 +24,7 @@ export default function AssignmentsScreen() {
   const { token } = useAuth();
   const c = useColors();
   const styles = useMemo(() => makeStyles(c), [c]);
+  const reduce = useReduceMotion();
   const router = useRouter();
   const [items, setItems] = useState<Assignment[]>([]);
   const [titles, setTitles] = useState<Record<string, string>>({});
@@ -87,40 +90,44 @@ export default function AssignmentsScreen() {
           }
         >
           {items.length === 0 ? (
-            error ? (
-              <EmptyState
-                icon="alert-circle-outline"
-                title={t('error')}
-                hint={t('errorGeneric')}
-                action={{ label: t('retry'), onPress: load }}
-              />
-            ) : (
-              <EmptyState
-                icon="clipboard-outline"
-                title={t('noAssignmentsStudent')}
-                hint={t('noAssignmentsStudentHint')}
-              />
-            )
-          ) : (
-            items.map((a) => (
-              <Card key={a.id} variant="flat" padding="md">
-                <AssignmentRow
-                  type={a.type}
-                  title={titles[a.targetId] ?? '—'}
-                  note={a.note}
-                  dueAt={a.dueAt}
-                  overdue={a.dueAt ? new Date(a.dueAt).getTime() < Date.now() : false}
-                  onPress={() => open(a)}
+            <Animated.View entering={reduce ? undefined : FadeIn.duration(320)} style={styles.emptyWrap}>
+              {error ? (
+                <EmptyState
+                  icon="alert-circle-outline"
+                  title={t('error')}
+                  hint={t('errorGeneric')}
+                  action={{ label: t('retry'), onPress: load }}
                 />
-                {(a.status || a.scorePct != null) && (
-                  <View style={styles.metaRow}>
-                    {a.status ? <StatusBadge status={a.status} /> : null}
-                    {a.scorePct != null ? (
-                      <AppText variant="label" color={c.textSecondary}>{a.scorePct}%</AppText>
-                    ) : null}
-                  </View>
-                )}
-              </Card>
+              ) : (
+                <EmptyState
+                  icon="clipboard-outline"
+                  title={t('noAssignmentsStudent')}
+                  hint={t('noAssignmentsStudentHint')}
+                />
+              )}
+            </Animated.View>
+          ) : (
+            items.map((a, i) => (
+              <Animated.View key={a.id} entering={reduce ? undefined : enter(i * 55, 260)}>
+                <Card variant="flat" padding="md">
+                  <AssignmentRow
+                    type={a.type}
+                    title={titles[a.targetId] ?? '—'}
+                    note={a.note}
+                    dueAt={a.dueAt}
+                    overdue={a.dueAt ? new Date(a.dueAt).getTime() < Date.now() : false}
+                    onPress={() => open(a)}
+                  />
+                  {(a.status || a.scorePct != null) && (
+                    <View style={styles.metaRow}>
+                      {a.status ? <StatusBadge status={a.status} /> : null}
+                      {a.scorePct != null ? (
+                        <AppText variant="label" color={c.textSecondary}>{a.scorePct}%</AppText>
+                      ) : null}
+                    </View>
+                  )}
+                </Card>
+              </Animated.View>
             ))
           )}
           <View style={{ height: spacing.xxl }} />
@@ -134,5 +141,6 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: c.background },
   list: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, gap: spacing.sm },
   skeleton: { marginHorizontal: spacing.lg, marginTop: spacing.sm },
+  emptyWrap: { marginTop: spacing.xxl },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.sm },
 });

@@ -5,9 +5,12 @@ import Animated, {
   FadeIn,
   useAnimatedStyle,
   useSharedValue,
+  withRepeat,
   withSequence,
   withSpring,
+  withTiming,
 } from 'react-native-reanimated';
+import { LinearGradient } from 'expo-linear-gradient';
 import { AppText } from './Text';
 import { AppImage } from './AppImage';
 import { AppIcon } from './AppIcon';
@@ -82,6 +85,9 @@ export function AchievementModal({
   const c = useColors();
   const reduce = useReduceMotion();
   const scale = useSharedValue(0);
+  // Slow breathing on the halo behind the badge, so the celebration keeps a
+  // little life after the badge has sprung in (off under Reduce Motion).
+  const halo = useSharedValue(0);
 
   useEffect(() => {
     if (visible && achievement) {
@@ -89,12 +95,20 @@ export function AchievementModal({
       scale.value = reduce
         ? 1
         : withSequence(withSpring(1.15, SPRING), withSpring(1, SPRING));
+      halo.value = reduce
+        ? 0.5
+        : withRepeat(withTiming(1, { duration: 1400 }), -1, true);
     } else {
       scale.value = 0;
+      halo.value = 0;
     }
-  }, [visible, achievement, reduce]);
+  }, [visible, achievement, reduce, scale, halo]);
 
   const badgeStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  const haloStyle = useAnimatedStyle(() => ({
+    opacity: 0.5 + halo.value * 0.5,
+    transform: [{ scale: 0.92 + halo.value * 0.16 }],
+  }));
 
   if (!achievement) return null;
 
@@ -106,6 +120,13 @@ export function AchievementModal({
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.backdrop}>
+        {/* A soft wash of the badge's own colour over the dark scrim — a richer
+            backdrop than a flat grey, tinted to whatever is being celebrated. */}
+        <LinearGradient
+          pointerEvents="none"
+          colors={[`${achievement.tint.fg}2E`, 'rgba(10,6,30,0.86)', 'rgba(8,4,26,0.95)']}
+          style={StyleSheet.absoluteFill}
+        />
         {/* Tap outside to dismiss — behind the card/confetti */}
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         {/* `key` matters when two celebrations queue back to back (a streak and
@@ -124,7 +145,7 @@ export function AchievementModal({
           {/* The badge sits inside a soft halo of its own tint. One flat
               circle read as a sticker; the halo is what makes it look lit. */}
           <View style={styles.badgeWrap}>
-            <View style={[styles.glow, { backgroundColor: `${achievement.tint.fg}1F` }]} />
+            <Animated.View style={[styles.glow, { backgroundColor: `${achievement.tint.fg}1F` }, haloStyle]} />
             <Animated.View
               style={[
                 styles.badge,

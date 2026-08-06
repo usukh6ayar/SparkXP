@@ -251,11 +251,27 @@ Controller-level: JWT.
 | Method + Path | Auth | Зорилго | Params / Body |
 | --- | --- | --- | --- |
 | GET `/leaderboard` | JWT | XP-ээр эрэмбэ (period+scope) + өөрийн байр | `QueryLeaderboardDto` (period, scope, classId) |
+| GET `/leaderboard/preview` | JWT | **Home preview** — top N (default 3) weekly/global, `me`-гүй хөнгөн жагсаалт | `limit?` (1–10) |
 | GET `/leaderboard/top` | admin-баг | Admin top-N (admin-ий байршлыг үл тооцно) | `scope`, `period`, `value?`, `limit` |
 
 > Entry бүр: `rank, userId, fullName, username, avatarUrl, province, district, xp, classId`.
 > `classId` зөвхөн `scope=teacher` үед бөглөгдөнө (сурагчийн харьяалагдах анги, олон бол хамгийн сүүлд үүсгэсэн) —
 > багшийн панель мөрөөс тухайн сурагчийн ahits руу deep-link хийхэд ашиглагдана. Бусад scope-д `null`.
+
+## 9a. Events — `/api/events` (EventsController · 2026-08-06)
+Home эвэнтүүд (Daily · Weekly challenge · Double XP). Controller-level: JWT.
+
+| Method + Path | Auth | Зорилго | Params / Body |
+| --- | --- | --- | --- |
+| GET `/events/active` | JWT | Одоо идэвхтэй эвэнтүүд (`isActive` ба `starts_at ≤ now ≤ ends_at`), дуусахаар нь эрэмбэлсэн | — |
+| GET `/events` | admin-баг | Бүх эвэнт (шинэ эхэнд) | — |
+| POST `/events` | admin-баг | Эвэнт үүсгэх | `CreateEventDto` (type, title, description?, startsAt, endsAt, rewardXp?, xpMultiplier?, isActive?) |
+| PATCH `/events/:id` | admin-баг | Засах | `UpdateEventDto` (бүх талбар optional) |
+| DELETE `/events/:id` | admin-баг | Устгах | — |
+
+> Entry: `id, type, title, description, startsAt, endsAt, rewardXp, xpMultiplier, isActive`.
+> `type`: `daily · weekly_challenge · double_xp`. `double_xp` эвэнт идэвхтэй үед бүх
+> XP олголт `xp_multiplier`-аар үржинэ (§13-ыг үз).
 
 ## 10. AI / Chat — `/api/ai`
 Controller-level: JWT.
@@ -287,6 +303,22 @@ Controller-level: JWT. Realtime speaking companion (STT→LLM→TTS→avatar). �
 | GET `/ai/buddy/text-sessions` | JWT | Тухайн buddy-тэй хийсэн бичгийн чатны түүх (thread жагсаалт, ChatGPT-style history panel) | query `buddySlug` → `[{ sessionId, title, messageCount, updatedAt }]` |
 | DELETE `/ai/buddy/text-session/:id` | JWT | Бичгийн чат thread-ийг түүхээс устгах (өөрийн TEXT session, мессежийн хамт). History panel 🗑 | path `id` → `{ ok: true }` |
 | GET `/ai/buddy/usage` | JWT | Энэ сарын voice/STT хэрэглээ | — |
+| POST `/ai/buddy/sessions/:id/end` | JWT | Session дуусгах (idempotent) → `{ sessionId, durationSeconds, endedAt }` | path `id` |
+| GET `/ai/buddy/statistics` | JWT | Buddy практик статистик → `{ totalSessions, totalMinutes, todaySessions, todayMinutes, longestSessionMinutes }` | — |
+
+#### AI Buddy Background Shop — `/api/buddy/backgrounds` (2026-08-06)
+Buddy-ийн ард харагдах дэвсгэрийг Sparks-аар авч тохируулна (XP БИШ — leaderboard хамгаална).
+
+| Method + Path | Auth | Зорилго | Params / Body |
+| --- | --- | --- | --- |
+| GET `/buddy/backgrounds` | JWT | Дэлгүүрийн каталог + өөрийн төлөв (`owned`/`equipped`/`purchasable`/`premiumLocked`) | — |
+| GET `/buddy/backgrounds/equipped` | JWT | Тохируулсан дэвсгэр (эсвэл null) — buddy-ийн ард харуулна | — |
+| POST `/buddy/backgrounds/:id/buy` | JWT | Sparks-аар авах (баланс/эзэмшил/premium/улирал шалгана) | path `id` |
+| POST `/buddy/backgrounds/:id/equip` | JWT | Эзэмшсэн дэвсгэрийг тохируулах (бусдыг unequip) | path `id` |
+| GET `/buddy/backgrounds/manage` | admin-баг | Бүх дэвсгэр (raw) | — |
+| POST `/buddy/backgrounds` | admin-баг | Үүсгэх | `CreateBackgroundDto` (name, imageUrl, priceSparks?, isPremium?, seasonalStart?, seasonalEnd?, isActive?, sortOrder?) |
+| PATCH `/buddy/backgrounds/:id` | admin-баг | Засах | `UpdateBackgroundDto` |
+| DELETE `/buddy/backgrounds/:id` | admin-баг | Устгах | — |
 | GET `/ai/buddy/memory` | JWT | Buddy-гийн санах ой | — |
 | DELETE `/ai/buddy/memory` | JWT | Санах ой цэвэрлэх | — |
 | POST `/ai/buddy/feedback` | JWT | Buddy хариултад 👍/👎 өгөх (мессежийн metadata-д хадгална) | `FeedbackDto` `{ messageId, rating:'up'\|'down', reason? }` → `{ ok }` |
@@ -301,6 +333,34 @@ voice_seconds_limit_this_month, warn_level} }`. `xp_reward` = энэ turn-д ө�
 (session-д 1 удаа, дараа нь 0). `mistake_tags` = грамматик/vocab таг (жишээ
 `["past_simple"]`). Voice limit хэтэрвэл `403 { code: 'VOICE_LIMIT' }` (mobile
 текст рүү шилжинэ).
+
+#### Realtime Buddy (streaming) — `/api/ai/buddy/rt` (2026-08-06)
+
+Одоо байгаа turn pipeline-ыг **орлохгүй**, дээр нь SSE streaming давхарга нэмсэн.
+Turn бүр яг л хуучин pipeline-аар (STT → LLM JSON contract → **safety gate** →
+TTS → XP → memory) `buddy.textTurn`/`audioTurn`-аар боловсрогдоно; SSE нь зөвхөн
+**үр дүнг дэвшилттэй хүргэнэ** (transcript → reply өгүүлбэрээр → audio → бүтэн
+turn) + **interrupt**. Reply нь баталгаажсан JSON contract тул түүхий token
+stream хийхгүй (safety-г бүхэлд нь дамжуулна). Транспорт нь **native SSE**
+(шинэ dependency алга). Streaming чадахгүй клиент **хуучин REST turn руу автомат
+буцна**.
+
+| Method + Path | Auth | Зорилго | Params / Body |
+| --- | --- | --- | --- |
+| GET `/ai/buddy/rt/capabilities` | JWT | Streaming дэмжлэг шалгах → `{ enabled, transport:'sse', streamingText, streamingTts:'progressive', partialTranscript:false, interrupt:true, fallback:'request-response' }` | — |
+| POST `/ai/buddy/rt/turn/text` | JWT | Streamed текст turn эхлүүлэх → `{ streamId }` | `{ sessionId, text }` |
+| POST `/ai/buddy/rt/turn/audio/:sessionId` | JWT | Streamed voice turn (multipart `file`) → `{ streamId }` | path `sessionId` · file |
+| GET (SSE) `/ai/buddy/rt/stream/:streamId` | JWT | Turn-ийн үйл явдлын урсгал (эзэмшил шалгана) | SSE events: `status`·`transcript`·`chunk`·`audio`·`done`·`error`·`interrupted` |
+| POST `/ai/buddy/rt/interrupt/:streamId` | JWT | Явагдаж буй turn-ийг таслах → `{ ok }` | path `streamId` |
+
+SSE event бүр `data: { type, ... }`: `transcript{text,final}` · `chunk{text}`
+(reply-ийн нэг өгүүлбэр) · `audio{url}` · `done{turn}` (бүтэн `TurnResponse`) ·
+`error{message}` (→ клиент REST руу буц). Env `BUDDY_REALTIME_ENABLED=0` бол
+бүхэлд нь унтарч, `capabilities.enabled=false` → клиент fallback.
+**Хязгаарлалт:** live-mic partial transcript (streaming STT) одоогийн provider/
+Expo Go-д боломжгүй тул `partialTranscript:false`; mobile flag
+(`BUDDY_REALTIME_ENABLED`) анхдагчаар **OFF** — дэлгэрэнгүй
+`docs/AI_BUDDY_REALTIME.md`.
 
 ## 11. Dictionary — `/api/dictionary`
 Controller-level: JWT. (Reading-ийн tap-to-translate ашигладаг.)
@@ -340,7 +400,21 @@ Controller-level: JWT. Бүгд student-ийн өөрийн давталтын �
 
 | Method + Path | Auth | Зорилго | Params / Body |
 | --- | --- | --- | --- |
-| GET `/gamification` | JWT | Streak, level, өнөөдрийн XP, зорилго + `progressByLevel`, `streakFreezeCost/maxStreakFreezes/streakFreezesUsed`, `todayExercises/dailyExerciseGoal` | — |
+| GET `/gamification` | JWT | Streak, level, өнөөдрийн XP, зорилго + `progressByLevel` (CEFR island бүрийн `done/total`), `streakFreezeCost/maxStreakFreezes/streakFreezesUsed`, `todayExercises/dailyExerciseGoal` + **`levelUnlocks`** (island бүрийн `{ starsEarned, starsRequired, unlocked }` — star-gated castle unlock) | — |
+| GET `/gamification/stars` | JWT | Тухайн хэрэглэгчийн хичээл бүрийн од → `{ "<lessonId>": 0..3 }` (зөвхөн ≥1 од авсан хичээл) | — |
+
+### 🆕 Од / Castle unlock / Double-XP (Task 1 — 2026-08-06)
+
+- **Хичээлийн од (0–3):** хичээлд холбогдсон тест (`quiz.lessonId`)-ийн
+  `POST /quizzes/:id/submit` дотор оноогоор нь тооцож `user_lesson_stars`-д
+  **байнга (best)** хадгална. Threshold: ≥50% → 1, ≥70% → 2, ≥90% → 3. Хариунд
+  **`starsEarned`** нэмэгдэв.
+- **Castle unlock:** `getGamification.levelUnlocks` — island бүр нээгдэхэд
+  шаардах нийт од `level_requirements` (admin-tunable) хүснэгтэд. Default:
+  a1=0·a2=3·b1=9·b2=18·c1=30·c2=45.
+- **Double XP:** идэвхтэй `double_xp` эвэнтийн үед `XpService.award` бүх XP-г
+  `xp_multiplier`-аар үржүүлнэ (ledger + `User.xp` cache хоёулаа).
+
 
 ### 🆕 XP шагналын хүснэгт — `xp/xp-rewards.ts` (2026-07-31)
 
@@ -611,6 +685,24 @@ Deploy хийсний дараа нэг удаа `src/scripts/backfill-trophies.
 
 ---
 
+## 23. Learning Analytics — `/api/analytics` (2026-08-06)
+
+Read-only статистик. **Шинэ хүснэгт байхгүй** — бүх метрикийг одоо байгаа
+өгөгдлөөс (`xp_logs`, `sparks_logs`, `word_reviews`, `quiz_attempts`,
+`buddy_sessions`, `ai_usages`, `messages`) aggregate хийж, `XpService` (streak/xp)
++ `StarsService` (од)-ыг reuse хийнэ. Судалгааны цаг (study time) нь `xp_logs`-ийн
+timestamp-уудыг session болгон бүлэглэж (30 мин зайтай бол шинэ session) тооцоолно.
+
+| Method + Path | Auth | Зорилго | Params / Body |
+| --- | --- | --- | --- |
+| GET `/analytics/overview` | JWT | Суралцагчийн бүрэн snapshot → `{ study{totalMinutes,todayMinutes,weekMinutes,monthMinutes}, lessons{completed,total,completionRate}, practice{sessions,completed}, vocabulary{learned,reviewed,mastered}, buddy{sessions,minutes,voiceMinutes,textMessages}, gamification{xp,sparksEarned,stars,currentStreak,longestStreak} }` | — |
+| GET `/analytics/history` | JWT | Графикийн өдөр тутмын цуваа → `{ range, days:[{date,xp,studyMinutes}] }` (0-оор дүүргэсэн) | `range?=week\|month` (default `week`=7 хоног, `month`=30) |
+
+`vocabulary.mastered` = `interval_days ≥ 21` (achievements/teacher progress-тэй ижил).
+Admin dashboard энэ endpoint-уудыг дараа ашиглаж болно (одоогоор admin UI хийгээгүй).
+
+---
+
 ## Frontend → Backend зураглал
 
 ### Mobile (`mobile/src/api/*.ts`)
@@ -621,6 +713,7 @@ Deploy хийсний дараа нэг удаа `src/scripts/backfill-trophies.
 | `auth.ts` | `register`→POST `/auth/register` · `verifyOtp`→POST `/auth/verify-otp` · `resendOtp`→POST `/auth/resend-otp` · `login`→POST `/auth/login` · `forgotPassword`→POST `/auth/forgot-password` · `resetPassword`→POST `/auth/reset-password` · `getMe`→GET `/auth/me` |
 | `users.ts` | `getStats`→GET `/users/me/stats` · `getMyPlan`→GET `/users/me/plan` · `updateProfile`→PATCH `/users/me` · `uploadAvatar`→POST `/users/me/avatar` |
 | `gamification.ts` | `getGamification`→GET `/gamification` |
+| **`analytics.ts`** 🆕 | `getAnalyticsOverview`→GET `/analytics/overview` · `getAnalyticsHistory`→GET `/analytics/history?range=`. Хэрэглэгч: **`src/components/AnalyticsSection.tsx`** (профайлын "Статистик" блок — метрик tile-ууд + 7/30 хоногийн идэвхийн график), **`app/(tabs)/profile.tsx`**-д суусан |
 | **`achievements.ts`** 🆕 | `getAchievements`→GET `/achievements` · `markTrophiesSeen`→POST `/achievements/seen` · `setPinnedTrophies`→POST `/achievements/pinned`. Хэрэглэгч: **`app/trophies.tsx`** (100 цомын бүрэн дэлгэц, tier тус бүрээр, шүүлтүүр Бүгд/Авсан/Аваагүй, дэлгэрэнгүй sheet) · **`app/(tabs)/profile.tsx`** (**онцолсон** цомын хэвтээ мөр — онцлоогүй бол эзэмшсэн/түгжээтэй нь + `Бүгдийг харах` → `/trophies`) · **`src/lib/useCelebrations.ts`** (`unseen` трофей **+** `streakCelebration` → `AchievementModal` баяр хүргэл → `POST /seen` / `POST /gamification/streak-seen`; нэг дараалал — streak эхэлж, трофей дараа нь; host нь `src/components/CelebrationHost.tsx`, `app/_layout.tsx`-д суусан; дуусгах дэлгэцүүд (хичээл · сорил · унших · swipe · game) `checkCelebrations()` дуудна). Түгжээтэй цомын нөхцөлийг `src/lib/trophyCondition.ts` монголоор бичнэ |
 | `lessons.ts` | `getLessons`→GET `/lessons?isPublished=true` · `getLesson`→GET `/lessons/:id` · `checkAccess`→GET `/lessons/:id/access` · `unlockLesson`→POST `/lessons/:id/unlock` · `completeLesson`→POST `/lessons/:id/complete` · **`getContinue`→GET `/lessons/continue`** (C1 ✅ Home hero — Choi, 2026-07-22) · **`getCompletedLessonIds`→GET `/lessons/completed`** (түвшний замын ✓ — 2026-08-04) |
 | `quizzes.ts` | `getQuiz`→GET `/quizzes/:id` · `getQuizzes`→GET `/quizzes?isPublished=true[&lessonId=]` · `getExercises`→GET `/quizzes?standalone=true&isPublished=true&category=` · `submitQuiz`→POST `/quizzes/:id/submit` · **`checkAnswer`→POST `/quizzes/:id/check`** (C2 — Boju нэмнэ). **IELTS 3a ✅** (Choi, 2026-07-22): `getExercises`-ийг `category=ielts_listening\|ielts_reading`-аар дуудаж `/ielts` hub + `/skill/ielts_*` жагсаалт; runner нь `passageText`/`audioUrl`-ыг үзүүлж, `submit`-ийн `band`-ыг үр дүнд харуулна |
@@ -632,6 +725,7 @@ Deploy хийсний дараа нэг удаа `src/scripts/backfill-trophies.
 | `idioms.ts` | `getIdiomList`→GET `/idioms?limit=100` · `getIdiom`→GET `/idioms/:id` |
 | `leaderboard.ts` | `getLeaderboard`→GET `/leaderboard?period=&scope=` |
 | `ai.ts` | `sendMessage`→POST `/ai/chat` · `getHistory`→GET `/ai/conversations/:id` · (AI Buddy voice) `getBuddies`→GET `/ai/buddies` · `startSession`→POST `/ai/buddy/sessions` · `sendBuddyTextTurn`→POST `/ai/buddy/sessions/:id/turn/text` · `sendBuddyAudioTurn`→POST `/ai/buddy/sessions/:id/turn/audio` · `getBuddyUsage`→GET `/ai/buddy/usage` · memory GET/DELETE `/ai/buddy/memory` (Boju хийнэ) |
+| **`buddyRealtime.ts`** 🆕 | `getBuddyRealtimeCapabilities`→GET `/ai/buddy/rt/capabilities` · `sendBuddyTextTurnSmart`/`sendBuddyAudioTurnSmart` (streaming эсвэл **автомат fallback** → `ai.ts`-ийн хуучин turn) · `interruptBuddyTurn`→POST `/ai/buddy/rt/interrupt/:streamId`. `app/(tabs)/chat.tsx` турн илгээхдээ Smart хувилбарыг дууддаг; realtime flag (`src/lib/buddyRealtimeFlag.ts`) **OFF** тул одоо хуучин урсгалаар ажиллана |
 | `classes.ts` | `getMyClasses`→GET `/classes` · `createClass`→POST `/classes` · `getClass`→GET `/classes/:id` · `getClassStudents`→GET `/classes/:id/students` · `requestJoinClass`→POST `/classes/join` · `getJoinRequests`→GET `/classes/:id/requests` · `approveRequest`→POST `/classes/:id/requests/:studentId/approve` · `rejectRequest`→DELETE `/classes/:id/requests/:studentId` |
 | `assignments.ts` | `createAssignment`→POST `/assignments` · `getClassAssignments`→GET `/assignments?classId=` · `getMyAssignments`→GET `/assignments/mine` · `deleteAssignment`→DELETE `/assignments/:id` |
 | `organizations.ts` | `getOrganizations`→GET `/organizations?limit=100` |

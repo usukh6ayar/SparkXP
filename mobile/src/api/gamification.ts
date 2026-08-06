@@ -46,14 +46,64 @@ export interface Gamification {
   quizzesDone: number;
   /** Per-CEFR-level lesson progress for the Lessons map islands (a1…c2). */
   progressByLevel: Record<string, { done: number; total: number }>;
+  /**
+   * Per-CEFR-level star gate (castle unlock). `unlocked` is server-authoritative
+   * — the map opens/locks an island by this, not by a local XP guess. Optional
+   * so an older backend (without stars) simply falls back to "all open".
+   */
+  levelUnlocks?: Record<string, LevelUnlock>;
   /** Standalone exercises completed today for the Soril daily path. */
   todayExercises?: number;
   /** Exercises needed to fill the Soril daily path. */
   dailyExerciseGoal?: number;
 }
 
+/** One island's star gate on the Lessons map. */
+export interface LevelUnlock {
+  /** Stars earned inside this level's lessons. */
+  starsEarned: number;
+  /** Total stars (across all levels) needed to open this island. */
+  starsRequired: number;
+  /** Whether the user has enough stars to enter. */
+  unlocked: boolean;
+}
+
 export function getGamification(token: string): Promise<Gamification> {
   return apiRequest<Gamification>('/gamification', { token });
+}
+
+/**
+ * GET /gamification/stars — this user's earned stars per lesson (`{ [lessonId]:
+ * 0..3 }`). Only lessons with ≥1 star appear; absent = 0 stars (empty).
+ */
+export function getLessonStars(token: string): Promise<Record<string, number>> {
+  return apiRequest<Record<string, number>>('/gamification/stars', { token });
+}
+
+/** Detailed per-lesson stars (stars + best score + first-completed). */
+export interface LessonStarDetail {
+  lessonId: string;
+  stars: number;
+  bestScore: number;
+  completedAt: string | null;
+}
+
+/** GET /lesson-stars — richer per-lesson rows (stars, bestScore, completedAt). */
+export function getLessonStarsDetailed(token: string): Promise<LessonStarDetail[]> {
+  return apiRequest<LessonStarDetail[]>('/lesson-stars', { token });
+}
+
+/** POST /lesson-result — record a lesson's test score directly → updated stars. */
+export function postLessonResult(
+  lessonId: string,
+  score: number,
+  token: string,
+): Promise<LessonStarDetail> {
+  return apiRequest<LessonStarDetail>('/lesson-result', {
+    method: 'POST',
+    body: { lessonId, score },
+    token,
+  });
 }
 
 /**

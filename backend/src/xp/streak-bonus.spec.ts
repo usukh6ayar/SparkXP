@@ -59,6 +59,18 @@ function makeService(opts: { dailyGoalXp?: number; startingTodayXp?: number } = 
     }),
   };
 
+  // events repo — award() asks it for a live Double-XP multiplier; none here.
+  const noDoubleXp = {
+    createQueryBuilder: () => {
+      const qb: Record<string, unknown> = {};
+      qb.where = () => qb;
+      qb.andWhere = () => qb;
+      qb.orderBy = () => qb;
+      qb.getOne = async () => null;
+      return qb;
+    },
+  };
+
   const svc = new XpService(
     // xpLogs repo — only awardOnce's duplicate lookup uses it.
     { findOne: async ({ where }: { where: Row }) =>
@@ -71,9 +83,11 @@ function makeService(opts: { dailyGoalXp?: number; startingTodayXp?: number } = 
     } as never,
     {} as never, // users repo (unused on this path)
     {} as never, // lessons repo
+    noDoubleXp as never, // events repo → multiplier 1
     { transaction: async (fn: (m: typeof manager) => unknown) => fn(manager) } as never,
     {} as never, // sparks
     { checkAfterXp: async () => [] } as never,
+    {} as never, // stars service (unused on the award path)
     { get: async () => null } as never, // redis → code default rewards
   );
 

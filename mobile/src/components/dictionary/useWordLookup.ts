@@ -27,6 +27,16 @@ export function speakEnglish(text: string) {
   Speech.speak(text, { language: 'en-US', rate: 0.9 });
 }
 
+/**
+ * Process-lifetime cache of resolved lookups, so re-opening a word (swipe back →
+ * search it again, or tapping a recent) is instant instead of another round
+ * trip. Keyed by mode + word because the two surfaces ask for different shapes
+ * (the panel's 4-sense result vs the popover's short gloss). Dictionary entries
+ * are immutable server-side, so a cached hit never goes stale.
+ */
+const lookupCache = new Map<string, WordLookup>();
+const cacheKey = (word: string, detailed: boolean) => `${detailed ? 'd' : 's'}:${word}`;
+
 export interface WordLookupState {
   /** The word/sentence being shown, or null when nothing is loaded. */
   word: string | null;
@@ -92,13 +102,23 @@ export function useWordLookup({ detailed = false } = {}): WordLookupState {
       const clean = raw.trim().toLowerCase().replace(/\s+/g, ' ');
       if (!clean || !token) return;
       begin(clean, false);
+
+      // Instant hit from a previous lookup — no spinner, no request.
+      const cached = lookupCache.get(cacheKey(clean, detailed));
+      if (cached) {
+        setResult(cached);
+        setLoading(false);
+        return;
+      }
+
       try {
+        let res: WordLookup;
         if (detailed) {
           // Dictionary panel: the word's own meaning + the full 4-sense result.
           // It carries no audioUrl — speak() fetches that lazily from
           // /:word/audio, which is unchanged.
           const { translation, senses } = await searchWord(token, clean);
-          setResult({
+          res = {
             word: clean,
             // '' (not null) so the panel's `translation ? ...` checks stay
             // simple — an empty string means "no meaning line".
@@ -106,12 +126,14 @@ export function useWordLookup({ detailed = false } = {}): WordLookupState {
             audioUrl: null,
             cached: false,
             meanings: senses,
-          });
+          };
         } else {
           // Reader popover: deliberately still one short gloss, so a tap while
           // reading stays fast and small.
-          setResult(await lookupWord(token, clean));
+          res = await lookupWord(token, clean);
         }
+        lookupCache.set(cacheKey(clean, detailed), res);
+        setResult(res);
       } catch (err) {
         setError(err instanceof ApiError ? err.message : t('notFoundShort'));
       } finally {

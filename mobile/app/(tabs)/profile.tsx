@@ -25,6 +25,7 @@ import { type AppIconName } from '../../src/constants/appIcons';
 import { CountUp } from '../../src/components/CountUp';
 import { ProgressRing } from '../../src/components/ProgressRing';
 import { EditProfileModal } from '../../src/components/EditProfileModal';
+import { AnalyticsSection } from '../../src/components/AnalyticsSection';
 import { resolveAvatar } from '../../src/lib/avatar';
 import { useAvatarPicker } from '../../src/lib/useAvatarPicker';
 import { useLogoutConfirm, useComingSoon } from '../../src/lib/useLogoutConfirm';
@@ -302,6 +303,10 @@ export default function ProfileScreen() {
               )}
             </View>
           ) : null}
+
+          {/* Statistics — learner analytics (GET /analytics/overview + history) */}
+          <SectionHead p={p} st={styles} title={t('analyticsTitle')} style={styles.section} />
+          <AnalyticsSection p={p} />
 
           {/* Achievements — real trophies from GET /achievements */}
           <SectionHead

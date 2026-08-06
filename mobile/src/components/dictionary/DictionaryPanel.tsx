@@ -29,6 +29,11 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
+import {
+  Gesture,
+  GestureDetector,
+  GestureHandlerRootView,
+} from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -147,13 +152,34 @@ export function DictionaryPanel({
   }));
   const backdropStyle = useAnimatedStyle(() => ({ opacity: reveal.value }));
 
+  // Swipe the panel to the right to dismiss it (it enters from the right, so
+  // that's the natural "back" direction). Follows the finger, then either flings
+  // closed past a third of the width / a fast flick, or springs back open.
+  const swipeBack = Gesture.Pan()
+    .activeOffsetX(14)
+    .failOffsetY([-16, 16])
+    .onUpdate((e) => {
+      if (e.translationX > 0) reveal.value = Math.max(0, 1 - e.translationX / panelW);
+    })
+    .onEnd((e) => {
+      if (e.translationX > panelW * 0.33 || e.velocityX > 700) {
+        runOnJS(onClose)();
+      } else {
+        reveal.value = withTiming(1, { duration: DURATION.fast });
+      }
+    });
+
   return (
     <Modal visible={mounted} transparent animationType="none" onRequestClose={onClose}>
-      <Animated.View style={[styles.backdrop, backdropStyle]}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-      </Animated.View>
+      {/* RN Modal renders outside the app's root gesture tree, so gestures inside
+          it need their own root to be recognised. */}
+      <GestureHandlerRootView style={styles.flex}>
+        <Animated.View style={[styles.backdrop, backdropStyle]}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        </Animated.View>
 
-      <Animated.View style={[styles.panel, { width: panelW }, panelStyle]}>
+        <GestureDetector gesture={swipeBack}>
+          <Animated.View style={[styles.panel, { width: panelW }, panelStyle]}>
         {/* Hero — search, the word and its actions on one brand gradient, so
             the panel opens with a single confident block instead of four
             stacked grey strips. White-on-gradient is also the only way this
@@ -319,8 +345,10 @@ export function DictionaryPanel({
               </Animated.View>
             ))
           )}
-        </ScrollView>
-      </Animated.View>
+          </ScrollView>
+          </Animated.View>
+        </GestureDetector>
+      </GestureHandlerRootView>
     </Modal>
   );
 }

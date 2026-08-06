@@ -28,6 +28,7 @@ import { AiGatewayService } from './ai-gateway.service';
 import { BuddyUsageService } from './buddy-usage.service';
 import { BuddyMemoryService } from './buddy-memory.service';
 import { XpService } from '../xp/xp.service';
+import { startOfUBDay } from '../xp/gamification';
 import { STT_ADAPTER, type SttAdapter } from './providers/stt.adapter';
 import { LLM_ADAPTER, type LlmAdapter, type LlmMessage } from './providers/llm.adapter';
 import { TTS_ADAPTER, type TtsAdapter } from './providers/tts.adapter';
@@ -159,6 +160,69 @@ export class BuddyService {
     const user = await this.loadUser(userId);
     const allowance = await this.usage.checkVoice(user);
     return { sessionId: session.id, buddy, usage: this.usageBlock(allowance) };
+  }
+
+  /**
+   * End a session and report its length. Idempotent: calling it on an already
+   * ended session just returns the stored duration (a double-tap or a reconnect
+   * can't reset the clock). Duration is derived from `created_at → ended_at`, so
+   * no extra column is stored.
+   */
+  async endSession(
+    userId: string,
+    sessionId: string,
+  ): Promise<{ sessionId: string; durationSeconds: number; endedAt: string }> {
+    const session = await this.sessions.findOne({ where: { id: sessionId, userId } });
+    if (!session) throw new NotFoundException('Session олдсонгүй');
+    if (!session.endedAt) {
+      session.endedAt = new Date();
+      await this.sessions.save(session);
+    }
+    const durationSeconds = Math.max(
+      0,
+      Math.round((session.endedAt.getTime() - session.createdAt.getTime()) / 1000),
+    );
+    return { sessionId: session.id, durationSeconds, endedAt: session.endedAt.toISOString() };
+  }
+
+  /**
+   * AI Buddy usage stats for the current user: session counts and practice
+   * minutes (today + all-time), computed from `buddy_sessions` (ended sessions
+   * only, so an abandoned session doesn't inflate the numbers).
+   */
+  async getStatistics(userId: string): Promise<{
+    totalSessions: number;
+    totalMinutes: number;
+    todaySessions: number;
+    todayMinutes: number;
+    longestSessionMinutes: number;
+  }> {
+    const dur = 'EXTRACT(EPOCH FROM (s.ended_at - s.created_at))';
+    const [all, today] = await Promise.all([
+      this.sessions
+        .createQueryBuilder('s')
+        .select('COUNT(*)', 'sessions')
+        .addSelect(`COALESCE(SUM(${dur}), 0)`, 'seconds')
+        .addSelect(`COALESCE(MAX(${dur}), 0)`, 'maxSeconds')
+        .where('s.user_id = :userId', { userId })
+        .andWhere('s.ended_at IS NOT NULL')
+        .getRawOne<{ sessions: string; seconds: string; maxSeconds: string }>(),
+      this.sessions
+        .createQueryBuilder('s')
+        .select('COUNT(*)', 'sessions')
+        .addSelect(`COALESCE(SUM(${dur}), 0)`, 'seconds')
+        .where('s.user_id = :userId', { userId })
+        .andWhere('s.ended_at IS NOT NULL')
+        .andWhere('s.created_at >= :start', { start: startOfUBDay() })
+        .getRawOne<{ sessions: string; seconds: string }>(),
+    ]);
+    return {
+      totalSessions: Number(all?.sessions ?? 0),
+      totalMinutes: Math.round(Number(all?.seconds ?? 0) / 60),
+      todaySessions: Number(today?.sessions ?? 0),
+      todayMinutes: Math.round(Number(today?.seconds ?? 0) / 60),
+      longestSessionMinutes: Math.round(Number(all?.maxSeconds ?? 0) / 60),
+    };
   }
 
   async getMessages(userId: string, sessionId: string): Promise<Message[]> {
