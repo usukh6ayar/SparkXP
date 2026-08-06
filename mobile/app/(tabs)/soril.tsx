@@ -116,9 +116,6 @@ function games(t: (key: import("../../src/i18n").TranslationKey) => string): Gam
 
 /** Daily-goal fallback while `/gamification` is still loading (backend: 50 XP). */
 const DAILY_GOAL_FALLBACK = 50;
-/** One node per exercise the student should finish today. */
-const PATH = Array.from({ length: DAILY_TASK_GOAL }, (_, i) => i + 1);
-
 export default function SorilScreen() {
   const { user, token } = useAuth();
   const c = useColors();
@@ -128,6 +125,11 @@ export default function SorilScreen() {
     if (token) getGamification(token).then(setGam).catch(() => {});
   }, [token]);
   const level = gam?.level ?? 1;
+  const dailyExerciseGoal = gam?.dailyExerciseGoal ?? DAILY_TASK_GOAL;
+  const path = useMemo(
+    () => Array.from({ length: dailyExerciseGoal }, (_, i) => i + 1),
+    [dailyExerciseGoal],
+  );
 
   // Path nodes = exercises finished TODAY, not an abstract slice of the level
   // bar. A node the student can actually tick off by doing one exercise is the
@@ -136,9 +138,13 @@ export default function SorilScreen() {
   useFocusEffect(
     useCallback(() => {
       let active = true;
-      loadDailyTasks().then((s) => { if (active) setPathDone(Math.min(PATH.length, s.done)); });
+      if (gam?.todayExercises !== undefined) {
+        setPathDone(Math.min(dailyExerciseGoal, gam.todayExercises));
+        return () => { active = false; };
+      }
+      loadDailyTasks().then((s) => { if (active) setPathDone(Math.min(dailyExerciseGoal, s.done)); });
       return () => { active = false; };
-    }, []),
+    }, [dailyExerciseGoal, gam?.todayExercises]),
   );
   // Today's challenge = real XP earned today vs the backend's daily goal.
   // Until it loads we show 0 rather than a plausible-looking made-up number.
@@ -300,9 +306,9 @@ export default function SorilScreen() {
             <View style={{ flex: 1 }}>
               <AppText variant="h3">{t("progressPath")}</AppText>
               <AppText variant="caption">
-                {pathDone >= PATH.length
+                {pathDone >= dailyExerciseGoal
                   ? t("progressPathDone")
-                  : tf("progressPathHint", { n: PATH.length - pathDone })}
+                  : tf("progressPathHint", { n: dailyExerciseGoal - pathDone })}
               </AppText>
             </View>
             <Pill
@@ -313,10 +319,10 @@ export default function SorilScreen() {
           </View>
 
           <View style={styles.pathRow}>
-            {PATH.map((n, i) => {
+            {path.map((n, i) => {
               const done = n <= pathDone;
               const current = n === pathDone + 1;
-              const last = i === PATH.length - 1;
+              const last = i === path.length - 1;
               return (
                 <Fragment key={n}>
                   <View

@@ -131,6 +131,7 @@ export interface QuizResult {
   correct: number;
   xpAwarded: number;
   sparksAwarded: number;
+  results: { wordId: string; correct: boolean; correctAnswer: string }[];
 }
 
 /** Reward per correct answer (anti-abuse: only correct answers earn). */
@@ -1268,9 +1269,16 @@ export class WordsService {
     const byId = new Map(wordList.map((w) => [w.id, w]));
 
     let correct = 0;
+    const results: QuizResult['results'] = [];
     for (const a of answers) {
       const word = byId.get(a.wordId);
-      if (word && a.choice.trim() === word.mongolian.trim()) correct++;
+      const isCorrect = !!word && a.choice.trim() === word.mongolian.trim();
+      if (isCorrect) correct++;
+      results.push({
+        wordId: a.wordId,
+        correct: isCorrect,
+        correctAnswer: word?.mongolian ?? '',
+      });
     }
 
     const xpAwarded = correct * XP_PER_CORRECT;
@@ -1280,6 +1288,6 @@ export class WordsService {
       await this.sparks.change({ userId, amount: sparksAwarded, source: SparksSource.QUIZ });
     }
 
-    return { total: answers.length, correct, xpAwarded, sparksAwarded };
+    return { total: answers.length, correct, xpAwarded, sparksAwarded, results };
   }
 }

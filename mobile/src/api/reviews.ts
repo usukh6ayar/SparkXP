@@ -47,6 +47,9 @@ export interface LearnWord {
   imageUrl: string | null;
   level: string;
   saved: boolean;
+  repetitions: number;
+  dueAt: string | null;
+  intervalDays: number;
 }
 
 /** GET /api/reviews/learn — published words not yet known (swipe deck). */
@@ -68,8 +71,20 @@ export function getSaved(token: string): Promise<LearnWord[]> {
 }
 
 export interface ReviewStats {
-  known: number; // мэдэх үгийн тоо
+  /** Backwards-compatible: recalled at least once. */
+  known: number;
+  /** On new backends: seen but not yet recalled; on older ones: all not-known. */
   learning: number;
+  /** Saved/created in the learner's deck but never reviewed. */
+  new?: number;
+  /** Recalled, but interval is still below the mastery threshold. */
+  young?: number;
+  /** Recalled with a long enough interval to count as stable mastery. */
+  mature?: number;
+  /** Cards currently due for review. */
+  dueNow?: number;
+  /** Server-owned threshold for `mature`, in days. */
+  masteryThresholdDays?: number;
 }
 
 /** GET /api/reviews/stats — { known, learning } for the profile counter. */
@@ -86,4 +101,3 @@ export function markKnown(token: string, wordId: string) {
 export function markForgot(token: string, wordId: string) {
   return submitReview(token, wordId, 1);
 }
-

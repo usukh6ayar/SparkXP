@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Put,
   Patch,
   Delete,
   Param,
@@ -16,6 +17,7 @@ import {
 import { ReadingService } from './reading.service';
 import { CreateReadingDto } from './dto/create-reading.dto';
 import { UpdateReadingDto } from './dto/update-reading.dto';
+import { SaveReadingProgressDto } from './dto/save-reading-progress.dto';
 import { QueryReadingDto } from './dto/query-reading.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -48,6 +50,12 @@ export class ReadingController {
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
   audioJob(@Param('jobId') jobId: string) {
     return this.readingService.getAudioJob(jobId) ?? { done: true, expired: true };
+  }
+
+  @Get('progress')
+  @UseGuards(JwtAuthGuard)
+  getProgress(@CurrentUser() user: User) {
+    return this.readingService.getProgress(user.id);
   }
 
   @Get(':id')
@@ -111,6 +119,18 @@ export class ReadingController {
   @UseGuards(JwtAuthGuard)
   complete(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string) {
     return this.readingService.complete(user.id, id);
+  }
+
+  /** Persist the learner's last-read sentence for cross-device resume. */
+  @Put(':id/progress')
+  @HttpCode(204)
+  @UseGuards(JwtAuthGuard)
+  saveProgress(
+    @CurrentUser() user: User,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SaveReadingProgressDto,
+  ) {
+    return this.readingService.saveProgress(user.id, id, dto.sentenceIndex);
   }
 
   /** Generate audio for every sentence (background); poll GET /audio-job/:jobId. */

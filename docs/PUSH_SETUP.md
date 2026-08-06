@@ -84,8 +84,22 @@ SDK 54 дээр түгжээтэй, Choi/Boju хоёул Expo Go дээр ажи
    eas credentials
    # → Android → production → Google Service Account
    # → "Manage your Google Service Account Key for Push Notifications (FCM V1)"
-   # → Set up a Google Service Account Key → татсан JSON-оо сонгоно
+   # → Set up a NEW key        ← "Select an existing" БИШ
    ```
+
+   > 🚨 **2026-08-06-нд яг энд алдаа гарсан.** "Select an existing key" сонгосон
+   > нь **устгагдсан** `sparkxp-ios` төслийн хуучин түлхүүрийг оноосон.
+   >
+   > **Дүрэм: `google-services.json` ба service account түлхүүр хоёр ЯГ НЭГ
+   > төслийнх байх ёстой.** Зөрвөл build амжилттай болж, token бүртгэгдэж,
+   > гэтэл мэдэгдэл **чимээгүйгээр** ирэхгүй — ямар ч алдаа гарахгүй тул
+   > оношлоход хамгийн хэцүү төрлийн эвдрэл.
+   >
+   > Оноосны дараа дэлгэц дээрх `Project ID` нь `google-services.json`-ы
+   > `project_id`-тэй таарч байгааг **нүдээр шалга**:
+   > ```bash
+   > python3 -c "import json;print(json.load(open('google-services.json'))['project_info']['project_id'])"
+   > ```
 
 ---
 
