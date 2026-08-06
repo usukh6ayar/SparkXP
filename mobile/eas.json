@@ -16,8 +16,7 @@
       "env": {
         "EXPO_PUBLIC_HOT_UPDATER_URL": "https://sparkxp-hot-updater.sparkxp.workers.dev",
         "SENTRY_DISABLE_AUTO_UPLOAD": "true"
-      },
-      "channel": "production"
+      }
     },
     "preview": {
       "distribution": "internal",
@@ -30,8 +29,7 @@
       "env": {
         "EXPO_PUBLIC_HOT_UPDATER_URL": "https://sparkxp-hot-updater.sparkxp.workers.dev",
         "SENTRY_DISABLE_AUTO_UPLOAD": "true"
-      },
-      "channel": "production"
+      }
     },
     "production": {
       "autoIncrement": true,
@@ -44,8 +42,7 @@
       "env": {
         "EXPO_PUBLIC_HOT_UPDATER_URL": "https://sparkxp-hot-updater.sparkxp.workers.dev",
         "SENTRY_DISABLE_AUTO_UPLOAD": "true"
-      },
-      "channel": "production"
+      }
     }
   },
   "submit": {
