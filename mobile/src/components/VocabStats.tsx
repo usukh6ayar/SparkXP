@@ -12,28 +12,6 @@ import { useColors } from '../settings/SettingsContext';
 /**
  * Lifetime vocabulary progress, from `GET /reviews/stats`.
  *
- * The two buckets come from the server's SM-2 state (`WordReview`), NOT from
- * anything counted on the client — a locally tallied number drifts the moment
- * the student uses a second device, and vocabulary size is exactly the figure
- * learners screenshot and compare.
- *
- * **Every number here states what it counts.** The card used to show a bare
- * "95%" beside "103" and "5" with nothing tying them together or to the saved
- * list below it, which reads as three unrelated figures. So:
- *  - the bar is labelled `Мэдсэн 103 / 108 үг` — the percentage is that ratio,
- *    not a free-floating score;
- *  - each legend entry carries the server's actual rule underneath it
- *    (`known` = recalled at least once, `learning` = met but not yet recalled),
- *    which is what makes "5" mean something;
- *  - the subtitle says these are words met *in the app*, so nobody reads them
- *    as a count of the ⭐ list on the same screen.
- *
- * ⚠️ `known` is `repetitions >= 1` server-side, i.e. ONE correct recall. That is
- * why the ratio sits near 100% for most students — it is coverage, not mastery,
- * and it is deliberately not labelled as mastery here. Real strength tiers
- * (new / learning / young / mature) need new buckets from `/reviews/stats`;
- * see the backend request in ROADMAP.md.
- *
  * `stats === null` renders skeletons, so the card never flashes a "0 words
  * known" that is really just "still loading".
  */
@@ -41,8 +19,25 @@ export function VocabStats({ stats }: { stats: ReviewStats | null }) {
   const c = useColors();
   const styles = useMemo(() => makeStyles(c), [c]);
 
-  const total = stats ? stats.known + stats.learning : 0;
-  const knownShare = total > 0 ? stats!.known / total : 0;
+  const hasSrsBuckets =
+    stats?.new !== undefined &&
+    stats.young !== undefined &&
+    stats.mature !== undefined &&
+    stats.dueNow !== undefined;
+  const buckets = stats
+    ? {
+        new: hasSrsBuckets ? (stats.new ?? 0) : 0,
+        learning: stats.learning,
+        young: hasSrsBuckets ? (stats.young ?? 0) : stats.known,
+        mature: hasSrsBuckets ? (stats.mature ?? 0) : 0,
+        dueNow: stats.dueNow ?? 0,
+      }
+    : null;
+  const total = buckets
+    ? buckets.new + buckets.learning + buckets.young + buckets.mature
+    : 0;
+  const primaryCount = hasSrsBuckets ? buckets!.mature : stats?.known ?? 0;
+  const primaryShare = total > 0 ? primaryCount / total : 0;
 
   return (
     <View style={styles.card}>
@@ -73,29 +68,71 @@ export function VocabStats({ stats }: { stats: ReviewStats | null }) {
           {/* The bar's own caption — this is what the percentage is a share OF. */}
           <View style={styles.ratioRow}>
             <AppText variant="caption" color={c.textSecondary} style={styles.ratioText}>
-              {tf('vocabKnownRatio', { known: stats.known, total })}
+              {hasSrsBuckets
+                ? tf('vocabMasteryRatio', { mature: buckets!.mature, total })
+                : tf('vocabKnownRatio', { known: stats.known, total })}
             </AppText>
             <AppText variant="label" color={c.success}>
-              {Math.round(knownShare * 100)}%
+              {Math.round(primaryShare * 100)}%
             </AppText>
           </View>
-          <ProgressBar value={knownShare} height={8} color={c.success} />
+          <ProgressBar value={primaryShare} height={8} color={c.success} />
           <View style={styles.legend}>
-            <Legend
-              color={c.success}
-              label={t('knownLabel')}
-              hint={t('vocabKnownHint')}
-              value={stats.known}
-              styles={styles}
-            />
-            <Legend
-              color={c.streak}
-              label={t('vocabLearning')}
-              hint={t('vocabLearningHint')}
-              value={stats.learning}
-              styles={styles}
-            />
+            {hasSrsBuckets ? (
+              <>
+                <Legend
+                  color={c.primary}
+                  label={t('vocabNew')}
+                  hint={t('vocabNewHint')}
+                  value={buckets!.new}
+                  styles={styles}
+                />
+                <Legend
+                  color={c.streak}
+                  label={t('vocabLearning')}
+                  hint={t('vocabLearningHint')}
+                  value={buckets!.learning}
+                  styles={styles}
+                />
+                <Legend
+                  color={c.xp}
+                  label={t('vocabYoung')}
+                  hint={tf('vocabYoungHint', { days: stats.masteryThresholdDays ?? 21 })}
+                  value={buckets!.young}
+                  styles={styles}
+                />
+                <Legend
+                  color={c.success}
+                  label={t('vocabMature')}
+                  hint={tf('vocabMatureHint', { days: stats.masteryThresholdDays ?? 21 })}
+                  value={buckets!.mature}
+                  styles={styles}
+                />
+              </>
+            ) : (
+              <>
+                <Legend
+                  color={c.success}
+                  label={t('knownLabel')}
+                  hint={t('vocabKnownHint')}
+                  value={stats.known}
+                  styles={styles}
+                />
+                <Legend
+                  color={c.streak}
+                  label={t('vocabLearning')}
+                  hint={t('vocabLearningHint')}
+                  value={stats.learning}
+                  styles={styles}
+                />
+              </>
+            )}
           </View>
+          {hasSrsBuckets && buckets!.dueNow > 0 ? (
+            <AppText variant="caption" color={c.textMuted}>
+              {tf('vocabDueNow', { n: buckets!.dueNow })}
+            </AppText>
+          ) : null}
         </>
       )}
     </View>

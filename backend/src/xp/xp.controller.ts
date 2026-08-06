@@ -35,4 +35,11 @@ export class XpController {
   setGoal(@CurrentUser() user: User, @Body() dto: SetDailyGoalDto) {
     return this.xpService.setDailyGoal(user.id, dto.dailyGoalXp);
   }
+
+  /** Claim the once-per-day Sparks reward for completing the Soril daily path. */
+  @Post('daily-path/claim')
+  @HttpCode(HttpStatus.OK)
+  claimDailyPath(@CurrentUser() user: User) {
+    return this.xpService.claimDailyPath(user.id);
+  }
 }

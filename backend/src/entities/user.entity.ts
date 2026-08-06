@@ -132,6 +132,13 @@ export class User extends BaseEntity {
   @Column({ name: 'streak_freezes', type: 'int', default: 0 })
   streakFreezes: number;
 
+  /**
+   * How many freezes the current streak has consumed. Resets to 0 when the
+   * streak is lost and a new one starts.
+   */
+  @Column({ name: 'streak_freezes_used_current', type: 'int', default: 0 })
+  streakFreezesUsedCurrent: number;
+
   /** Daily XP target the user picked (Хөнгөн 20 / Дунд 50 / Ширүүн 100). */
   @Column({ name: 'daily_goal_xp', type: 'int', default: 50 })
   dailyGoalXp: number;

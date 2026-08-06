@@ -270,19 +270,15 @@ QA хүснэгтийн (27 мөр) кодтой тулгасан шалгалт
 Ингэснээр зүрх утга учиртай болж (давталтыг зүрх хязгаарлана), мухардах эрсдэлгүй.
 Тохируулга: `REVEAL_AFTER_TRIES = 2`.
 
-> ⛔ **Өсөхбаярт 4 хүсэлт** — `docs/REQUEST_choi_*.md` (тус бүр кодын хэсэгтэй):
+> ✅ **Өсөхбаярт байсан 4 хүсэлт — шийдсэн (2026-08-06):**
 > 1. `push_notifications` — `expo-notifications` + `expo-device` dependency,
->    `app.json` plugin, dev-client build. Expo Go нь SDK 53-аас хойш remote push
->    дэмждэггүй тул Choi шалгаж ч чадахгүй.
-> 2. `review_xp_and_streak` — (a) `POST /reviews/:wordId` XP олгодоггүй
->    (`XpSource.WORD_REVIEW` enum байгаа ч ашиглагдаагүй) → флашкарт XP ч streak ч
->    өгөхгүй; (b) streak нь **өдрийн зорилтоос хамаардаггүй** — 1 XP олоход ахина.
-> 3. `streak_freeze_cost` — `GET /gamification` нь үнэ/дээд хязгаарыг буцаадаггүй
->    (зүрхний `HeartsState` нь `refillCost` буцаадаг — freeze дээр л дутуу).
->    Mobile тал optional талбараар бэлэн, ирвэл автоматаар хэрэглэнэ.
-> 4. `hearts_regen_tuning` — 4 цаг хэт удаан. **Илэрсэн цоорхой:** `plans` модуль
->    ч, admin-д багцын хуудас ч байхгүй тул зүрх/freeze-ийн эдийн засгийг
->    **deploy-гүйгээр тааруулах боломжгүй** (CLAUDE.md-ийн дүрэмтэй зөрчилддөг).
+>    `app.json` plugin орсон. Үлдсэн нь dev-client/native build + APNs/FCM credential.
+> 2. `review_xp_and_streak` — `POST /reviews/:wordId` өдөрт нэг удаагийн review XP
+>    (`xpEarned`) олгоно; streak нь одоо `todayXp >= dailyGoal` үед л ахина.
+> 3. `streak_freeze_cost` — `GET /gamification` нь `streakFreezeCost` +
+>    `maxStreakFreezes` буцаана.
+> 4. `hearts_regen_tuning` — default regen 30 минут болсон, мөн Redis
+>    `hearts:defaults` override-оор deploy/app update-гүй тааруулна.
 
 ⚠️ **Boju АНХААР** — энэ багцад чиний эзэмшлийн файл орсон:
 **`app/quiz/[id].tsx`** (зүрх + давтуулах урсгал — дээрх тайлбар харна уу).
@@ -376,11 +372,10 @@ react-three-fiber (`<ambientLight intensity>`), React-DOM-ын дүрэм мэд
 "засах" нь dependency нэмэх гэсэн үг бөгөөд `useEffect` давталтад орох эрсдэлтэй
 (жинхэнэ ажиллагааны өөрчлөлт). Файл эзэмшигч тус бүр өөрөө шалгах ёстой.
 
-ℹ️ **Өсөхбаярт 2 BE хүсэлт:** `docs/REQUEST_choi_vocab_mastery.md` — (1) `LearnWord`-д
-SM-2 төлөв (`repetitions`/`dueAt`/`intervalDays`) нэмэх → үг тус бүрийн mastery
-заалт, (2) `PUT /reading/:id/progress` → унших ахиц хадгалах (одоо зөвхөн
-"дуусгасан эсэх", өөр төхөөрөмж дээр алга болно). Эдгээр ирэх хүртэл Update 3-ын
-"Ахиц хадгалах, номын сан" + "mastery indicator" **дуусахгүй**.
+✅ **Өсөхбаярын 2 BE хүсэлт шийдсэн (2026-08-06):** `LearnWord` одоо
+SM-2 төлөв (`repetitions`/`dueAt`/`intervalDays`) буцаана; `PUT /reading/:id/progress`
+ба `GET /reading/progress` нэмэгдсэн (`reading_progress` хүснэгт + migration).
+Update 3-ын "Ахиц хадгалах, номын сан" + "mastery indicator" backend талаасаа бэлэн.
 
 #### ✅ Choi — QA багц #2 (2026-07-30, 8 ажил) · ДАВХАРДУУЛАХГҮЙ
 
@@ -400,7 +395,7 @@ SM-2 төлөв (`repetitions`/`dueAt`/`intervalDays`) нэмэх → үг ту�
    Одоо **өнөөдөр дуусгасан дасгалын тоо** (`src/lib/dailyTasks.ts`, өдөр
    солигдоход өөрөө 0). `quiz/[id].tsx` `res.passed` үед `markDailyTask()`.
    ⛔ Дуусгасны **шагнал хараахан алга** — BE endpoint байхгүй
-   (`docs/REQUEST_choi_daily_path.md`). Байхгүй шагналыг байгаа мэт үзүүлээгүй.
+   Байхгүй шагналыг байгаа мэт үзүүлээгүй.
 5. **Home daily goal** — ProgressRing 78→56, padding lg→sm/md, доод margin-ыг
    бүр авч `nextRow`-д үлдээв (хоёр margin нийлж нүх үүсгэдэг байсан).
 6. **Buddy unlock** — Sparks сонголт **streak-ийн улбар шар галын** icon-той
@@ -665,13 +660,10 @@ Expo Go дээр `npm install` хийсний дараа Reading passage нээ�
 - ⚠️ **«Mastery» гэж НЭРЛЭЭГҮЙ** — `known` нь ганц удаа зөв сануулахад л тоологддог
   тул хувь нь бараг үргэлж 100%-д ойрхон сууна. Энэ бол **coverage**, mastery биш.
 
-> 📮 **Өсөхбаяр — backend хүсэлт (яаралтай биш).** `GET /reviews/stats` одоо
-> зөвхөн `{ known, learning }` буцаадаг ба `known = repetitions >= 1`. Ганц зөв
-> swipe = «мэдсэн» учраас mastery bar эхний өдрөөсөө 95%+ дээр тогтож, ямар ч
-> мэдээлэл дамжуулахаа больдог. Хүсэлт: жинхэнэ SRS түвшнүүд нэмэх —
-> `{ new, learning, young, mature, dueNow }` (жишээ нь `intervalDays` 1–21 =
-> young, 21+ = mature). Ирвэл `VocabStats`-ыг үнэхээр ахиц харуулдаг болгоно.
-> Mobile тал одоохондоо байгаа 2 хувинг **шударгаар** нэрлэж шийдсэн.
+> ✅ **Өсөхбаяр — backend хүсэлт шийдсэн (2026-08-06).** `GET /reviews/stats`
+> одоо `{ known, new, learning, young, mature, dueNow, masteryThresholdDays }`
+> буцаана (`mature` = `intervalDays >= 21`). `VocabStats` шинэ талбарууд ирвэл
+> mastery-г `mature/total`-аар харуулна, хуучин backend дээр fallback хэвээр.
 
 #### ✅ Choi — Доод навигаци: дэлгэц шахагдаж байсныг зассан (2026-08-03) · ДАВХАРДУУЛАХГҮЙ
 
@@ -955,10 +947,10 @@ Migration шаардлагагүй (багана аль хэдийн бий). З
   өөрийн header-тэй `lessons`/`soril`/`profile`-д `<DictionaryButton>` суулгав.
   Дүрс нь **томруулдаг шил (`search`)** хэвээр.
 
-**⚠️ Өсөхбаяр — BE тал (амаар ярьсан, Choi backend хөндөөгүй):**
-`GET /dictionary/:word` одоо зөвхөн богино `translation` буцаадаг тул самбар
-**нэг мөр** харуулж байна (fallback). 4 утга гаргахын тулд хариунд `meanings`
-талбар нэмэх — **API-ийн хэлбэр эвдэрдэггүй** (байхгүй бол хуучнаараа):
+**✅ Өсөхбаяр — BE тал шийдсэн (2026-08-06):**
+`GET /dictionary/:word` Word bank-аас олдсон үед `example_sentence` +
+`example_translation`-ийг `meanings: [{ word, example, translation }]` болгож
+буцаана — **AI дуудлагагүй**, хуучин `translation`/`audioUrl` contract хэвээр:
 
 ```jsonc
 {
@@ -971,23 +963,10 @@ Migration шаардлагагүй (багана аль хэдийн бий). З
   ]
 }
 ```
-Санал: Gemini-гээс JSON contract-аар авч **`translations` кэшид хадгалах** —
-ижил үг дахин хайхад AI дуудахгүй, зардал буурна. Mobile тал бүрэн бэлэн:
-`meanings` ирмэгц шууд харагдана, 4-өөс илүү ирвэл клиент тал таслана
-(`MAX_SENSES`). Type: `mobile/src/api/dictionary.ts` → `DictionarySense`.
-
-**Хамгийн хямд эхний алхам (жишээ өгүүлбэрийн тухай):** `words` хүснэгтэд
-**`example_sentence` ба `example_translation` багана аль хэдийн бий**
-(`word.entity.ts:56-61`) — гэтэл `dictionary.service.ts:60-67` нь Word DB-ээс
-олдсон үгийн зөвхөн `mongolian`-ыг буцааж, жишээг нь **хаядаг**. Тэр 2 талбарыг
-`meanings: [{ word, example, translation }]` болгож дамжуулахад л **AI огт
-дуудалгүйгээр** Word bank-д байгаа бүх үг жишээтэйгээ гарч эхэлнэ. 4 утгыг нь
-дараа нь Gemini-гээр нэмнэ.
-
-**⚠️ Мөн Өсөхбаярт (амаар):** `POST /dictionary/:word/save` нь Word bank-д
-байхгүй үгийг **`status: needs_review`-ээр шинээр үүсгэдэг**
-(`backend/src/dictionary/dictionary.service.ts:181`) тул сурагчийн хадгалсан үг
-бүр **admin-ы Words жагсаалтад** орж ирж байна. Choi backend-ийг хөндөөгүй.
+4 утгын бүрэн AI contract нь тусдаа `GET /dictionary/search/:word` дээр
+`dictionary_entries` cache-тай бэлэн. `POST /dictionary/:word/save` замыг мөн
+солиж, одоо `POST /dictionary/saves/:word` нь `user_dictionary_saves`-д бичнэ;
+Word bank-ийг `needs_review` мөрөөр бохирдуулахгүй.
 
 Шалгасан: `tsc --noEmit` цэвэр · `eslint` хөндсөн файлууд дээр цэвэр.
 
@@ -1140,11 +1119,11 @@ Migration шаардлагагүй (багана аль хэдийн бий). З
 - **Мөстөлт (2 арга, хоёуланг нь):**
   1. **Одоо ажиллана** — `streakFreezes`-ийг **хоногоор** хэлнэ:
      «2 хоногийн мөстөлтийн хамгаалалттай». Баяр хүргэх цонхонд + `StreakFreezeSheet`-д.
-  2. **Backend хүлээж байна** — `streakFreezesUsed?` (энэ streak хэдэн алгассан
-     өдрийг даван туулсан). Ирвэл «Энэ дарааллыг 2 хоног мөстөлт хамгаалсан»
-     болж **автоматаар** солигдоно. Ирээгүй бол мөрийг **огт харуулахгүй**
-     (таамагласан тоо хэзээ ч гарахгүй). Хүсэлт:
-     **`docs/REQUEST_choi_streak_freeze_used.md`**.
+  2. **Backend шийдсэн (2026-08-06)** — `streakFreezesUsed?` одоо ирнэ (энэ
+     streak хэдэн алгассан өдрийг даван туулсан). Ингэснээр «Энэ дарааллыг
+     2 хоног мөстөлт хамгаалсан» чип автоматаар асна. Хадгалалт:
+     `users.streak_freezes_used_current` + migration
+     `AddStreakFreezesUsedCurrent1786900000000`.
 
 **4. 🐛 Сүүдэр дөрвөлжин тайрагдах — аппын хэмжээнд аудит**
 - Choi: «Home-ийн *Бас үзээрэй* дахь IELTS/Хэлц картууд ч тийм байна».
@@ -1479,13 +1458,8 @@ Choi: «сорилын хэсгийн бас төгсгөлд хийж дуус�
 **Тоглоомын дэлгэц: дүнгийн хэсэг ScrollView болов** (өмнө нь голлуулсан нэг
 блок байсан) — оноо одоо 10 мөрт тоймын **толгой** болж суув.
 
-⚠️ **BE ХҮСЭЛТ — Өсөхбаяр: `POST /words/quiz/submit` хариунд `results` нэмнэ үү.**
-- Одоо `{ total, correct, xpAwarded, sparksAwarded }` буцаадаг. `gradeQuiz`
-  (`backend/src/words/words.service.ts`) нь **аль хэдийн** хариулт бүрийг
-  шалгаж, `word.mongolian`-г гартаа барьж байгаад **хаячихдаг** — тиймээс
-  сурагч үгийн тоглоом дуусгаад «7/10» гэдгийг л мэднэ, аль 3 үгээ мэдэхгүй
-  байгаагаа мэдэхгүй.
-- Хүсэж буй хэлбэр (`XP` логик өөрчлөгдөхгүй, зөвхөн буцаах утга):
+✅ **BE хүсэлт шийдсэн (2026-08-06): `POST /words/quiz/submit` хариунд `results` орно.**
+XP/Sparks логик өөрчлөгдөөгүй, зөвхөн per-answer тойм нэмэгдсэн:
   ```ts
   results: { wordId: string; correct: boolean; correctAnswer: string }[]
   ```
@@ -1849,8 +1823,8 @@ Choi зөвхөн **нүдэнд харагдах** эмх замбараагү�
 | **QPay төлбөр** | Өсөхбаяр | Premium багцын бодит төлбөр (Payment entity + QPay webhook + багц config) |
 | Багц/plan limit config | Өсөхбаяр | Voice/token/dictionary/Sparks limit-ийг admin/DB-ээс (апп шинэчлэлгүй) |
 | **Badge & Achievement** | Boju | Achievement badge систем + Profile дээр харуулах |
-| **Push Notification** | Өсөхбаяр (BE) + Choi/Boju (FE) | BE + cron ✅ · Choi-гийн API давхарга ✅ · ⛔ dependency + dev-client build хүлээж байна (`docs/REQUEST_choi_push_notifications.md`) |
-| Streak сайжруулалт | Choi | Freeze ✅ · өдрийн зорилго ✅ (2026-07-29, дээрх багц) · сануулга = push-тай хамт · ⛔ streak-ийн дүрэм BE-д (`docs/REQUEST_choi_review_xp_and_streak.md`) |
+| **Push Notification** | Өсөхбаяр (BE) + Choi/Boju (FE) | BE + cron ✅ · Choi-гийн API давхарга ✅ · native dependency + `app.json` plugin ✅ · үлдсэн: dev-client build + APNs/FCM credential |
+| Streak сайжруулалт | Choi | Freeze ✅ · өдрийн зорилго ✅ · streak daily-goal gate ✅ (2026-08-06) · сануулга = push-тай хамт |
 
 ### 🌊 Update 2 — Speaking & Voice AI (2026 оны 8-р сар)
 > ⚠️ Хамгийн өндөр зардалтай хэсэг → **AI Gateway + guardrail** заавал (FUTURE_PLAN §4).

@@ -1,10 +1,12 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, MoreThanOrEqual } from 'typeorm';
+import { Repository, DataSource, MoreThanOrEqual, IsNull } from 'typeorm';
 import { XpLog } from '../entities/xp-log.entity';
 import { User } from '../entities/user.entity';
 import { Lesson } from '../entities/lesson.entity';
 import { Plan } from '../entities/plan.entity';
+import { QuizAttempt } from '../entities/quiz-attempt.entity';
+import { SparksLog } from '../entities/sparks-log.entity';
 import { SparksService } from '../sparks/sparks.service';
 import { AchievementsService } from '../achievements/achievements.service';
 import { XpSource, ContentLevel, SparksSource } from '../common/enums';
@@ -49,6 +51,8 @@ export interface GamificationSummary extends LevelInfo {
   longestStreak: number;
   /** Unused streak freezes the learner owns. */
   streakFreezes: number;
+  /** Freezes consumed by the current streak. */
+  streakFreezesUsed: number;
   /**
    * Sparks price of one freeze, resolved from the user's plan.
    * Sent so the app never hard-codes a price that admin can change — the same
@@ -69,6 +73,10 @@ export interface GamificationSummary extends LevelInfo {
   quizzesDone: number;
   /** Per-CEFR-level lesson progress for the Lessons map islands (a1…c2). */
   progressByLevel: Record<string, { done: number; total: number }>;
+  /** Standalone quiz/exercise attempts completed today. */
+  todayExercises: number;
+  /** Daily exercise target for the Soril "Өнөөдрийн зам". */
+  dailyExerciseGoal: number;
 }
 
 /** Fallback daily-XP goal for rows predating the per-user column. */
@@ -79,6 +87,12 @@ export const DAILY_GOAL_CHOICES = [20, 50, 100] as const;
 
 /** Free-tier Sparks price of one streak freeze (plans may override). */
 const STREAK_FREEZE_SPARKS = 100;
+
+/** Standalone exercises needed to fill the Soril daily path. */
+const DAILY_EXERCISE_GOAL = 5;
+
+/** Sparks paid once per day for completing the Soril daily path. */
+const DAILY_PATH_SPARKS = 15;
 
 /**
  * Where "the streak celebration was already shown today" is remembered.
@@ -153,6 +167,7 @@ export class XpService {
           longestStreak: true,
           lastActiveDate: true,
           streakFreezes: true,
+          streakFreezesUsedCurrent: true,
           dailyGoalXp: true,
         },
       });
@@ -180,6 +195,10 @@ export class XpService {
             longestStreak: Math.max(user.longestStreak ?? 0, next.streak),
             lastActiveDate: today,
             streakFreezes: next.freezesLeft,
+            streakFreezesUsedCurrent:
+              next.streak === 1
+                ? 0
+                : (user.streakFreezesUsedCurrent ?? 0) + next.freezesUsed,
           });
           streakAdvancedTo = next.streak;
         }
@@ -328,6 +347,71 @@ export class XpService {
     return this.getGamification(userId);
   }
 
+  async claimDailyPath(userId: string): Promise<{
+    sparksAwarded: number;
+    alreadyClaimed: boolean;
+    todayExercises: number;
+    dailyExerciseGoal: number;
+  }> {
+    const today = dayKeyUB();
+    const start = startOfUBDay();
+
+    return this.dataSource.transaction(async (manager) => {
+      // Serialize claims per user/day so two taps cannot double-award.
+      await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
+        `daily-path:${userId}:${today}`,
+      ]);
+
+      const attempts = await manager.getRepository(QuizAttempt).count({
+        where: {
+          userId,
+          assignmentId: IsNull(),
+          createdAt: MoreThanOrEqual(start),
+        },
+      });
+
+      if (attempts < DAILY_EXERCISE_GOAL) {
+        throw new BadRequestException('Өнөөдрийн зам хараахан дүүрээгүй байна');
+      }
+
+      const existing = await manager
+        .getRepository(SparksLog)
+        .createQueryBuilder('s')
+        .where('s.user_id = :userId', { userId })
+        .andWhere('s.source = :source', { source: SparksSource.DAILY_PATH })
+        .andWhere('s.metadata @> CAST(:meta AS jsonb)', {
+          meta: JSON.stringify({ day: today }),
+        })
+        .getOne();
+
+      if (existing) {
+        return {
+          sparksAwarded: 0,
+          alreadyClaimed: true,
+          todayExercises: attempts,
+          dailyExerciseGoal: DAILY_EXERCISE_GOAL,
+        };
+      }
+
+      const log = manager.create(SparksLog, {
+        userId,
+        amount: DAILY_PATH_SPARKS,
+        source: SparksSource.DAILY_PATH,
+        referenceId: null,
+        metadata: { day: today, todayExercises: attempts },
+      });
+      await manager.save(log);
+      await manager.increment(User, { id: userId }, 'sparks', DAILY_PATH_SPARKS);
+
+      return {
+        sparksAwarded: DAILY_PATH_SPARKS,
+        alreadyClaimed: false,
+        todayExercises: attempts,
+        dailyExerciseGoal: DAILY_EXERCISE_GOAL,
+      };
+    });
+  }
+
   async getGamification(userId: string): Promise<GamificationSummary> {
     const user = await this.users.findOne({
       where: { id: userId },
@@ -347,6 +431,7 @@ export class XpService {
         level: true,
         dailyGoalXp: true,
         streakFreezes: true,
+        streakFreezesUsedCurrent: true,
         planExpiresAt: true,
       },
     });
@@ -371,7 +456,7 @@ export class XpService {
       user?.lastActiveDate ?? null,
     );
 
-    const [todayRow, lessonRow, quizzesDone, levelTotals, levelDone] = await Promise.all([
+    const [todayRow, lessonRow, quizzesDone, todayExercises, levelTotals, levelDone] = await Promise.all([
       this.xpLogs
         .createQueryBuilder('x')
         .select('COALESCE(SUM(x.amount), 0)', 'sum')
@@ -387,6 +472,13 @@ export class XpService {
         .andWhere('x.reference_id IS NOT NULL')
         .getRawOne<{ n: string }>(),
       this.xpLogs.count({ where: { userId, source: XpSource.QUIZ } }),
+      this.dataSource.getRepository(QuizAttempt).count({
+        where: {
+          userId,
+          assignmentId: IsNull(),
+          createdAt: MoreThanOrEqual(startOfUBDay()),
+        },
+      }),
       // Published lessons per CEFR level → island "total".
       this.lessons
         .createQueryBuilder('l')
@@ -426,6 +518,7 @@ export class XpService {
       currentStreak,
       longestStreak: user?.longestStreak ?? 0,
       streakFreezes: user?.streakFreezes ?? 0,
+      streakFreezesUsed: alive ? (user?.streakFreezesUsedCurrent ?? 0) : 0,
       streakFreezeCost:
         (user && this.activePlanOf(user)?.streakFreezeSparks) ?? STREAK_FREEZE_SPARKS,
       maxStreakFreezes: MAX_HELD_FREEZES,
@@ -435,6 +528,8 @@ export class XpService {
       cefrLevel: user?.level ?? null,
       lessonsDone: Number(lessonRow?.n ?? 0),
       quizzesDone,
+      todayExercises,
+      dailyExerciseGoal: DAILY_EXERCISE_GOAL,
       progressByLevel,
     };
   }

@@ -67,3 +67,27 @@ export function completeReading(
 ): Promise<{ passageId: string; alreadyCompleted: boolean; xpAwarded: number }> {
   return apiRequest(`/reading/${id}/complete`, { method: 'POST', token });
 }
+
+export interface ReadingProgress {
+  passageId: string;
+  sentenceIndex: number;
+  completedAt: string | null;
+}
+
+/** GET /reading/progress — cross-device reading bookmarks/completions. */
+export function getReadingProgress(token: string): Promise<ReadingProgress[]> {
+  return apiRequest<ReadingProgress[]>('/reading/progress', { token });
+}
+
+/** PUT /reading/:id/progress — save the last-read sentence. */
+export function saveReadingProgress(
+  id: string,
+  sentenceIndex: number,
+  token: string,
+): Promise<void> {
+  return apiRequest(`/reading/${id}/progress`, {
+    method: 'PUT',
+    body: { sentenceIndex },
+    token,
+  });
+}

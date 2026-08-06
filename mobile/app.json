@@ -10,7 +10,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "mn.app.sparkxp",
-      "icon": "./assets/icon-ios.png",
+      "icon": "./assets/icon.png",
       "infoPlist": {
         "NSCameraUsageDescription": "Анги нэгдэх QR код уншихад камер ашиглана.",
         "NSMicrophoneUsageDescription": "AI Buddy-тай дуут яриа хийхэд микрофон ашиглана.",
@@ -26,7 +26,7 @@
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#3D0BA0",
-        "foregroundImage": "./assets/icon-adaptive.png"
+        "foregroundImage": "./assets/icon.png"
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [
