@@ -2,6 +2,7 @@ import {
   Injectable,
   Inject,
   Logger,
+  ServiceUnavailableException,
   ConflictException,
   UnauthorizedException,
   BadRequestException,
@@ -104,7 +105,29 @@ export class AuthService {
       await this.redis.set(this.tasteKey(user.email), '1', 'EX', TASTE_PENDING_TTL);
     }
 
-    await this.sendOtp('verify', user.email);
+    // If the code cannot be emailed, the account must not survive. Registration
+    // creates the row BEFORE sending, so a failed send used to leave an
+    // unverified account behind: the user saw a 500, retried, and hit
+    // "this email is already registered" — permanently stuck, with no way to
+    // reach the resend button they never got to. Rolling back lets them simply
+    // try again. (Observed in production on 2026-08-06 with a misconfigured
+    // SMTP setup.)
+    try {
+      await this.sendOtp('verify', user.email);
+    } catch (err) {
+      await this.usersService.remove(user.id).catch(() => {
+        // Rollback failed too — log loudly; the row will need clearing by hand.
+        this.logger.error(`Rollback failed for ${user.email} after mail error`);
+      });
+      this.logger.error(
+        `Registration aborted for ${user.email}: verification email failed — ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      throw new ServiceUnavailableException(
+        'Баталгаажуулах имэйл илгээхэд алдаа гарлаа. Түр хүлээгээд дахин оролдоно уу.',
+      );
+    }
     return { pendingVerification: true, email: user.email };
   }
 

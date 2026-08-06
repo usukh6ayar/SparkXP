@@ -14,9 +14,9 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_HOT_UPDATER_URL": "https://sparkxp-hot-updater.sparkxp.workers.dev"
-      },
-      "channel": "production"
+        "EXPO_PUBLIC_HOT_UPDATER_URL": "https://sparkxp-hot-updater.sparkxp.workers.dev",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
+      }
     },
     "preview": {
       "distribution": "internal",
@@ -27,9 +27,9 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_HOT_UPDATER_URL": "https://sparkxp-hot-updater.sparkxp.workers.dev"
-      },
-      "channel": "production"
+        "EXPO_PUBLIC_HOT_UPDATER_URL": "https://sparkxp-hot-updater.sparkxp.workers.dev",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
+      }
     },
     "production": {
       "autoIncrement": true,
@@ -40,9 +40,9 @@
         "buildType": "app-bundle"
       },
       "env": {
-        "EXPO_PUBLIC_HOT_UPDATER_URL": "https://sparkxp-hot-updater.sparkxp.workers.dev"
-      },
-      "channel": "production"
+        "EXPO_PUBLIC_HOT_UPDATER_URL": "https://sparkxp-hot-updater.sparkxp.workers.dev",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
+      }
     }
   },
   "submit": {

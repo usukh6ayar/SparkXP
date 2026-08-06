@@ -20,6 +20,7 @@ import { ClassJoinRequest } from './class-join-request.entity';
 import { AiBuddy } from './ai-buddy.entity';
 import { AssignmentCompletion } from './assignment-completion.entity';
 import { ReadingPassage } from './reading-passage.entity';
+import { ReadingProgress } from './reading-progress.entity';
 import { Translation } from './translation.entity';
 import { Idiom } from './idiom.entity';
 import { BuddySession } from './buddy-session.entity';
@@ -57,6 +58,7 @@ export {
   AiBuddy,
   AssignmentCompletion,
   ReadingPassage,
+  ReadingProgress,
   Translation,
   Idiom,
   BuddySession,
@@ -96,6 +98,7 @@ export const entities = [
   AiBuddy,
   AssignmentCompletion,
   ReadingPassage,
+  ReadingProgress,
   Translation,
   Idiom,
   BuddySession,

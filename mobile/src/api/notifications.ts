@@ -25,11 +25,13 @@ export function getMyNotifications(token: string): Promise<AppNotification[]> {
 // The backend sends a daily 20:00 (UB) reminder naming how many words are due
 // ("N үг чамайг хүлээж байна"), but only to devices that registered a token.
 //
-// Getting the token itself needs `expo-notifications`, which is NOT installed —
-// dependency + `app.json` plugin changes belong to the lead (CLAUDE.md), and
-// Expo Go dropped remote push in SDK 53 so it can't be tested here either.
-// Requested in `docs/REQUEST_choi_push_notifications.md`. These wrappers are
-// ready for the moment that lands.
+// The device side now lives in `src/lib/pushRegistration.ts`, wired into
+// AuthContext (register on session start, drop on logout). `expo-notifications`
+// IS installed and its plugin is in `app.json`.
+//
+// ⚠️ Still untestable in Expo Go — Expo removed remote push there in SDK 53, so
+// these only do anything in a dev/production build. Delivery also needs a
+// Firebase FCM V1 key uploaded to EAS: see `docs/PUSH_SETUP.md`.
 
 /** Shape the backend enforces (`RegisterPushTokenDto`) — check before sending. */
 export const EXPO_PUSH_TOKEN_RE = /^Expo(nent)?PushToken\[.+\]$/;

@@ -1,7 +1,7 @@
 # SparkXP
 
 Gamified **English learning** app for Mongolian students, schools, and organizations.  
-Owner: **Hustle Hive LLC**.
+Owner: **Aether Tech Core LLC**.
 
 | | |
 |---|---|
@@ -135,4 +135,4 @@ npm run ota:deploy    # after native build is installed on device
 
 ## License
 
-Private — Hustle Hive LLC. All rights reserved.
+Private — Aether Tech Core LLC. All rights reserved.

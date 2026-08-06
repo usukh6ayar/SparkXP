@@ -33,12 +33,23 @@ export class SparksService {
   ) {}
 
   /**
-   * Log a Sparks change and update User.sparks cache atomically.
+   * Log a Sparks change and update the User.sparks cache atomically.
    * Positive amount = earn; negative = spend.
    *
    * Pass an existing `manager` to run inside a caller's transaction (so a
    * purchase's deduction + item grant commit or roll back together); omit it
    * and the change runs in its own transaction.
+   *
+   * **Spending is guarded here, not by the caller.** Callers check the balance
+   * with a plain `SELECT` before opening their transaction, which is a
+   * time-of-check/time-of-use race: two concurrent purchases of *different*
+   * items both read the same balance, both pass, and both deduct — leaving the
+   * user with a negative balance and items they could not afford. A unique
+   * constraint does not help, because those are different rows.
+   *
+   * The conditional UPDATE below closes it: Postgres re-reads the row under a
+   * row lock, so the second writer sees the first one's deduction and matches
+   * zero rows. One guard in the shared ledger protects every spender.
    */
   async change(
     opts: AwardSparksOptions,
@@ -57,17 +68,38 @@ export class SparksService {
       if (opts.amount >= 0) {
         await m.increment(User, { id: opts.userId }, 'sparks', opts.amount);
       } else {
-        await m.decrement(
-          User,
-          { id: opts.userId },
-          'sparks',
-          Math.abs(opts.amount),
-        );
+        await this.deduct(m, opts.userId, Math.abs(opts.amount));
       }
 
       return log;
     };
     return manager ? run(manager) : this.dataSource.transaction(run);
+  }
+
+  /**
+   * Subtract Sparks, but only if the balance actually covers it.
+   *
+   * Postgres re-reads the row under a row lock for the UPDATE, so a second
+   * concurrent spender sees the first one's deduction and matches zero rows.
+   * Throwing then rolls its whole transaction back — the ledger row and
+   * whatever the caller was granting are undone together.
+   */
+  private async deduct(
+    manager: EntityManager,
+    userId: string,
+    cost: number,
+  ): Promise<void> {
+    const res = await manager
+      .createQueryBuilder()
+      .update(User)
+      .set({ sparks: () => 'sparks - :cost' })
+      .where('id = :id AND sparks >= :cost', { id: userId, cost })
+      .setParameter('cost', cost)
+      .execute();
+
+    if (!res.affected) {
+      throw new BadRequestException('Spark хүрэлцэхгүй байна');
+    }
   }
 
   /**
@@ -112,12 +144,9 @@ export class SparksService {
         metadata: { lessonTitle: lesson.title },
       });
       await manager.save(sparksLog);
-      await manager.decrement(
-        User,
-        { id: userId },
-        'sparks',
-        lesson.priceSparks,
-      );
+      // Guarded: the balance check above ran outside this transaction, so a
+      // concurrent spend could have emptied the account since.
+      await this.deduct(manager, userId, lesson.priceSparks);
 
       // Create the unlock record
       const unlock = manager.create(LessonUnlock, {

@@ -13,6 +13,7 @@ import {
   ReadingSentence,
   ReadingQuestion,
 } from '../entities/reading-passage.entity';
+import { ReadingProgress } from '../entities/reading-progress.entity';
 import { CreateReadingDto } from './dto/create-reading.dto';
 import { UpdateReadingDto } from './dto/update-reading.dto';
 import { QueryReadingDto } from './dto/query-reading.dto';
@@ -75,6 +76,8 @@ export class ReadingService {
     private readonly xp: XpService,
     @InjectRepository(ReadingPassage)
     private readonly passages: Repository<ReadingPassage>,
+    @InjectRepository(ReadingProgress)
+    private readonly progress: Repository<ReadingProgress>,
   ) {}
 
   /**
@@ -120,6 +123,7 @@ export class ReadingService {
       category: dto.category ?? null,
       coverImageUrl: dto.coverImageUrl ?? null,
       keyVocab: dto.keyVocab ?? [],
+      comprehensionQuestions: dto.comprehensionQuestions ?? [],
       sentences: (dto.sentences ?? []) as ReadingSentence[],
       isPublished: dto.isPublished ?? false,
     });
@@ -160,6 +164,8 @@ export class ReadingService {
     if (dto.category !== undefined) passage.category = dto.category ?? null;
     if (dto.coverImageUrl !== undefined) passage.coverImageUrl = dto.coverImageUrl;
     if (dto.keyVocab !== undefined) passage.keyVocab = dto.keyVocab;
+    if (dto.comprehensionQuestions !== undefined)
+      passage.comprehensionQuestions = dto.comprehensionQuestions;
     if (dto.sentences !== undefined)
       passage.sentences = dto.sentences as ReadingSentence[];
     if (dto.isPublished !== undefined) passage.isPublished = dto.isPublished;
@@ -188,11 +194,57 @@ export class ReadingService {
       source: XpSource.READING,
       referenceId: passageId,
     });
+    await this.markProgressCompleted(userId, passageId);
     return {
       passageId,
       alreadyCompleted: log === null,
       xpAwarded: log ? readingXp : 0,
     };
+  }
+
+  async saveProgress(
+    userId: string,
+    passageId: string,
+    sentenceIndex: number,
+  ): Promise<void> {
+    const passage = await this.findOne(passageId);
+    const maxIndex = Math.max((passage.sentences?.length ?? 1) - 1, 0);
+    const safeIndex = Math.min(sentenceIndex, maxIndex);
+    const existing = await this.progress.findOne({ where: { userId, passageId } });
+    const row =
+      existing ??
+      this.progress.create({
+        userId,
+        passageId,
+        completedAt: null,
+      });
+    row.sentenceIndex = safeIndex;
+    await this.progress.save(row);
+  }
+
+  getProgress(
+    userId: string,
+  ): Promise<{ passageId: string; sentenceIndex: number; completedAt: Date | null }[]> {
+    return this.progress.find({
+      where: { userId },
+      select: { passageId: true, sentenceIndex: true, completedAt: true },
+      order: { updatedAt: 'DESC' },
+    });
+  }
+
+  private async markProgressCompleted(userId: string, passageId: string): Promise<void> {
+    const passage = await this.findOne(passageId);
+    const lastIndex = Math.max((passage.sentences?.length ?? 1) - 1, 0);
+    const existing = await this.progress.findOne({ where: { userId, passageId } });
+    const row =
+      existing ??
+      this.progress.create({
+        userId,
+        passageId,
+      });
+    row.sentenceIndex = Math.max(row.sentenceIndex ?? 0, lastIndex);
+    row.completedAt = row.completedAt ?? new Date();
+    await this.progress.save(row);
   }
 
   // ── F1: Guess Before Translate (admin review) ──────────────────────────────

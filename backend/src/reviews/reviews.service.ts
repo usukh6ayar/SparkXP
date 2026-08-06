@@ -31,8 +31,35 @@ const REVIEW_XP_TTL_SECONDS = 26 * 60 * 60;
 /** Safety cap so the daily due queue never returns a huge payload. */
 const DUE_LIMIT = 100;
 
-/** A word in the swipe deck, plus this user's saved (⭐) flag for it. */
-export type LearnCard = Word & { saved: boolean };
+/** A word in the swipe deck, plus this user's saved/SRS state. */
+export type LearnCard = Word & {
+  saved: boolean;
+  repetitions: number;
+  dueAt: string | null;
+  intervalDays: number;
+};
+
+export interface ReviewStats {
+  /**
+   * Backwards-compatible counter: words recalled at least once
+   * (`young + mature` in the SRS buckets below).
+   */
+  known: number;
+  /** Seen/reviewed but not yet recalled successfully. */
+  learning: number;
+  /** Saved/created in the learner's deck but never reviewed. */
+  new: number;
+  /** Recalled, but interval is still below the mastery threshold. */
+  young: number;
+  /** Recalled with a long enough interval to count as stable mastery. */
+  mature: number;
+  /** Cards currently due for review. */
+  dueNow: number;
+  /** Server-owned threshold for `mature`, in days. */
+  masteryThresholdDays: number;
+}
+
+const MASTERY_THRESHOLD_DAYS = 21;
 
 @Injectable()
 export class ReviewsService {
@@ -187,26 +214,74 @@ export class ReviewsService {
   }
 
   /** Words this user has saved (⭐) — for the "Saved words" screen. */
-  async getSaved(userId: string): Promise<Word[]> {
+  async getSaved(userId: string): Promise<LearnCard[]> {
     const rows = await this.reviews.find({
       where: { userId, saved: true },
       relations: { word: true },
       order: { lastSeenAt: 'DESC' },
     });
-    return rows.map((r) => r.word);
+    return rows.map((r) => this.toLearnCard(r.word, r));
   }
 
   /**
    * Word stats for the swipe-learning UI.
-   * - `known`: words recalled at least once (repetitions >= 1) → "мэдэх үг".
-   * - `learning`: seen but not yet known (repetitions = 0).
+   *
+   * `known` stays for older clients. The real SRS buckets let the app show
+   * mastery instead of treating one correct swipe as "learned".
    */
-  async getStats(userId: string): Promise<{ known: number; learning: number }> {
-    const [known, learning] = await Promise.all([
-      this.reviews.count({ where: { userId, repetitions: MoreThanOrEqual(1) } }),
-      this.reviews.count({ where: { userId, repetitions: 0 } }),
-    ]);
-    return { known, learning };
+  async getStats(userId: string): Promise<ReviewStats> {
+    const row = await this.reviews
+      .createQueryBuilder('r')
+      .select(
+        `COUNT(*) FILTER (WHERE r.repetitions >= 1)::int`,
+        'known',
+      )
+      .addSelect(
+        `COUNT(*) FILTER (WHERE COALESCE(r.review_count, 0) = 0)::int`,
+        'new',
+      )
+      .addSelect(
+        `COUNT(*) FILTER (
+          WHERE COALESCE(r.review_count, 0) > 0 AND r.repetitions = 0
+        )::int`,
+        'learning',
+      )
+      .addSelect(
+        `COUNT(*) FILTER (
+          WHERE r.repetitions >= 1 AND r.interval_days < :threshold
+        )::int`,
+        'young',
+      )
+      .addSelect(
+        `COUNT(*) FILTER (
+          WHERE r.repetitions >= 1 AND r.interval_days >= :threshold
+        )::int`,
+        'mature',
+      )
+      .addSelect(
+        `COUNT(*) FILTER (WHERE r.next_review_at <= :now)::int`,
+        'dueNow',
+      )
+      .where('r.user_id = :userId', { userId })
+      .setParameters({ threshold: MASTERY_THRESHOLD_DAYS, now: new Date() })
+      .getRawOne<{
+        known: number | string;
+        new: number | string;
+        learning: number | string;
+        young: number | string;
+        mature: number | string;
+        dueNow: number | string;
+      }>();
+
+    return {
+      known: Number(row?.known ?? 0),
+      new: Number(row?.new ?? 0),
+      learning: Number(row?.learning ?? 0),
+      young: Number(row?.young ?? 0),
+      mature: Number(row?.mature ?? 0),
+      dueNow: Number(row?.dueNow ?? 0),
+      masteryThresholdDays: MASTERY_THRESHOLD_DAYS,
+    };
   }
 
   /**
@@ -234,12 +309,31 @@ export class ReviewsService {
     if (words.length === 0) return [];
 
     // Which of these the user has starred → merge a `saved` flag per card.
-    const savedRows = await this.reviews.find({
-      where: { userId, wordId: In(words.map((w) => w.id)), saved: true },
-      select: { wordId: true },
+    const reviewRows = await this.reviews.find({
+      where: { userId, wordId: In(words.map((w) => w.id)) },
+      select: {
+        wordId: true,
+        saved: true,
+        repetitions: true,
+        nextReviewAt: true,
+        intervalDays: true,
+      },
     });
-    const savedIds = new Set(savedRows.map((r) => r.wordId));
+    const byWord = new Map(reviewRows.map((r) => [r.wordId, r]));
 
-    return words.map((w) => ({ ...w, saved: savedIds.has(w.id) }));
+    return words.map((w) => this.toLearnCard(w, byWord.get(w.id)));
+  }
+
+  private toLearnCard(
+    word: Word,
+    review?: Pick<WordReview, 'saved' | 'repetitions' | 'nextReviewAt' | 'intervalDays'>,
+  ): LearnCard {
+    return {
+      ...word,
+      saved: review?.saved ?? false,
+      repetitions: review?.repetitions ?? 0,
+      dueAt: review?.nextReviewAt?.toISOString() ?? null,
+      intervalDays: review?.intervalDays ?? 0,
+    };
   }
 }

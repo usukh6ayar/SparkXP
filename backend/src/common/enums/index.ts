@@ -217,6 +217,7 @@ export enum SparksSource {
   QUIZ = "quiz",
   LESSON = "lesson",
   STREAK = "streak",
+  DAILY_PATH = "daily_path",
   ADMIN_GRANT = "admin_grant",
   PURCHASE = "purchase", // bought Sparks with real money (via a Payment)
   REFERRAL = "referral", // inviter bonus when an invited friend first purchases

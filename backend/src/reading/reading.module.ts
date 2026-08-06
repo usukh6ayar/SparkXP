@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ReadingPassage } from '../entities/reading-passage.entity';
+import { ReadingProgress } from '../entities/reading-progress.entity';
 import { ReadingService } from './reading.service';
 import { ReadingController } from './reading.controller';
 import { AiGatewayModule } from '../ai-gateway/ai-gateway.module';
@@ -11,7 +12,11 @@ import { XpModule } from '../xp/xp.module';
  * sentence audio (F4) + XP on completion.
  */
 @Module({
-  imports: [TypeOrmModule.forFeature([ReadingPassage]), AiGatewayModule, XpModule],
+  imports: [
+    TypeOrmModule.forFeature([ReadingPassage, ReadingProgress]),
+    AiGatewayModule,
+    XpModule,
+  ],
   controllers: [ReadingController],
   providers: [ReadingService],
   exports: [ReadingService],

@@ -89,7 +89,7 @@ DTO-д байхгүй талбарыг чимээгүй арчина).
 | GET `/words/quiz` | JWT | Нийтэлсэн үгсээс MCQ vocab quiz үүсгэх (question бүр `imageUrl` + `audioUrl`-тэй; Listen тоглоом аудиогүй үед TTS-ээр дуудна) | `{ count }` |
 | GET `/words/sample` | **Public** | Бүртгэлийн өмнөх taste-task (C4) — цөөн MCQ (**зөв хариу орсон**, апп локал шалгана). Auth шаардахгүй | `?count` (1–5, default 3) |
 | GET `/words/match` | JWT | "Холбож ял" тоглоомд үг↔утга хос буцаах (grading нь `quiz/submit`-ээр) | `{ count }` |
-| POST `/words/quiz/submit` | JWT | Quiz шалгаж, XP + Sparks олгох (Match тоглоом ч үүгээр) | `{ answers }` |
+| POST `/words/quiz/submit` | JWT | Quiz шалгаж, XP + Sparks олгох (Match тоглоом ч үүгээр). Хариу: `{ total, correct, xpAwarded, sparksAwarded, results: [{ wordId, correct, correctAnswer }] }` | `{ answers }` |
 | POST `/words` | admin-баг | Үг үүсгэх | `CreateWordDto` |
 | POST `/words/bulk` | admin-баг | JSON массиваас олноор → `{inserted, skipped}` | `CreateWordDto[]` |
 | POST `/words/ai-fill` | admin-баг | Нэг үгийн бүх талбарыг AI-аар бөглөх | `{ english }` |
@@ -373,7 +373,7 @@ Controller-level: JWT. (Reading-ийн tap-to-translate ашигладаг.)
 | GET `/dictionary/admin/entries` | admin/super_admin/moderator | Толины жагсаалт (хуудаслалт) | query `search`, `page`, `limit`, `sort=searches\|recent` |
 | PATCH `/dictionary/admin/entries/:id` | admin/super_admin/moderator | Утгуудыг гараар засах (`edited=true`) | body `{ senses: [{word, example, translation}] }` (1–4) |
 | DELETE `/dictionary/admin/entries/:id` | admin/super_admin/moderator | Толины бичлэг устгах (дараагийн хайлтад AI дахин үүсгэнэ) | path `id` |
-| GET `/dictionary/:word` | JWT | Богино монгол утга (DB → cache → Gemini) — унших дэлгэцийн давхар дарах | path `word` |
+| GET `/dictionary/:word` | JWT | Богино монгол утга (DB → cache → Gemini) — унших дэлгэцийн давхар дарах. Word bank hit дээр жишээ өгүүлбэр байвал `meanings: [{ word, example, translation }]` мөн ирнэ | path `word` |
 | POST `/dictionary/translate` | JWT | Өгүүлбэрийн бүтэн монгол орчуулга (cache → Gemini) | body `{ text }` |
 | GET `/dictionary/:word/audio` | JWT | Дуудлагын аудио URL (ElevenLabs, cached) | path `word` |
 
@@ -392,7 +392,7 @@ Controller-level: JWT. Бүгд student-ийн өөрийн давталтын �
 | GET `/reviews/due` | JWT | Одоо давтах ёстой үгс | — |
 | GET `/reviews/learn` | JWT | Сурах үгсийн багц (swipe) | — |
 | GET `/reviews/saved` | JWT | Хадгалсан (⭐) үгс | — |
-| GET `/reviews/stats` | JWT | Үгсийн статус `{known, learning}` | — |
+| GET `/reviews/stats` | JWT | Үгсийн SRS статус: `{ known, new, learning, young, mature, dueNow, masteryThresholdDays }` (`known` = `young + mature`, хуучин клиентэд үлдээсэн) | — |
 | POST `/reviews/:wordId` | JWT | Санах оролдлого илгээж давталт дахин товлох (SM-2) | `{ quality }` |
 | POST `/reviews/:wordId/save` | JWT | ⭐ хадгалах флаг toggle | path `wordId` |
 
@@ -400,7 +400,7 @@ Controller-level: JWT. Бүгд student-ийн өөрийн давталтын �
 
 | Method + Path | Auth | Зорилго | Params / Body |
 | --- | --- | --- | --- |
-| GET `/gamification` | JWT | Streak, level, өнөөдрийн XP, зорилго + `progressByLevel` (CEFR island бүрийн `done/total`) + **`levelUnlocks`** (island бүрийн `{ starsEarned, starsRequired, unlocked }` — star-gated castle unlock) | — |
+| GET `/gamification` | JWT | Streak, level, өнөөдрийн XP, зорилго + `progressByLevel` (CEFR island бүрийн `done/total`), `streakFreezeCost/maxStreakFreezes/streakFreezesUsed`, `todayExercises/dailyExerciseGoal` + **`levelUnlocks`** (island бүрийн `{ starsEarned, starsRequired, unlocked }` — star-gated castle unlock) | — |
 | GET `/gamification/stars` | JWT | Тухайн хэрэглэгчийн хичээл бүрийн од → `{ "<lessonId>": 0..3 }` (зөвхөн ≥1 од авсан хичээл) | — |
 
 ### 🆕 Од / Castle unlock / Double-XP (Task 1 — 2026-08-06)
@@ -414,6 +414,7 @@ Controller-level: JWT. Бүгд student-ийн өөрийн давталтын �
   a1=0·a2=3·b1=9·b2=18·c1=30·c2=45.
 - **Double XP:** идэвхтэй `double_xp` эвэнтийн үед `XpService.award` бүх XP-г
   `xp_multiplier`-аар үржүүлнэ (ledger + `User.xp` cache хоёулаа).
+
 
 ### 🆕 XP шагналын хүснэгт — `xp/xp-rewards.ts` (2026-07-31)
 
@@ -493,6 +494,7 @@ Controller-level: JWT. Бүгд student-ийн өөрийн давталтын �
 | PATCH `/gamification/goal` | JWT | Өдрийн XP зорилт тавих. Зөвхөн **20 / 50 / 100** (өөр утга → **400**). Хариу нь шинэчилсэн gamification summary | `{ dailyGoalXp: 20\|50\|100 }` |
 | POST `/gamification/streak-freeze` | JWT | **Streak freeze** худалдаж авах (100 Sparks, багцаас хамаарна). Хамгийн ихдээ **2** хадгална → давсан бол **400**; Sparks дутуу → **400** | — |
 | POST `/gamification/streak-seen` | JWT | Streak баяр хүргэлтийг үзүүлсний дараа тэмдэглэнэ → `{ ok: true }` | — |
+| POST `/gamification/daily-path/claim` | JWT | Soril daily path дүүрсэн үед өдөрт 1 удаа Sparks авах → `{ sparksAwarded, alreadyClaimed, todayExercises, dailyExerciseGoal }` | — |
 
 `GET /gamification` хариунд одоо **`streakFreezeCost`** (тухайн хэрэглэгчийн
 багцаар шийдэгдсэн үнэ) ба **`maxStreakFreezes`** бас орно — апп үнийг
@@ -514,7 +516,8 @@ Redis уншигдахгүй бол `null` буцна (цонх давтагда
 болмогц ахина (Duolingo яг ингэдэг). Freeze-ийн логик хэвээр.
 
 `GET /gamification`-ийн `dailyGoal` нь одоо хатуу 50 биш, **хэрэглэгчийн сонголт**
-(`users.daily_goal_xp`). Хариунд **`streakFreezes`** (үлдсэн freeze) бас орно.
+(`users.daily_goal_xp`). Хариунд **`streakFreezes`** (үлдсэн freeze) ба
+**`streakFreezesUsed`** (одоогийн streak-ийг хамгаалахад зарцуулсан freeze) бас орно.
 
 **Streak freeze дүрэм** (`resolveStreak`, `src/xp/gamification.ts` — цэвэр функц,
 unit-тесттэй):

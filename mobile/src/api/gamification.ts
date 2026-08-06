@@ -29,10 +29,7 @@ export interface Gamification {
    * How many freezes the CURRENT streak has already spent — i.e. how many
    * missed days it survived. Shown as "энэ streak-ийг 2 хоног хамгаалсан".
    *
-   * Optional because the backend does not send it yet: `isStreakAlive()`
-   * consumes freezes but never reports how many were used. Requested from
-   * Өсөхбаяр in `docs/REQUEST_choi_streak_freeze_used.md`; until it lands the
-   * UI simply omits that line (it never guesses a number).
+   * Optional for older backends; when absent the UI simply omits that line.
    */
   streakFreezesUsed?: number;
   /**
@@ -55,6 +52,10 @@ export interface Gamification {
    * so an older backend (without stars) simply falls back to "all open".
    */
   levelUnlocks?: Record<string, LevelUnlock>;
+  /** Standalone exercises completed today for the Soril daily path. */
+  todayExercises?: number;
+  /** Exercises needed to fill the Soril daily path. */
+  dailyExerciseGoal?: number;
 }
 
 /** One island's star gate on the Lessons map. */
@@ -152,6 +153,21 @@ export function setDailyGoal(
   return apiRequest<Gamification>('/gamification/goal', {
     method: 'PATCH',
     body: { dailyGoalXp },
+    token,
+  });
+}
+
+/** POST /gamification/daily-path/claim — once-per-day Soril path reward. */
+export function claimDailyPath(
+  token: string,
+): Promise<{
+  sparksAwarded: number;
+  alreadyClaimed: boolean;
+  todayExercises: number;
+  dailyExerciseGoal: number;
+}> {
+  return apiRequest('/gamification/daily-path/claim', {
+    method: 'POST',
     token,
   });
 }

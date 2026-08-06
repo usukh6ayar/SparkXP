@@ -11,6 +11,7 @@ import { Word } from '../entities/word.entity';
 import { AiUsage } from '../entities/ai-usage.entity';
 import { Translation } from '../entities/translation.entity';
 import { AiUsageType } from '../common/enums';
+import type { WordSense } from '../common/types/word-sense';
 import { AiGatewayService } from '../ai-gateway/ai-gateway.service';
 import { runGeminiText } from './gemini-text';
 
@@ -22,6 +23,11 @@ export interface WordLookup {
   audioUrl: string | null;
   /** True when served from the Word DB or the translation cache (no AI call). */
   cached: boolean;
+  /**
+   * Usage examples in the same shape as the Толь senses panel. Present when the
+   * curated Word bank already has example_sentence/example_translation.
+   */
+  meanings?: WordSense[];
 }
 
 @Injectable()
@@ -49,11 +55,13 @@ export class DictionaryService {
     // 1. Word DB (authored vocabulary).
     const dbWord = await this.words.findOne({ where: { english: normalised } });
     if (dbWord && dbWord.mongolian) {
+      const example = this.wordExampleSense(dbWord);
       return {
         word: normalised,
         translation: dbWord.mongolian,
         audioUrl: dbWord.audioUrl ?? null,
         cached: true,
+        ...(example ? { meanings: [example] } : {}),
       };
     }
 
@@ -114,6 +122,17 @@ export class DictionaryService {
     }
 
     return { word: normalised, translation, audioUrl: null, cached: false };
+  }
+
+  private wordExampleSense(word: Word): WordSense | null {
+    const example = word.exampleSentence?.trim();
+    const translation = word.exampleTranslation?.trim();
+    if (!example || !translation) return null;
+    return {
+      word: word.english.trim().toLowerCase(),
+      example,
+      translation,
+    };
   }
 
   /**

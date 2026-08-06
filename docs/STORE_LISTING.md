@@ -23,7 +23,7 @@ SparkXP бол монгол сурагчдад зориулсан тоглоом
 • AI ярианы найз — бичгээр болон дуугаар англиар яриа дадлагажуул, алдаагаа засуул.
 • Хэлц үг, түвшин тус бүрийн хичээл, багшийн анги (join code / QR).
 
-Сургууль, компани, хуулийн фирмд ч тохиромжтой. Hustle Hive LLC.
+Сургууль, компани, хуулийн фирмд ч тохиромжтой. Aether Tech Core LLC.
 ```
 
 ## 3. Description (English — secondary)
@@ -37,7 +37,7 @@ SparkXP is a gamified English-learning app built for Mongolian students.
 • AI buddy — practise English by text or voice and get your mistakes corrected.
 • Idioms, level-based lessons, and teacher classes (join code / QR).
 
-Great for schools, companies, and law firms. By Hustle Hive LLC.
+Great for schools, companies, and law firms. By Aether Tech Core LLC.
 ```
 
 ## 4. Keywords (iOS, ≤100 chars, comma-sep)
