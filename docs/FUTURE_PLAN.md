@@ -2,7 +2,7 @@
 
 > Эх сурвалж: `docs/` доторх бүх баримт (IT Team Brief, Strategy Recommendations,
 > 34,000₮ / 56,000₮ Plan cost breakdown, SparkXP Plan, Teacher Panel UI/UX).
-> Нэгтгэсэн огноо: **2026-07-01**. Owner: Hustle Hive LLC / Gantulga Lkhagvadorj.
+> Нэгтгэсэн огноо: **2026-07-01**. Owner: Aether Tech Core LLC / Gantulga Lkhagvadorj.
 
 Энэ файл нь docs доторх бүх баримтыг уншиж, багийн **цаашид хийх ажил** болон
 **ирээдүйд хэрэгжүүлэх зүйлсийг** нэг дор нэгтгэсэн ажлын жагсаалт. Дэлгэрэнгүй

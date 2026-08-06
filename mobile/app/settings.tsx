@@ -365,7 +365,7 @@ export default function SettingsScreen() {
           {/* Footer */}
           <View style={styles.footer}>
             <AppText variant="caption" color={p.textMuted}>SparkXP v{APP_VERSION}</AppText>
-            <AppText variant="caption" color={p.textMuted}>© Hustle Hive LLC</AppText>
+            <AppText variant="caption" color={p.textMuted}>© Aether Tech Core LLC</AppText>
           </View>
         </ScrollView>
       </SafeAreaView>
