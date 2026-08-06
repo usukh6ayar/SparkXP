@@ -97,6 +97,13 @@ export enum ContentLevel {
   C2 = "c2",
 }
 
+/** Home "Events" card kinds. `double_xp` also multiplies XP awards server-side. */
+export enum EventType {
+  DAILY = "daily",
+  WEEKLY_CHALLENGE = "weekly_challenge",
+  DOUBLE_XP = "double_xp",
+}
+
 /** What a teacher can assign to a class. */
 export enum AssignmentType {
   LESSON = "lesson",

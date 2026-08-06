@@ -29,6 +29,11 @@ import { SafetyEvent } from './safety-event.entity';
 import { QuizAttempt } from './quiz-attempt.entity';
 import { DictionaryEntry } from './dictionary-entry.entity';
 import { UserDictionarySave } from './user-dictionary-save.entity';
+import { UserLessonStar } from './user-lesson-star.entity';
+import { LevelRequirement } from './level-requirement.entity';
+import { Event } from './event.entity';
+import { BuddyBackground } from './buddy-background.entity';
+import { UserBuddyBackground } from './user-buddy-background.entity';
 
 export {
   Organization,
@@ -61,6 +66,11 @@ export {
   QuizAttempt,
   DictionaryEntry,
   UserDictionarySave,
+  UserLessonStar,
+  LevelRequirement,
+  Event,
+  BuddyBackground,
+  UserBuddyBackground,
 };
 
 /** Single list to feed TypeORM's `entities` option. */
@@ -95,4 +105,9 @@ export const entities = [
   QuizAttempt,
   DictionaryEntry,
   UserDictionarySave,
+  UserLessonStar,
+  LevelRequirement,
+  Event,
+  BuddyBackground,
+  UserBuddyBackground,
 ];

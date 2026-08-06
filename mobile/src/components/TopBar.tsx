@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../auth/AuthContext';
 import { AppText } from './Text';
 import { AppIcon } from './AppIcon';
+import { AnimatedFlame } from './AnimatedFlame';
 import { DictionaryButton } from './DictionaryButton';
 import { useStreak } from '../lib/useStreak';
 import { spacing, radius } from '../theme/theme';
@@ -100,7 +101,7 @@ export function TopBar({
         {showBadges ? (
           <>
           <View style={[styles.badge, { backgroundColor: c.surfaceAlt }]}>
-            <AppIcon name="streak" size={22} />
+            <AnimatedFlame size={22} />
             <AppText variant="label" color={c.text}>{shownStreak}</AppText>
           </View>
           <View style={[styles.badge, { backgroundColor: c.surfaceAlt }]}>

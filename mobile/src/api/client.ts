@@ -20,7 +20,7 @@ import {
 // In dev, use the same host Expo is served from (your PC's LAN IP) so a real
 // device can reach the backend without hardcoding an IP in .env.
 const devHost = Constants.expoConfig?.hostUri?.split(':')[0];
-const BASE_URL =
+export const BASE_URL =
   process.env.EXPO_PUBLIC_API_URL ??
   (devHost ? `http://${devHost}:3000/api` : 'http://localhost:3000/api');
 

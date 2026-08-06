@@ -14,7 +14,7 @@ import Animated, {
   ZoomIn, useSharedValue, useAnimatedStyle, withRepeat, withSequence, withTiming,
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { AppIcon } from '../../src/components/AppIcon';
@@ -22,7 +22,7 @@ import { useAuth } from '../../src/auth/AuthContext';
 import { useSettings } from '../../src/settings/SettingsContext';
 import type { TranslationKey } from '../../src/i18n';
 import { getLessons, getCompletedLessonIds, type Lesson } from '../../src/api/lessons';
-import { getGamification, type Gamification } from '../../src/api/gamification';
+import { getGamification, getLessonStars, type Gamification } from '../../src/api/gamification';
 import { AppText } from '../../src/components/Text';
 import { haptics } from '../../src/lib/haptics';
 import { DURATION, useReduceMotion } from '../../src/lib/motion';
@@ -158,6 +158,8 @@ export default function LevelScreen() {
 
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [completed, setCompleted] = useState<Set<string>>(new Set());
+  // Per-lesson stars (0–3) — shown under each node. `{}` = none earned yet.
+  const [stars, setStars] = useState<Record<string, number>>({});
   const [gam, setGam] = useState<Gamification | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -170,25 +172,31 @@ export default function LevelScreen() {
   const load = useCallback(async () => {
     if (!token) return;
     try {
-      const [r, g, done] = await Promise.all([
+      const [r, g, done, starMap] = await Promise.all([
         getLessons(token, { level: levelCode }),
         getGamification(token),
         // Which lessons are finished — by id, so the trail can't mis-tick.
         getCompletedLessonIds(token).catch(() => ({ ids: [] as string[] })),
+        getLessonStars(token).catch(() => ({} as Record<string, number>)),
       ]);
       setLessons(r.items);
       setGam(g);
       setCompleted(new Set(done.ids));
+      setStars(starMap);
     } catch (e) {
       console.warn('Level load failed:', (e as Error)?.message ?? e);
       setLessons([]);
     }
   }, [token, levelCode]);
 
-  useEffect(() => {
-    setLoading(true);
-    load().finally(() => setLoading(false));
-  }, [load]);
+  // Refetch on focus, not just on mount: after taking a lesson's test the user
+  // returns to this (still-mounted) screen, so stars / completion / castle
+  // progress must reload here or the just-earned stars never appear.
+  useFocusEffect(
+    useCallback(() => {
+      load().finally(() => setLoading(false));
+    }, [load]),
+  );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -276,8 +284,15 @@ export default function LevelScreen() {
               // Four node states (§3.2b): mastered (done) · current (the one that
               // pulses) · unlocked (a real lesson ahead) · locked (coming soon).
               const isDone = !!lesson && completed.has(lesson.id);
-              const current = i === currentIndex && i < lessons.length;
-              const locked = i >= lessons.length;
+              // Sequential path: a lesson opens only once the PREVIOUS one is
+              // cleared — finished (✓) or passed its test (≥1 star, i.e. ≥50%).
+              // The first lesson is always open; completion also counts so a
+              // lesson without a test can never dead-end the trail.
+              const prev = lessons[i - 1];
+              const prevCleared =
+                i === 0 || (!!prev && (completed.has(prev.id) || (stars[prev.id] ?? 0) > 0));
+              const locked = i >= lessons.length || (!!lesson && !prevCleared);
+              const current = i === currentIndex && i < lessons.length && !locked;
               const unlocked = !isDone && !current && !locked;
               return (
                 <Fragment key={i}>
@@ -298,14 +313,14 @@ export default function LevelScreen() {
                     entering={reduceMotion ? undefined : ZoomIn.delay(i * 45).duration(DURATION.base)}
                   >
                     <Pressable
-                      onPress={lesson ? () => { haptics.tap(); router.push(`/lesson/${lesson.id}`); } : undefined}
+                      onPress={lesson && !locked ? () => { haptics.tap(); router.push(`/lesson/${lesson.id}`); } : undefined}
                       style={({ pressed }) => [
                         styles.node,
                         isDone && styles.nodeMastered,
                         current && styles.nodeCurrent,
                         unlocked && styles.nodeUnlocked,
                         locked && styles.nodeLocked,
-                        pressed && lesson && { transform: [{ scale: 0.94 }] },
+                        pressed && lesson && !locked && { transform: [{ scale: 0.94 }] },
                       ]}
                     >
                       {current ? (
@@ -330,6 +345,26 @@ export default function LevelScreen() {
                   {current ? (
                     <View pointerEvents="none" style={[styles.endFlag, { left: c.x - 26, top: c.y - RING / 2 - 22 }]}>
                       <AppText variant="overline" color={colors.white}>{t('youAreHereShort')}</AppText>
+                    </View>
+                  ) : null}
+
+                  {/* Stars under the node, on a soft pill so they read clearly
+                      over the illustrated map — empty (a "take the test" prompt)
+                      until the lesson's test fills them 0–3 from the best score. */}
+                  {lesson && !locked ? (
+                    <View pointerEvents="none" style={[styles.starRow, { left: c.x - 43, top: c.y + NODE / 2 + 2 }]}>
+                      {[0, 1, 2].map((si) => {
+                        const filled = si < (stars[lesson.id] ?? 0);
+                        return (
+                          <Ionicons
+                            key={si}
+                            name={filled ? 'star' : 'star-outline'}
+                            size={si === 1 ? 24 : 20}
+                            color={filled ? islandMap.gold : 'rgba(255,255,255,0.55)'}
+                            style={[filled && styles.starGlow, si === 1 && styles.starMid]}
+                          />
+                        );
+                      })}
                     </View>
                   ) : null}
                 </Fragment>
@@ -584,6 +619,17 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   nodeWrap: { position: 'absolute', width: NODE, height: NODE },
+  // Three stars sitting just under a node (slight arc via the raised middle).
+  starRow: {
+    position: 'absolute', width: 86, flexDirection: 'row',
+    justifyContent: 'center', alignItems: 'center', gap: 2,
+    paddingVertical: 4, paddingHorizontal: 8, borderRadius: 999,
+    backgroundColor: 'rgba(12,8,32,0.42)',
+  },
+  // The centre star sits a touch higher for a little podium shape.
+  starMid: { marginTop: -5 },
+  // Filled stars get a soft gold glow so a 3-star lesson reads as a reward.
+  starGlow: { textShadowColor: 'rgba(255,193,60,0.95)', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 7 },
   node: {
     width: NODE,
     height: NODE,

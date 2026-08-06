@@ -5,7 +5,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, EntityManager } from 'typeorm';
 import { SparksLog } from '../entities/sparks-log.entity';
 import { LessonUnlock } from '../entities/lesson-unlock.entity';
 import { Lesson } from '../entities/lesson.entity';
@@ -35,26 +35,39 @@ export class SparksService {
   /**
    * Log a Sparks change and update User.sparks cache atomically.
    * Positive amount = earn; negative = spend.
+   *
+   * Pass an existing `manager` to run inside a caller's transaction (so a
+   * purchase's deduction + item grant commit or roll back together); omit it
+   * and the change runs in its own transaction.
    */
-  async change(opts: AwardSparksOptions): Promise<SparksLog> {
-    return this.dataSource.transaction(async (manager) => {
-      const log = manager.create(SparksLog, {
+  async change(
+    opts: AwardSparksOptions,
+    manager?: EntityManager,
+  ): Promise<SparksLog> {
+    const run = async (m: EntityManager): Promise<SparksLog> => {
+      const log = m.create(SparksLog, {
         userId: opts.userId,
         amount: opts.amount,
         source: opts.source,
         referenceId: opts.referenceId ?? null,
         metadata: opts.metadata ?? null,
       });
-      await manager.save(log);
+      await m.save(log);
 
       if (opts.amount >= 0) {
-        await manager.increment(User, { id: opts.userId }, 'sparks', opts.amount);
+        await m.increment(User, { id: opts.userId }, 'sparks', opts.amount);
       } else {
-        await manager.decrement(User, { id: opts.userId }, 'sparks', Math.abs(opts.amount));
+        await m.decrement(
+          User,
+          { id: opts.userId },
+          'sparks',
+          Math.abs(opts.amount),
+        );
       }
 
       return log;
-    });
+    };
+    return manager ? run(manager) : this.dataSource.transaction(run);
   }
 
   /**
@@ -99,7 +112,12 @@ export class SparksService {
         metadata: { lessonTitle: lesson.title },
       });
       await manager.save(sparksLog);
-      await manager.decrement(User, { id: userId }, 'sparks', lesson.priceSparks);
+      await manager.decrement(
+        User,
+        { id: userId },
+        'sparks',
+        lesson.priceSparks,
+      );
 
       // Create the unlock record
       const unlock = manager.create(LessonUnlock, {

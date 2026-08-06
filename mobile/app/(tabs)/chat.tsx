@@ -5,6 +5,9 @@ import { useFocusEffect } from 'expo-router';
 import * as Speech from 'expo-speech';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { BuddySelector } from '../../src/components/BuddySelector';
+import { BuddyStatsRow } from '../../src/components/BuddyStatsRow';
+import { BuddyShopEntry } from '../../src/components/BuddyShopEntry';
+import { getEquippedBackground } from '../../src/api/buddyBackgrounds';
 import { BuddyVoiceStage } from '../../src/components/BuddyVoiceStage';
 import { BuddyChatSheet, type ChatMessage } from '../../src/components/BuddyChatSheet';
 import { BuddyHistorySheet } from '../../src/components/BuddyHistorySheet';
@@ -15,6 +18,7 @@ import {
 } from 'expo-audio';
 import { useAuth } from '../../src/auth/AuthContext';
 import * as aiApi from '../../src/api/ai';
+import { sendBuddyTextTurnSmart, sendBuddyAudioTurnSmart } from '../../src/api/buddyRealtime';
 import type { Buddy, BuddyUsageBlock, BuddyTextSession, BuddyTextSessionSummary } from '../../src/api/ai';
 import { ApiError } from '../../src/api/client';
 import { TopBar } from '../../src/components/TopBar';
@@ -44,6 +48,10 @@ export default function ChatScreen() {
   const [realSlugs, setRealSlugs] = useState<Set<string>>(new Set());
   const [fallbackSlug, setFallbackSlug] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  // AI Buddy practice stats (minutes today / all-time) — shown on the picker.
+  const [stats, setStats] = useState<aiApi.BuddyStatistics | null>(null);
+  // Equipped background (shop) shown behind the buddy on the voice stage.
+  const [bgUrl, setBgUrl] = useState<string | null>(null);
   // Persistent typed-chat thread (ChatGPT-style history), separate from voice.
   const [textSessionId, setTextSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -142,6 +150,13 @@ export default function ChatScreen() {
 
   useEffect(() => { loadBuddies(); }, [loadBuddies]);
 
+  /** Refresh the practice-time stats + equipped background on focus. */
+  const loadStats = useCallback(() => {
+    if (!token) return;
+    aiApi.getBuddyStatistics(token).then(setStats).catch(() => {});
+    getEquippedBackground(token).then((b) => setBgUrl(b?.imageUrl ?? null)).catch(() => {});
+  }, [token]);
+
   /**
    * Leaving the tab silences the buddy at once.
    *
@@ -150,7 +165,9 @@ export default function ChatScreen() {
    * otherwise follows the student onto Home and keeps talking.
    */
   useFocusEffect(
-    useCallback(() => () => {
+    useCallback(() => {
+      loadStats();
+      return () => {
       Speech.stop();
       try {
         player.pause();
@@ -163,7 +180,8 @@ export default function ChatScreen() {
       // routing sound to the earpiece, where it just sounds like the volume
       // faded out (read-along, saved words, flashcards, all of it).
       setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(() => {});
-    }, [player]),
+      };
+    }, [player, loadStats]),
   );
 
   const selectBuddy = useCallback(async (buddy: Buddy) => {
@@ -206,6 +224,17 @@ export default function ChatScreen() {
       Alert.alert(t('error'), `${t('chatSessionError')}\n\n${detail}`);
     }
   }, [token, realSlugs, fallbackSlug, applyTextSession]);
+
+  /**
+   * End the active voice session (idempotent server-side) and refresh stats, so
+   * the picker reflects the minutes just practised. Called when the learner
+   * leaves the conversation.
+   */
+  const endActiveSession = useCallback(() => {
+    if (sessionId && token) {
+      aiApi.endBuddySession(sessionId, token).catch(() => {}).finally(loadStats);
+    }
+  }, [sessionId, token, loadStats]);
 
   /** Open the history sheet and (re)load this buddy's past typed threads. */
   const openHistory = useCallback(async () => {
@@ -286,7 +315,7 @@ export default function ChatScreen() {
     setMessages((prev) => [...prev, { id: `${Date.now()}u`, role: 'user', content: text }]);
     setLoading(true);
     try {
-      const res = await aiApi.sendBuddyTextTurn(textSessionId, text, token!);
+      const res = await sendBuddyTextTurnSmart(textSessionId, text, token!);
       setMessages((prev) => [
         ...prev,
         {
@@ -339,7 +368,7 @@ export default function ChatScreen() {
       await recorder.stop();
       const uri = recorder.uri;
       if (!uri || !sessionId) throw new Error('no audio');
-      const res = await aiApi.sendBuddyAudioTurn(sessionId, uri, token!);
+      const res = await sendBuddyAudioTurnSmart(sessionId, uri, token!);
       renderVoiceTurn(res);
     } catch (err) {
       handleTurnError(err, { voice: true });
@@ -367,6 +396,8 @@ export default function ChatScreen() {
           showDictionary
           onAddSparks={() => Alert.alert(t('buddyUnlockComingSoon'))}
         />
+        <BuddyStatsRow stats={stats} />
+        <BuddyShopEntry />
         <BuddySelector
           buddies={buddies}
           onApply={(buddy) => { selectBuddy(buddy); setMode('voice'); }}
@@ -391,6 +422,7 @@ export default function ChatScreen() {
           // the buddy carousel, which is about to speak its own greeting.
           Speech.stop();
           try { player.pause(); } catch { /* best-effort */ }
+          endActiveSession(); // close the session → its minutes count in stats
           setMode('select');
         }}
       />
@@ -398,6 +430,7 @@ export default function ChatScreen() {
         <BuddyVoiceStage
           buddy={selected}
           greeting={voiceGreeting}
+          backgroundUrl={bgUrl}
           speaking={playerStatus.playing}
           thinking={loading}
           voiceLimited={voiceLimited}

@@ -5,9 +5,11 @@ import { XpLog } from '../entities/xp-log.entity';
 import { User } from '../entities/user.entity';
 import { Lesson } from '../entities/lesson.entity';
 import { Plan } from '../entities/plan.entity';
+import { Event } from '../entities/event.entity';
 import { SparksService } from '../sparks/sparks.service';
 import { AchievementsService } from '../achievements/achievements.service';
-import { XpSource, ContentLevel, SparksSource } from '../common/enums';
+import { StarsService, type LevelUnlock } from './stars.service';
+import { XpSource, ContentLevel, SparksSource, EventType } from '../common/enums';
 import { Inject } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { REDIS_CLIENT } from '../redis/redis.module';
@@ -69,6 +71,8 @@ export interface GamificationSummary extends LevelInfo {
   quizzesDone: number;
   /** Per-CEFR-level lesson progress for the Lessons map islands (a1…c2). */
   progressByLevel: Record<string, { done: number; total: number }>;
+  /** Per-CEFR-level star gate: stars earned, stars required, and unlocked. */
+  levelUnlocks: Record<string, LevelUnlock>;
 }
 
 /** Fallback daily-XP goal for rows predating the per-user column. */
@@ -101,11 +105,33 @@ export class XpService {
     private readonly users: Repository<User>,
     @InjectRepository(Lesson)
     private readonly lessons: Repository<Lesson>,
+    @InjectRepository(Event)
+    private readonly events: Repository<Event>,
     private readonly dataSource: DataSource,
     private readonly sparks: SparksService,
     private readonly achievements: AchievementsService,
+    private readonly stars: StarsService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
+
+  /**
+   * XP multiplier from any live `double_xp` event (1 when none). Applied to every
+   * award so a Double-XP event actually doubles what lands in the ledger.
+   */
+  private async activeXpMultiplier(): Promise<number> {
+    const now = new Date();
+    const ev = await this.events
+      .createQueryBuilder('e')
+      .where('e.type = :type', { type: EventType.DOUBLE_XP })
+      .andWhere('e.is_active = true')
+      .andWhere('e.starts_at <= :now', { now })
+      .andWhere('e.ends_at >= :now', { now })
+      .orderBy('e.xp_multiplier', 'DESC')
+      .getOne();
+    if (!ev) return 1;
+    const m = Number(ev.xpMultiplier ?? 2);
+    return m >= 1 ? m : 1;
+  }
 
   /**
    * The XP award table, with any runtime Redis override applied. Callers use
@@ -122,6 +148,11 @@ export class XpService {
   async award(opts: AwardXpOptions): Promise<XpLog> {
     if (opts.amount <= 0) return null as unknown as XpLog;
 
+    // A live Double-XP event multiplies the award before anything is written, so
+    // the ledger, the User.xp cache and every downstream total stay consistent.
+    const multiplier = await this.activeXpMultiplier();
+    const amount = Math.round(opts.amount * multiplier);
+
     // Set inside the transaction when this award pushed the daily goal over
     // the line, so the streak bonus below can be paid exactly once per day.
     let streakAdvancedTo: number | null = null;
@@ -129,15 +160,18 @@ export class XpService {
     const log = await this.dataSource.transaction(async (manager) => {
       const log = manager.create(XpLog, {
         userId: opts.userId,
-        amount: opts.amount,
+        amount,
         source: opts.source,
         referenceId: opts.referenceId ?? null,
-        metadata: opts.metadata ?? null,
+        metadata:
+          multiplier > 1
+            ? { ...(opts.metadata ?? {}), xpMultiplier: multiplier }
+            : (opts.metadata ?? null),
       });
       await manager.save(log);
 
       // Increment the denormalized cache on User — safe inside the transaction.
-      await manager.increment(User, { id: opts.userId }, 'xp', opts.amount);
+      await manager.increment(User, { id: opts.userId }, 'xp', amount);
 
       // Advance the streak — but only once the DAILY GOAL is met, not on the
       // first XP of the day.
@@ -420,6 +454,9 @@ export class XpService {
     for (const r of levelTotals) if (progressByLevel[r.level]) progressByLevel[r.level].total = Number(r.n);
     for (const r of levelDone) if (progressByLevel[r.level]) progressByLevel[r.level].done = Number(r.n);
 
+    // Star-gated island unlocks (§ Castle unlock).
+    const levelUnlocks = await this.stars.getLevelUnlocks(userId);
+
     return {
       xp,
       ...computeLevel(xp),
@@ -436,6 +473,7 @@ export class XpService {
       lessonsDone: Number(lessonRow?.n ?? 0),
       quizzesDone,
       progressByLevel,
+      levelUnlocks,
     };
   }
 

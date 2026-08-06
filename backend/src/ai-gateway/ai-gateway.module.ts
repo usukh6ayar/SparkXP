@@ -12,11 +12,13 @@ import { SafetyEvent } from '../entities/safety-event.entity';
 import { AiGatewayService } from './ai-gateway.service';
 import { AiGatewayController } from './ai-gateway.controller';
 import { BuddyController } from './buddy.controller';
+import { BuddyRealtimeController } from './buddy-realtime.controller';
 import { ImageStorageService } from './image-storage.service';
 import { aiProviders } from './providers/providers.config';
 import { BuddyUsageService } from './buddy-usage.service';
 import { BuddyMemoryService } from './buddy-memory.service';
 import { BuddyService } from './buddy.service';
+import { BuddyRealtimeService } from './buddy-realtime.service';
 import { XpModule } from '../xp/xp.module';
 
 @Module({
@@ -41,8 +43,9 @@ import { XpModule } from '../xp/xp.module';
     BuddyUsageService,
     BuddyMemoryService,
     BuddyService,
+    BuddyRealtimeService,
   ],
-  controllers: [AiGatewayController, BuddyController],
+  controllers: [AiGatewayController, BuddyController, BuddyRealtimeController],
   exports: [AiGatewayService, ImageStorageService],
 })
 export class AiGatewayModule {}

@@ -47,6 +47,8 @@ export interface QuizResult {
   breakdown: { questionIndex: number; correct: boolean; points: number }[];
   /** Approximate IELTS band (0–9) — only for ielts_listening / ielts_reading. */
   band?: number;
+  /** Lesson-linked tests only: the lesson's new star rating (0–3, best kept). */
+  starsEarned?: number;
 }
 
 export function getQuiz(id: string, token: string): Promise<Quiz> {

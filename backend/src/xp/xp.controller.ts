@@ -1,5 +1,6 @@
 import { Controller, Get, Patch, Post, Body, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
 import { XpService } from './xp.service';
+import { StarsService } from './stars.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../entities/user.entity';
@@ -9,11 +10,20 @@ import { SetDailyGoalDto } from './dto/set-goal.dto';
 @Controller('gamification')
 @UseGuards(JwtAuthGuard)
 export class XpController {
-  constructor(private readonly xpService: XpService) {}
+  constructor(
+    private readonly xpService: XpService,
+    private readonly stars: StarsService,
+  ) {}
 
   @Get()
   getMine(@CurrentUser() user: User) {
     return this.xpService.getGamification(user.id);
+  }
+
+  /** This user's earned stars per lesson → `{ [lessonId]: 0..3 }`. */
+  @Get('stars')
+  getStars(@CurrentUser() user: User) {
+    return this.stars.getStarsMap(user.id);
   }
 
   /** Buy one streak freeze with Sparks (max 2 held). */

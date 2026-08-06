@@ -103,6 +103,27 @@ export function startBuddySession(
   });
 }
 
+/** End a session and get its length. Idempotent (safe to call more than once). */
+export function endBuddySession(
+  sessionId: string,
+  token: string,
+): Promise<{ sessionId: string; durationSeconds: number; endedAt: string }> {
+  return apiRequest(`/ai/buddy/sessions/${sessionId}/end`, { method: 'POST', token });
+}
+
+/** AI Buddy practice stats (session counts + minutes, today + all-time). */
+export interface BuddyStatistics {
+  totalSessions: number;
+  totalMinutes: number;
+  todaySessions: number;
+  todayMinutes: number;
+  longestSessionMinutes: number;
+}
+
+export function getBuddyStatistics(token: string): Promise<BuddyStatistics> {
+  return apiRequest<BuddyStatistics>('/ai/buddy/statistics', { token });
+}
+
 /** A stored message flattened for the chat UI (from resumeBuddyTextSession). */
 export interface BuddyHistoryMessage {
   id: string;

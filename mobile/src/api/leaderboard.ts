@@ -35,3 +35,12 @@ export function getLeaderboard(
     { token },
   );
 }
+
+/** GET /api/leaderboard/preview — top N (default 3) weekly/global for the Home
+ *  preview card. Lighter than the full board (no `me`, no scope math). */
+export function getLeaderboardPreview(
+  token: string,
+  limit = 3,
+): Promise<LeaderboardEntry[]> {
+  return apiRequest<LeaderboardEntry[]>(`/leaderboard/preview?limit=${limit}`, { token });
+}

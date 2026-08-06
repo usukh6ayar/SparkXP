@@ -26,6 +26,21 @@ export class LeaderboardController {
   }
 
   /**
+   * Home leaderboard preview — the top N (default 3) weekly/global learners.
+   * A lightweight list (no `me`, no scope math) for the Home card that taps
+   * through to the full board. GET /api/leaderboard/preview?limit=3
+   */
+  @Get('preview')
+  getPreview(@Query('limit') limit = '3') {
+    return this.leaderboardService.getTopList(
+      LeaderboardScope.GLOBAL,
+      'weekly',
+      null,
+      Math.min(Math.max(Number(limit) || 3, 1), 10),
+    );
+  }
+
+  /**
    * Admin dashboard: top N users without relying on the admin's own location.
    * GET /api/leaderboard/top?period=weekly&scope=global
    * GET /api/leaderboard/top?period=weekly&scope=province&value=Улаанбаатар
