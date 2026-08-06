@@ -29,16 +29,18 @@ async function main() {
   const config = new ConfigService();
   const mail = new MailService(config);
 
-  const provider = process.env.RESEND_API_KEY
-    ? 'Resend'
-    : process.env.SMTP_HOST
-      ? `SMTP (${process.env.SMTP_HOST})`
-      : null;
+  const provider = process.env.BREVO_API_KEY
+    ? 'Brevo (HTTPS)'
+    : process.env.RESEND_API_KEY
+      ? 'Resend (HTTPS)'
+      : process.env.SMTP_HOST
+        ? `SMTP (${process.env.SMTP_HOST})`
+        : null;
 
   if (!provider) {
     console.error(
       '❌ Провайдер тохируулаагүй байна.\n' +
-        '   RESEND_API_KEY эсвэл SMTP_HOST-ыг .env-д тавина уу.\n' +
+        '   BREVO_API_KEY, RESEND_API_KEY эсвэл SMTP_HOST-ыг .env-д тавина уу.\n' +
         '   Ингэж орхивол production дээр хэн ч бүртгүүлж чадахгүй.',
     );
     process.exit(1);
@@ -58,7 +60,14 @@ async function main() {
   console.log('   2. Spam / Promotions таб руу ороогүй биз? ← хамгийн чухал нь');
   console.log('   3. Илгээгчийн нэр зөв харагдаж байна уу?');
   console.log('\n   Spam-д орсон бол жинхэнэ хэрэглэгчид ч мөн адил орно —');
-  console.log('   өөрийн домэйн + SPF/DKIM (Resend) шаардлагатай.');
+  console.log('   өөрийн домэйн + SPF/DKIM шаардлагатай.');
+  if (process.env.SMTP_HOST && !process.env.BREVO_API_KEY && !process.env.RESEND_API_KEY) {
+    console.log(
+      '\n⚠️  SMTP нь ЛОКАЛ дээр ажиллаж байгаа ч Railway-гийн Hobby багц дээр\n' +
+        '   гадагш чиглэсэн SMTP порт (25/465/587) ХААЛТТАЙ. Prod дээр энэ\n' +
+        '   тохиргоо өлгөгдөнө. Тэнд BREVO_API_KEY (HTTPS) ашиглана уу.',
+    );
+  }
 }
 
 main().catch((err) => {
