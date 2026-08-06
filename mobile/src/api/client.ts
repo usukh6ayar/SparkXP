@@ -24,6 +24,21 @@ export const BASE_URL =
   process.env.EXPO_PUBLIC_API_URL ??
   (devHost ? `http://${devHost}:3000/api` : 'http://localhost:3000/api');
 
+// A release build has no Expo dev server, so `hostUri` is undefined and the
+// fallback above resolves to the PHONE ITSELF — every request fails and the
+// user just sees "алдаа гарлаа" on login. That is exactly what shipped in
+// TestFlight build 6 (EXPO_PUBLIC_API_URL was missing from eas.json).
+//
+// tsc and lint cannot catch this: the code is valid, the value is only wrong
+// at build time. So shout at runtime instead — the message names the fix.
+if (!__DEV__ && BASE_URL.includes('localhost')) {
+  const msg =
+    'EXPO_PUBLIC_API_URL is not set in this build — the app is pointing at ' +
+    'localhost and every request will fail. Set it in eas.json → build → env.';
+  console.error(msg);
+  captureError(new Error(msg), { baseUrl: BASE_URL });
+}
+
 export class ApiError extends Error {
   constructor(
     public status: number,
