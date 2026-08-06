@@ -50,3 +50,11 @@ keys/
 
 # Store submit credentials (never commit)
 google-service-account.json
+
+# Firebase service-account private keys (FCM V1). REAL SECRETS — these grant
+# admin access to the Firebase project. They belong in `eas credentials`, never
+# in git, and this repo is PUBLIC.
+# (`google-services.json` is NOT secret and IS committed — it ships inside the
+#  APK anyway. See docs/PUSH_SETUP.md.)
+*firebase-adminsdk*.json
+*-service-account*.json

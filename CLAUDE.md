@@ -1,7 +1,7 @@
 # SparkXP
 
 Gamified English learning app for Mongolian students, schools, and
-organizations (e.g. law firms). Owner: Hustle Hive LLC.
+organizations (e.g. law firms). Owner: Aether Tech Core LLC.
 
 - **App name:** SparkXP · **GitHub repo:** https://github.com/usukh6ayar/SparkXP
 - **Prod API:** https://sparkxp-production.up.railway.app/api (Railway)

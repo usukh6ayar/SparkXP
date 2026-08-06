@@ -17,6 +17,7 @@ import { isBiometricAvailable, authenticateBiometric } from './biometrics';
 import { createAppLockPolicy } from './appLockPolicy';
 import { setMonitoringUser } from '../lib/monitoring';
 import { identifyUser, resetAnalytics, track } from '../lib/analytics';
+import { registerForPush, unregisterPush } from '../lib/pushRegistration';
 
 const TOKEN_KEY = 'sparkxp.token';
 const USER_KEY = 'sparkxp.user';
@@ -113,6 +114,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
 
+      attachPush(saved);
+
       try {
         const me = await authApi.getMe(saved);
         setUser(me);
@@ -173,6 +176,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     identifyUser(next.id, { role: next.role, level: next.level });
   }
 
+  /**
+   * Hand this device's push token to the backend. Fire-and-forget: it prompts
+   * for permission on first run and must never delay the session becoming
+   * usable. No-ops in Expo Go and on simulators (see lib/pushRegistration).
+   */
+  function attachPush(accessToken: string) {
+    registerForPush(accessToken);
+  }
+
   async function clearSession() {
     await SecureStore.deleteItemAsync(TOKEN_KEY);
     await SecureStore.deleteItemAsync(USER_KEY);
@@ -196,6 +208,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(result.accessToken);
     setUser(result.user);
     attachIdentity(result.user);
+    attachPush(result.accessToken);
     setLocked(false); // just authenticated with a password — start unlocked
   }
 
@@ -247,9 +260,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function logout() {
-    // Before clearSession(), which resets the analytics identity — afterwards
-    // the event would be attributed to a brand-new anonymous person.
+    // Both of these need the session that clearSession() is about to destroy:
+    // the analytics identity (or the event lands on a new anonymous person) and
+    // the auth token (used to tell the backend to drop this device's push
+    // token, so the next person on this phone gets no reminders of ours).
     track('logged_out');
+    if (tokenRef.current) await unregisterPush(tokenRef.current);
     await clearSession();
   }
 

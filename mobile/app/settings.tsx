@@ -15,6 +15,7 @@ import { resolveAvatar } from '../src/lib/avatar';
 import { useLogoutConfirm, useComingSoon } from '../src/lib/useLogoutConfirm';
 import { DeleteAccountSheet } from '../src/components/DeleteAccountSheet';
 import { openLegal } from '../src/constants/legal';
+import { setPushPrefs } from '../src/api/notifications';
 import { ROLE_TKEY } from '../src/constants/roles';
 import { colors, spacing, radius, tints, type PremiumPalette } from '../src/theme/theme';
 import type { Lang } from '../src/i18n';
@@ -118,6 +119,35 @@ function usePref(key: string): [boolean, (v: boolean) => void] {
 }
 
 /**
+ * The push-reminder switch.
+ *
+ * Unlike `usePref` this one actually reaches the server: the backend only sends
+ * the daily 20:00 reminder to users with `pushEnabled`, so a purely local flag
+ * (which is what this was) turned nothing off. The token stays registered, so
+ * switching back on needs no second permission prompt.
+ *
+ * The setter identity is stable — see the note on `usePref`; an inline arrow
+ * would re-render the memoised Switcher mid-animation.
+ */
+function usePushPref(authToken: string | null): [boolean, (v: boolean) => void] {
+  const [value, setValue] = useState(true);
+
+  useEffect(() => {
+    AsyncStorage.getItem(KEYS.notifications).then((v) => { if (v != null) setValue(v === '1'); });
+  }, []);
+
+  const set = useCallback((v: boolean) => {
+    setValue(v);
+    AsyncStorage.setItem(KEYS.notifications, v ? '1' : '0');
+    // Best-effort: the switch must flip instantly even offline. The local flag
+    // is what the next launch reads, so the two re-sync on the following toggle.
+    if (authToken) setPushPrefs(v, authToken).catch(() => {});
+  }, [authToken]);
+
+  return [value, set];
+}
+
+/**
  * The sound-effect switch. Unlike `usePref` it defaults OFF (many learners study
  * in public) and drives `lib/sound.ts` — which owns persistence under the same
  * `settings.sound` key — so the switch and the audio layer never disagree.
@@ -171,10 +201,10 @@ function SegToggle<T extends string>({
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { user, biometricEnabled, setBiometricEnabled } = useAuth();
+  const { user, token, biometricEnabled, setBiometricEnabled } = useAuth();
   const { themePref, lang, palette: p, setTheme, setLang, t } = useSettings();
 
-  const [notifications, setNotifications] = usePref(KEYS.notifications);
+  const [notifications, setNotifications] = usePushPref(token);
   const [sound, setSound] = useSoundPref();
   const [haptics, setHaptics] = usePref(KEYS.haptics);
   // Only offer the biometric lock when the device actually supports it.
@@ -335,7 +365,7 @@ export default function SettingsScreen() {
           {/* Footer */}
           <View style={styles.footer}>
             <AppText variant="caption" color={p.textMuted}>SparkXP v{APP_VERSION}</AppText>
-            <AppText variant="caption" color={p.textMuted}>© Hustle Hive LLC</AppText>
+            <AppText variant="caption" color={p.textMuted}>© Aether Tech Core LLC</AppText>
           </View>
         </ScrollView>
       </SafeAreaView>
