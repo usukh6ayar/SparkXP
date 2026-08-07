@@ -20,17 +20,43 @@ import { User } from '../entities/user.entity';
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 
+/**
+ * Railway hands out two connection strings and they are easy to mix up:
+ * `DATABASE_URL` points at `postgres.railway.internal`, which only resolves
+ * from inside Railway's own network, while `DATABASE_PUBLIC_URL` is the one a
+ * laptop can reach. Failing with a raw DNS error here helps nobody.
+ */
+function assertReachable(url: string | undefined): void {
+  if (!url?.includes('.railway.internal')) return;
+  console.error(
+    '❌ Энэ бол Railway-гийн ДОТООД хаяг — зөвхөн Railway дотроос холбогдоно.\n\n' +
+      '   Railway → Postgres → Variables → `DATABASE_PUBLIC_URL`-ыг ашиглана уу:\n' +
+      "   DATABASE_URL='<DATABASE_PUBLIC_URL>' npm run test:push",
+  );
+  process.exit(1);
+}
+
 /** Read every registered device token straight from the database. */
 async function tokensFromDb(): Promise<{ token: string; who: string }[]> {
+  const url = process.env.DATABASE_URL || undefined;
+  assertReachable(url);
+
+  // A remote Postgres (anything that isn't localhost) needs TLS; Railway's
+  // proxy certificate is not in the local trust store, hence rejectUnauthorized.
+  const remote = !!url && !/localhost|127\.0\.0\.1/.test(url);
+
   const ds = new DataSource({
     type: 'postgres',
-    url: process.env.DATABASE_URL || undefined,
+    url,
     host: process.env.DB_HOST ?? 'localhost',
     port: Number(process.env.DB_PORT ?? 5432),
     username: process.env.DB_USERNAME ?? 'postgres',
     password: process.env.DB_PASSWORD ?? 'postgres',
     database: process.env.DB_NAME ?? 'sparkxp',
-    ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
+    ssl:
+      remote || process.env.DB_SSL === 'true'
+        ? { rejectUnauthorized: false }
+        : false,
     entities,
   });
   await ds.initialize();
