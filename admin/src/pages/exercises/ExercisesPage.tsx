@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Eye, EyeOff, Upload, Trash2 } from 'lucide-react';
+import { Plus, Eye, EyeOff, Upload, Trash2, Sparkles } from 'lucide-react';
+import { AiBulkGenerator } from '../../components/AiBulkGenerator';
 import { api } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
 import { Button } from '../../components/Button';
@@ -75,6 +76,8 @@ export default function ExercisesPage() {
 
   // Selection (bulk publish/delete)
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  // AI-аар үүсгэх (дундын AiBulkGenerator)
+  const [aiOpen, setAiOpen] = useState(false);
   // CSV/JSON import
   const [importOpen, setImportOpen] = useState(false);
   const [impTitle, setImpTitle] = useState('');
@@ -268,10 +271,25 @@ export default function ExercisesPage() {
         action={!speaking && !reading && (
           <div className="flex gap-2">
             <Button variant="secondary" onClick={() => { setImpError(''); setImportOpen(true); }}><Upload className="h-4 w-4" /> Импорт</Button>
+            <Button variant="secondary" onClick={() => setAiOpen(true)}><Sparkles className="h-4 w-4" /> AI-аар үүсгэх</Button>
             <Button onClick={openCreate}><Plus className="h-4 w-4" /> Дасгал нэмэх</Button>
           </div>
         )}
       />
+
+      {aiOpen && (
+        <AiBulkGenerator
+          target={{
+            kind: 'exercise',
+            label: CATS.find((c) => c.key === cat)?.label ?? 'Дасгал',
+            category: cat,
+            topicOptions: exerciseCategoryOptions(cat),
+            xpReward: 50,
+          }}
+          onClose={() => setAiOpen(false)}
+          onSaved={load}
+        />
+      )}
 
       {/* Category tabs */}
       <div className="mb-4 flex flex-wrap gap-2">

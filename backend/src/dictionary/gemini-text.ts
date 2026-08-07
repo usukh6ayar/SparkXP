@@ -19,6 +19,20 @@ export interface GeminiTextOptions {
   schema?: unknown;
   /** Sampling temperature. Defaults to 0.3 (the existing dictionary value). */
   temperature?: number;
+  /**
+   * Хариултын дээд урт. Орхивол API-ийн анхдагчаар (хязгааргүй) явна.
+   * Загвар хэт урт чалчихаас сэргийлнэ.
+   */
+  maxOutputTokens?: number;
+  /**
+   * "Бодох" (thinking) төсөв токеноор. **`0` = бодохыг унтраана**
+   * (`gemini-2.5-*`). Орхивол загварын анхдагч хэвээр.
+   *
+   * Яагаад хэрэгтэй вэ: 2.5-flash дээр thinking анхдагчаар асаалттай бөгөөд
+   * бүтэцтэй (JSON) хариу шаардах үед бодлоо гаралт руугаа асгаж, JSON-ыг
+   * эвдэж, хариуг 10+ дахин уртасгадаг.
+   */
+  thinkingBudget?: number;
 }
 
 /**
@@ -54,6 +68,12 @@ export async function runGeminiText(
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: {
         temperature: options.temperature ?? 0.3,
+        ...(options.maxOutputTokens
+          ? { maxOutputTokens: options.maxOutputTokens }
+          : {}),
+        ...(options.thinkingBudget !== undefined
+          ? { thinkingConfig: { thinkingBudget: options.thinkingBudget } }
+          : {}),
         ...(options.json
           ? {
               responseMimeType: 'application/json',
@@ -70,6 +90,7 @@ export async function runGeminiText(
     if (response.ok) {
       const data = (await response.json()) as {
         candidates?: {
+          finishReason?: string;
           content?: { parts?: { text?: string; thought?: boolean }[] };
         }[];
         usageMetadata?: {
@@ -85,6 +106,16 @@ export async function runGeminiText(
         .trim();
       if (!text) {
         throw new InternalServerErrorException('AI хоосон хариу буцаалаа');
+      }
+      // Урт хязгаарт мөргөвөл JSON дунджаасаа тасарна. Дараагийн алхам нь
+      // "JSON биш" гэж ойлгомжгүй уначихаас өмнө шалтгааныг нь хэлье.
+      if (data.candidates?.[0]?.finishReason === 'MAX_TOKENS') {
+        logger.error(
+          `Gemini "${label}" hit maxOutputTokens — reply truncated at ${text.length} chars`,
+        );
+        throw new InternalServerErrorException(
+          'AI хариу хэт урт болж таслагдлаа — асуултын тоог багасгаж дахин оролдоно уу',
+        );
       }
       return {
         text,

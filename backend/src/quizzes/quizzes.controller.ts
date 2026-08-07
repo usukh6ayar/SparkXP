@@ -26,6 +26,7 @@ import { QuizzesService } from './quizzes.service';
 import { XpService } from '../xp/xp.service';
 import { StarsService } from '../xp/stars.service';
 import { XpSource } from '../common/enums';
+import { AiGenerateQuizDto } from './dto/ai-generate-quiz.dto';
 import { CreateQuizDto } from './dto/create-quiz.dto';
 import { IELTS_OBJECTIVE_CATEGORIES, ieltsBand } from './ielts';
 import { UpdateQuizDto } from './dto/update-quiz.dto';
@@ -54,6 +55,20 @@ export class QuizzesController {
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
   create(@Body() dto: CreateQuizDto) {
     return this.quizzesService.create(dto);
+  }
+
+  /**
+   * Админ: бичсэн агуулгаас AI-аар асуултын ноорог үүсгэнэ (Дасгал · Quiz ·
+   * IELTS гурвуулаа энэ нэг endpoint-ыг ашиглана).
+   *
+   * Хадгалахгүй — зөвхөн ноорог буцаана. Админ preview дээр засаад `POST
+   * /quizzes`-ээр өөрөө үүсгэнэ.
+   */
+  @Post('ai-generate')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  aiGenerate(@Body() dto: AiGenerateQuizDto) {
+    return this.quizzesService.aiGenerate(dto);
   }
 
   /** List quizzes with optional filters. */
