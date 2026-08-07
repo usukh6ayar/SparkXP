@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Quiz } from '../entities/quiz.entity';
 import { QuizzesService } from './quizzes.service';
@@ -10,6 +11,7 @@ import { HeartsModule } from '../hearts/hearts.module';
 
 @Module({
   imports: [
+    ConfigModule,
     TypeOrmModule.forFeature([Quiz]),
     XpModule,
     TeacherModule,

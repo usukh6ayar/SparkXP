@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, GripVertical, X, Eye, EyeOff, Upload, Trash2 } from 'lucide-react';
+import { Plus, GripVertical, X, Eye, EyeOff, Upload, Trash2, Sparkles } from 'lucide-react';
 import { api } from '../../api/client';
+import { AiBulkGenerator } from '../../components/AiBulkGenerator';
+import type { QuestionType } from '../../components/QuizQuestionsEditor';
 import { PageHeader } from '../../components/PageHeader';
 import { Button } from '../../components/Button';
 import { Badge } from '../../components/Badge';
@@ -321,6 +323,10 @@ export default function QuizzesPage() {
   // Selection (bulk publish/delete)
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
+  // AI-аар үүсгэх (дундын AiBulkGenerator). "Бүгд" таб дээр анхдагч тоглоомыг авна.
+  const [aiOpen, setAiOpen] = useState(false);
+  const aiGame = QUIZ_TYPES.find((t) => t.value === typeFilter) ?? QUIZ_TYPES[0];
+
   // CSV / JSON import
   const [importOpen, setImportOpen] = useState(false);
   const [impTitle, setImpTitle] = useState('');
@@ -562,10 +568,27 @@ export default function QuizzesPage() {
         action={
           <div className="flex gap-2">
             <Button variant="secondary" onClick={() => { setImpError(''); setImportOpen(true); }}><Upload className="h-4 w-4" /> Импорт</Button>
+            <Button variant="secondary" onClick={() => setAiOpen(true)}><Sparkles className="h-4 w-4" /> AI-аар үүсгэх</Button>
             <Button onClick={() => openCreate()}><Plus className="h-4 w-4" /> Quiz нэмэх</Button>
           </div>
         }
       />
+
+      {aiOpen && (
+        <AiBulkGenerator
+          target={{
+            kind: 'exercise',
+            label: `Сорил — ${aiGame.label}`,
+            // Тоглоомын төрөл нь асуултын форматыг тогтооно (QUIZ_TYPES).
+            questionType: aiGame.questionType as QuestionType,
+            contextNote: `Сорилын тоглоом: ${aiGame.label} — ${aiGame.desc}`,
+            save: { quizType: aiGame.value },
+            xpReward: 10,
+          }}
+          onClose={() => setAiOpen(false)}
+          onSaved={load}
+        />
+      )}
 
       {/* Type tabs (pill filter) */}
       <div className="mb-4 flex flex-wrap gap-2">

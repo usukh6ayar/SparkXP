@@ -4,8 +4,24 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { ConfigService } from '@nestjs/config';
 import { IsNull, Repository } from 'typeorm';
 import { Quiz } from '../entities/quiz.entity';
+import { runGeminiText } from '../dictionary/gemini-text';
+import {
+  buildPrompt,
+  buildSchema,
+  buildTypePrompt,
+  clampCount,
+  maxTokensFor,
+  parseDraft,
+  parseTypePick,
+  TYPE_PICK_SCHEMA,
+  type GeneratedDraft,
+  type GenerateOptions,
+  type GenQuestionType,
+} from './ai-generate';
+import { AiGenerateQuizDto } from './dto/ai-generate-quiz.dto';
 import { CreateQuizDto, QuestionDto } from './dto/create-quiz.dto';
 import { UpdateQuizDto } from './dto/update-quiz.dto';
 import { QueryQuizzesDto } from './dto/query-quizzes.dto';
@@ -78,7 +94,76 @@ export class QuizzesService {
   constructor(
     @InjectRepository(Quiz)
     private readonly quizzes: Repository<Quiz>,
+    private readonly config: ConfigService,
   ) {}
+
+  /**
+   * Админы бичсэн агуулгаас асуултын ноорог үүсгэнэ (Дасгал · Quiz · IELTS
+   * гурвуулаа нэг зам — ялгаа нь зөвхөн prompt-ийн контекст).
+   *
+   * ⚠️ Энэ метод DB рүү юу ч бичихгүй: буцаасан ноорогийг админ preview дээр
+   * хараад, засаад, `POST /quizzes`-ээр өөрөө хадгална. Буруу хариулт шууд
+   * сурагч руу хүрэхээс сэргийлсэн санаатай шийдэл.
+   */
+  async aiGenerate(dto: AiGenerateQuizDto): Promise<GeneratedDraft> {
+    const options: GenerateOptions = { ...dto, count: clampCount(dto.count) };
+    // Төрөл заагаагүй бол эхлээд түүнийг тодруулна — үндсэн дуудлага үргэлж
+    // чанга schema-тай явахын тулд (сул schema дээр загвар гогцоонд ордог).
+    const type = options.questionType ?? (await this.pickQuestionType(options));
+    options.questionType = type;
+
+    const { text } = await runGeminiText(
+      this.config,
+      buildPrompt(options),
+      `quiz-generate:${dto.kind}`,
+      {
+        json: true,
+        schema: buildSchema(options, type),
+        // Бүтэцтэй гаралтад бага temperature илүү сахилгатай.
+        temperature: 0.4,
+        // ⚠️ thinking-ийг УНТРААНА. 2.5-flash дээр анхдагчаар асаалттай бөгөөд
+        // JSON горимд бодлоо талбар дотор бичиж, хариуг эвдэж, 10+ дахин
+        // уртасгаж байсан (5 асуултад 19,550 токен / 76 секунд).
+        thinkingBudget: 0,
+        maxOutputTokens: maxTokensFor(options.count ?? 10),
+      },
+    );
+    try {
+      return parseDraft(text, options);
+    } catch (e) {
+      // parseDraft-ийн алдаанууд нь админд шууд харуулах монгол мессежүүд.
+      throw new BadRequestException(
+        e instanceof Error ? e.message : 'AI-гийн хариуг боловсруулж чадсангүй',
+      );
+    }
+  }
+
+  /**
+   * Агуулгад хамгийн тохирох асуултын форматыг AI-аар сонгуулна.
+   * Бүтэлгүйтвэл хамгийн түгээмэл формат руу буцна — энэ жижиг алхмаас болж
+   * бүхэл онцлог унах ёсгүй.
+   */
+  private async pickQuestionType(
+    o: GenerateOptions,
+  ): Promise<GenQuestionType> {
+    try {
+      const { text } = await runGeminiText(
+        this.config,
+        buildTypePrompt(o),
+        'quiz-generate:type',
+        {
+          json: true,
+          schema: TYPE_PICK_SCHEMA,
+          temperature: 0.2,
+          thinkingBudget: 0,
+          maxOutputTokens: 60,
+        },
+      );
+      return parseTypePick(text) ?? 'multiple_choice';
+    } catch {
+      return 'multiple_choice';
+    }
+  }
 
   /** Validate that every question has a supported type and required fields. */
   private validateQuestions(raw: QuestionDto[]): StoredQuestion[] {

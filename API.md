@@ -146,6 +146,21 @@ Controller-level: JWT. Бичилт admin-баг. (Хичээлийн тест �
 | DELETE `/quizzes/:id` | admin-баг | Quiz устгах | path `id` |
 | POST `/quizzes/:id/submit` | JWT | Хариу шалгаж XP олгох (≥1 зөв бол). XP нь **quiz тус бүрт нэг удаа** (`awardOnce`, farming-аас сэргийлнэ); дахин илгээвэл `xpEarned: 0`. Бүр submit `quiz_attempt` (skill+score) хадгална; `assignmentId` өгвөл даалгаврын submission-ыг оноотой бүртгэнэ | `SubmitQuizDto` (`answers`, `assignmentId?`) |
 | POST `/quizzes/:id/check` | JWT | **Нэг** хариу шалгах — C2 шуурхай feedback (XP олгохгүй, бүх түлхүүр задлахгүй). Буруу бол тухайн асуултын зөв хариу буцна. **Буруу хариулт 1 зүрх авна** (§6a; багшийн даалгавар **үл хамаарна**) → `{ correct, correctAnswer?, hearts }` (`correctAnswer`: mc→index · fill_blank→string · word_match→pairs; `hearts` = `HeartsState`) | `AnswerItemDto` (`questionIndex`, `answer`) |
+| POST `/quizzes/ai-generate` | admin-баг | **Бичсэн агуулгаас AI-аар асуултын ноорог үүсгэх** (Дасгал · Сорил · IELTS гурвуулаа). **DB рүү юу ч бичихгүй** — буцаасан ноорогийг админ preview дээр засаад `POST /quizzes`-ээр өөрөө хадгална | `AiGenerateQuizDto` |
+
+**`POST /quizzes/ai-generate`** — `AiGenerateQuizDto`:
+`brief` (заавал, чөлөөт текст) · `kind` (`exercise`\|`lesson`\|`ielts`) ·
+`category?` · `topic?` · `level?` · `questionType?` · `count?` (1–20) ·
+`passageText?` (IELTS Reading) · `contextNote?` (prompt-д нэмэх контекст).
+`level` / `questionType` / `count` -г **орхивол AI өөрөө таамаглаж**, юу сонгосноо
+хариунд буцаана.
+
+Хариу: `{ title, level, questionType, topic, passageText, questions[], warnings[] }`.
+`warnings` = чанарын шалгуурын үр дүн (индекс мужаас гарсан зөв хариу, давхардсан
+сонголт, `___` цоорхойгүй fill_blank, давхардсан асуулт г.м.) — засаж болохгүй
+асуулт нь **хасагдаад** тайлбар нь `warnings`-д бичигдэнэ.
+
+> ⚠️ `GEMINI_API_KEY` (билинг идэвхтэй) шаардана — эс бөгөөс 500 буцна.
 
 > **IELTS (Approach A):** IELTS content = quizzes with `category` in
 > `ielts_listening` / `ielts_reading` / `ielts_writing` / `ielts_speaking`.

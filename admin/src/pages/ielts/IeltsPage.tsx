@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Eye, EyeOff, Trash2 } from 'lucide-react';
+import { Plus, Eye, EyeOff, Trash2, Sparkles } from 'lucide-react';
+import { AiBulkGenerator } from '../../components/AiBulkGenerator';
 import { api } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
 import { Button } from '../../components/Button';
@@ -70,6 +71,8 @@ export default function IeltsPage() {
 
   // Selection (bulk publish/delete)
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  // AI-аар үүсгэх (дундын AiBulkGenerator)
+  const [aiOpen, setAiOpen] = useState(false);
 
   const current = IELTS_MODULES.find((m) => m.key === mod)!;
 
@@ -204,8 +207,30 @@ export default function IeltsPage() {
       <PageHeader
         title="IELTS"
         description="IELTS бэлтгэл — Listening / Reading (band) · Writing / Speaking (жишиг хариулт)"
-        action={<Button onClick={openCreate}><Plus className="h-4 w-4" /> IELTS контент нэмэх</Button>}
+        action={
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={() => setAiOpen(true)}><Sparkles className="h-4 w-4" /> AI-аар үүсгэх</Button>
+            <Button onClick={openCreate}><Plus className="h-4 w-4" /> IELTS контент нэмэх</Button>
+          </div>
+        }
       />
+
+      {aiOpen && (
+        <AiBulkGenerator
+          target={{
+            kind: 'ielts',
+            label: `IELTS ${current.label}`,
+            category: current.category,
+            // Writing/Speaking нь зөвхөн задгай хариулт; objective модуль форматаа сонгоно.
+            questionType: current.objective ? undefined : 'open_response',
+            topicOptions: ieltsSubTopicOptions(current.key),
+            withPassage: current.key === 'reading',
+            xpReward: 50,
+          }}
+          onClose={() => setAiOpen(false)}
+          onSaved={load}
+        />
+      )}
 
       {/* Module tabs */}
       <div className="mb-4 flex flex-wrap gap-2">
