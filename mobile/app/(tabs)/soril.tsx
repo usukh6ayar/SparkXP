@@ -15,6 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { haptics } from "../../src/lib/haptics";
 import { useAuth } from "../../src/auth/AuthContext";
 import { getGamification, type Gamification } from "../../src/api/gamification";
+import { getExercises, type Quiz } from "../../src/api/quizzes";
 import { loadDailyTasks, DAILY_TASK_GOAL } from "../../src/lib/dailyTasks";
 import { AppText } from "../../src/components/Text";
 import { AppIcon } from "../../src/components/AppIcon";
@@ -116,6 +117,16 @@ function games(t: (key: import("../../src/i18n").TranslationKey) => string): Gam
 
 /** Daily-goal fallback while `/gamification` is still loading (backend: 50 XP). */
 const DAILY_GOAL_FALLBACK = 50;
+
+/**
+ * Админаас нэмсэн сорилын `Quiz.category` (admin → Сорил хуудас).
+ *
+ * Дээрх 6 карт бол үгийн сангаас автоматаар үүсдэг тоглоомууд — админы бичсэн
+ * сорилыг харуулдаггүй. Тэр контентыг гаргах цорын ганц зам нь энэ хэсэг тул
+ * утга нь `admin/src/pages/quizzes/QuizzesPage.tsx`-ийн `SORIL_CATEGORY`-тэй
+ * ЯГ таарах ёстой.
+ */
+const SORIL_CATEGORY = "soril";
 export default function SorilScreen() {
   const { user, token } = useAuth();
   const c = useColors();
@@ -123,6 +134,16 @@ export default function SorilScreen() {
   const [gam, setGam] = useState<Gamification | null>(null);
   useEffect(() => {
     if (token) getGamification(token).then(setGam).catch(() => {});
+  }, [token]);
+
+  // Админаас нэмсэн сорилууд. Хоосон бол хэсэг нь бүрэн нуугдана — "тун
+  // удахгүй" маягийн хуурамч мөр үзүүлэхгүй.
+  const [customQuizzes, setCustomQuizzes] = useState<Quiz[]>([]);
+  useEffect(() => {
+    if (!token) return;
+    getExercises(token, SORIL_CATEGORY)
+      .then((r) => setCustomQuizzes(r.items))
+      .catch(() => setCustomQuizzes([]));
   }, [token]);
   const level = gam?.level ?? 1;
   const dailyExerciseGoal = gam?.dailyExerciseGoal ?? DAILY_TASK_GOAL;
@@ -292,6 +313,42 @@ export default function SorilScreen() {
             </Animated.View>
           ))}
         </View>
+
+        {/* Админаас нэмсэн сорилууд — байгаа үед л харагдана */}
+        {customQuizzes.length > 0 && (
+          <>
+            <View style={styles.sectionRow}>
+              <AppText variant="h2">{t("sorilCustomSection")}</AppText>
+            </View>
+            <View style={styles.quizList}>
+              {customQuizzes.map((q) => (
+                <Pressable
+                  key={q.id}
+                  style={({ pressed }) => [styles.quizRow, pressed && styles.pressed]}
+                  onPress={() => { haptics.tap(); router.push(`/quiz/${q.id}`); }}
+                  accessibilityRole="button"
+                  accessibilityLabel={q.title}
+                >
+                  <IconTile
+                    icon="help-circle"
+                    bg={tints.purple.bg}
+                    fg={tints.purple.fg}
+                    size={44}
+                    iconSize={24}
+                  />
+                  <View style={styles.quizBody}>
+                    <AppText variant="bodyStrong" numberOfLines={2}>{q.title}</AppText>
+                    <AppText variant="caption" color={c.textSecondary}>
+                      {tf("questionCount", { n: q.questions?.length ?? 0 })} · {q.xpReward} XP ·{" "}
+                      {q.level.toUpperCase()}
+                    </AppText>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color={c.textMuted} />
+                </Pressable>
+              ))}
+            </View>
+          </>
+        )}
 
         {/* Progress path */}
         <View style={styles.pathCard}>
@@ -464,6 +521,19 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   cardBody: { flex: 1, gap: 2 },
   cardDesc: { marginBottom: spacing.sm },
   cardPill: { alignSelf: "flex-start", marginTop: "auto" },
+
+  // Админаас нэмсэн сорилын жагсаалт
+  quizList: { gap: spacing.sm },
+  quizRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: c.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    ...(elevation.sm as object),
+  },
+  quizBody: { flex: 1, gap: 2 },
 
   // Progress path
   pathCard: {
