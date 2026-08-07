@@ -3,11 +3,22 @@ import { Linking } from 'react-native';
 /**
  * Where the published Privacy Policy and Terms live.
  *
- * The marketing site, not the admin dashboard — the admin was never deployed,
- * so the old default 404'd in the shipped app (found while preparing the first
- * TestFlight build). The pages themselves are version-controlled in this repo
- * at `admin/public/{privacy,terms}.html`; copy them into the web project's
- * `public/` folder when either changes.
+ * The **marketing site** — that is where a store reviewer (and a parent) expects
+ * a policy to live, not on an admin dashboard.
+ *
+ * ⚠️ **The pages are NOT hosted here automatically.** The source of truth is
+ * this repo (`admin/public/{privacy,terms}.html`); the marketing site is a
+ * separate project, so both files must be copied into its `public/` folder and
+ * re-copied whenever either changes. Two shipped builds already 404'd on this
+ * link — `sparkxp-admin.vercel.app` (a host that never existed) and this one
+ * before the pages were uploaded. Verify, never assume:
+ *
+ *   curl -sIL https://spark-xp-web.vercel.app/privacy.html | head -1  # 200
+ *   curl -sIL https://spark-xp-web.vercel.app/terms.html   | head -1  # 200
+ *
+ * (`https://spark-xp.vercel.app/privacy.html` — the admin deployment — serves
+ * the same two files today with no manual step, and is the fallback if keeping
+ * the marketing copy in sync turns out to be a chore.)
  *
  * ⚠️ The **exact same Privacy Policy URL must be pasted into App Store Connect
  * and Play Console.** A store listing whose policy link 404s is a rejection —

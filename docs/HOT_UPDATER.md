@@ -201,6 +201,56 @@ npx hot-updater deploy -t 1.0.0 -f
 npx hot-updater deploy -i -f
 ```
 
+⚠️ **Force-ыг production-д анхдагч болгож БОЛОХГҮЙ.** Bundle ~15 MB тул муу
+сүлжээтэй хэрэглэгч татаж дуустал аппаа огт нээж чадахгүй. Force нь зөвхөн
+яаралтай засварт (өгөгдөл алдагдуулж буй bug, аюулгүй байдал).
+
+---
+
+### 4.6 🚦 Production release — үе шаттай (staged) rollout
+
+> **App Store дээр гарсны дараа энэ бол ЗААВАЛ. Шууд 100% BATTLE биш.**
+>
+> Учир нь: эвдэрхий bundle-ыг OTA-гаар буцааж засах баталгаа **байхгүй**.
+> `bundle disable` / `rollback` нь **шалгалт хийсээр байгаа** төхөөрөмжид л
+> хүрнэ. Hot Updater-ийн native crash-rollback нь bundle **унасан** үед л
+> ажилладаг — 2026-08-08-ны алдаа шиг "ажиллаж байгаа мөртлөө OTA-гаа
+> унтраасан" bundle-ыг илрүүлэхгүй. Тэр тохиолдолд ганц зам нь хэрэглэгч
+> бүр аппаа устгаж дахин суулгах — App Store дээр боломжгүй зүйл.
+
+```bash
+cd mobile
+
+# 1) 10% дээр гаргана (force-гүй!)
+npx hot-updater deploy -p ios -t 1.0.0 -r 10
+
+# 2) Bundle доторх мөрийг ШАЛГА (§7 дэх скрипт) — 0 гарвал тэр дороо disable
+
+# 3) 1–2 цаг Sentry-г хар: crash-free rate унасан уу? шинэ issue гарсан уу?
+
+# 4) Асуудалгүй бол өргөтгө (cohort count 0–1000, 1000 = 100%)
+npx hot-updater bundle update <bundle-id> --rollout-cohort-count 500   # 50%
+npx hot-updater bundle update <bundle-id> --rollout-cohort-count 1000  # 100%
+
+# Асуудал гарвал:
+npx hot-updater bundle disable <bundle-id> -y
+```
+
+| Алхам | Хамрах хүрээ | Юу хардаг |
+| --- | --- | --- |
+| `-r 10` | 10% | bundle доторх мөр · Sentry crash-free |
+| `--rollout-cohort-count 500` | 50% | Sentry · хэрэглэгчийн гомдол |
+| `--rollout-cohort-count 1000` | 100% | — |
+
+**Release checklist (production OTA бүрд):**
+
+- [ ] `main` дээрх код, CI ногоон
+- [ ] `-r 10`, **force-гүй**
+- [ ] Bundle татаж дотор нь `sparkxp-hot-updater` + `…railway.app/api` **хоёулаа** байгааг батлав (§7)
+- [ ] Өөрийн утсан дээр нэг нээж туршив
+- [ ] 1–2 цаг Sentry ажиглав
+- [ ] Шат дараалан 50% → 100%
+
 ### 4.5 Console
 
 ```bash
@@ -296,10 +346,43 @@ npx hot-updater doctor
 
 1. **Expo Go** биш үү? → native build шаардлагатай  
 2. App version = deploy `-t` version уу?  
-3. `EXPO_PUBLIC_HOT_UPDATER_URL` зөв үү? (native rebuild **дараа** env өөрчлөгдсөн бол дахин build)  
-4. App бүрэн хаагаад нээ  
-5. Сүлжээ (Worker URL browser-оор нээгдэх эсэх)  
-6. Channel: plugin `production` = deploy channel
+3. App бүрэн хаагаад нээ (шалгалт зөвхөн cold start дээр)  
+4. Сүлжээ (Worker URL browser-оор нээгдэх эсэх)  
+5. Channel: plugin `production` = deploy channel  
+6. `shouldForceUpdate: false` бол **юу ч харагдахгүй** — bundle нь дэвсгэрт
+   татагдаад зөвхөн **дараагийн** нээлтэд идэвхжинэ (`wrap.tsx` нь
+   `updateBundle()`-ыг await хийхгүй). Шууд харагдуулах бол:
+   `npx hot-updater bundle update <id> --force-update true`
+
+---
+
+### ☠️ Bundle доторх мөрийг **заавал** шалга (2026-08-08-ны сургамж)
+
+`hot-updater deploy` нь **локал машин дээр** `expo export` ажиллуулж, тиймээс
+`EXPO_PUBLIC_*`-ыг `eas.json`-оос БИШ, `mobile/.env`-ээс уншина. `eas.json`-ы
+build профайлд л байгаа хувьсагч OTA bundle-д **инлайн болохгүй**.
+
+Ингэснээр 2026-08-08-нд `EXPO_PUBLIC_HOT_UPDATER_URL`-гүй bundle гарч,
+`_layout.tsx`-ийн хамгаалалт (`if (!raw) return App`) OTA-г **өөрөө нь
+унтраасан** — тэр bundle суусан төхөөрөмж дахин хэзээ ч шалгахгүй болж,
+зөвхөн аппыг устгаад дахин суулгаж сэргээх боломжтой байв.
+
+**Одоо:** Worker URL нь `app/_layout.tsx`-д `HOT_UPDATER_URL` гэсэн **хатуу
+анхдагч** (нийтийн хаяг). Env нь зөвхөн override.
+
+**Deploy бүрийн дараа шалга:**
+
+```bash
+# check-update-ээс fileUrl авч, bundle-ыг татаад дотор нь хар
+unzip -o b.zip -d bundle
+python3 -c "
+d=open('bundle/index.ios.bundle','rb').read()
+for s in ['sparkxp-hot-updater','sparkxp-production.up.railway.app']:
+    print(s, d.count(s.encode()))"   # хоёулаа ≥1 байх ёстой
+```
+
+⚠️ Hermes нь ASCII биш мөрийг **UTF-16**-аар хадгалдаг тул кирилл мөр хайхад
+`s.encode('utf-16-le')` ашигла — `strings`/`grep` нь худал "олдсонгүй" өгнө.
 
 ---
 
