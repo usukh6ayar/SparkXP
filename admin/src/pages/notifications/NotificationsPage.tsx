@@ -59,7 +59,14 @@ export default function NotificationsPage() {
         body: form.body.trim(),
         targetRole: form.targetRole || null,
       });
-      setSuccess(`Мэдэгдэл ${res.sentCount} хэрэглэгчид бүртгэгдлээ ✓`);
+      // 0 is a real outcome worth calling out: the broadcast succeeded but
+      // nobody has a registered device, which looks identical to a silent
+      // failure unless we say so.
+      setSuccess(
+        res.sentCount > 0
+          ? `Мэдэгдэл ${res.sentCount} төхөөрөмж рүү илгээгдлээ ✓`
+          : 'Хадгалагдлаа — гэхдээ push авах төхөөрөмж олдсонгүй (хэн ч мэдэгдэл асаагаагүй байна)',
+      );
       setForm({ title: '', body: '', targetRole: '' });
       load();
     } catch (e: unknown) {
@@ -137,7 +144,7 @@ export default function NotificationsPage() {
 
         <div className="flex items-center justify-between pt-1">
           <p className="text-xs text-gray-400">
-            ⚠️ Expo Push API холбогдоогүй тул одоохондоо зөвхөн бүртгэлд хадгалагдана
+            Мэдэгдэл асаасан, төхөөрөмжөө бүртгүүлсэн хэрэглэгчид push хүрнэ
           </p>
           <Button onClick={send} disabled={sending}>
             <Send className="h-4 w-4" />
