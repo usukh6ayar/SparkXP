@@ -201,6 +201,56 @@ npx hot-updater deploy -t 1.0.0 -f
 npx hot-updater deploy -i -f
 ```
 
+⚠️ **Force-ыг production-д анхдагч болгож БОЛОХГҮЙ.** Bundle ~15 MB тул муу
+сүлжээтэй хэрэглэгч татаж дуустал аппаа огт нээж чадахгүй. Force нь зөвхөн
+яаралтай засварт (өгөгдөл алдагдуулж буй bug, аюулгүй байдал).
+
+---
+
+### 4.6 🚦 Production release — үе шаттай (staged) rollout
+
+> **App Store дээр гарсны дараа энэ бол ЗААВАЛ. Шууд 100% BATTLE биш.**
+>
+> Учир нь: эвдэрхий bundle-ыг OTA-гаар буцааж засах баталгаа **байхгүй**.
+> `bundle disable` / `rollback` нь **шалгалт хийсээр байгаа** төхөөрөмжид л
+> хүрнэ. Hot Updater-ийн native crash-rollback нь bundle **унасан** үед л
+> ажилладаг — 2026-08-08-ны алдаа шиг "ажиллаж байгаа мөртлөө OTA-гаа
+> унтраасан" bundle-ыг илрүүлэхгүй. Тэр тохиолдолд ганц зам нь хэрэглэгч
+> бүр аппаа устгаж дахин суулгах — App Store дээр боломжгүй зүйл.
+
+```bash
+cd mobile
+
+# 1) 10% дээр гаргана (force-гүй!)
+npx hot-updater deploy -p ios -t 1.0.0 -r 10
+
+# 2) Bundle доторх мөрийг ШАЛГА (§7 дэх скрипт) — 0 гарвал тэр дороо disable
+
+# 3) 1–2 цаг Sentry-г хар: crash-free rate унасан уу? шинэ issue гарсан уу?
+
+# 4) Асуудалгүй бол өргөтгө (cohort count 0–1000, 1000 = 100%)
+npx hot-updater bundle update <bundle-id> --rollout-cohort-count 500   # 50%
+npx hot-updater bundle update <bundle-id> --rollout-cohort-count 1000  # 100%
+
+# Асуудал гарвал:
+npx hot-updater bundle disable <bundle-id> -y
+```
+
+| Алхам | Хамрах хүрээ | Юу хардаг |
+| --- | --- | --- |
+| `-r 10` | 10% | bundle доторх мөр · Sentry crash-free |
+| `--rollout-cohort-count 500` | 50% | Sentry · хэрэглэгчийн гомдол |
+| `--rollout-cohort-count 1000` | 100% | — |
+
+**Release checklist (production OTA бүрд):**
+
+- [ ] `main` дээрх код, CI ногоон
+- [ ] `-r 10`, **force-гүй**
+- [ ] Bundle татаж дотор нь `sparkxp-hot-updater` + `…railway.app/api` **хоёулаа** байгааг батлав (§7)
+- [ ] Өөрийн утсан дээр нэг нээж туршив
+- [ ] 1–2 цаг Sentry ажиглав
+- [ ] Шат дараалан 50% → 100%
+
 ### 4.5 Console
 
 ```bash

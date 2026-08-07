@@ -1857,6 +1857,16 @@ end-to-end хараахан дарж үзээгүй — endpoint-ыг шууд `
 - [ ] Apple Developer ($99) + Google Play ($25) бүртгэл.
 - [ ] App Store material: **Icon, Screenshots (MN/EN), Description, Privacy Policy URL**,
       Play **Data Safety** форм (mic/camera зөвшөөрөл).
+- [ ] 🚦 **OTA staged rollout — App Store-оос ӨМНӨ дүрэм болгож тогтоох.**
+      Одоо OTA нь шууд **100%** дээр гардаг. Beta-д зүгээр, production-д
+      аюултай: эвдэрхий bundle-ыг OTA-гаар буцааж засах баталгаа **байхгүй**
+      (`bundle disable` нь шалгалт хийсээр байгаа төхөөрөмжид л хүрнэ; native
+      crash-rollback нь bundle *унасан* үед л ажилладаг). 2026-08-08-нд яг ийм
+      bundle гарч, суусан төхөөрөмж OTA-гаа бүрмөсөн алдаж, зөвхөн апп устгаж
+      дахин суулгаснаар сэргэсэн — App Store дээр боломжгүй зүйл.
+      **Урсгал:** `deploy -r 10` (force-гүй) → bundle доторх мөр шалгах →
+      1–2 цаг Sentry → `bundle update --rollout-cohort-count 500` → `1000`.
+      Бүрэн заавар + checklist: `docs/HOT_UPDATER.md` §4.6.
 
 ### Хамтын (launch bundle)
 - [ ] Бодит gamification өгөгдөл (streak/level/progress placeholder-ийг солих).
