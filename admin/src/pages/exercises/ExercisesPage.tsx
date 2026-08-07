@@ -23,12 +23,22 @@ import { toggleInSet } from '../../lib/utils';
 
 const LIMIT = 20;
 
-/** The 4 exercise (Дасгал) categories. Speaking = coming soon for now. */
+/**
+ * Дасгалын ангилалууд. `key` = `Quiz.category` бөгөөд апп дээрх
+ * `/skill/<key>` дэлгэцтэй ЯГ таарах ёстой (`mobile/app/skill/[key].tsx`).
+ * Speaking = одоохондоо "тун удахгүй".
+ *
+ * `fill` (Нөхөх) ба `grammar` (Дүрэм) нь аппд аль хэдийн дэлгэцтэй (Сорил
+ * табын "Дүүргэх"/"Дүрэм" карт) мөртлөө админд оруулах газаргүй байсан тул
+ * тэр хоёр дэлгэц үргэлж хоосон байв.
+ */
 const CATS = [
   { key: 'listening', label: 'Сонсгол' },
   { key: 'reading', label: 'Унших' },
   { key: 'writing', label: 'Бичих' },
   { key: 'speaking', label: 'Ярих' },
+  { key: 'fill', label: 'Нөхөх' },
+  { key: 'grammar', label: 'Дүрэм' },
 ] as const;
 
 const QTYPE_OPTIONS = [

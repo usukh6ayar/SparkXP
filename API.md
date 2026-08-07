@@ -170,6 +170,21 @@ Controller-level: JWT. Бичилт admin-баг. (Хичээлийн тест �
 > `POST /quizzes/:id/submit` responses include an approximate **`band`** (0–9)
 > from the count of correct questions.
 
+> ⚠️ **`category` = аппын дэлгэц.** Bие даасан (standalone) quiz-ийг апп ЗӨВХӨН
+> `category`-гаар нь татдаг тул `category`-гүй quiz хаана ч харагдахгүй. Одоо
+> ашиглагдаж буй утгууд ба тэдгээрийг уншдаг дэлгэц:
+>
+> | `category` | Админ | Апп дэлгэц |
+> | --- | --- | --- |
+> | `listening` · `writing` · `fill` · `grammar` | Дасгал | `/skill/<category>` |
+> | `reading` | Дасгал → ReadingPassage (тусдаа сан) | `/reading` |
+> | `speaking` | — (тун удахгүй) | `/skill/speaking` |
+> | `soril` | Сорил | Сорил таб → "Шинэ сорилууд" → `/quiz/:id` |
+> | `ielts_*` | IELTS | `/ielts` hub → `/skill/ielts_*` эсвэл `/ielts/practice/*` |
+>
+> Шинэ `category` нэмэхдээ **аппын уншигч талыг нь мөн нэм** — эс бөгөөс контент
+> DB-д үүсээд хэн ч хардаггүй болно.
+
 ## 6a. Hearts (зүрх / амь) — `/api/hearts`
 Duolingo-маягийн "амь". Бүгд JWT.
 

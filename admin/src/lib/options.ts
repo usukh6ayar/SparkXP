@@ -72,6 +72,23 @@ export const EXERCISE_CATEGORIES: Record<string, string[]> = {
     'Аялал',
     'Сорил',
   ],
+  fill: [
+    'Цаг (tense)',
+    'Угтвар үг',
+    'Артикль',
+    'Үйл үгийн хэлбэр',
+    'Үг сонгох',
+    'Сорил',
+  ],
+  grammar: [
+    'Цаг (tense)',
+    'Тооны ялгаа',
+    'Угтвар үг',
+    'Артикль',
+    'Асуух өгүүлбэр',
+    'Үгүйсгэл',
+    'Сорил',
+  ],
   // Reading uses ReadingPassage (its own сэдэв), but keep it here for symmetry.
   reading: [...READING_CATEGORIES],
 };

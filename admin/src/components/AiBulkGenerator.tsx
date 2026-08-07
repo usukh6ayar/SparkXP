@@ -16,9 +16,11 @@ import { QuizQuestionsEditor, type Question, type QuestionType } from './QuizQue
  * `lessonId`) тул үүсгэх урсгал ч нэг л удаа бичигдэнэ (CODING_RULES §0.2).
  * Хуудас бүр өөрийн ялгааг `target`-аар дамжуулна.
  *
- * Урсгал: агуулгаа бичнэ → AI үүсгэнэ → **preview дээр засна** → ноорог болж
- * хадгалагдана. AI-гийн гаргасныг шууд DB рүү бичихгүй — буруу хариулт
- * сурагч руу хүрэхээс сэргийлнэ.
+ * Урсгал: агуулгаа бичнэ → AI үүсгэнэ → **preview дээр засна** → хадгална.
+ * Preview дээр асуулт бүрийг харж, засаж байж хадгалдаг тул анхдагчаар
+ * **нийтэлнэ**; шалгах шаардлагатай бол "Шууд нийтлэх"-ийг тайлж ноорог болгоно.
+ * (Урьд нь үргэлж ноорог байсан нь "AI-аар үүсгэсэн контент апп дээр гарахгүй"
+ * гэсэн гомдлын гол шалтгаан байв.)
  */
 export interface AiTarget {
   /** Prompt-ийн контекстийг сонгоно. */
@@ -96,6 +98,7 @@ export function AiBulkGenerator({ target, onClose, onSaved }: Props) {
   const [xpReward, setXpReward] = useState(target.xpReward);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [splitInto, setSplitInto] = useState('1');
+  const [publish, setPublish] = useState(true);
   const [saving, setSaving] = useState(false);
 
   async function generate() {
@@ -153,7 +156,7 @@ export function AiBulkGenerator({ target, onClose, onSaved }: Props) {
           quizType: draft.questionType,
           questions: part,
           xpReward,
-          isPublished: false, // үргэлж ноорог — админ шалгаад нийтэлнэ
+          isPublished: publish,
           passageText: draft.passageText ?? undefined,
           ...target.save,
         });
@@ -250,14 +253,21 @@ export function AiBulkGenerator({ target, onClose, onSaved }: Props) {
           </div>
 
           {errorBox}
-          <p className="text-xs text-gray-500">
-            ⚠️ Ноорог болж хадгалагдана — жагсаалтаас шалгаад "Нийтлэх" дарна уу.
-          </p>
+          <label className="flex items-center gap-2 text-sm text-gray-700">
+            <input type="checkbox" checked={publish} onChange={(e) => setPublish(e.target.checked)} />
+            Шууд нийтлэх
+          </label>
+          {!publish && (
+            <p className="text-xs text-gray-500">
+              ⚠️ Ноорог болж хадгалагдана — апп дээр гарахгүй. Жагсаалтаас шалгаад
+              "Нийтлэх" дарна уу.
+            </p>
+          )}
           <FormActions
             onCancel={onClose}
             onSave={save}
             saving={saving}
-            saveLabel="Ноорог болгож хадгалах"
+            saveLabel={publish ? 'Нийтлэж хадгалах' : 'Ноорог болгож хадгалах'}
           />
         </div>
       </Modal>

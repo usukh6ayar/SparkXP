@@ -54,9 +54,12 @@ interface Form {
   passageText: string;
   audioUrl: string;
 }
+// Анхдагчаар нийтэлнэ (Дасгал хуудастай ижил): апп зөвхөн `isPublished=true`
+// контентыг татдаг тул ноорог-анхдагч форм нь "оруулсан контент апп дээр
+// гарахгүй" гэсэн гомдлын шалтгаан болдог.
 const emptyForm: Form = {
   title: '', level: 'a1', topic: '', questionType: 'multiple_choice', questions: [],
-  xpReward: 50, isPublished: false, passageText: '', audioUrl: '',
+  xpReward: 50, isPublished: true, passageText: '', audioUrl: '',
 };
 
 export default function IeltsPage() {

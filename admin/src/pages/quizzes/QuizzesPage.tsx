@@ -54,6 +54,17 @@ interface Quiz {
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
+/**
+ * Энэ хуудсанд үүсгэсэн сорилын `Quiz.category`.
+ *
+ * Апп нь standalone quiz-ийг ЗӨВХӨН category-гаар нь татдаг
+ * (`GET /quizzes?standalone=true&isPublished=true&category=…`). Урьд нь энэ
+ * хуудас `category` огт бичдэггүй байсан тул үүсгэсэн сорилыг апп дээр татаж
+ * авах зам байхгүй байв. `soril` бол Дасгал (listening/writing…) болон IELTS
+ * (`ielts_*`)-ээс тусдаа нэр — тиймээс жагсаалтууд хоорондоо холилдохгүй.
+ */
+const SORIL_CATEGORY = 'soril';
+
 /** Mobile soril.tsx дахь GAMES массивтай тохирох category-ууд */
 const QUIZ_TYPES = [
   { value: 'word_guess',  label: '👁 Үг таах',         desc: 'Зураг харж, зөв үгийг сонго',    questionType: 'multiple_choice' },
@@ -298,10 +309,15 @@ interface QuizForm {
   xpReward: number;
   quizType: string;
   questions: Question[];
+  isPublished: boolean;
 }
 
+// Анхдагчаар нийтэлнэ: апп зөвхөн `isPublished=true` сорилыг татдаг. Энэ форм
+// урьд нь `isPublished`-ыг ОГТ илгээдэггүй байсан тул entity-ийн анхдагч
+// (`false`) хүчинтэй болж, энд үүсгэсэн сорил апп дээр хэзээ ч гардаггүй байв.
 const emptyForm = (qt = 'word_guess'): QuizForm => ({
   title: '', level: 'a1', xpReward: 10, quizType: qt, questions: [blankFor(qt)],
+  isPublished: true,
 });
 
 /** questionType (mc/fill/match) that a game type maps to. */
@@ -372,6 +388,7 @@ export default function QuizzesPage() {
       xpReward: q.xpReward,
       quizType: q.quizType ?? 'multiple_choice',
       questions: (q.questions ?? []) as Question[],
+      isPublished: q.isPublished,
     });
     setEditing(q); setError(''); setModal('edit');
   }
@@ -418,8 +435,12 @@ export default function QuizzesPage() {
         xpReward: form.xpReward,
         quizType: form.quizType,
         questions: form.questions,
+        isPublished: form.isPublished,
       };
-      if (modal === 'create') await api.post('/quizzes', payload);
+      // `category` зөвхөн ҮҮСГЭХЭД. Энэ жагсаалт бүх quiz-ийг харуулдаг тул
+      // засварт бичвэл Дасгал/IELTS/хичээлийн тестийн category-г дарж бичих
+      // байсан (тэгээд өөрсдийнх нь дэлгэцээс алга болно).
+      if (modal === 'create') await api.post('/quizzes', { ...payload, category: SORIL_CATEGORY });
       else if (editing) await api.patch(`/quizzes/${editing.id}`, payload);
       setModal(null); load();
     } catch (e: unknown) {
@@ -579,6 +600,7 @@ export default function QuizzesPage() {
           target={{
             kind: 'exercise',
             label: `Сорил — ${aiGame.label}`,
+            category: SORIL_CATEGORY,
             // Тоглоомын төрөл нь асуултын форматыг тогтооно (QUIZ_TYPES).
             questionType: aiGame.questionType as QuestionType,
             contextNote: `Сорилын тоглоом: ${aiGame.label} — ${aiGame.desc}`,
@@ -725,6 +747,15 @@ export default function QuizzesPage() {
                 )}
               </div>
             </div>
+
+            <label className="flex items-center gap-2 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                checked={form.isPublished}
+                onChange={(e) => setForm(f => ({ ...f, isPublished: e.target.checked }))}
+              />
+              Шууд нийтлэх <span className="text-gray-400">(ноорог бол апп дээр гарахгүй)</span>
+            </label>
 
             {error && <p className="text-sm text-red-500">{error}</p>}
 
