@@ -1857,6 +1857,17 @@ end-to-end хараахан дарж үзээгүй — endpoint-ыг шууд `
 - [ ] Apple Developer ($99) + Google Play ($25) бүртгэл.
 - [ ] App Store material: **Icon, Screenshots (MN/EN), Description, Privacy Policy URL**,
       Play **Data Safety** форм (mic/camera зөвшөөрөл).
+- [ ] ⚖️ **Privacy/Terms хуудсыг маркетингийн сайтад БОДИТООР байршуулах.**
+      Апп ба store listing хоёулаа `https://spark-xp-web.vercel.app/privacy.html`
+      `…/terms.html` рүү заана (`mobile/src/constants/legal.ts`), гэтэл тэр
+      2 файл тэнд **хараахан байхгүй — 404**. Эх файл нь энэ repo-д
+      `admin/public/{privacy,terms}.html`; маркетингийн сайт тусдаа төсөл тул
+      тэндхийн `public/` рүү хуулж, өөрчлөгдөх бүрд дахин хуулна.
+      **Илгээхээсээ өмнө заавал:**
+      `curl -sIL https://spark-xp-web.vercel.app/privacy.html | head -1` → `200`.
+      404 хэвээр бол Apple reject хийнэ — тэд холбоосыг заавал нээж шалгадаг.
+      (Хурдан хувилбар хэрэгтэй бол `https://spark-xp.vercel.app/privacy.html`
+      = админы deploy нь яг тэр 2 файлыг ямар ч гар ажиллагаагүй үзүүлж байна.)
 - [ ] 🚦 **OTA staged rollout — App Store-оос ӨМНӨ дүрэм болгож тогтоох.**
       Одоо OTA нь шууд **100%** дээр гардаг. Beta-д зүгээр, production-д
       аюултай: эвдэрхий bundle-ыг OTA-гаар буцааж засах баталгаа **байхгүй**
