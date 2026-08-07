@@ -47,6 +47,8 @@ interface Quiz {
   title: string;
   level: string;
   quizType: string | null;
+  /** null = аппд хүрэх замгүй хуучин мөр (доорх `SORIL_CATEGORY`-г үз). */
+  category: string | null;
   xpReward: number;
   isPublished: boolean;
   questions: Question[];
@@ -437,11 +439,18 @@ export default function QuizzesPage() {
         questions: form.questions,
         isPublished: form.isPublished,
       };
-      // `category` зөвхөн ҮҮСГЭХЭД. Энэ жагсаалт бүх quiz-ийг харуулдаг тул
-      // засварт бичвэл Дасгал/IELTS/хичээлийн тестийн category-г дарж бичих
-      // байсан (тэгээд өөрсдийнх нь дэлгэцээс алга болно).
+      // `category` зөвхөн ҮҮСГЭХЭД, эсвэл засаж буй мөр нь category-гүй үед
+      // (= энэ хуудсаар хуучин үүсгэсэн, аппд хүрэх замгүй сорил). Бусад
+      // тохиолдолд хөндөхгүй — энэ жагсаалт бүх quiz-ийг харуулдаг тул
+      // Дасгал/IELTS/хичээлийн тестийн category-г дарж бичих байсан
+      // (тэгээд өөрсдийнх нь дэлгэцээс алга болно).
       if (modal === 'create') await api.post('/quizzes', { ...payload, category: SORIL_CATEGORY });
-      else if (editing) await api.patch(`/quizzes/${editing.id}`, payload);
+      else if (editing) {
+        await api.patch(`/quizzes/${editing.id}`, {
+          ...payload,
+          ...(editing.category ? {} : { category: SORIL_CATEGORY }),
+        });
+      }
       setModal(null); load();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Алдаа гарлаа');
@@ -523,6 +532,9 @@ export default function QuizzesPage() {
     try {
       await api.post('/quizzes', {
         title: impTitle.trim(), level: impLevel, quizType: impQuizType,
+        // Импорт нь ноорог хэвээр (шалгаад нийтэлнэ), гэхдээ category заавал —
+        // эс бөгөөс нийтэлсэн ч апп татах замгүй болно.
+        category: SORIL_CATEGORY,
         questions, xpReward: 10, isPublished: false,
       });
       setImportOpen(false); setImpTitle(''); setImpText('');
