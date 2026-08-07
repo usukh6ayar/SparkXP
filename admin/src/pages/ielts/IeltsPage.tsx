@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Eye, EyeOff, Trash2 } from 'lucide-react';
+import { Plus, Eye, EyeOff, Trash2, Upload } from 'lucide-react';
 import { api } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
 import { Button } from '../../components/Button';
@@ -11,6 +11,7 @@ import { Select } from '../../components/Select';
 import { FormActions } from '../../components/FormActions';
 import { RowActions } from '../../components/RowActions';
 import { Pagination } from '../../components/Pagination';
+import { QuizImportModal } from '../../components/QuizImportModal';
 import { levelFormOptions as LEVEL_OPTIONS, IELTS_MODULES, ieltsSubTopicOptions } from '../../lib/options';
 import {
   QuizQuestionsEditor,
@@ -70,6 +71,8 @@ export default function IeltsPage() {
 
   // Selection (bulk publish/delete)
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  // CSV/JSON bulk import (shared modal)
+  const [importOpen, setImportOpen] = useState(false);
 
   const current = IELTS_MODULES.find((m) => m.key === mod)!;
 
@@ -204,7 +207,12 @@ export default function IeltsPage() {
       <PageHeader
         title="IELTS"
         description="IELTS бэлтгэл — Listening / Reading (band) · Writing / Speaking (жишиг хариулт)"
-        action={<Button onClick={openCreate}><Plus className="h-4 w-4" /> IELTS контент нэмэх</Button>}
+        action={
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={() => setImportOpen(true)}><Upload className="h-4 w-4" /> Оруулах</Button>
+            <Button onClick={openCreate}><Plus className="h-4 w-4" /> IELTS контент нэмэх</Button>
+          </div>
+        }
       />
 
       {/* Module tabs */}
@@ -284,6 +292,18 @@ export default function IeltsPage() {
             <FormActions onCancel={() => setModal(null)} onSave={save} saving={saving} />
           </div>
         </Modal>
+      )}
+
+      {/* Bulk import — нэг CSV/JSON-оос олон IELTS багц */}
+      {importOpen && (
+        <QuizImportModal
+          title={`IELTS оруулах (${current.label})`}
+          defaults={{ category: current.category }}
+          topicOptions={ieltsSubTopicOptions(mod)}
+          typeOptions={current.objective ? QTYPE_OPTIONS : [{ value: 'open_response', label: 'Нээлттэй хариулт' }]}
+          onClose={() => setImportOpen(false)}
+          onDone={load}
+        />
       )}
     </>
   );
