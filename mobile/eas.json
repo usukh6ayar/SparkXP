@@ -28,7 +28,8 @@
       },
       "env": {
         "EXPO_PUBLIC_HOT_UPDATER_URL": "https://sparkxp-hot-updater.sparkxp.workers.dev",
-        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true",
+        "EXPO_PUBLIC_API_URL": "https://sparkxp-production.up.railway.app/api"
       }
     },
     "production": {
@@ -41,12 +42,17 @@
       },
       "env": {
         "EXPO_PUBLIC_HOT_UPDATER_URL": "https://sparkxp-hot-updater.sparkxp.workers.dev",
-        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true",
+        "EXPO_PUBLIC_API_URL": "https://sparkxp-production.up.railway.app/api"
       }
     }
   },
   "submit": {
     "production": {
+      "ios": {
+        "ascAppId": "6798727335",
+        "appleTeamId": "RQL8N4ADLL"
+      },
       "android": {
         "serviceAccountKeyPath": "./google-service-account.json",
         "track": "internal"

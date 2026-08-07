@@ -3,24 +3,30 @@ import { Linking } from 'react-native';
 /**
  * Where the published Privacy Policy and Terms live.
  *
- * They are static pages in the admin app (`admin/public/*.html`), which already
- * auto-deploys to Vercel — no second host to maintain. Files under `public/`
- * are served without the dashboard's login, so they are genuinely public, which
- * is what App Store Connect and Play Console require.
+ * The marketing site, not the admin dashboard — the admin was never deployed,
+ * so the old default 404'd in the shipped app (found while preparing the first
+ * TestFlight build). The pages themselves are version-controlled in this repo
+ * at `admin/public/{privacy,terms}.html`; copy them into the web project's
+ * `public/` folder when either changes.
  *
  * ⚠️ The **exact same Privacy Policy URL must be pasted into App Store Connect
- * and Play Console.** A store listing whose policy link 404s is a rejection.
+ * and Play Console.** A store listing whose policy link 404s is a rejection —
+ * and Apple does open it.
  *
- * The base is overridable so a custom domain can replace the Vercel one later
- * without an app update — set `EXPO_PUBLIC_LEGAL_BASE_URL` and rebuild/OTA.
+ * The `.html` extension is deliberate: it resolves on any static host with no
+ * rewrite rule, so the link cannot break because of a hosting config nobody
+ * remembers owning.
+ *
+ * Overridable via `EXPO_PUBLIC_LEGAL_BASE_URL` (set per-profile in `eas.json`)
+ * so a custom domain can replace this without touching code.
  */
 const BASE =
   process.env.EXPO_PUBLIC_LEGAL_BASE_URL?.trim().replace(/\/$/, '') ||
-  'https://sparkxp-admin.vercel.app';
+  'https://spark-xp-web.vercel.app';
 
 export const LEGAL_URLS = {
-  privacy: `${BASE}/privacy`,
-  terms: `${BASE}/terms`,
+  privacy: `${BASE}/privacy.html`,
+  terms: `${BASE}/terms.html`,
 } as const;
 
 /**

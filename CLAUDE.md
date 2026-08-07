@@ -164,9 +164,27 @@ Android keystore устсан (Play Store дээр нийтлээгүй тул �
 **Hot Updater OTA хөндөгдөөгүй** — Cloudflare дээр байдаг. Дэлгэрэнгүй →
 `ROADMAP.md` § Store setup.
 
-**Still pending (launch blockers), re-verified 2026-08-03:** eas.json submit creds empty;
-Lucide migration; real gamification data (streak/level/progress placeholders);
-real video player. Full list: `ROADMAP.md §3` + `docs/LAUNCH_FROM_SCRATCH.md`.
+**Launch blocker-ууд ДУУССАН (2026-08-06).** Кодын талын саад бүгд арилсан:
+- **Төлбөр** — `POST /payments/:id/confirm` нь QPay-тэй юу ч шалгалгүй plan/Sparks
+  олгодог байсныг `PAYMENTS_ENABLED` env-ээр хаав (анхдагч **хаалттай**).
+  Асаахаасаа өмнө `confirm`-ыг гарын үсэг шалгасан QPay callback болгох ёстой.
+- **Аккаунт устгах** — `DELETE /users/me` + Settings мөр (App Store 5.1.1(v),
+  байхгүй бол автомат reject).
+- **Privacy Policy / Terms** — `admin/public/{privacy,terms}.html`, Vercel дээр
+  `/privacy` `/terms`. App Store Connect-д тэр URL-ыг оруулна.
+- **Имэйл/OTP** — **Brevo HTTPS API** (Railway нь Hobby багц дээр SMTP-г бүрэн
+  хаадаг → Gmail SMTP локал дээр ажиллаад prod дээр өлгөгддөг байв). Prod дээр
+  батлагдсан. Дэлгэрэнгүй + 3 хавх → `docs/EMAIL_SETUP.md`.
+- **Push** — төхөөрөмжийн token бүртгэл (`src/lib/pushRegistration.ts`).
+  iOS = APNs (EAS түлхүүр), Android = FCM (`sparkxp-1`). `docs/PUSH_SETUP.md`.
+- **Icon** — `icon.jpeg`-ээс 3 хувилбар, Android adaptive нь safe zone-д.
+- **Хуулийн этгээд** — бүх газарт **Aether Tech Core LLC** (Apple team-тэй таарна).
+
+**Үлдсэн нь тохиргооны ажил:** App Store Connect дээр апп үүсгэх → `eas submit`
+→ TestFlight → closed beta. Бүрэн жагсаалт: `docs/LAUNCH_FROM_SCRATCH.md`.
+
+**Хараахан хийгдээгүй (blocker БИШ):** Lucide migration; бодит видео тоглуулагч;
+QPay; 3D avatar (1.2-т).
 **Already DONE (was wrongly listed as pending):** app icon wired
 (`assets/icon-ios.png` 1024×1024 + `assets/icon.png` 1254×1254 adaptive); fonts
 loaded (`@expo-google-fonts/manrope`+`inter`, `useFonts` at
