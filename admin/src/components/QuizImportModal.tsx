@@ -1,16 +1,18 @@
-import { useMemo, useState } from 'react';
-import { FileUp } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { Upload, AlertCircle } from 'lucide-react';
 import { api } from '../api/client';
 import { Modal } from './Modal';
-import { Input } from './Input';
 import { Select } from './Select';
 import { FormActions } from './FormActions';
 import { levelFormOptions } from '../lib/options';
 import type { QuestionType } from './QuizQuestionsEditor';
-import { FORMAT_HELP, parseQuizImport, sampleImport, validateQuestion } from '../lib/quizImport';
+import {
+  CSV_COLUMNS, TYPE_HINTS, csvTemplate, parseQuizCsv,
+  type CsvParseResult,
+} from '../lib/quizImport';
 
 interface Props {
-  /** Modal гарчиг, ж: "Дасгал импорт (Сонсгол)". */
+  /** Modal гарчиг, ж: "Дасгал оруулах (Сонсгол)". */
   title: string;
   /** Үүсгэх бүх багцад нэмэгдэх тогтмол талбарууд (ж: `{ category: 'listening' }`). */
   defaults?: Record<string, unknown>;
@@ -18,165 +20,183 @@ interface Props {
   topicOptions?: { value: string; label: string }[];
   /** `quizType` болж хадгалагдах төрлүүд (Quiz хуудсанд = тоглоомын төрөл). */
   typeOptions: { value: string; label: string }[];
-  /** Сонгосон төрөл → CSV задлах асуултын формат. Анхдагчаар өөрөө нь. */
+  /** Сонгосон төрөл → CSV-гийн асуултын формат. Анхдагчаар өөрөө нь. */
   questionTypeOf?: (value: string) => QuestionType;
   defaultXp?: number;
   onClose: () => void;
-  /** Импорт амжилттай дууссаны дараа (жагсаалтаа дахин ачаална). */
+  /** Импорт дууссаны дараа (жагсаалтаа дахин ачаална). */
   onDone: () => void;
 }
 
 /**
- * Дундын bulk import модал (Дасгал · Quiz · IELTS).
- * Нэг JSON/CSV-ээс **олон багц** үүсгэж чадна — дэлгэрэнгүй `lib/quizImport.ts`.
+ * Дундын Excel/CSV импорт модал (Дасгал · Quiz · IELTS).
+ * Үгсийн сангийн импорттой ижил урсгал: загвар татах → файл чирэх → тайлан.
  */
 export function QuizImportModal({
   title, defaults = {}, topicOptions, typeOptions,
   questionTypeOf = (v) => v as QuestionType,
   defaultXp = 50, onClose, onDone,
 }: Props) {
-  const [name, setName] = useState('');
+  const fileRef = useRef<HTMLInputElement>(null);
   const [level, setLevel] = useState('a1');
   const [topic, setTopic] = useState('');
   const [type, setType] = useState(typeOptions[0].value);
-  const [text, setText] = useState('');
+  const [fileName, setFileName] = useState('');
+  const [parsed, setParsed] = useState<CsvParseResult | null>(null);
   const [publish, setPublish] = useState(false);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(0);
   const [error, setError] = useState('');
+  /** Багц бүрийн үр дүн — импорт дууссаны дараа харуулна. */
+  const [failed, setFailed] = useState<string[]>([]);
 
   const format = questionTypeOf(type);
-  const help = FORMAT_HELP[format];
 
-  // Live preview: parse on every keystroke so mistakes surface before posting.
-  const preview = useMemo(() => {
-    if (!text.trim()) return null;
-    try {
-      const quizzes = parseQuizImport(text, format);
-      for (const [qi, quiz] of quizzes.entries()) {
-        if (!quiz.questions?.length) throw new Error(`Багц #${qi + 1}: асуулт алга`);
-        for (const [i, q] of quiz.questions.entries()) {
-          const bad = validateQuestion(q);
-          if (bad) throw new Error(`Багц #${qi + 1}, асуулт #${i + 1}: ${bad}`);
-        }
-      }
-      return { quizzes, error: '' };
-    } catch (e) {
-      return { quizzes: [], error: e instanceof Error ? e.message : 'Задлахад алдаа гарлаа' };
+  async function readFile(file: File) {
+    setError(''); setFailed([]); setDone(0);
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      setError('Зөвхөн .csv файл — Excel дээр "Save as → CSV UTF-8" гэж хадгална уу.');
+      return;
     }
-  }, [text, format]);
+    setFileName(file.name);
+    setParsed(parseQuizCsv(await file.text(), format));
+  }
 
-  const quizzes = preview?.quizzes ?? [];
-  const questionCount = quizzes.reduce((n, q) => n + (q.questions?.length ?? 0), 0);
-  /** JSON өөрөө гарчигтай ирвэл дээрх "Гарчиг" талбар хэрэггүй. */
-  const titledByFile = quizzes.length > 0 && quizzes.every((q) => q.title?.trim());
+  function downloadTemplate() {
+    const blob = new Blob([csvTemplate(format)], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `import_template_${format}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
 
-  async function pickFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setText(await file.text());
-    if (!name.trim()) setName(file.name.replace(/\.[^.]+$/, ''));
-    e.target.value = ''; // ижил файлыг дахин сонгож болохоор
+  /** Төрөл солиход өмнөх задлалт хүчингүй (багана өөр). */
+  function changeType(v: string) {
+    setType(v); setParsed(null); setFileName(''); setError(''); setFailed([]);
   }
 
   async function run() {
-    if (preview?.error) { setError(preview.error); return; }
-    if (quizzes.length === 0) { setError('Өгөгдөл оруулна уу'); return; }
-    if (!titledByFile && !name.trim()) { setError('Гарчиг оруулна уу'); return; }
+    const quizzes = parsed?.quizzes ?? [];
+    if (quizzes.length === 0) { setError('Импортлох багц алга'); return; }
 
     setBusy(true); setError(''); setDone(0);
-    const failed: string[] = [];
+    const bad: string[] = [];
     for (const [i, quiz] of quizzes.entries()) {
-      const quizTitle = quiz.title?.trim() || (quizzes.length > 1 ? `${name.trim()} ${i + 1}` : name.trim());
       try {
         await api.post('/quizzes', {
           ...defaults,
-          title: quizTitle,
+          title: quiz.title,
           level: quiz.level ?? level,
           quizType: quiz.quizType ?? type,
           ...((quiz.topic ?? topic) ? { topic: quiz.topic ?? topic } : {}),
           questions: quiz.questions,
-          xpReward: quiz.xpReward ?? defaultXp,
+          xpReward: defaultXp,
           isPublished: publish,
-          ...(quiz.passageText ? { passageText: quiz.passageText } : {}),
-          ...(quiz.audioUrl ? { audioUrl: quiz.audioUrl } : {}),
         });
       } catch (e) {
-        failed.push(`${quizTitle}: ${e instanceof Error ? e.message : 'алдаа'}`);
+        bad.push(`${quiz.title}: ${e instanceof Error ? e.message : 'алдаа'}`);
       }
       setDone(i + 1);
     }
     setBusy(false);
-
-    if (failed.length === 0) { onDone(); onClose(); return; }
-    // Partial success: keep the modal open so the failed rows can be fixed.
-    setError(`${quizzes.length - failed.length}/${quizzes.length} амжилттай. Алдаа: ${failed.join(' · ')}`);
     onDone();
+    if (bad.length === 0) { onClose(); return; }
+    setFailed(bad); // хагас амжилттай — цонхыг нээлттэй үлдээж алдааг харуулна
   }
 
+  const quizzes = parsed?.quizzes ?? [];
+  const questionCount = quizzes.reduce((n, q) => n + q.questions.length, 0);
+  const rowErrors = parsed?.errors ?? [];
+
   return (
-    <Modal title={title} onClose={onClose} size="2xl">
+    <Modal title={title} onClose={onClose} size="lg">
       <div className="space-y-4">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <Input
-            label={quizzes.length > 1 ? 'Гарчиг (ард нь 1, 2, 3… нэмэгдэнэ)' : 'Гарчиг'}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder={titledByFile ? 'Файлын гарчиг ашиглагдана' : ''}
-            disabled={titledByFile}
-          />
-          <Select label="Түвшин" options={levelFormOptions} value={level} onChange={(e) => setLevel(e.target.value)} />
-          {topicOptions && (
-            <Select label="Сэдэв" options={topicOptions} value={topic} onChange={(e) => setTopic(e.target.value)} />
-          )}
           {typeOptions.length > 1 && (
-            <Select label="Төрөл" options={typeOptions} value={type} onChange={(e) => setType(e.target.value)} />
+            <Select label="Төрөл" options={typeOptions} value={type} onChange={(e) => changeType(e.target.value)} />
+          )}
+          <Select label="Түвшин (хоосон нүдэнд)" options={levelFormOptions} value={level} onChange={(e) => setLevel(e.target.value)} />
+          {topicOptions && (
+            <Select label="Сэдэв (хоосон нүдэнд)" options={topicOptions} value={topic} onChange={(e) => setTopic(e.target.value)} />
           )}
         </div>
 
-        <div className="rounded-lg bg-gray-50 p-3 text-xs text-gray-500">
-          <p className="font-medium text-gray-700">Формат — мөр бүр = 1 асуулт, `|`-аар тусгаарлана:</p>
-          <p className="mt-1 font-mono text-gray-700">{help.sample}</p>
-          <p className="mt-1">{help.fields}</p>
-          <p className="mt-2">
-            <b>Олон багц</b> нэг дор оруулах бол JSON массив буулгана:{' '}
-            <span className="font-mono">[{'{'}"title":"...","questions":[…]{'}'}, …]</span> — багц бүр өөрийн
-            гарчиг · түвшин · сэдэвтэй байж болно (өгөөгүйг нь дээрх утгаар нөхнө).
+        {/* Instructions — Үгсийн сангийн импорттой ижил хэв маяг */}
+        <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+          <p className="mb-1 font-medium">CSV баганын гарчиг:</p>
+          <p className="overflow-x-auto whitespace-nowrap rounded border border-gray-100 bg-white px-2 py-1 font-mono text-xs text-gray-500">
+            {CSV_COLUMNS.join(', ')}
           </p>
+          <p className="mt-1 text-xs text-gray-400">
+            Мөр бүр = <strong>1 асуулт</strong>. <strong>title</strong> ижил (эсвэл хоосон)
+            дараалсан мөрүүд <strong>нэг багц</strong> болно. Энэ төрөлд хэрэгтэй багана: {TYPE_HINTS[format]}.
+            <br />
+            <strong>level</strong> / <strong>topic</strong> хоосон бол дээрх сонголтоор бөглөгдөнө.
+          </p>
+          <button onClick={downloadTemplate} className="mt-2 flex items-center gap-1 text-xs text-primary hover:underline">
+            <Upload className="h-3 w-3 rotate-180" /> Загвар татах
+          </button>
         </div>
 
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center justify-between">
-            <label className="text-sm font-medium text-gray-700">Өгөгдөл</label>
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setText(sampleImport(format, name.trim() || 'Багц'))}
-                className="text-xs font-medium text-primary hover:underline"
-              >
-                Жишээ буулгах
-              </button>
-              <label className="flex cursor-pointer items-center gap-1 text-xs font-medium text-primary hover:underline">
-                <FileUp className="h-3.5 w-3.5" /> Файл сонгох
-                <input type="file" accept=".csv,.txt,.json" className="hidden" onChange={pickFile} />
-              </label>
-            </div>
-          </div>
-          <textarea
-            className="rounded-lg border border-gray-300 px-3 py-2 font-mono text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-            rows={10}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="Энд CSV (|-аар) эсвэл JSON буулгана..."
+        {/* Drop zone */}
+        <div
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) readFile(f); }}
+          onClick={() => fileRef.current?.click()}
+          className="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 p-10 transition-colors hover:border-primary hover:bg-primary/5"
+        >
+          <Upload className="h-10 w-10 text-gray-300" />
+          <p className="text-sm font-medium text-gray-700">{fileName || 'Файл сонгох'}</p>
+          <p className="text-xs text-gray-400">.csv · чирж оруулж болно</p>
+          <input
+            ref={fileRef} type="file" accept=".csv" className="hidden"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) readFile(f); e.target.value = ''; }}
           />
-          {preview && (
-            preview.error
-              ? <p className="text-xs text-red-500">⚠️ {preview.error}</p>
-              : <p className="text-xs text-green-600">
-                  ✓ {quizzes.length} багц · нийт {questionCount} асуулт бэлэн
-                </p>
-          )}
         </div>
+
+        {/* Parse report */}
+        {parsed && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-3 gap-3">
+              <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-center">
+                <p className="text-xl font-bold text-green-700">{quizzes.length}</p>
+                <p className="text-xs text-green-600">Багц</p>
+              </div>
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-center">
+                <p className="text-xl font-bold text-gray-700">{questionCount}</p>
+                <p className="text-xs text-gray-500">Асуулт</p>
+              </div>
+              <div className={`rounded-lg border p-3 text-center ${rowErrors.length ? 'border-red-200 bg-red-50' : 'border-gray-200 bg-gray-50'}`}>
+                <p className={`text-xl font-bold ${rowErrors.length ? 'text-red-700' : 'text-gray-700'}`}>{rowErrors.length}</p>
+                <p className={`text-xs ${rowErrors.length ? 'text-red-600' : 'text-gray-500'}`}>Алдаатай мөр</p>
+              </div>
+            </div>
+
+            {rowErrors.length > 0 && (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+                <p className="mb-2 flex items-center gap-1 text-sm font-medium text-red-700">
+                  <AlertCircle className="h-4 w-4" /> Эдгээр мөр алгасагдана
+                </p>
+                <div className="max-h-32 space-y-1 overflow-y-auto">
+                  {rowErrors.slice(0, 5).map((e, i) => (
+                    <p key={i} className="text-xs text-red-600">Мөр {e.row}: {e.message}</p>
+                  ))}
+                  {rowErrors.length > 5 && (
+                    <p className="text-xs text-red-400">…болон {rowErrors.length - 5} бусад мөр</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {quizzes.length > 0 && (
+              <p className="text-xs text-gray-500">
+                Үүсэх багцууд: {quizzes.slice(0, 4).map((q) => `«${q.title}» (${q.questions.length})`).join(' · ')}
+                {quizzes.length > 4 && ` …+${quizzes.length - 4}`}
+              </p>
+            )}
+          </div>
+        )}
 
         <label className="flex items-center gap-2 text-sm text-gray-700">
           <input type="checkbox" checked={publish} onChange={(e) => setPublish(e.target.checked)} />
@@ -188,7 +208,14 @@ export function QuizImportModal({
           </p>
         )}
 
+        {failed.length > 0 && (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-600">
+            <p className="mb-1 font-medium">{failed.length} багц хадгалагдсангүй:</p>
+            {failed.slice(0, 5).map((f, i) => <p key={i}>{f}</p>)}
+          </div>
+        )}
         {error && <p className="text-sm text-red-500">{error}</p>}
+
         <FormActions
           onCancel={onClose}
           onSave={run}
