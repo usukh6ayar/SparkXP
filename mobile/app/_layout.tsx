@@ -219,13 +219,27 @@ function RootLayout() {
 }
 
 /**
- * Hot Updater OTA wrap — only on real native builds when a Worker URL is set.
+ * OTA update Worker (public URL — also in `eas.json` and docs/HOT_UPDATER.md).
+ *
+ * ⚠️ This is a **hardcoded default on purpose.** It used to come only from
+ * `EXPO_PUBLIC_HOT_UPDATER_URL`, which lives in `eas.json`'s build profiles —
+ * so it was inlined into EAS builds but NOT into OTA bundles, because
+ * `hot-updater deploy` runs `expo export` locally and reads `mobile/.env`
+ * (where nobody has this key). The result was a bundle that silently shipped
+ * with OTA **disabled**: any device that installed it stopped checking for
+ * updates forever and could only be recovered by reinstalling the app.
+ * A public endpoint baked into the JS removes that whole failure mode.
+ */
+const HOT_UPDATER_URL = "https://sparkxp-hot-updater.sparkxp.workers.dev";
+
+/**
+ * Hot Updater OTA wrap — only on real native builds.
  * Expo Go has no HotUpdater native module; wrapping there would crash, so we
- * skip it. Set EXPO_PUBLIC_HOT_UPDATER_URL after `npx hot-updater init`.
- * See docs/HOT_UPDATER.md.
+ * skip it. See docs/HOT_UPDATER.md.
  */
 function withHotUpdater(App: ComponentType): ComponentType {
-  const raw = process.env.EXPO_PUBLIC_HOT_UPDATER_URL?.trim();
+  // Env var stays as an override (staging worker, local testing).
+  const raw = process.env.EXPO_PUBLIC_HOT_UPDATER_URL?.trim() || HOT_UPDATER_URL;
   const inExpoGo = Constants.appOwnership === "expo";
   if (!raw || inExpoGo) return App;
 

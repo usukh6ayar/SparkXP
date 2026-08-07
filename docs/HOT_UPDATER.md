@@ -296,10 +296,43 @@ npx hot-updater doctor
 
 1. **Expo Go** биш үү? → native build шаардлагатай  
 2. App version = deploy `-t` version уу?  
-3. `EXPO_PUBLIC_HOT_UPDATER_URL` зөв үү? (native rebuild **дараа** env өөрчлөгдсөн бол дахин build)  
-4. App бүрэн хаагаад нээ  
-5. Сүлжээ (Worker URL browser-оор нээгдэх эсэх)  
-6. Channel: plugin `production` = deploy channel
+3. App бүрэн хаагаад нээ (шалгалт зөвхөн cold start дээр)  
+4. Сүлжээ (Worker URL browser-оор нээгдэх эсэх)  
+5. Channel: plugin `production` = deploy channel  
+6. `shouldForceUpdate: false` бол **юу ч харагдахгүй** — bundle нь дэвсгэрт
+   татагдаад зөвхөн **дараагийн** нээлтэд идэвхжинэ (`wrap.tsx` нь
+   `updateBundle()`-ыг await хийхгүй). Шууд харагдуулах бол:
+   `npx hot-updater bundle update <id> --force-update true`
+
+---
+
+### ☠️ Bundle доторх мөрийг **заавал** шалга (2026-08-08-ны сургамж)
+
+`hot-updater deploy` нь **локал машин дээр** `expo export` ажиллуулж, тиймээс
+`EXPO_PUBLIC_*`-ыг `eas.json`-оос БИШ, `mobile/.env`-ээс уншина. `eas.json`-ы
+build профайлд л байгаа хувьсагч OTA bundle-д **инлайн болохгүй**.
+
+Ингэснээр 2026-08-08-нд `EXPO_PUBLIC_HOT_UPDATER_URL`-гүй bundle гарч,
+`_layout.tsx`-ийн хамгаалалт (`if (!raw) return App`) OTA-г **өөрөө нь
+унтраасан** — тэр bundle суусан төхөөрөмж дахин хэзээ ч шалгахгүй болж,
+зөвхөн аппыг устгаад дахин суулгаж сэргээх боломжтой байв.
+
+**Одоо:** Worker URL нь `app/_layout.tsx`-д `HOT_UPDATER_URL` гэсэн **хатуу
+анхдагч** (нийтийн хаяг). Env нь зөвхөн override.
+
+**Deploy бүрийн дараа шалга:**
+
+```bash
+# check-update-ээс fileUrl авч, bundle-ыг татаад дотор нь хар
+unzip -o b.zip -d bundle
+python3 -c "
+d=open('bundle/index.ios.bundle','rb').read()
+for s in ['sparkxp-hot-updater','sparkxp-production.up.railway.app']:
+    print(s, d.count(s.encode()))"   # хоёулаа ≥1 байх ёстой
+```
+
+⚠️ Hermes нь ASCII биш мөрийг **UTF-16**-аар хадгалдаг тул кирилл мөр хайхад
+`s.encode('utf-16-le')` ашигла — `strings`/`grep` нь худал "олдсонгүй" өгнө.
 
 ---
 
