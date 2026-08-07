@@ -170,8 +170,12 @@ Android keystore устсан (Play Store дээр нийтлээгүй тул �
   Асаахаасаа өмнө `confirm`-ыг гарын үсэг шалгасан QPay callback болгох ёстой.
 - **Аккаунт устгах** — `DELETE /users/me` + Settings мөр (App Store 5.1.1(v),
   байхгүй бол автомат reject).
-- **Privacy Policy / Terms** — `admin/public/{privacy,terms}.html`, Vercel дээр
-  `/privacy` `/terms`. App Store Connect-д тэр URL-ыг оруулна.
+- **Privacy Policy / Terms** — эх файл нь `admin/public/{privacy,terms}.html`,
+  харин **store-д оруулах хаяг нь маркетингийн сайт**:
+  `https://spark-xp-web.vercel.app/privacy.html` `…/terms.html` (+ Apple-ийн
+  `support.html`, Play-ийн `delete-account.html`). 2026-08-08-нд байршиж 200
+  болсон. ⚠️ Тэдгээр нь **хуулбар** — эх файлыг засах бүрд `SparkXP_web`
+  repo-гийн `public/` рүү дахин хуулна. Дэлгэрэнгүй → `ROADMAP.md` § Store setup.
 - **Имэйл/OTP** — **Brevo HTTPS API** (Railway нь Hobby багц дээр SMTP-г бүрэн
   хаадаг → Gmail SMTP локал дээр ажиллаад prod дээр өлгөгддөг байв). Prod дээр
   батлагдсан. Дэлгэрэнгүй + 3 хавх → `docs/EMAIL_SETUP.md`.

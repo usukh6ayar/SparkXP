@@ -1857,17 +1857,34 @@ end-to-end хараахан дарж үзээгүй — endpoint-ыг шууд `
 - [ ] Apple Developer ($99) + Google Play ($25) бүртгэл.
 - [ ] App Store material: **Icon, Screenshots (MN/EN), Description, Privacy Policy URL**,
       Play **Data Safety** форм (mic/camera зөвшөөрөл).
-- [ ] ⚖️ **Privacy/Terms хуудсыг маркетингийн сайтад БОДИТООР байршуулах.**
-      Апп ба store listing хоёулаа `https://spark-xp-web.vercel.app/privacy.html`
-      `…/terms.html` рүү заана (`mobile/src/constants/legal.ts`), гэтэл тэр
-      2 файл тэнд **хараахан байхгүй — 404**. Эх файл нь энэ repo-д
-      `admin/public/{privacy,terms}.html`; маркетингийн сайт тусдаа төсөл тул
-      тэндхийн `public/` рүү хуулж, өөрчлөгдөх бүрд дахин хуулна.
-      **Илгээхээсээ өмнө заавал:**
+- [x] ⚖️ **Privacy/Terms хуудсыг маркетингийн сайтад БОДИТООР байршуулав**
+      (2026-08-08). Өмнө нь апп болон store listing хоёулаа тэр хаяг руу
+      заадаг атлаа файл нь тэнд байхгүй, **404** байсан — 2 build аль хэдийн
+      тэр холбоостой TestFlight руу явсан. Одоо `SparkXP_web` repo-д
+      байршиж, prod дээр 200 гарахыг батлав.
+
+      **Store-д оруулах хаягууд** (`.html`-тэй хувилбарыг ашиглана — апп яг
+      түүн рүү заадаг):
+
+      | Юу | URL |
+      | --- | --- |
+      | Privacy Policy (Apple + Play) | `https://spark-xp-web.vercel.app/privacy.html` |
+      | Terms of Service | `https://spark-xp-web.vercel.app/terms.html` |
+      | Support URL (Apple шаарддаг) | `https://spark-xp-web.vercel.app/support.html` |
+      | Дата устгах URL (Play шаарддаг) | `https://spark-xp-web.vercel.app/delete-account.html` |
+
+      ⚠️ **`privacy.html`/`terms.html` бол ХУУЛБАР.** Эх файл нь энэ repo-д
+      `admin/public/{privacy,terms}.html`. Тэнд өөрчлөгдөх бүрд маркетингийн
+      сайт руу дахин хуулах ёстой, эс бөгөөс хоёр газар зөрнө:
+
+      ```bash
+      cp admin/public/{privacy,terms}.html ../SparkXP_web/public/
+      diff ../SparkXP_web/public/privacy.html admin/public/privacy.html   # хоосон байх ёстой
+      ```
+
+      **Илгээхээсээ өмнө дахин шалга** (deploy бүрийн дараа ч):
       `curl -sIL https://spark-xp-web.vercel.app/privacy.html | head -1` → `200`.
-      404 хэвээр бол Apple reject хийнэ — тэд холбоосыг заавал нээж шалгадаг.
-      (Хурдан хувилбар хэрэгтэй бол `https://spark-xp.vercel.app/privacy.html`
-      = админы deploy нь яг тэр 2 файлыг ямар ч гар ажиллагаагүй үзүүлж байна.)
+      404 бол Apple reject хийнэ — тэд холбоосыг заавал нээж шалгадаг.
 - [ ] 🚦 **OTA staged rollout — App Store-оос ӨМНӨ дүрэм болгож тогтоох.**
       Одоо OTA нь шууд **100%** дээр гардаг. Beta-д зүгээр, production-д
       аюултай: эвдэрхий bundle-ыг OTA-гаар буцааж засах баталгаа **байхгүй**
