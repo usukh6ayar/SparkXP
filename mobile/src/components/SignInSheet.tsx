@@ -143,6 +143,27 @@ export function SignInSheet({
     [close],
   );
 
+  /**
+   * An account that never finished its email OTP can't sign in (the backend
+   * refuses with `EMAIL_NOT_VERIFIED`). Showing the error here would strand
+   * the user — the code is the only way forward — so hand them to the OTP step
+   * with the address filled in.
+   *
+   * Matched on `code`, never on the message: the message is user-facing
+   * Mongolian and would stop matching the moment it is reworded.
+   */
+  function handleLoginError(e: unknown): void {
+    if (e instanceof ApiError && e.code === 'EMAIL_NOT_VERIFIED') {
+      close();
+      router.push({
+        pathname: '/(auth)/register',
+        params: { verifyEmail: e.email ?? username.trim() },
+      });
+      return;
+    }
+    fail(e instanceof ApiError ? e.message : t('errorGeneric'));
+  }
+
   async function onSubmit() {
     setError(null);
     setBusy(true);
@@ -154,7 +175,7 @@ export function SignInSheet({
         : clearCredentials();
       persist.catch(() => {});
     } catch (e) {
-      fail(e instanceof ApiError ? e.message : t('errorGeneric'));
+      handleLoginError(e);
     } finally {
       setBusy(false);
     }
@@ -172,7 +193,7 @@ export function SignInSheet({
     try {
       await login(initial.username, initial.password);
     } catch (e) {
-      fail(e instanceof ApiError ? e.message : t('errorGeneric'));
+      handleLoginError(e);
     } finally {
       setBusy(false);
     }

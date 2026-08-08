@@ -19,8 +19,10 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
 import { DataSource } from 'typeorm';
+import type { Redis } from 'ioredis';
 import { AppModule } from '../src/app.module';
 import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter';
+import { REDIS_CLIENT } from '../src/redis/redis.module';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -43,21 +45,43 @@ async function createApp(): Promise<INestApplication> {
   return app;
 }
 
-/** Register + login, return JWT. */
+/**
+ * Read the OTP the server just generated, straight out of Redis.
+ *
+ * The tests can't receive the email, and there is no dev backdoor that returns
+ * the code — reaching into the store the service writes to is the only way to
+ * drive the real verification flow rather than working around it.
+ */
+async function readOtp(app: INestApplication, email: string): Promise<string> {
+  const redis = app.get<Redis>(REDIS_CLIENT);
+  const code = await redis.get(`otp:verify:${email.toLowerCase()}`);
+  if (!code) throw new Error(`No verify OTP in Redis for ${email}`);
+  return code;
+}
+
+/** Register → verify the emailed OTP → return the JWT. */
 async function registerAndLogin(
   app: INestApplication,
   email: string,
   password = 'Test1234!',
 ): Promise<string> {
-  // username derived from the (unique) email local-part. Login doesn't require
-  // email verification, so register → login still yields a usable token.
-  await request(app.getHttpServer())
+  // username derived from the (unique) email local-part.
+  const reg = await request(app.getHttpServer())
     .post('/api/auth/register')
     .send({ username: email.split('@')[0], email, password, fullName: 'Test User' });
+  // Assert each step. Returning an undefined token instead makes every test in
+  // the describe fail with an opaque 401 and hides the real cause — a 429 from
+  // the register throttle, say. The file header records this exact trap.
+  expect([201, 200]).toContain(reg.status);
 
+  // The OTP step is MANDATORY. This helper used to skip it — with a comment
+  // saying "login doesn't require email verification" — which is exactly the
+  // bug that shipped: you could back out of the OTP screen and sign in anyway.
+  // Verifying here means the suite exercises the flow a real user has to walk.
   const res = await request(app.getHttpServer())
-    .post('/api/auth/login')
-    .send({ identifier: email, password });
+    .post('/api/auth/verify-otp')
+    .send({ email, code: await readOtp(app, email) });
+  expect(res.status).toBe(200);
 
   return res.body.accessToken as string;
 }
@@ -76,6 +100,30 @@ describe('Auth', () => {
       .send({ username: `auth_test_${RUN}`, email: mail('auth_test'), password: 'Test1234!', fullName: 'Auth Test' });
     expect(res.status).toBe(201);
     expect(res.body).toHaveProperty('pendingVerification', true);
+  });
+
+  // The account from the test above exists but has NOT verified its email.
+  // It used to be able to sign in regardless, so a user could back out of the
+  // OTP screen and still get a token — taking the referral bonus and onboarding
+  // XP that hang off verification with them, on an address nobody owns.
+  it('POST /api/auth/login → 403 EMAIL_NOT_VERIFIED before the OTP is entered', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ identifier: `auth_test_${RUN}`, password: 'Test1234!' });
+    expect(res.status).toBe(403);
+    // The app routes to the OTP screen on this code, so it has to survive the
+    // exception filter — it is matched on, never the (translatable) message.
+    expect(res.body).toHaveProperty('code', 'EMAIL_NOT_VERIFIED');
+    expect(res.body).toHaveProperty('email', mail('auth_test'));
+    expect(res.body).not.toHaveProperty('accessToken');
+  });
+
+  it('POST /api/auth/verify-otp → 200 with token', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/auth/verify-otp')
+      .send({ email: mail('auth_test'), code: await readOtp(app, mail('auth_test')) });
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('accessToken');
   });
 
   it('POST /api/auth/login → 200 with token (username or email)', async () => {

@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { View, Image, Pressable, StyleSheet } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { AppIcon } from '../../src/components/AppIcon';
 import { useAuth } from '../../src/auth/AuthContext';
@@ -83,11 +83,23 @@ export default function RegisterScreen() {
   const { applySession } = useAuth();
   const router = useRouter();
 
+  /**
+   * `?verifyEmail=<address>` drops the user straight onto the OTP step.
+   *
+   * Sign-in uses this: an account that never entered its code is refused by the
+   * backend with `EMAIL_NOT_VERIFIED`, and finishing that code is the only way
+   * forward — so the user is sent here rather than left on a login form that
+   * will keep failing. The rest of the wizard's state stays empty; the OTP step
+   * only needs the address.
+   */
+  const { verifyEmail } = useLocalSearchParams<{ verifyEmail?: string }>();
+  const resumingVerification = typeof verifyEmail === 'string' && verifyEmail.length > 0;
+
   type Step = 'info' | 'location' | 'placement' | 'otp' | 'success';
-  const [step, setStep] = useState<Step>('info'); // info → location → placement → otp → success
+  const [step, setStep] = useState<Step>(resumingVerification ? 'otp' : 'info');
   const [username, setUsername] = useState('');
   const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(resumingVerification ? verifyEmail : '');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [province, setProvince] = useState<string | undefined>();
@@ -282,8 +294,12 @@ export default function RegisterScreen() {
             </View>
           ) : null}
 
+          {/* NOT "at-outline": an @ reads as an email address, and testers were
+              typing their email into the username box. The two person icons
+              stay distinct — filled circle for the handle, outline for the
+              real name. */}
           <TextField
-            leftIcon="at-outline"
+            leftIcon="person-circle-outline"
             label={t('username')}
             autoCapitalize="none"
             autoCorrect={false}

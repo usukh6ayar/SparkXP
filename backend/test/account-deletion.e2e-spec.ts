@@ -20,8 +20,10 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
 import { DataSource } from 'typeorm';
+import type { Redis } from 'ioredis';
 import { AppModule } from '../src/app.module';
 import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter';
+import { REDIS_CLIENT } from '../src/redis/redis.module';
 import { XpSource } from '../src/common/enums';
 
 const RUN = Math.random().toString(36).slice(2, 8);
@@ -50,7 +52,7 @@ describe('Account deletion (DELETE /api/users/me)', () => {
 
   afterAll(async () => { await app.close(); });
 
-  /** Register + log in, returning the token and the new user's id. */
+  /** Register → verify the emailed OTP, returning the token and user id. */
   async function newUser(name: string): Promise<{ token: string; id: string }> {
     const username = `${name}_${RUN}`;
     const email = `${username}@test.mn`;
@@ -62,9 +64,16 @@ describe('Account deletion (DELETE /api/users/me)', () => {
     // "cannot read property of undefined" and hides the rate limit.
     expect(reg.status).toBe(201);
 
+    // Sign-in refuses an unverified account (403 EMAIL_NOT_VERIFIED), so the
+    // token has to come from the verify step — the same path a real user walks.
+    // The code can't be emailed here, so it is read from the store the service
+    // writes it to.
+    const code = await app.get<Redis>(REDIS_CLIENT).get(`otp:verify:${email.toLowerCase()}`);
+    if (!code) throw new Error(`No verify OTP in Redis for ${email}`);
+
     const res = await request(app.getHttpServer())
-      .post('/api/auth/login')
-      .send({ identifier: email, password: PASSWORD });
+      .post('/api/auth/verify-otp')
+      .send({ email, code });
 
     return { token: res.body.accessToken as string, id: res.body.user.id as string };
   }
