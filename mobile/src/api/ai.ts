@@ -91,6 +91,32 @@ export function getBuddies(token: string): Promise<Buddy[]> {
   return apiRequest<Buddy[]>('/ai/buddies', { token });
 }
 
+/**
+ * Is the AI Buddy feature open right now?
+ *
+ * The server owns this (`AI_BUDDY_ENABLED`), because a buddy turn bills
+ * ElevenLabs and Anthropic per call while payments are switched off — see
+ * `backend/src/ai-gateway/guards/ai-buddy-enabled.guard.ts`. Asking the server
+ * rather than hard-coding it here is what lets the feature be opened later
+ * **without an app update or a store review**.
+ *
+ * **Fails closed.** Any error — offline, a 404 from an older backend, a 5xx —
+ * resolves to `false`, so the app shows "Тун удахгүй" instead of a buddy tab
+ * that would 503 on the first thing the user says. Matching the guard's own
+ * fail-closed rule; the two must never disagree in the open direction.
+ */
+export async function getBuddyAvailability(token: string): Promise<boolean> {
+  try {
+    const res = await apiRequest<{ enabled: boolean }>(
+      '/ai/buddy/availability',
+      { token },
+    );
+    return res?.enabled === true;
+  } catch {
+    return false;
+  }
+}
+
 export function startBuddySession(
   buddySlug: string,
   token: string,

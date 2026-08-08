@@ -1,12 +1,13 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   BookOpen, BookMarked, FileText, HelpCircle, Users, BarChart2,
-  Settings, LogOut, Zap, Trophy, Bot, GraduationCap,
+  Settings, LogOut, Trophy, Bot, GraduationCap,
   Building2, Activity, Bell, LifeBuoy, Quote, Dumbbell, ShieldAlert, MessageSquareHeart, Award,
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { canAccess } from '../auth/access';
 import { cn } from '../lib/utils';
+import { LogoMark } from './LogoMark';
 
 const nav = [
   { to: '/words',         label: 'Үгс',          icon: BookOpen },
@@ -71,9 +72,7 @@ export function Sidebar({ open, onClose }: Props) {
         className="flex items-center gap-2.5 px-5 py-5 border-b border-white/10"
         style={{ background: 'linear-gradient(135deg, #7A4DFF22 0%, transparent 100%)' }}
       >
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary shadow-lg shadow-primary/40">
-          <Zap className="h-4 w-4 text-white" />
-        </div>
+        <LogoMark className="h-8 w-8 shadow-lg shadow-primary/40" />
         <span className="text-base font-bold tracking-tight">SparkXP Admin</span>
       </div>
 

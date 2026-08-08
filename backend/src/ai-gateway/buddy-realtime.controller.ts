@@ -18,6 +18,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../entities/user.entity';
 import { BuddyRealtimeService } from './buddy-realtime.service';
+import { AiBuddyEnabledGuard } from './guards/ai-buddy-enabled.guard';
 import { RealtimeTextDto } from './dto/realtime-turn.dto';
 
 /** Same cap as the REST voice turn. */
@@ -42,14 +43,19 @@ export class BuddyRealtimeController {
     return this.rt.capabilities();
   }
 
-  /** Start a streamed TEXT turn. */
+  /** Start a streamed TEXT turn. Spends LLM + TTS credit → gated. */
   @Post('turn/text')
+  @UseGuards(AiBuddyEnabledGuard)
   textTurn(@Body() dto: RealtimeTextDto, @CurrentUser() user: User) {
     return this.rt.startTextTurn(user.id, dto.sessionId, dto.text);
   }
 
-  /** Start a streamed VOICE turn (multipart `file`; session in the path). */
+  /**
+   * Start a streamed VOICE turn (multipart `file`; session in the path).
+   * Spends STT + LLM + TTS credit → gated.
+   */
   @Post('turn/audio/:sessionId')
+  @UseGuards(AiBuddyEnabledGuard)
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),

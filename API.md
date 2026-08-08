@@ -308,7 +308,7 @@ Controller-level: JWT.
 
 | Method + Path | Auth | Зорилго | Params / Body |
 | --- | --- | --- | --- |
-| POST `/ai/chat` | JWT | AI найзруу мессеж илгээх | `{ message, conversationId? }` |
+| ⛔ POST `/ai/chat` | JWT + `AI_BUDDY_ENABLED` | AI найзруу мессеж илгээх (хуучин, Buddy-ээс өмнөх route). Anthropic-т төлдөг тул buddy turn-уудтай хамт хаагдсан — §10a-ийн анхааруулга. Аппын аль ч дэлгэц үүнийг дууддаггүй (buddy таб `/ai/buddy/**` явдаг) | `{ message, conversationId? }` |
 | GET `/ai/conversations/:conversationId` | JWT | Яриа түүх | path `conversationId` |
 | GET `/ai/buddies` | JWT | Идэвхтэй AI buddy жагсаалт (auto-seed) | — |
 | POST `/ai/buddies` | admin, super_admin | Шинэ AI buddy үүсгэх | `CreateBuddyDto` |
@@ -323,11 +323,26 @@ Controller-level: JWT. Realtime speaking companion (STT→LLM→TTS→avatar). �
 дуут яриа AI Gateway-ээр дамжина; сарын voice/STT limit-ийг `plans`-аас enforce
 хийнэ; TTS-г `buddy_voice_cache`-аар кэшлэнэ.
 
+> ⛔ **`AI_BUDDY_ENABLED` — анхдагчаар ХААЛТТАЙ (2026-08-08, эзний launch шийдвэр).**
+> Turn нь ElevenLabs (STT+TTS) ба Anthropic (LLM)-д дуудалт тутам төлдөг, гэтэл
+> `PAYMENTS_ENABLED` хаалттай тул хэн ч төлж чадахгүй → үнэгүй данс бүр бодит
+> мөнгө зарцуулна. **Хоёуланг хамт асаана, эсвэл хоёуланг хаалттай байлга.**
+> Хаалттай үед доор ⛔ гэсэн route-ууд **503** + монгол мессеж буцаана
+> (`src/ai-gateway/guards/ai-buddy-enabled.guard.ts`).
+> Уншилтын route-ууд (`usage`, `statistics`, `memory`, `text-sessions`) **санаатай
+> нээлттэй** — "Миний багц" дэлгэц тэднийг уншдаг тул 503 болговол хамааралгүй
+> дэлгэц эвдэрнэ. `admin/test-voice` мөн нээлттэй (эзэн TTS-ээ шалгах хэрэгтэй).
+> **AI толь бичиг (`/dictionary/*`) хөндөгдөөгүй** — Gemini хямд, үг бүр үүрд
+> cache-лэгддэг тул давтагдсан хайлт төлбөргүй.
+> Асаахад **апп шинэчлэх шаардлагагүй**: апп `GET /ai/buddy/availability`-г
+> уншиж, дараагийн нээлтэд "Тун удахгүй" дэлгэцээ жинхэнэ табаар сольдог.
+
 | Method + Path | Auth | Зорилго | Params / Body |
 | --- | --- | --- | --- |
-| POST `/ai/buddy/sessions` | JWT | Session эхлүүлэх | `{ buddySlug, mode?, topic? }` → `{ sessionId, buddy, usage }` |
-| POST `/ai/buddy/sessions/:id/turn/audio` | JWT | Дуут turn (multipart `file`, ≤2MB) | full pipeline → turn response |
-| POST `/ai/buddy/sessions/:id/turn/text` | JWT | Бичсэн turn (STT алгасна) | `{ text }` → turn response |
+| GET `/ai/buddy/availability` | JWT | **Buddy одоо нээлттэй эсэх** → `{ enabled: boolean }`. Flag-аас үл хамааран үргэлж хариулна (аппын "Тун удахгүй" дэлгэцийн шийдэгч) | — |
+| POST `/ai/buddy/sessions` | JWT | Session эхлүүлэх (зөвхөн DB, AI дуудалтгүй) | `{ buddySlug, mode?, topic? }` → `{ sessionId, buddy, usage }` |
+| ⛔ POST `/ai/buddy/sessions/:id/turn/audio` | JWT + flag | Дуут turn (multipart `file`, ≤2MB) | full pipeline → turn response |
+| ⛔ POST `/ai/buddy/sessions/:id/turn/text` | JWT + flag | Бичсэн turn (STT алгасна) | `{ text }` → turn response |
 | GET `/ai/buddy/sessions/:id/messages` | JWT | Яриа түүх | path `id` |
 | POST `/ai/buddy/text-session` | JWT | Бичгийн чат thread нээх + түүх (ChatGPT маягийн, апп дахин нээхэд хадгалагдана; voice-оос тусдаа). Body-оор thread сонгоно: `sessionId` (тодорхой хуучин thread), `new:true` (шинэ chat), эсвэл default (хамгийн сүүлийн) | `{ buddySlug, sessionId?, new? }` → `{ sessionId, messages: [{ id, role, content, correction, followUp, audioUrl }] }` |
 | GET `/ai/buddy/text-sessions` | JWT | Тухайн buddy-тэй хийсэн бичгийн чатны түүх (thread жагсаалт, ChatGPT-style history panel) | query `buddySlug` → `[{ sessionId, title, messageCount, updatedAt }]` |
@@ -378,8 +393,8 @@ stream хийхгүй (safety-г бүхэлд нь дамжуулна). Тран
 | Method + Path | Auth | Зорилго | Params / Body |
 | --- | --- | --- | --- |
 | GET `/ai/buddy/rt/capabilities` | JWT | Streaming дэмжлэг шалгах → `{ enabled, transport:'sse', streamingText, streamingTts:'progressive', partialTranscript:false, interrupt:true, fallback:'request-response' }` | — |
-| POST `/ai/buddy/rt/turn/text` | JWT | Streamed текст turn эхлүүлэх → `{ streamId }` | `{ sessionId, text }` |
-| POST `/ai/buddy/rt/turn/audio/:sessionId` | JWT | Streamed voice turn (multipart `file`) → `{ streamId }` | path `sessionId` · file |
+| ⛔ POST `/ai/buddy/rt/turn/text` | JWT + flag | Streamed текст turn эхлүүлэх → `{ streamId }` | `{ sessionId, text }` |
+| ⛔ POST `/ai/buddy/rt/turn/audio/:sessionId` | JWT + flag | Streamed voice turn (multipart `file`) → `{ streamId }` | path `sessionId` · file |
 | GET (SSE) `/ai/buddy/rt/stream/:streamId` | JWT | Turn-ийн үйл явдлын урсгал (эзэмшил шалгана) | SSE events: `status`·`transcript`·`chunk`·`audio`·`done`·`error`·`interrupted` |
 | POST `/ai/buddy/rt/interrupt/:streamId` | JWT | Явагдаж буй turn-ийг таслах → `{ ok }` | path `streamId` |
 

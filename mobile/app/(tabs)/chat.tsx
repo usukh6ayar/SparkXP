@@ -11,6 +11,7 @@ import { getEquippedBackground } from '../../src/api/buddyBackgrounds';
 import { BuddyVoiceStage } from '../../src/components/BuddyVoiceStage';
 import { BuddyChatSheet, type ChatMessage } from '../../src/components/BuddyChatSheet';
 import { BuddyHistorySheet } from '../../src/components/BuddyHistorySheet';
+import { EmptyState } from '../../src/components/EmptyState';
 import { buildMockBuddies, FOX_SLUG } from '../../src/constants/mockBuddies';
 import {
   useAudioPlayer, useAudioPlayerStatus, useAudioRecorder, RecordingPresets,
@@ -33,6 +34,17 @@ export default function ChatScreen() {
   // when the language changes. Module-level helpers below use the same i18n.
   const { t, lang } = useSettings();
   const styles = useMemo(() => makeStyles(c), [c]);
+
+  /**
+   * Is the buddy feature open on the server (`AI_BUDDY_ENABLED`)?
+   *
+   * `null` = not answered yet. Turns bill ElevenLabs and Anthropic per call
+   * while payments are off, so the owner ships with it closed; the server
+   * decides, which is what lets it be opened later with no app update. The API
+   * helper fails closed, so offline/old-backend also lands on "Тун удахгүй"
+   * rather than a tab that 503s on the first thing the user says.
+   */
+  const [buddyEnabled, setBuddyEnabled] = useState<boolean | null>(null);
 
   // select → pick a buddy · voice → hold-to-talk stage (chat rises as a sheet)
   const [mode, setMode] = useState<'select' | 'voice'>('select');
@@ -126,6 +138,10 @@ export default function ChatScreen() {
   // [] in production, so shipped builds list only what admin has published.
   const loadBuddies = useCallback(() => {
     if (!token) return;
+    // Don't fetch the roster for a tab we're about to replace with the
+    // coming-soon screen. `null` (still asking) also waits — no flash of the
+    // real UI before the answer lands.
+    if (buddyEnabled !== true) return;
     setBuddiesLoading(true);
     setBuddiesError(false);
     setBuddiesErrorDetail(null);
@@ -146,16 +162,26 @@ export default function ChatScreen() {
         console.warn('getBuddies failed:', detail);
       })
       .finally(() => setBuddiesLoading(false));
-  }, [token, t, lang]);
+  }, [token, t, lang, buddyEnabled]);
+
+  // Ask the server whether the feature is open, once per sign-in.
+  useEffect(() => {
+    if (!token) return;
+    let alive = true;
+    aiApi.getBuddyAvailability(token).then((on) => {
+      if (alive) setBuddyEnabled(on);
+    });
+    return () => { alive = false; };
+  }, [token]);
 
   useEffect(() => { loadBuddies(); }, [loadBuddies]);
 
   /** Refresh the practice-time stats + equipped background on focus. */
   const loadStats = useCallback(() => {
-    if (!token) return;
+    if (!token || buddyEnabled !== true) return;
     aiApi.getBuddyStatistics(token).then(setStats).catch(() => {});
     getEquippedBackground(token).then((b) => setBgUrl(b?.imageUrl ?? null)).catch(() => {});
-  }, [token]);
+  }, [token, buddyEnabled]);
 
   /**
    * Leaving the tab silences the buddy at once.
@@ -387,6 +413,28 @@ export default function ChatScreen() {
 
   const usageLabel = usage ? formatUsage(usage) : '';
   const voiceGreeting = voiceReply ?? tf('chatGreeting', { name: selected?.name ?? t('defaultBuddyName') });
+
+  // Feature closed on the server (or not answered yet — see `buddyEnabled`).
+  // Rendered before any buddy UI so nothing that costs money is reachable, and
+  // so the user is told plainly instead of hitting a 503 mid-sentence.
+  if (buddyEnabled !== true) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['top']}>
+        <TopBar title={t('aiBuddyShort')} showDictionary />
+        {buddyEnabled === false ? (
+          <EmptyState
+            icon="time-outline"
+            title={t('buddyClosedTitle')}
+            hint={t('buddyClosedBody')}
+          />
+        ) : (
+          // Still asking. Blank rather than a spinner: the answer is one cached
+          // request away, and a flash of spinner on every tab visit is worse.
+          null
+        )}
+      </SafeAreaView>
+    );
+  }
 
   if (mode === 'select') {
     return (

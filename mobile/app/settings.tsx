@@ -16,6 +16,7 @@ import { useLogoutConfirm, useComingSoon } from '../src/lib/useLogoutConfirm';
 import { DeleteAccountSheet } from '../src/components/DeleteAccountSheet';
 import { openLegal } from '../src/constants/legal';
 import { setPushPrefs } from '../src/api/notifications';
+import { getBuddyAvailability } from '../src/api/ai';
 import { ROLE_TKEY } from '../src/constants/roles';
 import { colors, spacing, radius, tints, type PremiumPalette } from '../src/theme/theme';
 import type { Lang } from '../src/i18n';
@@ -221,6 +222,17 @@ export default function SettingsScreen() {
   const confirmLogout = useLogoutConfirm();
   const [deleteOpen, setDeleteOpen] = useState(false);
 
+  // "AI Buddy-ийн санах ой" only makes sense while the buddy exists. With the
+  // feature closed (`AI_BUDDY_ENABLED=false`) the screen can only ever be empty,
+  // so hide the row rather than route to a dead end. Fails closed → hidden.
+  const [buddyEnabled, setBuddyEnabled] = useState(false);
+  useEffect(() => {
+    if (!token) return;
+    let alive = true;
+    getBuddyAvailability(token).then((on) => { if (alive) setBuddyEnabled(on); });
+    return () => { alive = false; };
+  }, [token]);
+
   return (
     <View style={[styles.root, { backgroundColor: p.bgFlat }]}>
       <LinearGradient colors={p.bg} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} style={StyleSheet.absoluteFill} />
@@ -304,7 +316,9 @@ export default function SettingsScreen() {
           {/* Account */}
           <SectionLabel p={p}>{t('account').toUpperCase()}</SectionLabel>
           <Card p={p}>
-            <Row p={p} icon="sparkles" tint={tints.purple} label={t('buddyMemory')} onPress={() => router.push('/buddy-memory')} />
+            {buddyEnabled ? (
+              <Row p={p} icon="sparkles" tint={tints.purple} label={t('buddyMemory')} onPress={() => router.push('/buddy-memory')} />
+            ) : null}
             <Row p={p} icon="shield-checkmark" tint={tints.green} label={t('privacy')} onPress={() => openLegal('privacy')} />
           </Card>
 
