@@ -606,6 +606,10 @@ const mn = {
   quizRunnerLoadError: 'Сорил ачаалахад алдаа гарлаа.',
   required: 'Заавал бөглөнө үү',
   comingSoon: 'Тун удахгүй',
+  // AI Buddy нь сервер талаасаа хаалттай үед (AI_BUDDY_ENABLED=false).
+  buddyClosedTitle: 'AI Buddy тун удахгүй',
+  buddyClosedBody:
+    'Ярианы дасгалыг бэлтгэж байна. Энэ хооронд хичээл, дасгал, сорил, үгсийн сан бүгд нээлттэй.',
 
   // Profile
   levelLabel: 'Түвшин',
@@ -1679,6 +1683,9 @@ const en: Record<TranslationKey, string> = {
   quizRunnerLoadError: 'Could not load the quiz. Please try again.',
   required: 'Required',
   comingSoon: 'Coming soon',
+  buddyClosedTitle: 'AI Buddy is coming soon',
+  buddyClosedBody:
+    'Speaking practice is still being prepared. Lessons, drills, quizzes and vocabulary are all open in the meantime.',
 
   // Profile
   levelLabel: 'Level',
