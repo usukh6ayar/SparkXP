@@ -8,7 +8,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../src/auth/AuthContext';
 import { useSettings } from '../src/settings/SettingsContext';
 import { AppText } from '../src/components/Text';
-import { getBuddyUsage, type BuddyUsageBlock } from '../src/api/ai';
+import { getBuddyUsage, getBuddyAvailability, type BuddyUsageBlock } from '../src/api/ai';
 import { getMyPlan } from '../src/api/users';
 import { tf } from '../src/i18n';
 import { colors, spacing, radius, type PremiumPalette } from '../src/theme/theme';
@@ -38,6 +38,9 @@ export default function PlanScreen() {
   // Which plan card is tapped. It starts on the user's real plan so the screen
   // opens showing the truth, and tapping the other card previews a switch.
   const [selectedPlan, setSelectedPlan] = useState<PlanKey>('standard');
+  // The AI Buddy usage meters only make sense while the feature is open.
+  // Fails closed → hidden (see `getBuddyAvailability`).
+  const [buddyEnabled, setBuddyEnabled] = useState(false);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -50,6 +53,15 @@ export default function PlanScreen() {
         setSelectedPlan(key);
       })
       .catch(() => {});
+
+    // Skip the usage fetch entirely when the buddy is closed — the meters it
+    // feeds aren't rendered, so it would be a request for nothing.
+    const on = await getBuddyAvailability(token);
+    setBuddyEnabled(on);
+    if (!on) {
+      setLoading(false);
+      return;
+    }
     try {
       setError(false);
       setUsage(await getBuddyUsage(token));
@@ -87,21 +99,27 @@ export default function PlanScreen() {
         <ScrollView contentContainerStyle={[styles.container, bounded]} showsVerticalScrollIndicator={false}>
           <AppText variant="caption" color={p.textMuted} style={styles.sub}>{t('planSubtitle')}</AppText>
 
-          {/* This month's usage */}
-          <AppText variant="bodyStrong" color={p.text} style={styles.groupTitle}>{t('planUsageTitle')}</AppText>
-          <View style={[styles.card, { backgroundColor: p.card, borderColor: p.cardBorder }]}>
-            {loading ? (
-              <ActivityIndicator color={p.primary} style={{ paddingVertical: spacing.lg }} />
-            ) : error ? (
-              <AppText variant="caption" color={colors.danger} style={styles.usageError}>{t('planUsageError')}</AppText>
-            ) : usage ? (
-              <>
-                <UsageRow p={p} icon="mic-outline" label={t('planVoiceLabel')} block={usage.voice} unlimitedLabel={t('planUsageUnlimited')} unitMin={t('unitMin')} />
-                <View style={[styles.divider, { backgroundColor: p.divider }]} />
-                <UsageRow p={p} icon="chatbubble-ellipses-outline" label={t('planSttLabel')} block={usage.stt} unlimitedLabel={t('planUsageUnlimited')} unitMin={t('unitMin')} />
-              </>
-            ) : null}
-          </View>
+          {/* This month's usage. Both meters count AI Buddy time, so while the
+              feature is closed they can only ever read "0 / 25 мин" — hide them
+              rather than show a quota for something nobody can spend. */}
+          {buddyEnabled ? (
+            <>
+              <AppText variant="bodyStrong" color={p.text} style={styles.groupTitle}>{t('planUsageTitle')}</AppText>
+              <View style={[styles.card, { backgroundColor: p.card, borderColor: p.cardBorder }]}>
+                {loading ? (
+                  <ActivityIndicator color={p.primary} style={{ paddingVertical: spacing.lg }} />
+                ) : error ? (
+                  <AppText variant="caption" color={colors.danger} style={styles.usageError}>{t('planUsageError')}</AppText>
+                ) : usage ? (
+                  <>
+                    <UsageRow p={p} icon="mic-outline" label={t('planVoiceLabel')} block={usage.voice} unlimitedLabel={t('planUsageUnlimited')} unitMin={t('unitMin')} />
+                    <View style={[styles.divider, { backgroundColor: p.divider }]} />
+                    <UsageRow p={p} icon="chatbubble-ellipses-outline" label={t('planSttLabel')} block={usage.stt} unlimitedLabel={t('planUsageUnlimited')} unitMin={t('unitMin')} />
+                  </>
+                ) : null}
+              </View>
+            </>
+          ) : null}
 
           {/* Plan comparison (§7) */}
           <AppText variant="bodyStrong" color={p.text} style={styles.groupTitle}>{t('planPlansTitle')}</AppText>
