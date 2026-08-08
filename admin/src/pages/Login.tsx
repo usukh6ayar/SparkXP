@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Zap } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { Input } from '../components/Input';
 import { Button } from '../components/Button';
+import { LogoMark } from '../components/LogoMark';
 
 export default function Login() {
   const { login } = useAuth();
@@ -33,9 +33,7 @@ export default function Login() {
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="mb-8 flex flex-col items-center gap-3">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-navy shadow-lg">
-            <Zap className="h-7 w-7 text-amber" />
-          </div>
+          <LogoMark className="h-14 w-14 rounded-2xl shadow-lg" />
           <div className="text-center">
             <h1 className="text-2xl font-bold text-navy">SparkXP Admin</h1>
             <p className="mt-1 text-sm text-gray-500">Зөвхөн admin/super_admin</p>

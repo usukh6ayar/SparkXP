@@ -22,7 +22,12 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { UserRole } from '../common/enums';
 import { User } from '../entities/user.entity';
+import { ConfigService } from '@nestjs/config';
 import { BuddyService } from './buddy.service';
+import {
+  AiBuddyEnabledGuard,
+  isAiBuddyEnabled,
+} from './guards/ai-buddy-enabled.guard';
 import {
   StartSessionDto,
   ResumeTextSessionDto,
@@ -37,7 +42,26 @@ const MAX_AUDIO_BYTES = 2 * 1024 * 1024;
 @Controller('ai/buddy')
 @UseGuards(JwtAuthGuard)
 export class BuddyController {
-  constructor(private readonly buddy: BuddyService) {}
+  constructor(
+    private readonly buddy: BuddyService,
+    private readonly config: ConfigService,
+  ) {}
+
+  /**
+   * Whether the AI Buddy feature is open right now.
+   *
+   * The mobile app calls this on launch and shows its "Тун удахгүй" screen when
+   * `enabled` is false, so the feature can be opened later by setting
+   * `AI_BUDDY_ENABLED=true` on the server — **no app update, no store review**
+   * (CLAUDE.md core rule: limits configurable without an app update).
+   *
+   * Deliberately not behind `AiBuddyEnabledGuard` — the whole point is to be
+   * answerable while the feature is closed.
+   */
+  @Get('availability')
+  availability() {
+    return { enabled: isAiBuddyEnabled(this.config) };
+  }
 
   /** Start a new AI Buddy conversation session. */
   @Post('sessions')
@@ -58,8 +82,12 @@ export class BuddyController {
     return this.buddy.getStatistics(user.id);
   }
 
-  /** Voice turn: upload audio → transcript + reply + audio + avatar instruction. */
+  /**
+   * Voice turn: upload audio → transcript + reply + audio + avatar instruction.
+   * Spends ElevenLabs (STT + TTS) and Anthropic credit → gated.
+   */
   @Post('sessions/:id/turn/audio')
+  @UseGuards(AiBuddyEnabledGuard)
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),
@@ -75,8 +103,9 @@ export class BuddyController {
     return this.buddy.audioTurn(user.id, sessionId, file);
   }
 
-  /** Text turn: same pipeline, STT skipped. */
+  /** Text turn: same pipeline, STT skipped. Still spends LLM + TTS → gated. */
   @Post('sessions/:id/turn/text')
+  @UseGuards(AiBuddyEnabledGuard)
   textTurn(
     @Param('id', ParseUUIDPipe) sessionId: string,
     @Body() dto: TextTurnDto,

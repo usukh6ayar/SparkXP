@@ -2,8 +2,19 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <!--
+      SparkXP's app icon (the fox), generated from mobile/assets/icon-ios.png so
+      the admin tab matches the phone icon. This replaced `/vite.svg`, which had
+      been deleted from `public/` — the SPA rewrite in `public/_redirects`
+      (`/* → /index.html 200`) answered it with HTML instead of a 404, so the
+      browser silently fell back to a blank icon rather than reporting anything.
+      Keep the `.ico` first: it carries 16→256px in one file.
+    -->
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#5F12D4" />
     <title>SparkXP Admin</title>
   </head>
   <body>

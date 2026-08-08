@@ -19,6 +19,7 @@ import { BuddyUsageService } from './buddy-usage.service';
 import { BuddyMemoryService } from './buddy-memory.service';
 import { BuddyService } from './buddy.service';
 import { BuddyRealtimeService } from './buddy-realtime.service';
+import { AiBuddyEnabledGuard } from './guards/ai-buddy-enabled.guard';
 import { XpModule } from '../xp/xp.module';
 
 @Module({
@@ -44,6 +45,7 @@ import { XpModule } from '../xp/xp.module';
     BuddyMemoryService,
     BuddyService,
     BuddyRealtimeService,
+    AiBuddyEnabledGuard,
   ],
   controllers: [AiGatewayController, BuddyController, BuddyRealtimeController],
   exports: [AiGatewayService, ImageStorageService],

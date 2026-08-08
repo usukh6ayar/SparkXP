@@ -16,6 +16,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { UserRole } from '../common/enums';
 import { User } from '../entities/user.entity';
 import { AiGatewayService } from './ai-gateway.service';
+import { AiBuddyEnabledGuard } from './guards/ai-buddy-enabled.guard';
 import { ChatDto } from './dto/chat.dto';
 import { UpdateLimitsDto } from './dto/update-limits.dto';
 import { CreateBuddyDto, UpdateBuddyDto } from './dto/create-buddy.dto';
@@ -25,8 +26,16 @@ import { CreateBuddyDto, UpdateBuddyDto } from './dto/create-buddy.dto';
 export class AiGatewayController {
   constructor(private readonly aiGateway: AiGatewayService) {}
 
-  /** Send a message to the AI English buddy. */
+  /**
+   * Send a message to the AI English buddy (the original, pre-Buddy chat route).
+   *
+   * Spends Anthropic credit, so it is gated with the buddy turns. No screen
+   * calls it today — the buddy tab goes through `/ai/buddy/**` — but it is a
+   * live, JWT-only route that bills per call, which is exactly what the flag is
+   * for. If it turns out nothing needs it, delete it rather than ungating it.
+   */
   @Post('chat')
+  @UseGuards(AiBuddyEnabledGuard)
   chat(@Body() dto: ChatDto, @CurrentUser() user: User) {
     return this.aiGateway.chat(user.id, dto.message, dto.conversationId);
   }
