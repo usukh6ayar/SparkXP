@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, Sparkles } from 'lucide-react';
 import { api } from '../../api/client';
 import { Button } from '../../components/Button';
 import { Badge } from '../../components/Badge';
@@ -13,6 +13,7 @@ import {
   type Question,
   type QuestionType,
 } from '../../components/QuizQuestionsEditor';
+import { AiBulkGenerator } from '../../components/AiBulkGenerator';
 
 /** The 4 lesson-test categories. Speaking = coming soon. */
 const CATS = [
@@ -54,8 +55,18 @@ const emptyForm: TestForm = {
  * the lesson (lessonId set) — content specific to this lesson. Rendered inside
  * the lesson edit modal (needs a saved lessonId).
  */
-export function LessonTests({ lessonId, level }: { lessonId: string; level: string }) {
+export function LessonTests({
+  lessonId,
+  level,
+  title,
+}: {
+  lessonId: string;
+  level: string;
+  /** Lesson title — given to the AI as context so questions match the lesson. */
+  title?: string;
+}) {
   const [cat, setCat] = useState<string>('listening');
+  const [aiOpen, setAiOpen] = useState(false);
   const [tests, setTests] = useState<Test[]>([]);
   const [modal, setModal] = useState<null | 'create' | 'edit'>(null);
   const [editing, setEditing] = useState<Test | null>(null);
@@ -140,8 +151,35 @@ export function LessonTests({ lessonId, level }: { lessonId: string; level: stri
           </div>
           <div className="mt-3">
             <Button variant="secondary" size="sm" onClick={openCreate}><Plus className="h-4 w-4" /> Тест нэмэх</Button>
+            {/* Same generator Дасгал/Сорил/IELTS use — only the target differs
+                (CODING_RULES §0.2). `save.lessonId` is what ties the produced
+                quiz to THIS lesson; without it the test would land in the
+                standalone-exercise pool and never show under the lesson. */}
+            <Button variant="secondary" size="sm" onClick={() => setAiOpen(true)}>
+              <Sparkles className="h-4 w-4" /> AI-аар үүсгэх
+            </Button>
           </div>
         </>
+      )}
+
+      {aiOpen && (
+        <AiBulkGenerator
+          target={{
+            kind: 'lesson',
+            label: CATS.find((c) => c.key === cat)?.label ?? 'Тест',
+            category: cat,
+            // Ties the generated quiz to THIS lesson — the app lists a lesson's
+            // tests by `lessonId`, so without it the test is unreachable.
+            save: { lessonId },
+            // A lesson test belongs at the lesson's own level; the admin can
+            // still override it in the modal.
+            defaultLevel: level,
+            xpReward: 20,
+            contextNote: title ? `Хичээлийн нэр: "${title}".` : undefined,
+          }}
+          onClose={() => setAiOpen(false)}
+          onSaved={() => { setAiOpen(false); load(); }}
+        />
       )}
 
       {(modal === 'create' || modal === 'edit') && (
