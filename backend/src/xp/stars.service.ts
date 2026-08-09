@@ -151,8 +151,20 @@ export class StarsService {
    * Per-CEFR-level unlock state for the Lessons map: stars earned in the level,
    * the star gate, and whether it is open. An island opens once the user's TOTAL
    * stars reach its requirement, so early islands fund the later ones.
+   *
+   * **…and every level up to the learner's own CEFR level is open from the
+   * start.** Unlocks used to be stars-only, which quietly threw away the level
+   * the user picks at sign-up: someone who says "I'm B2" landed on a map with
+   * only A1 open and had to grind 18 stars through beginner material to reach
+   * their own level. Asking for the level and then ignoring it is worse than
+   * not asking. The star gate still governs everything ABOVE their level, so
+   * the progression it drives is intact.
    */
-  async getLevelUnlocks(userId: string): Promise<Record<string, LevelUnlock>> {
+  async getLevelUnlocks(
+    userId: string,
+    /** The learner's declared CEFR level (`users.level`), if they set one. */
+    declaredLevel?: string | null,
+  ): Promise<Record<string, LevelUnlock>> {
     const [total, perLevelRows, reqRows] = await Promise.all([
       this.totalStars(userId),
       // Stars earned per level = sum over the user's lesson stars, grouped by the
@@ -175,13 +187,19 @@ export class StarsService {
     const required: Record<string, number> = { ...DEFAULT_REQUIRED };
     for (const r of reqRows) required[r.levelCode] = r.starsRequired;
 
+    // `ContentLevel` is declared a1→c2, so its index is the CEFR order.
+    const order = Object.values(ContentLevel) as string[];
+    const declaredIndex = declaredLevel ? order.indexOf(declaredLevel.toLowerCase()) : -1;
+
     const out: Record<string, LevelUnlock> = {};
-    for (const code of Object.values(ContentLevel)) {
+    for (const [i, code] of order.entries()) {
       const starsRequired = required[code] ?? 0;
       out[code] = {
         starsEarned: earned[code] ?? 0,
         starsRequired,
-        unlocked: total >= starsRequired,
+        // Open if the stars are there, OR this level is at/below the one the
+        // learner told us they're at.
+        unlocked: total >= starsRequired || i <= declaredIndex,
       };
     }
     return out;
