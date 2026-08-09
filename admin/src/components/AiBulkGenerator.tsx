@@ -41,6 +41,11 @@ export interface AiTarget {
   contextNote?: string;
   /** IELTS Reading — эх бичвэрийн талбарыг харуулах. */
   withPassage?: boolean;
+  /**
+   * Түвшний талбарын анхдагч утга (ж: хичээлийн тест → тухайн хичээлийн түвшин).
+   * Өгөөгүй бол "AI сонгоно" — админ гараар сонгож болно.
+   */
+  defaultLevel?: string;
 }
 
 interface Draft {
@@ -84,7 +89,7 @@ function chunk(questions: Question[], parts: number): Question[][] {
 export function AiBulkGenerator({ target, onClose, onSaved }: Props) {
   // ── 1-р алхам: юу үүсгэх вэ ──
   const [brief, setBrief] = useState('');
-  const [level, setLevel] = useState(AUTO);
+  const [level, setLevel] = useState(target.defaultLevel ?? AUTO);
   const [qType, setQType] = useState<string>(target.questionType ?? AUTO);
   const [count, setCount] = useState('10');
   const [passageText, setPassageText] = useState('');
