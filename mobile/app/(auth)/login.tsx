@@ -13,6 +13,7 @@ import { AppText } from '../../src/components/Text';
 import { SignInSheet } from '../../src/components/SignInSheet';
 import { AuthFooter } from '../../src/components/AuthFooter';
 import { loadCredentials, type SavedCredentials } from '../../src/lib/savedCredentials';
+import { useSocialSignIn } from '../../src/auth/useSocialSignIn';
 
 const wordmark = require('../../assets/logoSparkXP.webp');
 const hero = require('../../assets/logo.webp');
@@ -32,7 +33,6 @@ export default function WelcomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { signin } = useLocalSearchParams<{ signin?: string }>();
-  const [notice, setNotice] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   // Load saved "remember me" creds here (before the sheet mounts) so the sheet
   // can seed its inputs synchronously — avoids an uncontrolled-input prefill race.
@@ -47,7 +47,9 @@ export default function WelcomeScreen() {
     if (signin === '1') setSheetOpen(true);
   }, [signin]);
 
-  const soon = () => setNotice(t('comingSoon'));
+  // Google/Apple. `available` is server-driven (client ids configured) and, for
+  // Apple, device-driven (iOS 13+) — a button that cannot work is never shown.
+  const social = useSocialSignIn();
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -75,12 +77,26 @@ export default function WelcomeScreen() {
             filled
             onPress={() => router.push('/(auth)/register')}
           />
-          <AuthButton icon="logo-google" label={t('continueWithGoogle')} onPress={soon} />
-          <AuthButton icon="logo-apple" label={t('continueWithApple')} onPress={soon} />
+          {social.available.google ? (
+            <AuthButton
+              icon="logo-google"
+              label={t('continueWithGoogle')}
+              onPress={() => social.start('google')}
+              disabled={social.busy !== null}
+            />
+          ) : null}
+          {social.available.apple ? (
+            <AuthButton
+              icon="logo-apple"
+              label={t('continueWithApple')}
+              onPress={() => social.start('apple')}
+              disabled={social.busy !== null}
+            />
+          ) : null}
 
-          {notice ? (
+          {social.error ? (
             <AppText variant="caption" center color={colors.textSecondary} style={styles.notice}>
-              {notice}
+              {social.error}
             </AppText>
           ) : null}
 
@@ -109,11 +125,14 @@ function AuthButton({
   label,
   filled = false,
   onPress,
+  disabled = false,
 }: {
   icon: IconName;
   label: string;
   filled?: boolean;
   onPress: () => void;
+  /** True while another provider's sheet is open — avoids a double sign-in. */
+  disabled?: boolean;
 }) {
   const colors = useColors();
   const { theme } = useSettings();
@@ -133,7 +152,7 @@ function AuthButton({
 
   if (filled) {
     return (
-      <Pressable onPress={onPress} style={({ pressed }) => pressed && styles.pressed}>
+      <Pressable onPress={onPress} disabled={disabled} style={({ pressed }) => pressed && styles.pressed}>
         <LinearGradient
           colors={colors.primaryGradient}
           start={{ x: 0, y: 0 }}
@@ -150,6 +169,7 @@ function AuthButton({
     return (
       <Pressable
         onPress={onPress}
+        disabled={disabled}
         style={({ pressed }) => [styles.btn, styles.btnLight, pressed && styles.pressed]}
       >
         {content}
@@ -159,6 +179,7 @@ function AuthButton({
   return (
     <Pressable
       onPress={onPress}
+      disabled={disabled}
       style={({ pressed }) => [styles.btn, styles.btnGlass, pressed && styles.pressed]}
     >
       <BlurView

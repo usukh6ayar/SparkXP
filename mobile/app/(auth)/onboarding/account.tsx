@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,6 +8,7 @@ import { AppText } from '../../../src/components/Text';
 import { PressableScale } from '../../../src/components/PressableScale';
 import { useAuth } from '../../../src/auth/AuthContext';
 import { ONBOARDING_TOTAL_STEPS } from '../../../src/lib/onboardingAnswers';
+import { useSocialSignIn } from '../../../src/auth/useSocialSignIn';
 import { useOncePress } from '../../../src/lib/useOncePress';
 import { track } from '../../../src/lib/analytics';
 import { useColors, useSettings, useT } from '../../../src/settings/SettingsContext';
@@ -20,9 +21,10 @@ type IconName = keyof typeof Ionicons.glyphMap;
  * one marks onboarding finished first so the auth gate never drops the user
  * back at the welcome screen.
  *
- * Google and Apple sign-in are NOT implemented in this app, so they show the
- * same "coming soon" notice the welcome screen uses. Faking a success here
- * would strand the user with no session and no way to tell why.
+ * Google and Apple are real sign-ins here. Each button is shown only when the
+ * server reports that provider as configured (and, for Apple, on iOS 13+), so
+ * nothing is offered that cannot complete. Onboarding is marked finished before
+ * leaving, or the auth gate would drop the user back at the welcome screen.
  */
 export default function OnboardingAccount() {
   const c = useColors();
@@ -30,7 +32,6 @@ export default function OnboardingAccount() {
   const t = useT();
   const router = useRouter();
   const { completeOnboarding } = useAuth();
-  const [notice, setNotice] = useState<string | null>(null);
 
   // `replace`, not `push`: onboarding is done, and back from registration
   // should leave the app rather than re-enter the flow.
@@ -42,7 +43,18 @@ export default function OnboardingAccount() {
     router.replace(href);
   });
 
-  const soon = () => setNotice(t('comingSoon'));
+  const social = useSocialSignIn();
+
+  /**
+   * Finish onboarding BEFORE handing off to the provider: the social flow ends
+   * by applying a session, and the auth gate would otherwise send a signed-in
+   * user back into onboarding.
+   */
+  const startSocial = async (provider: 'google' | 'apple') => {
+    track('onboarding_finished', { exit: provider });
+    await completeOnboarding();
+    await social.start(provider);
+  };
 
   return (
     <OnboardingStep
@@ -54,8 +66,20 @@ export default function OnboardingAccount() {
       footer={null}
     >
       <View style={styles.actions}>
-        <AuthOption icon="logo-google" label={t('continueWithGoogle')} onPress={soon} />
-        <AuthOption icon="logo-apple" label={t('continueWithApple')} onPress={soon} />
+        {social.available.google ? (
+          <AuthOption
+            icon="logo-google"
+            label={t('continueWithGoogle')}
+            onPress={() => startSocial('google')}
+          />
+        ) : null}
+        {social.available.apple ? (
+          <AuthOption
+            icon="logo-apple"
+            label={t('continueWithApple')}
+            onPress={() => startSocial('apple')}
+          />
+        ) : null}
         {/* The one that actually works — filled so it reads as the main path.
             Registration is email + password (there is no phone sign-up). */}
         <AuthOption
@@ -65,9 +89,9 @@ export default function OnboardingAccount() {
           onPress={() => leave('/(auth)/register', 'register')}
         />
 
-        {notice ? (
+        {social.error ? (
           <AppText variant="caption" center color={c.textSecondary}>
-            {notice}
+            {social.error}
           </AppText>
         ) : null}
       </View>

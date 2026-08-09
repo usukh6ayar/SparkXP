@@ -83,7 +83,11 @@ const emptyForm: ReadingForm = {
   comprehensionQuestions: [],
   rawText: '',
   sentences: [],
-  isPublished: false,
+  // Publish by default — the same trap idioms had. The app only ever fetches
+  // published passages, so a draft default means everything authored here is
+  // invisible on the phone until someone finds the toggle. Hand-authoring forms
+  // publish; only the bulk CSV/JSON imports stay drafts (they need review).
+  isPublished: true,
 };
 
 interface AudioJob {

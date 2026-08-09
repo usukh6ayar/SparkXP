@@ -45,6 +45,12 @@ export class ApiError extends Error {
     message: string,
     /** Backend error code, e.g. 'VOICE_LIMIT' (used for graceful fallbacks). */
     public code?: string,
+    /**
+     * Address the error is about, when the backend sends one. Only
+     * `EMAIL_NOT_VERIFIED` uses it today: sign-in accepts a *username*, so the
+     * screen would otherwise have no address to send to the OTP step.
+     */
+    public email?: string,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -143,10 +149,10 @@ export async function apiRequest<T>(
 
     if (!res.ok) {
       // Backend error shape: { message: string | string[], code? }
-      const err = data as { message?: string | string[]; code?: string } | null;
+      const err = data as { message?: string | string[]; code?: string; email?: string } | null;
       const raw = err?.message;
       const message = Array.isArray(raw) ? raw.join(', ') : raw ?? t('errorFallback');
-      const apiError = new ApiError(res.status, message, err?.code);
+      const apiError = new ApiError(res.status, message, err?.code, err?.email);
 
       // Report SERVER faults only. 4xx is the backend correctly refusing
       // something the user did (bad password, expired OTP, out of hearts) —
@@ -201,10 +207,10 @@ export async function apiUpload<T>(
 
   const data = await res.json().catch(() => null);
   if (!res.ok) {
-    const err = data as { message?: string | string[]; code?: string } | null;
+    const err = data as { message?: string | string[]; code?: string; email?: string } | null;
     const raw = err?.message;
     const message = Array.isArray(raw) ? raw.join(', ') : raw ?? t('errorFallback');
-    throw new ApiError(res.status, message, err?.code);
+    throw new ApiError(res.status, message, err?.code, err?.email);
   }
   // Upload is a mutation (e.g. new avatar) → drop cached reads.
   clearApiCache();

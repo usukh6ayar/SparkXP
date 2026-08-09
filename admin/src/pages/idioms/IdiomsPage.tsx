@@ -39,9 +39,13 @@ interface IdiomForm {
   audioUrl: string;
   isPublished: boolean;
 }
+// Publish by default. Drafting was the default before, and since the app only
+// ever fetches `isPublished=true` idioms, every phrase authored here was
+// invisible on the phone until someone found the publish toggle — the same trap
+// that had already been fixed for Дасгал / Сорил / IELTS and missed here.
 const emptyForm: IdiomForm = {
   phrase: '', mongolian: '', meaning: '', definition: '',
-  exampleSentence: '', exampleTranslation: '', imageUrl: '', audioUrl: '', isPublished: false,
+  exampleSentence: '', exampleTranslation: '', imageUrl: '', audioUrl: '', isPublished: true,
 };
 
 interface ImageJob { total: number; processed: number; ok?: number; failed?: number; done: boolean }

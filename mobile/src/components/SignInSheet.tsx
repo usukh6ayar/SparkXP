@@ -33,6 +33,7 @@ import { Checkbox } from './Checkbox';
 import { SocialRow } from './SocialRow';
 import { FormError } from './FormError';
 import { AuthFooter } from './AuthFooter';
+import { useSocialSignIn } from '../auth/useSocialSignIn';
 
 /** Frosted-glass sheet background (blurs the welcome content behind it). */
 function GlassBackground({ style }: BottomSheetBackgroundProps) {
@@ -143,6 +144,27 @@ export function SignInSheet({
     [close],
   );
 
+  /**
+   * An account that never finished its email OTP can't sign in (the backend
+   * refuses with `EMAIL_NOT_VERIFIED`). Showing the error here would strand
+   * the user — the code is the only way forward — so hand them to the OTP step
+   * with the address filled in.
+   *
+   * Matched on `code`, never on the message: the message is user-facing
+   * Mongolian and would stop matching the moment it is reworded.
+   */
+  function handleLoginError(e: unknown): void {
+    if (e instanceof ApiError && e.code === 'EMAIL_NOT_VERIFIED') {
+      close();
+      router.push({
+        pathname: '/(auth)/register',
+        params: { verifyEmail: e.email ?? username.trim() },
+      });
+      return;
+    }
+    fail(e instanceof ApiError ? e.message : t('errorGeneric'));
+  }
+
   async function onSubmit() {
     setError(null);
     setBusy(true);
@@ -154,7 +176,7 @@ export function SignInSheet({
         : clearCredentials();
       persist.catch(() => {});
     } catch (e) {
-      fail(e instanceof ApiError ? e.message : t('errorGeneric'));
+      handleLoginError(e);
     } finally {
       setBusy(false);
     }
@@ -172,13 +194,14 @@ export function SignInSheet({
     try {
       await login(initial.username, initial.password);
     } catch (e) {
-      fail(e instanceof ApiError ? e.message : t('errorGeneric'));
+      handleLoginError(e);
     } finally {
       setBusy(false);
     }
   }
 
-  const soon = () => setError(t('comingSoon'));
+  // Google/Apple — the hook hides buttons the server hasn't enabled.
+  const social = useSocialSignIn();
   const goForgot = () => {
     close();
     router.push('/(auth)/forgot');
@@ -241,7 +264,7 @@ export function SignInSheet({
           </Pressable>
         </View>
 
-        <FormError message={error} />
+        <FormError message={error ?? social.error} />
 
         {/* Gradient CTA */}
         <Pressable onPress={onSubmit} disabled={busy} style={({ pressed }) => pressed && styles.pressed}>
@@ -279,7 +302,11 @@ export function SignInSheet({
           </AppText>
           <View style={styles.line} />
         </View>
-        <SocialRow onPress={soon} />
+        <SocialRow
+          onPress={social.start}
+          available={social.available}
+          disabled={social.busy !== null || busy}
+        />
 
         <AuthFooter prompt={t('noAccount')} linkLabel={t('register')} onPress={goRegister} />
       </BottomSheetScrollView>

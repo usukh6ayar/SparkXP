@@ -5,6 +5,7 @@ import {
   ServiceUnavailableException,
   ConflictException,
   UnauthorizedException,
+  ForbiddenException,
   BadRequestException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -193,9 +194,40 @@ export class AuthService {
       ? await this.usersService.findByUsernameOrEmail(identifier)
       : null;
     // Same error whether the identifier or password is wrong — don't leak which.
-    if (!user || !(await bcrypt.compare(dto.password, user.passwordHash))) {
+    // `passwordHash` is null on a Google/Apple-only account: there is no
+    // password to compare, so password login simply fails. The message stays
+    // identical so this can't be used to enumerate which accounts are social.
+    if (
+      !user ||
+      user.passwordHash === null ||
+      !(await bcrypt.compare(dto.password, user.passwordHash))
+    ) {
       throw new UnauthorizedException('Нэвтрэх нэр эсвэл нууц үг буруу байна');
     }
+
+    // The email OTP was optional in practice: `register` creates the row with
+    // `emailVerified: false` and nothing here ever looked at it, so a user could
+    // back out of the OTP screen and simply log in — the verification step, the
+    // referral bonus and the onboarding XP that hang off `verifyOtp` were all
+    // skippable, and an address nobody owns could hold an account.
+    //
+    // 403 with a code (not 401) so the app can tell this apart from a wrong
+    // password and send the user to the OTP screen instead of showing
+    // "нэр эсвэл нууц үг буруу". Matching by code, never by message — the
+    // message is user-facing Mongolian and would break the moment it is
+    // reworded or translated.
+    //
+    // The code is NOT re-sent here: `login` must stay side-effect-free, or an
+    // attacker holding an address could send it mail on demand. The app calls
+    // `resend-otp` from the screen it lands on.
+    if (!user.emailVerified) {
+      throw new ForbiddenException({
+        code: 'EMAIL_NOT_VERIFIED',
+        message: 'Имэйлээ баталгаажуулна уу.',
+        email: user.email,
+      });
+    }
+
     return this.buildAuthResult(user);
   }
 
@@ -256,7 +288,8 @@ export class AuthService {
 
   // ── shaping ─────────────────────────────────────────────────────────────
 
-  private buildAuthResult(user: User): AuthResult {
+  /** Public so social sign-in returns the exact same session shape. */
+  buildAuthResult(user: User): AuthResult {
     const payload: JwtPayload = {
       sub: user.id,
       email: user.email,

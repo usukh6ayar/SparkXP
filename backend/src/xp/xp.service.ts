@@ -546,8 +546,10 @@ export class XpService {
     for (const r of levelTotals) if (progressByLevel[r.level]) progressByLevel[r.level].total = Number(r.n);
     for (const r of levelDone) if (progressByLevel[r.level]) progressByLevel[r.level].done = Number(r.n);
 
-    // Star-gated island unlocks (§ Castle unlock).
-    const levelUnlocks = await this.stars.getLevelUnlocks(userId);
+    // Island unlocks: star-gated (§ Castle unlock), plus everything up to the
+    // learner's own declared CEFR level — otherwise the level they pick at
+    // sign-up has no effect on what they can open.
+    const levelUnlocks = await this.stars.getLevelUnlocks(userId, user?.level);
 
     return {
       xp,

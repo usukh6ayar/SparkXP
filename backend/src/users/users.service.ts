@@ -125,7 +125,8 @@ export class UsersService {
 
   create(data: {
     email: string;
-    passwordHash: string;
+    /** `null` for a Google/Apple account — it signs in without a password. */
+    passwordHash: string | null;
     fullName: string;
     username?: string | null;
     phone?: string | null;

@@ -3,6 +3,16 @@
  * Keeping them in one place avoids circular imports between entity files.
  */
 
+/**
+ * Third-party sign-in providers. Stored as a plain varchar on
+ * `user_identities.provider` (no DB enum type, so adding one later needs no
+ * migration). Facebook was deliberately dropped — owner's decision 2026-08-08.
+ */
+export enum AuthProvider {
+  GOOGLE = "google",
+  APPLE = "apple",
+}
+
 /** A single User table holds every role; access is gated by this field. */
 export enum UserRole {
   STUDENT = "student",
