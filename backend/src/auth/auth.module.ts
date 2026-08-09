@@ -2,6 +2,10 @@ import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { UserIdentity } from '../entities/user-identity.entity';
+import { SocialAuthService } from './social/social-auth.service';
+import { SocialTokenService } from './social/social-token.service';
 import { UsersModule } from '../users/users.module';
 import { ReferralsModule } from '../referrals/referrals.module';
 import { XpModule } from '../xp/xp.module';
@@ -16,6 +20,7 @@ import { resolveJwtSecret } from './jwt-secret';
  */
 @Module({
   imports: [
+    TypeOrmModule.forFeature([UserIdentity]),
     UsersModule,
     ReferralsModule,
     XpModule,
@@ -32,6 +37,6 @@ import { resolveJwtSecret } from './jwt-secret';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
+  providers: [AuthService, JwtStrategy, SocialTokenService, SocialAuthService],
 })
 export class AuthModule {}

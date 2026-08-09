@@ -57,8 +57,17 @@ export class AccountDeletionService {
       .getRepository(User)
       .findOne({ where: { id: user.id }, select: { id: true, email: true, passwordHash: true } });
 
-    if (!fresh || !(await bcrypt.compare(password, fresh.passwordHash))) {
-      throw new UnauthorizedException('Нууц үг буруу байна');
+    if (!fresh) throw new UnauthorizedException('Хэрэглэгч олдсонгүй');
+
+    // A Google/Apple account has no password to re-check (`passwordHash` is
+    // null). Demanding one would leave it with **no way to delete itself**,
+    // which App Store 5.1.1(v) treats as a rejection — every account must be
+    // able to remove itself in-app. The Bearer token is the proof of identity
+    // in that case; the provider already re-authenticated the user to issue it.
+    if (fresh.passwordHash !== null) {
+      if (!(await bcrypt.compare(password, fresh.passwordHash))) {
+        throw new UnauthorizedException('Нууц үг буруу байна');
+      }
     }
 
     await this.dataSource.transaction((manager) => this.purge(manager, user.id));

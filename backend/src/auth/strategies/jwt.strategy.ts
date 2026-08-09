@@ -10,6 +10,11 @@ export interface JwtPayload {
   sub: string; // user id
   email: string;
   role: string;
+  /**
+   * Set on tokens that are NOT session tokens (currently only the short-lived
+   * social sign-up ticket). Absent on every access token. See `validate()`.
+   */
+  purpose?: string;
 }
 
 /**
@@ -33,6 +38,14 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: JwtPayload) {
+    // Single-purpose tokens are signed with the same secret, so they would
+    // otherwise be accepted here as a session. The social sign-up ticket
+    // carries a provider `sub` rather than a user id, so it could not name a
+    // real account — but refuse it by intent rather than relying on that.
+    if (payload.purpose) {
+      throw new UnauthorizedException('Токен хүчингүй байна');
+    }
+
     const user = await this.usersService.findById(payload.sub);
     if (!user) {
       // Token was valid but the user no longer exists.

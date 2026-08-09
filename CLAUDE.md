@@ -216,6 +216,22 @@ Android keystore устсан (Play Store дээр нийтлээгүй тул �
   **аппын шинэ bundle** шаардана (OTA эсвэл Expo Go reload). Хооронд нь
   админ `soril` сорил үүсгэвэл хуучин апп дээр гарахгүй.
 
+**Google / Apple нэвтрэлт нэмэгдэв (2026-08-08).** Facebook орхигдсон (эзний
+шийдвэр — тусдаа app review шаарддаг). Урсгал: native SDK → `POST /auth/social`
+→ таарах данс байвал шууд нэвтэрнэ, шинэ хүн бол **өөрөө username сонгоно**
+(`/(auth)/choose-username`; чансаанд ил харагддаг тул имэйлээс гаргаж авахгүй).
+- **Тохиргоо:** `GOOGLE_CLIENT_IDS` / `APPLE_CLIENT_IDS` хоосон бол тэр provider
+  унтраалттай ба апп товчийг нь **огт харуулахгүй** → асаахад апп шинэчлэхгүй.
+- ⚠️ **Native build шаардана** — хоёр SDK хоёулаа Expo Go дээр ажиллахгүй.
+  Expo Go дээр товчнууд харагдахгүй тул нөгөө урсгал эвдрэхгүй.
+- ⚠️ **`users.password_hash` одоо NULL байж болно** (social данс нууц үггүй).
+  Нууц үг харьцуулдаг код бүр `null`-ыг зохицуулах ёстой. Аккаунт устгах нь
+  ийм дансанд нууц үг шаардахгүй (App Store 5.1.1(v)).
+- ⚠️ **Prod migration `CreateUserIdentities1787200000000`** — `user_identities`
+  хүснэгт + `password_hash` NULL зөвшөөрөх. Railway дээр `DB_MIGRATIONS_RUN=true`
+  эсэхийг шалгаж байж deploy хий.
+- Дэлгэрэнгүй (аюулгүй байдлын дүрэм, данс холбох логик) → `API.md` §1.
+
 **Хараахан хийгдээгүй (blocker БИШ):** Lucide migration; бодит видео тоглуулагч;
 QPay; 3D avatar (1.2-т).
 **Already DONE (was wrongly listed as pending):** app icon wired

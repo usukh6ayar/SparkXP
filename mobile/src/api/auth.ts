@@ -84,3 +84,63 @@ export function resetPassword(
 export function getMe(token: string): Promise<AuthUser> {
   return apiRequest<AuthUser>('/auth/me', { token });
 }
+
+// ── Google / Apple sign-in ───────────────────────────────────────────────────
+
+export type SocialProvider = 'google' | 'apple';
+
+/**
+ * Sign-in didn't finish: this is a new person and SparkXP needs a username.
+ *
+ * Usernames are public (leaderboards), so the app must never derive one from
+ * the address silently — the user picks it on the next screen and hands the
+ * `ticket` back with it.
+ */
+export interface SocialNeedsUsername {
+  needsUsername: true;
+  ticket: string;
+  email: string;
+  /** A free handle offered as a starting point; the user may replace it. */
+  suggestedUsername: string;
+  fullName: string | null;
+}
+
+export type SocialResult = ({ needsUsername: false } & AuthResult) | SocialNeedsUsername;
+
+/**
+ * Which providers the server is configured for.
+ *
+ * Asked at runtime so a provider can be switched on server-side without an app
+ * update, and so the app never shows a button that is certain to fail. Fails
+ * closed (both false) — a hidden button is better than a broken one.
+ */
+export async function getSocialProviders(): Promise<{ google: boolean; apple: boolean }> {
+  try {
+    return await apiRequest<{ google: boolean; apple: boolean }>('/auth/social/providers');
+  } catch {
+    return { google: false, apple: false };
+  }
+}
+
+/** POST /api/auth/social — exchange a provider identity token for a session. */
+export function socialSignIn(
+  provider: SocialProvider,
+  idToken: string,
+): Promise<SocialResult> {
+  return apiRequest<SocialResult>('/auth/social', {
+    method: 'POST',
+    body: { provider, idToken },
+  });
+}
+
+/** POST /api/auth/social/complete — finish sign-up with the chosen username. */
+export function socialComplete(
+  ticket: string,
+  username: string,
+  fullName?: string,
+): Promise<AuthResult> {
+  return apiRequest<AuthResult>('/auth/social/complete', {
+    method: 'POST',
+    body: { ticket, username, fullName },
+  });
+}

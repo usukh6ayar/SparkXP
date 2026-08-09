@@ -36,10 +36,40 @@ Backend (NestJS) endpoint-үүдийн бүрэн лавлах. **Зам/мет�
 | POST `/auth/register` | Public | Баталгаажаагүй бүртгэл үүсгэж, имэйлээр OTP илгээх (token өгөхгүй). Optional `referralCode` — verify хийхэд хэрэглэгдэнэ. Optional **`tasteCompleted`** (C4) — үнэн бол verify хийх үед **нэг удаагийн +10 XP** (onboarding) олгоно | `RegisterDto` |
 | POST `/auth/verify-otp` | Public | OTP-оор имэйл баталгаажуулж → token буцаана (нэвтэрнэ) | `{ email, code }` |
 | POST `/auth/resend-otp` | Public | Баталгаажуулах OTP дахин илгээх | `{ email }` |
-| POST `/auth/login` | Public | username/email + нууц үгээр нэвтрэх → token | `LoginDto` |
+| POST `/auth/login` | Public | username/email + нууц үгээр нэвтрэх → token. ⚠️ Имэйл баталгаажаагүй бол **403 + `code: 'EMAIL_NOT_VERIFIED'` + `email`** (401 БИШ — апп үүнийг таньж OTP дэлгэц рүү аваачдаг). Google/Apple-ээр үүссэн данс нууц үггүй тул энд хэзээ ч нэвтрэхгүй | `LoginDto` |
+| GET `/auth/social/providers` | Public | Ямар provider тохируулагдсаныг мэдэх → `{ google, apple }`. Аппын товч үүгээр шийдэгдэнэ (апп шинэчлэхгүйгээр асаах боломжтой) | — |
+| POST `/auth/social` | Public | Google/Apple **identity token**-оор нэвтрэх. Хариу нь 2 хэлбэрийн нэг: session (`{ needsUsername: false, accessToken, user }`) **эсвэл** шинэ хүн бол `{ needsUsername: true, ticket, email, suggestedUsername, fullName }` | `{ provider, idToken }` |
+| POST `/auth/social/complete` | Public | Түр зогссон бүртгэлийг сонгосон username-ээр дуусгах → token | `{ ticket, username, fullName? }` |
 | POST `/auth/forgot-password` | Public | Нууц үг сэргээх код имэйлдэх | `{ email }` |
 | POST `/auth/reset-password` | Public | Кодоор шинэ нууц үг тавих | `{ email, code, password }` |
 | GET `/auth/me` | JWT | Одоогийн хэрэглэгчийн мэдээлэл | — |
+
+> ### 🔐 Google / Apple нэвтрэлт
+>
+> **Тохиргоо:** `GOOGLE_CLIENT_IDS`, `APPLE_CLIENT_IDS` (таслалаар тусгаарласан
+> client id-ууд). Хоосон бол тэр provider **унтраалттай** — `GET
+> /auth/social/providers` `false` буцааж, апп товчийг нь огт харуулахгүй.
+> Тиймээс асаахад **апп шинэчлэх шаардлагагүй**.
+>
+> **Аюулгүй байдал:** аппаас ирсэн токеныг `SocialTokenService` нь provider-ийн
+> JWKS-ээр гарын үсгийг шалгаж, `iss`/`aud`/`exp`-ийг тулгана. `aud` нь заавал
+> **бидний** client id байх ёстой — өөр аппд зориулсан токен энд ажиллахгүй.
+> Зөвхөн `RS256`; `alg: none` татгалзана. (9 тест: `social-token.service.spec.ts`.)
+>
+> **Данс:** түлхүүр нь `(provider, sub)` — **имэйл БИШ**. `sub` өөрчлөгддөггүй,
+> харин имэйл дахин олгогдож болно, Apple relay хаяг апп тутам өөр. Ижил
+> **баталгаажсан** имэйлтэй данс байвал түүн рүү холбоно (давхар данс үүсгэхгүй).
+>
+> **Username:** шинэ хүн бол сервер данс үүсгэхээ түр зогсоож `ticket` (15 мин)
+> буцаана. Username нь чансаанд ил харагддаг тул имэйлээс гаргаж авахгүй —
+> хэрэглэгч өөрөө сонгоно (`/(auth)/choose-username`).
+>
+> **Нууц үг:** ийм данс `password_hash = NULL`. Тиймээс нууц үгээр нэвтрэхгүй,
+> мөн **аккаунт устгахад нууц үг шаардахгүй** (App Store 5.1.1(v) — данс бүр
+> өөрийгөө устгах чадвартай байх ёстой).
+>
+> ⚠️ **Native build шаардана** — Expo Go дээр SDK ажиллахгүй. iOS-д
+> `usesAppleSignIn: true` (entitlement).
 
 ## 2. Users — `/api/users`
 Controller-level: бүгд JWT. Заримд нэмэлт роль.
@@ -755,7 +785,7 @@ Admin dashboard энэ endpoint-уудыг дараа ашиглаж болно 
 
 | Файл | Функц → Endpoint |
 | --- | --- |
-| `auth.ts` | `register`→POST `/auth/register` · `verifyOtp`→POST `/auth/verify-otp` · `resendOtp`→POST `/auth/resend-otp` · `login`→POST `/auth/login` · `forgotPassword`→POST `/auth/forgot-password` · `resetPassword`→POST `/auth/reset-password` · `getMe`→GET `/auth/me` |
+| `auth.ts` | `getSocialProviders`→GET `/auth/social/providers` · `socialSignIn`→POST `/auth/social` · `socialComplete`→POST `/auth/social/complete` · `register`→POST `/auth/register` · `verifyOtp`→POST `/auth/verify-otp` · `resendOtp`→POST `/auth/resend-otp` · `login`→POST `/auth/login` · `forgotPassword`→POST `/auth/forgot-password` · `resetPassword`→POST `/auth/reset-password` · `getMe`→GET `/auth/me` |
 | `users.ts` | `getStats`→GET `/users/me/stats` · `getMyPlan`→GET `/users/me/plan` · `updateProfile`→PATCH `/users/me` · `uploadAvatar`→POST `/users/me/avatar` |
 | `gamification.ts` | `getGamification`→GET `/gamification` |
 | **`analytics.ts`** 🆕 | `getAnalyticsOverview`→GET `/analytics/overview` · `getAnalyticsHistory`→GET `/analytics/history?range=`. Хэрэглэгч: **`src/components/AnalyticsSection.tsx`** (профайлын "Статистик" блок — метрик tile-ууд + 7/30 хоногийн идэвхийн график), **`app/(tabs)/profile.tsx`**-д суусан |

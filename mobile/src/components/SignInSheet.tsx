@@ -33,6 +33,7 @@ import { Checkbox } from './Checkbox';
 import { SocialRow } from './SocialRow';
 import { FormError } from './FormError';
 import { AuthFooter } from './AuthFooter';
+import { useSocialSignIn } from '../auth/useSocialSignIn';
 
 /** Frosted-glass sheet background (blurs the welcome content behind it). */
 function GlassBackground({ style }: BottomSheetBackgroundProps) {
@@ -199,7 +200,8 @@ export function SignInSheet({
     }
   }
 
-  const soon = () => setError(t('comingSoon'));
+  // Google/Apple — the hook hides buttons the server hasn't enabled.
+  const social = useSocialSignIn();
   const goForgot = () => {
     close();
     router.push('/(auth)/forgot');
@@ -262,7 +264,7 @@ export function SignInSheet({
           </Pressable>
         </View>
 
-        <FormError message={error} />
+        <FormError message={error ?? social.error} />
 
         {/* Gradient CTA */}
         <Pressable onPress={onSubmit} disabled={busy} style={({ pressed }) => pressed && styles.pressed}>
@@ -300,7 +302,11 @@ export function SignInSheet({
           </AppText>
           <View style={styles.line} />
         </View>
-        <SocialRow onPress={soon} />
+        <SocialRow
+          onPress={social.start}
+          available={social.available}
+          disabled={social.busy !== null || busy}
+        />
 
         <AuthFooter prompt={t('noAccount')} linkLabel={t('register')} onPress={goRegister} />
       </BottomSheetScrollView>

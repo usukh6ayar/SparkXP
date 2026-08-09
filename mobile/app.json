@@ -19,7 +19,8 @@
           "audio"
         ],
         "ITSAppUsesNonExemptEncryption": false
-      }
+      },
+      "usesAppleSignIn": true
     },
     "android": {
       "package": "mn.app.sparkxp",
@@ -92,7 +93,8 @@
           "url": "https://sentry.io/"
         }
       ],
-      "expo-localization"
+      "expo-localization",
+      "@react-native-google-signin/google-signin"
     ],
     "owner": "usukh6ayar",
     "extra": {

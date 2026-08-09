@@ -32,9 +32,18 @@ export class User extends BaseEntity {
   @Column()
   email: string;
 
-  /** bcrypt/argon hash — never the plaintext password. */
-  @Column({ name: 'password_hash' })
-  passwordHash: string;
+  /**
+   * bcrypt hash — never the plaintext password.
+   *
+   * `null` for an account created through Google/Apple that has never set a
+   * password: there is nothing to hash, and storing a random unusable hash
+   * would make "does this account have a password?" unanswerable. Anything
+   * that compares a password must handle `null` (see `AccountDeletionService`,
+   * which lets a social-only account delete itself without one — App Store
+   * 5.1.1(v) requires deletion to be reachable by every account).
+   */
+  @Column({ name: 'password_hash', type: 'varchar', nullable: true })
+  passwordHash: string | null;
 
   /** Whether the email has been confirmed via OTP at registration. */
   @Column({ name: 'email_verified', type: 'boolean', default: false })

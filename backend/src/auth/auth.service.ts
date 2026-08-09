@@ -194,7 +194,14 @@ export class AuthService {
       ? await this.usersService.findByUsernameOrEmail(identifier)
       : null;
     // Same error whether the identifier or password is wrong — don't leak which.
-    if (!user || !(await bcrypt.compare(dto.password, user.passwordHash))) {
+    // `passwordHash` is null on a Google/Apple-only account: there is no
+    // password to compare, so password login simply fails. The message stays
+    // identical so this can't be used to enumerate which accounts are social.
+    if (
+      !user ||
+      user.passwordHash === null ||
+      !(await bcrypt.compare(dto.password, user.passwordHash))
+    ) {
       throw new UnauthorizedException('Нэвтрэх нэр эсвэл нууц үг буруу байна');
     }
 
@@ -281,7 +288,8 @@ export class AuthService {
 
   // ── shaping ─────────────────────────────────────────────────────────────
 
-  private buildAuthResult(user: User): AuthResult {
+  /** Public so social sign-in returns the exact same session shape. */
+  buildAuthResult(user: User): AuthResult {
     const payload: JwtPayload = {
       sub: user.id,
       email: user.email,

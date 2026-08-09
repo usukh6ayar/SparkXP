@@ -18,6 +18,7 @@ import { LessonUnlock } from './lesson-unlock.entity';
 import { Notification } from './notification.entity';
 import { ClassJoinRequest } from './class-join-request.entity';
 import { AiBuddy } from './ai-buddy.entity';
+import { UserIdentity } from './user-identity.entity';
 import { AssignmentCompletion } from './assignment-completion.entity';
 import { ReadingPassage } from './reading-passage.entity';
 import { ReadingProgress } from './reading-progress.entity';
@@ -56,6 +57,7 @@ export {
   Notification,
   ClassJoinRequest,
   AiBuddy,
+  UserIdentity,
   AssignmentCompletion,
   ReadingPassage,
   ReadingProgress,
@@ -96,6 +98,7 @@ export const entities = [
   Notification,
   ClassJoinRequest,
   AiBuddy,
+  UserIdentity,
   AssignmentCompletion,
   ReadingPassage,
   ReadingProgress,

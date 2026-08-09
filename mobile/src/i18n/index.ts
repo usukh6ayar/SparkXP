@@ -154,6 +154,10 @@ const mn = {
   usernameHint: '3–30 тэмдэгт · зөвхөн латин үсэг, тоо, доогуур зураас',
   usernameInvalid: 'Нэвтрэх нэр буруу байна. 3–30 тэмдэгт, зөвхөн латин үсэг, тоо, доогуур зураас.',
   usernameTaken: 'Энэ нэвтрэх нэр аль хэдийн ашиглагдсан байна. Өөрийг сонгоно уу.',
+  // Google/Apple-ээр анх орж ирсэн хүн өөрийн нэвтрэх нэрээ сонгох дэлгэц.
+  chooseUsernameTitle: 'Нэвтрэх нэрээ сонгоно уу',
+  chooseUsernameBody: 'Энэ нэр чансаа болон профайл дээр бусдад харагдана. Дараа нь тохиргооноос өөрчилж болно.',
+  chooseUsernameCta: 'Үргэлжлүүлэх',
   usernameUnavailable: 'Нэвтрэх нэр солих боломж одоогоор бэлэн болоогүй байна.',
 
   // OTP / email verification
@@ -1263,6 +1267,9 @@ const en: Record<TranslationKey, string> = {
   usernameHint: '3–30 characters · letters, numbers and underscore only',
   usernameInvalid: 'Invalid username. Use 3–30 letters, numbers or underscores.',
   usernameTaken: 'That username is already taken. Please pick another.',
+  chooseUsernameTitle: 'Choose a username',
+  chooseUsernameBody: 'This name is what other learners see on leaderboards and your profile. You can change it later in Settings.',
+  chooseUsernameCta: 'Continue',
   usernameUnavailable: 'Changing your username is not available yet.',
 
   otpTitle: 'Verify your email',
