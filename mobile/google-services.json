@@ -12,7 +12,20 @@
           "package_name": "mn.app.sparkxp"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "371417423446-846s6bo3b2h0f1pn5re8ned00ehho4ll.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "mn.app.sparkxp",
+            "certificate_hash": "9fd536466c8f39a881a3ecdded10328cc0138bc5"
+          }
+        },
+        {
+          "client_id": "371417423446-o1df8ivrimesdo4a2ea6mrarv4jeqnaf.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyBm-2vqdglrEwdcG9AD1dLRaNeMkHPcgzs"
@@ -20,7 +33,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "371417423446-o1df8ivrimesdo4a2ea6mrarv4jeqnaf.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "371417423446-mv0qftkp1gmhldktqdnf1vonsfob802g.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "mn.app.sparkxp"
+              }
+            }
+          ]
         }
       }
     }
