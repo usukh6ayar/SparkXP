@@ -745,9 +745,14 @@ export default function HomeScreen() {
                     >
                       <PressableScale
                         style={styles.skillTile}
-                        // Reading = passages grouped by сэдэв (own screen); the other
-                        // skills are quiz-based exercise lists.
-                        onPress={() => { haptics.tap(); router.push(task.key === "reading" ? "/reading" : `/skill/${task.key}`); }}
+                        // Reading = passages (own screen); Speaking = pronunciation
+                        // drill (own screen); the other skills are quiz-based lists.
+                        onPress={() => {
+                          haptics.tap();
+                          router.push(
+                            task.key === "reading" ? "/reading" : task.key === "speaking" ? "/speaking" : `/skill/${task.key}`,
+                          );
+                        }}
                         accessibilityRole="button"
                         accessibilityLabel={`${t(task.labelKey)}, ${countLabel}`}
                       >

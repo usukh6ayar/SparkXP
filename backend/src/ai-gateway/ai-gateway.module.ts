@@ -15,6 +15,7 @@ import { BuddyController } from './buddy.controller';
 import { BuddyRealtimeController } from './buddy-realtime.controller';
 import { ImageStorageService } from './image-storage.service';
 import { aiProviders } from './providers/providers.config';
+import { STT_ADAPTER } from './providers/stt.adapter';
 import { BuddyUsageService } from './buddy-usage.service';
 import { BuddyMemoryService } from './buddy-memory.service';
 import { BuddyService } from './buddy.service';
@@ -48,6 +49,8 @@ import { XpModule } from '../xp/xp.module';
     AiBuddyEnabledGuard,
   ],
   controllers: [AiGatewayController, BuddyController, BuddyRealtimeController],
-  exports: [AiGatewayService, ImageStorageService],
+  // STT_ADAPTER is exported so the speaking-exercise module can reuse the same
+  // ElevenLabs Scribe transcriber the buddy uses (no second provider).
+  exports: [AiGatewayService, ImageStorageService, STT_ADAPTER],
 })
 export class AiGatewayModule {}

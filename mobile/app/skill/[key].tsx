@@ -75,10 +75,17 @@ export default function SkillScreen() {
     }
   }, [token, skillKey]);
 
+  // Speaking is a dedicated pronunciation drill, not a quiz list — send any
+  // `/skill/speaking` link there so old entry points keep working.
   useEffect(() => {
+    if (skillKey === 'speaking') router.replace('/speaking');
+  }, [skillKey, router]);
+
+  useEffect(() => {
+    if (skillKey === 'speaking') return;
     setLoading(true);
     load().finally(() => setLoading(false));
-  }, [load]);
+  }, [load, skillKey]);
 
   // Refresh completion when returning from a quiz (checkmarks update live).
   useFocusEffect(
