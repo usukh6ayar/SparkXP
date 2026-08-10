@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, useMemo, type ComponentProps } from 'react';
 import { View, StyleSheet, Dimensions, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -48,6 +48,9 @@ export default function ReviewFlashcardsScreen() {
   const c = useColors();
   const styles = useMemo(() => makeStyles(c), [c]);
   const router = useRouter();
+  // `?lessonId=` → practise exactly that lesson's words instead of the general
+  // deck. Opened from the lesson screen's "Эдгээр үгийг давтах" button.
+  const { lessonId } = useLocalSearchParams<{ lessonId?: string }>();
 
   const [queue, setQueue] = useState<LearnWord[]>([]);
   const [index, setIndex] = useState(0);
@@ -78,14 +81,14 @@ export default function ReviewFlashcardsScreen() {
     setLoading(true);
     getGamification(token).then((g) => setStreak(g.currentStreak)).catch(() => {});
     try {
-      setQueue(await getLearnQueue(token));
+      setQueue(await getLearnQueue(token, lessonId));
       setError(false);
     } catch {
       setError(true);
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, lessonId]);
 
   useEffect(() => { load(); }, [load]);
 

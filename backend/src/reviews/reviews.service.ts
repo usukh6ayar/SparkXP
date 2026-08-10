@@ -4,7 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThanOrEqual, MoreThanOrEqual, In } from 'typeorm';
 import { WordReview } from '../entities/word-review.entity';
 import { Word } from '../entities/word.entity';
-import { RecallStatus, WordStatus } from '../common/enums';
+import { RecallStatus, WordStatus, ContentLevel } from '../common/enums';
 import { computeSm2, initialSm2State, PASS_THRESHOLD } from './sm2';
 import { XpService } from '../xp/xp.service';
 import { XpSource } from '../common/enums';
@@ -30,6 +30,9 @@ const REVIEW_XP_TTL_SECONDS = 26 * 60 * 60;
 
 /** Safety cap so the daily due queue never returns a huge payload. */
 const DUE_LIMIT = 100;
+
+/** CEFR levels in order — index distance drives the learn queue's sort. */
+const LEVEL_ORDER = Object.values(ContentLevel) as string[];
 
 /** A word in the swipe deck, plus this user's saved/SRS state. */
 export type LearnCard = Word & {
@@ -289,7 +292,11 @@ export class ReviewsService {
    * know (no review yet, or repetitions = 0). Each card carries this user's
    * saved (⭐) flag so the swipe UI can render the star without an extra call.
    */
-  async getLearnQueue(userId: string, limit = 30): Promise<LearnCard[]> {
+  async getLearnQueue(
+    userId: string,
+    limit = 30,
+    opts: { lessonId?: string; level?: string | null } = {},
+  ): Promise<LearnCard[]> {
     // Words the user already knows (excluded from the deck).
     const knownRows = await this.reviews.find({
       where: { userId, repetitions: MoreThanOrEqual(1) },
@@ -300,8 +307,41 @@ export class ReviewsService {
     const qb = this.words
       .createQueryBuilder('w')
       .where('w.status = :status', { status: WordStatus.PUBLISHED })
-      .orderBy('w.created_at', 'ASC')
       .take(limit);
+
+    if (opts.lessonId) {
+      // "Practise this lesson's words" — the deck is exactly that lesson's
+      // vocabulary, in the order an admin curated it.
+      qb.andWhere('w.lesson_id = :lessonId', { lessonId: opts.lessonId });
+      qb.orderBy('w.created_at', 'ASC');
+    } else {
+      // Otherwise: nearest the learner's own CEFR level first.
+      //
+      // This used to be `ORDER BY created_at ASC` alone, which handed everyone
+      // the 30 OLDEST words in the whole bank regardless of level — so a B2
+      // learner practised whatever happened to be seeded first, usually A1.
+      // The level they pick at sign-up had no effect on what they study.
+      const idx = LEVEL_ORDER.indexOf((opts.level ?? '').toLowerCase());
+      if (idx >= 0) {
+        // Distance in CEFR steps from the learner's level; ties by age. Words
+        // AT their level come first, then the neighbours on either side.
+        qb.orderBy(
+          `ABS(COALESCE(array_position(ARRAY[:...levels]::varchar[], w.level::varchar), :fallback) - :userIdx)`,
+          'ASC',
+        )
+          .addOrderBy('w.created_at', 'ASC')
+          .setParameters({
+            levels: LEVEL_ORDER,
+            // A word with an unrecognised level sorts last, not first.
+            fallback: LEVEL_ORDER.length + 99,
+            // `array_position` is 1-based.
+            userIdx: idx + 1,
+          });
+      } else {
+        qb.orderBy('w.created_at', 'ASC');
+      }
+    }
+
     if (knownIds.length > 0) {
       qb.andWhere('w.id NOT IN (:...knownIds)', { knownIds });
     }
