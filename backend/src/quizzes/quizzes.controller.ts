@@ -27,6 +27,7 @@ import { XpService } from '../xp/xp.service';
 import { StarsService } from '../xp/stars.service';
 import { XpSource } from '../common/enums';
 import { AiGenerateQuizDto } from './dto/ai-generate-quiz.dto';
+import { BulkGenerateQuizDto } from './dto/bulk-generate-quiz.dto';
 import { CreateQuizDto } from './dto/create-quiz.dto';
 import { IELTS_OBJECTIVE_CATEGORIES, ieltsBand } from './ielts';
 import { UpdateQuizDto } from './dto/update-quiz.dto';
@@ -69,6 +70,40 @@ export class QuizzesController {
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
   aiGenerate(@Body() dto: AiGenerateQuizDto) {
     return this.quizzesService.aiGenerate(dto);
+  }
+
+  /**
+   * Админ: агуулга бичихгүйгээр **бүхэл түвшний** контент үүсгэнэ — төрөл тус
+   * бүрт N дасгал, аль хэдийн байгаа контенттой давхцуулахгүйгээр.
+   *
+   * ⚠️ `ai-generate`-ээс ялгаатай нь энэ нь шууд хадгална (40 дасгалыг preview
+   * дээр нэг бүрчлэн шалгах боломжгүй). Урт ажил тул background-д явж `jobId`
+   * буцаана — `GET /quizzes/bulk-generate/:jobId`-ээр явцыг хараарай.
+   */
+  @Post('bulk-generate')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  bulkGenerate(@Body() dto: BulkGenerateQuizDto) {
+    const { jobId, total } = this.quizzesService.startBulkGenerate(dto);
+    return { started: true, background: true, jobId, total };
+  }
+
+  /** Явц татах. `:id`-аас ӨМНӨ байх ёстой, эс бөгөөс route нь тэр рүү унана. */
+  @Get('bulk-generate/:jobId')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  bulkGenerateStatus(@Param('jobId') jobId: string) {
+    return (
+      this.quizzesService.getBulkJob(jobId) ?? { done: true, expired: true }
+    );
+  }
+
+  /** "Зогсоох" — ажиллаж буй дуудлагууд дуусаад шинэ нь эхлэхгүй. */
+  @Post('bulk-generate/:jobId/cancel')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  cancelBulkGenerate(@Param('jobId') jobId: string) {
+    return { canceled: this.quizzesService.cancelBulkJob(jobId) };
   }
 
   /** List quizzes with optional filters. */
@@ -136,7 +171,11 @@ export class QuizzesController {
         amount: result.xpEarned,
         source: XpSource.QUIZ,
         referenceId: quiz.id,
-        metadata: { score: result.score, total: result.total, percentage: result.percentage },
+        metadata: {
+          score: result.score,
+          total: result.total,
+          percentage: result.percentage,
+        },
       });
       // Already earned XP for this quiz before → reflect 0 in the response so the
       // result screen doesn't promise XP that wasn't granted.
@@ -153,14 +192,22 @@ export class QuizzesController {
     });
 
     if (dto.assignmentId) {
-      await this.assignments.recordSubmission(dto.assignmentId, user.id, result.percentage);
+      await this.assignments.recordSubmission(
+        dto.assignmentId,
+        user.id,
+        result.percentage,
+      );
     }
 
     // A lesson's test permanently sets that lesson's star rating (0–3, best
     // kept). Drives the stars under lesson cards and the star-gated castle
     // unlocks. Homework still counts — stars are the learner's own progress.
     if (quiz.lessonId) {
-      const starsEarned = await this.stars.awardFromScore(user.id, quiz.lessonId, result.percentage);
+      const starsEarned = await this.stars.awardFromScore(
+        user.id,
+        quiz.lessonId,
+        result.percentage,
+      );
       return { ...result, starsEarned };
     }
 

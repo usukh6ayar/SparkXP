@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { Plus, Sparkles } from 'lucide-react';
 import { api } from '../../api/client';
 import { Button } from '../../components/Button';
-import { Badge } from '../../components/Badge';
 import { Modal } from '../../components/Modal';
 import { Input } from '../../components/Input';
 import { Select } from '../../components/Select';
@@ -14,6 +13,8 @@ import {
   type QuestionType,
 } from '../../components/QuizQuestionsEditor';
 import { AiBulkGenerator } from '../../components/AiBulkGenerator';
+import { HiddenBadge } from '../../components/Publish';
+import { ErrorBox } from '../../components/ErrorBox';
 
 /** The 4 lesson-test categories. Speaking = coming soon. */
 const CATS = [
@@ -44,10 +45,10 @@ interface TestForm {
   questionType: QuestionType;
   questions: Question[];
   xpReward: number;
-  isPublished: boolean;
 }
+// "Ноорог" төлөв формд байхгүй: Хадгалах = шууд нийтлэх (`components/Publish.tsx`).
 const emptyForm: TestForm = {
-  title: '', questionType: 'multiple_choice', questions: [], xpReward: 20, isPublished: true,
+  title: '', questionType: 'multiple_choice', questions: [], xpReward: 20,
 };
 
 /**
@@ -84,7 +85,7 @@ export function LessonTests({
   function openCreate() { setForm(emptyForm); setEditing(null); setError(''); setModal('create'); }
   function openEdit(t: Test) {
     const qt = (t.quizType as QuestionType) || (t.questions[0]?.type ?? 'multiple_choice');
-    setForm({ title: t.title, questionType: qt, questions: t.questions ?? [], xpReward: t.xpReward, isPublished: t.isPublished });
+    setForm({ title: t.title, questionType: qt, questions: t.questions ?? [], xpReward: t.xpReward });
     setEditing(t); setError(''); setModal('edit');
   }
   function changeType(qt: QuestionType) {
@@ -99,7 +100,7 @@ export function LessonTests({
       const payload = {
         title: form.title.trim(), level, lessonId, category: cat,
         quizType: form.questionType, questions: form.questions,
-        xpReward: form.xpReward, isPublished: form.isPublished,
+        xpReward: form.xpReward, isPublished: true, // хадгалсан тест шууд аппад гарна
       };
       if (modal === 'create') await api.post('/quizzes', payload);
       else if (editing) await api.patch(`/quizzes/${editing.id}`, payload);
@@ -144,7 +145,7 @@ export function LessonTests({
               <div key={t.id} className="flex items-center gap-2 rounded-lg bg-gray-50 px-3 py-2">
                 <span className="flex-1 text-sm font-medium">{t.title}</span>
                 <span className="text-xs text-gray-400">{t.questions?.length ?? 0} асуулт</span>
-                {t.isPublished ? <Badge color="green">Нийтэлсэн</Badge> : <Badge color="gray">Ноорог</Badge>}
+                <HiddenBadge published={t.isPublished} />
                 <RowActions onEdit={() => openEdit(t)} onDelete={() => remove(t.id)} />
               </div>
             ))}
@@ -194,11 +195,8 @@ export function LessonTests({
               <label className="mb-2 block text-sm font-medium text-gray-700">Асуултууд ({form.questions.length})</label>
               <QuizQuestionsEditor questionType={form.questionType} questions={form.questions} onChange={(questions) => setForm({ ...form, questions })} />
             </div>
-            <label className="flex items-center gap-2 text-sm text-gray-700">
-              <input type="checkbox" checked={form.isPublished} onChange={(e) => setForm({ ...form, isPublished: e.target.checked })} />
-              Нийтлэх
-            </label>
-            {error && <p className="text-sm text-red-500">{error}</p>}
+            <p className="text-xs text-gray-500">✅ Хадгалмагц шууд нийтлэгдэж, апп дээр гарна.</p>
+            <ErrorBox message={error} />
             <FormActions onCancel={() => setModal(null)} onSave={save} saving={saving} />
           </div>
         </Modal>

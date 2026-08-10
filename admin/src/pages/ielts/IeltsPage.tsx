@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Eye, EyeOff, Trash2, Sparkles } from 'lucide-react';
+import { Plus, Trash2, Sparkles } from 'lucide-react';
 import { AiBulkGenerator } from '../../components/AiBulkGenerator';
+import { HiddenBadge, VisibilityButton, UnpublishedBanner } from '../../components/Publish';
+import { BulkGenerateModal, BulkGenerateProgress, BulkGenerateButton } from '../../components/BulkGenerate';
+import { ErrorBox } from '../../components/ErrorBox';
 import { api } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
 import { Button } from '../../components/Button';
@@ -13,6 +16,7 @@ import { FormActions } from '../../components/FormActions';
 import { RowActions } from '../../components/RowActions';
 import { Pagination } from '../../components/Pagination';
 import { levelFormOptions as LEVEL_OPTIONS, IELTS_MODULES, ieltsSubTopicOptions } from '../../lib/options';
+
 import {
   QuizQuestionsEditor,
   type Question,
@@ -28,6 +32,21 @@ const QTYPE_OPTIONS = [
   { value: 'fill_blank', label: 'Gap-fill' },
   { value: 'word_match', label: 'Matching' },
 ];
+
+/**
+ * "Бүх төрлөөр үүсгэх"-ийн төрлүүд = 4 IELTS модуль. Writing/Speaking нь
+ * зөвхөн задгай хариулт (`open_response`); Listening/Reading нь оноологддог
+ * форматтай тул AI өөрөө сонгоно.
+ */
+const BULK_TARGETS = IELTS_MODULES.map((m) => ({
+  key: m.key,
+  category: m.category,
+  label: `IELTS ${m.label}`,
+  questionType: m.objective ? undefined : 'open_response',
+  topics: ieltsSubTopicOptions(m.key)
+    .map((o) => o.value)
+    .filter(Boolean),
+}));
 
 interface Exercise {
   id: string;
@@ -50,16 +69,13 @@ interface Form {
   questionType: QuestionType;
   questions: Question[];
   xpReward: number;
-  isPublished: boolean;
   passageText: string;
   audioUrl: string;
 }
-// Анхдагчаар нийтэлнэ (Дасгал хуудастай ижил): апп зөвхөн `isPublished=true`
-// контентыг татдаг тул ноорог-анхдагч форм нь "оруулсан контент апп дээр
-// гарахгүй" гэсэн гомдлын шалтгаан болдог.
+// "Ноорог" төлөв формд байхгүй: Хадгалах = шууд нийтлэх (`components/Publish.tsx`).
 const emptyForm: Form = {
   title: '', level: 'a1', topic: '', questionType: 'multiple_choice', questions: [],
-  xpReward: 50, isPublished: true, passageText: '', audioUrl: '',
+  xpReward: 50, passageText: '', audioUrl: '',
 };
 
 export default function IeltsPage() {
@@ -74,8 +90,12 @@ export default function IeltsPage() {
 
   // Selection (bulk publish/delete)
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [publishingAll, setPublishingAll] = useState(false);
   // AI-аар үүсгэх (дундын AiBulkGenerator)
   const [aiOpen, setAiOpen] = useState(false);
+  // Бүх төрлөөр үүсгэх (background job)
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkJobId, setBulkJobId] = useState<string | null>(null);
 
   const current = IELTS_MODULES.find((m) => m.key === mod)!;
 
@@ -101,7 +121,7 @@ export default function IeltsPage() {
     const qt = (ex.quizType as QuestionType) || (ex.questions[0]?.type ?? defaultType());
     setForm({
       title: ex.title, level: ex.level, topic: ex.topic ?? '', questionType: qt,
-      questions: ex.questions ?? [], xpReward: ex.xpReward, isPublished: ex.isPublished,
+      questions: ex.questions ?? [], xpReward: ex.xpReward,
       passageText: ex.passageText ?? '', audioUrl: ex.audioUrl ?? '',
     });
     setEditing(ex); setError(''); setModal('edit');
@@ -121,7 +141,7 @@ export default function IeltsPage() {
         title: form.title.trim(), level: form.level,
         category: current.category, topic: form.topic,
         quizType: form.questionType, questions: form.questions,
-        xpReward: form.xpReward, isPublished: form.isPublished,
+        xpReward: form.xpReward, isPublished: true, // хадгалсан контент шууд аппад гарна
         passageText: current.key === 'reading' ? form.passageText : undefined,
         audioUrl: current.key === 'listening' ? form.audioUrl : undefined,
       };
@@ -158,6 +178,14 @@ export default function IeltsPage() {
     await Promise.all([...selected].map((id) => api.patch(`/quizzes/${id}`, { isPublished })));
     load();
   }
+  /** Хуучин ноорог мөрүүдийг нэг товчоор нийтлэх (баннераас). */
+  async function publishAllHidden() {
+    setPublishingAll(true);
+    try {
+      await Promise.all(hidden.map((e) => api.patch(`/quizzes/${e.id}`, { isPublished: true })));
+      load();
+    } finally { setPublishingAll(false); }
+  }
   async function bulkDelete() {
     if (!confirm(`${selected.size} контент устгах уу?`)) return;
     await Promise.all([...selected].map((id) => api.delete(`/quizzes/${id}`)));
@@ -166,6 +194,7 @@ export default function IeltsPage() {
 
   const total = items.length;
   const paged = items.slice((page - 1) * LIMIT, page * LIMIT);
+  const hidden = items.filter((e) => !e.isPublished);
   const allChecked = paged.length > 0 && paged.every((e) => selected.has(e.id));
   const columns = [
     {
@@ -174,7 +203,15 @@ export default function IeltsPage() {
       render: (e: Exercise) => <input type="checkbox" checked={selected.has(e.id)} onChange={() => toggleRow(e.id)} />,
       className: 'w-8',
     },
-    { key: 'title', header: 'Гарчиг', render: (e: Exercise) => <span className="font-medium">{e.title}</span> },
+    {
+      key: 'title', header: 'Гарчиг',
+      render: (e: Exercise) => (
+        <span className="flex items-center gap-2">
+          <span className="font-medium">{e.title}</span>
+          <HiddenBadge published={e.isPublished} />
+        </span>
+      ),
+    },
     {
       key: 'topic', header: 'Сэдэв',
       render: (e: Exercise) =>
@@ -184,20 +221,10 @@ export default function IeltsPage() {
     { key: 'qs', header: 'Асуулт', render: (e: Exercise) => <span className="text-gray-600">{e.questions?.length ?? 0}</span> },
     { key: 'xp', header: 'XP', render: (e: Exercise) => <span className="text-primary font-medium">⚡ {e.xpReward}</span> },
     {
-      key: 'status', header: 'Төлөв',
-      render: (e: Exercise) => (
-        <button onClick={() => togglePublish(e)} title="Дарж нийтлэх төлөв солих">
-          {e.isPublished ? <Badge color="green">Нийтэлсэн</Badge> : <Badge color="gray">Ноорог</Badge>}
-        </button>
-      ),
-    },
-    {
       key: 'actions', header: '',
       render: (e: Exercise) => (
         <div className="flex gap-1 justify-end">
-          <Button variant="ghost" size="sm" onClick={() => togglePublish(e)} title={e.isPublished ? 'Нийтлэхээ болих' : 'Нийтлэх'}>
-            {e.isPublished ? <EyeOff className="h-4 w-4 text-gray-500" /> : <Eye className="h-4 w-4 text-green-600" />}
-          </Button>
+          <VisibilityButton published={e.isPublished} onToggle={() => togglePublish(e)} />
           <RowActions onEdit={() => openEdit(e)} onDelete={() => remove(e.id)} />
         </div>
       ),
@@ -213,6 +240,7 @@ export default function IeltsPage() {
         action={
           <div className="flex gap-2">
             <Button variant="secondary" onClick={() => setAiOpen(true)}><Sparkles className="h-4 w-4" /> AI-аар үүсгэх</Button>
+            <BulkGenerateButton onClick={() => setBulkOpen(true)} />
             <Button onClick={openCreate}><Plus className="h-4 w-4" /> IELTS контент нэмэх</Button>
           </div>
         }
@@ -235,6 +263,17 @@ export default function IeltsPage() {
         />
       )}
 
+      {bulkOpen && (
+        <BulkGenerateModal
+          kind="ielts"
+          title="IELTS"
+          targets={BULK_TARGETS}
+          defaultXp={50}
+          onClose={() => setBulkOpen(false)}
+          onStarted={setBulkJobId}
+        />
+      )}
+
       {/* Module tabs */}
       <div className="mb-4 flex flex-wrap gap-2">
         {IELTS_MODULES.map((m) => (
@@ -248,12 +287,19 @@ export default function IeltsPage() {
         ))}
       </div>
 
+      {bulkJobId && (
+        <BulkGenerateProgress jobId={bulkJobId} onRefresh={load} onClose={() => setBulkJobId(null)} />
+      )}
+
+      {/* Хуучин ноорог мөр үлдсэн бол ил гаргана. */}
+      <UnpublishedBanner count={hidden.length} onPublishAll={publishAllHidden} busy={publishingAll} noun="IELTS контент" />
+
       {/* Bulk action bar */}
       {selected.size > 0 && (
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <span className="text-sm text-gray-500">{selected.size} сонгосон:</span>
           <Button variant="secondary" size="sm" onClick={() => bulkPublish(true)}>Нийтлэх</Button>
-          <Button variant="secondary" size="sm" onClick={() => bulkPublish(false)}>Ноорог болгох</Button>
+          <Button variant="secondary" size="sm" onClick={() => bulkPublish(false)}>Аппаас нуух</Button>
           <Button variant="danger" size="sm" onClick={bulkDelete}><Trash2 className="h-4 w-4" /> Устгах</Button>
         </div>
       )}
@@ -303,12 +349,8 @@ export default function IeltsPage() {
               />
             </div>
 
-            <label className="flex items-center gap-2 text-sm text-gray-700">
-              <input type="checkbox" checked={form.isPublished} onChange={(e) => setForm({ ...form, isPublished: e.target.checked })} />
-              Шууд нийтлэх
-            </label>
-
-            {error && <p className="text-sm text-red-500">{error}</p>}
+            <p className="text-xs text-gray-500">✅ Хадгалмагц шууд нийтлэгдэж, апп дээр гарна.</p>
+            <ErrorBox message={error} />
             <FormActions onCancel={() => setModal(null)} onSave={save} saving={saving} />
           </div>
         </Modal>

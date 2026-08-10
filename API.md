@@ -177,6 +177,9 @@ Controller-level: JWT. Бичилт admin-баг. (Хичээлийн тест �
 | POST `/quizzes/:id/submit` | JWT | Хариу шалгаж XP олгох (≥1 зөв бол). XP нь **quiz тус бүрт нэг удаа** (`awardOnce`, farming-аас сэргийлнэ); дахин илгээвэл `xpEarned: 0`. Бүр submit `quiz_attempt` (skill+score) хадгална; `assignmentId` өгвөл даалгаврын submission-ыг оноотой бүртгэнэ | `SubmitQuizDto` (`answers`, `assignmentId?`) |
 | POST `/quizzes/:id/check` | JWT | **Нэг** хариу шалгах — C2 шуурхай feedback (XP олгохгүй, бүх түлхүүр задлахгүй). Буруу бол тухайн асуултын зөв хариу буцна. **Буруу хариулт 1 зүрх авна** (§6a; багшийн даалгавар **үл хамаарна**) → `{ correct, correctAnswer?, hearts }` (`correctAnswer`: mc→index · fill_blank→string · word_match→pairs; `hearts` = `HeartsState`) | `AnswerItemDto` (`questionIndex`, `answer`) |
 | POST `/quizzes/ai-generate` | admin-баг | **Бичсэн агуулгаас AI-аар асуултын ноорог үүсгэх** (Дасгал · Сорил · IELTS гурвуулаа). **DB рүү юу ч бичихгүй** — буцаасан ноорогийг админ preview дээр засаад `POST /quizzes`-ээр өөрөө хадгална | `AiGenerateQuizDto` |
+| POST `/quizzes/bulk-generate` | admin-баг | **Агуулга бичихгүйгээр бүхэл түвшний контент үүсгэх** — төрөл тус бүрт N дасгал, байгаа контенттой давхцуулахгүйгээр. ⚠️ `ai-generate`-ээс ялгаатай нь **шууд хадгална** (нийтэлсэн төлөвтэй). Background → `{ started, background, jobId, total }` | `BulkGenerateQuizDto` |
+| GET `/quizzes/bulk-generate/:jobId` | admin-баг | Явц татах (админ 2.5с тутам). Танихгүй/хугацаа нь дууссан id → `{ done: true, expired: true }` | path `jobId` |
+| POST `/quizzes/bulk-generate/:jobId/cancel` | admin-баг | "Зогсоох" — эхэлсэн дуудлагууд дуусаад шинэ нь эхлэхгүй | path `jobId` |
 
 **`POST /quizzes/ai-generate`** — `AiGenerateQuizDto`:
 `brief` (заавал, чөлөөт текст) · `kind` (`exercise`\|`lesson`\|`ielts`) ·
@@ -191,6 +194,31 @@ Controller-level: JWT. Бичилт admin-баг. (Хичээлийн тест �
 асуулт нь **хасагдаад** тайлбар нь `warnings`-д бичигдэнэ.
 
 > ⚠️ `GEMINI_API_KEY` (билинг идэвхтэй) шаардана — эс бөгөөс 500 буцна.
+
+**`POST /quizzes/bulk-generate`** — `BulkGenerateQuizDto`:
+`kind` · `level` (**заавал** — энэ онцлогийн гол цэг) · `perTarget` (1–10) ·
+`questionCount` (1–20) · `xpReward?` · `targets[]`.
+
+`targets[]` мөр бүр: `category` (`Quiz.category`) · `label` (AI-д контекст) ·
+`topics?` (`Quiz.topic` — эдгээр рүү **ээлжлүүлж тараана**) · `questionType?` ·
+`quizType?` (Сорилын тоглоом) · `contextNote?`.
+
+> **Яагаад ангиллын хүснэгтийг frontend илгээдэг вэ:** Дасгал/Сорил/IELTS-ийн
+> төрөл ба сэдвийн жагсаалт админд (`admin/src/lib/options.ts`) байдаг. Тэднийг
+> backend-д хуулбарлавал хоёр газар зөрөх эрсдэлтэй болно.
+
+Явцын хариу: `{ total, processed, created, skipped, failed[], done, canceled?, current? }`
+(`skipped` = давхардлаас болж хаягдсан дасгал · `current` = "Сонсгол · Аялал #2").
+
+**Давхардлаас хамгаалах 2 давхарга:** (1) тухайн `category`-гийн одоо байгаа
+гарчгуудыг prompt-д "битгий давт" гэж өгнө; (2) буцаж ирсэн асуулт бүрийг DB дэх
+бүх асуултын нормчилсон түлхүүртэй (`dedupKey` — жижиг үсэг, цэг таслалгүй)
+харьцуулж, давхардсаныг **хасна**. Хассаны дараа 3-аас цөөн асуулт үлдвэл тухайн
+дасгал бүхэлдээ хаягдаж `skipped` болно.
+
+⚠️ **Ажил санах ойд** (`bulkJobs` Map, нэг instance) — Үгс/Хэлцийн загвартай ижил.
+Сервер дахин ачаалагдвал явц алдагдана (үүссэн дасгал DB-д үлдэнэ). Дууссан
+ажил 5 минутын дараа цэвэрлэгдэнэ. Зэрэг 3 AI дуудлага явна.
 
 > **IELTS (Approach A):** IELTS content = quizzes with `category` in
 > `ielts_listening` / `ielts_reading` / `ielts_writing` / `ielts_speaking`.

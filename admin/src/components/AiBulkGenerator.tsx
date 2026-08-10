@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Sparkles, AlertTriangle, ArrowLeft } from 'lucide-react';
 import { api } from '../api/client';
 import { Modal } from './Modal';
@@ -6,6 +6,9 @@ import { Button } from './Button';
 import { Input } from './Input';
 import { Select } from './Select';
 import { FormActions } from './FormActions';
+import { ErrorBox } from './ErrorBox';
+import { ProgressBar } from './JobProgress';
+import { friendlyError } from '../lib/errors';
 import { levelFormOptions } from '../lib/options';
 import { QuizQuestionsEditor, type Question, type QuestionType } from './QuizQuestionsEditor';
 
@@ -17,10 +20,9 @@ import { QuizQuestionsEditor, type Question, type QuestionType } from './QuizQue
  * Хуудас бүр өөрийн ялгааг `target`-аар дамжуулна.
  *
  * Урсгал: агуулгаа бичнэ → AI үүсгэнэ → **preview дээр засна** → хадгална.
- * Preview дээр асуулт бүрийг харж, засаж байж хадгалдаг тул анхдагчаар
- * **нийтэлнэ**; шалгах шаардлагатай бол "Шууд нийтлэх"-ийг тайлж ноорог болгоно.
- * (Урьд нь үргэлж ноорог байсан нь "AI-аар үүсгэсэн контент апп дээр гарахгүй"
- * гэсэн гомдлын гол шалтгаан байв.)
+ * Preview дээр асуулт бүрийг харж, засаж байж хадгалдаг тул хадгалсан контент
+ * **үргэлж шууд нийтлэгдэнэ** (ноорог гэсэн төлөв админд байхгүй болсон —
+ * `components/Publish.tsx`).
  */
 export interface AiTarget {
   /** Prompt-ийн контекстийг сонгоно. */
@@ -63,6 +65,11 @@ interface Props {
   onClose: () => void;
   /** Хадгалсны дараа — эцэг хуудас жагсаалтаа шинэчилнэ. */
   onSaved: () => void;
+  /**
+   * "Юу үүсгэх вэ?" талбарын урьдчилсан утга. Импортын цонхноос шилжихэд
+   * буулгасан текстийг нь шууд авч ирнэ (CSV буруу форматтай ч AI зохицуулна).
+   */
+  initialBrief?: string;
 }
 
 const AUTO = ''; // "AI өөрөө сонгоно" гэсэн утга
@@ -86,9 +93,9 @@ function chunk(questions: Question[], parts: number): Question[][] {
   return out;
 }
 
-export function AiBulkGenerator({ target, onClose, onSaved }: Props) {
+export function AiBulkGenerator({ target, onClose, onSaved, initialBrief }: Props) {
   // ── 1-р алхам: юу үүсгэх вэ ──
-  const [brief, setBrief] = useState('');
+  const [brief, setBrief] = useState(initialBrief ?? '');
   const [level, setLevel] = useState(target.defaultLevel ?? AUTO);
   const [qType, setQType] = useState<string>(target.questionType ?? AUTO);
   const [count, setCount] = useState('10');
@@ -103,8 +110,31 @@ export function AiBulkGenerator({ target, onClose, onSaved }: Props) {
   const [xpReward, setXpReward] = useState(target.xpReward);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [splitInto, setSplitInto] = useState('1');
-  const [publish, setPublish] = useState(true);
   const [saving, setSaving] = useState(false);
+  /** Хадгалахад хэдэн хэсэг бичигдсэн (хуваасан үед жинхэнэ явц). */
+  const [savedParts, setSavedParts] = useState(0);
+
+  // ── Үүсгэх явц ──
+  // `/quizzes/ai-generate` бол нэг удаагийн хүсэлт тул серверээс явц ирдэггүй.
+  // Хэрэглэгч 30+ секунд хоосон дэлгэц ширтэхгүйн тулд өнгөрсөн хугацаанд
+  // тулгуурлан **ойролцоо** хувийг харуулна (95%-д хүрээд хариу хүлээж зогсоно).
+  const [genPct, setGenPct] = useState(0);
+  useEffect(() => {
+    if (!loading) return;
+    setGenPct(0);
+    const startedAt = Date.now();
+    const estimateMs = 6000 + Number(count) * 1500; // 10 асуулт ≈ 21 сек
+    const id = setInterval(() => {
+      setGenPct(Math.min(95, ((Date.now() - startedAt) / estimateMs) * 100));
+    }, 250);
+    return () => clearInterval(id);
+  }, [loading, count]);
+
+  const genStage =
+    genPct < 30 ? 'Агуулгыг уншиж байна…'
+    : genPct < 70 ? 'Асуулт зохиож байна…'
+    : genPct < 95 ? 'Хариулт, чанарыг шалгаж байна…'
+    : 'Дуусах дөхлөө — хариу хүлээж байна…';
 
   async function generate() {
     if (brief.trim().length < 3) {
@@ -130,8 +160,9 @@ export function AiBulkGenerator({ target, onClose, onSaved }: Props) {
       setTopic(d.topic ?? '');
       setQuestions(d.questions);
       setSplitInto('1');
+      setGenPct(100);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Үүсгэхэд алдаа гарлаа');
+      setError(friendlyError(e, 'Үүсгэхэд алдаа гарлаа'));
     } finally {
       setLoading(false);
     }
@@ -149,8 +180,9 @@ export function AiBulkGenerator({ target, onClose, onSaved }: Props) {
     }
     setSaving(true);
     setError('');
+    setSavedParts(0);
+    const parts = chunk(questions, Number(splitInto));
     try {
-      const parts = chunk(questions, Number(splitInto));
       // Хуваасан үед гарчигт дугаар нэмнэ (1/3, 2/3 …).
       for (const [i, part] of parts.entries()) {
         await api.post('/quizzes', {
@@ -161,23 +193,21 @@ export function AiBulkGenerator({ target, onClose, onSaved }: Props) {
           quizType: draft.questionType,
           questions: part,
           xpReward,
-          isPublished: publish,
+          // Хадгалах = шууд нийтлэх. Ноорог гэсэн төлөв админд байхгүй.
+          isPublished: true,
           passageText: draft.passageText ?? undefined,
           ...target.save,
         });
+        setSavedParts(i + 1);
       }
       onSaved();
       onClose();
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Хадгалахад алдаа гарлаа');
+      setError(friendlyError(e, 'Хадгалахад алдаа гарлаа'));
     } finally {
       setSaving(false);
     }
   }
-
-  const errorBox = error && (
-    <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
-  );
 
   // ── Preview дэлгэц ──
   if (draft) {
@@ -257,22 +287,25 @@ export function AiBulkGenerator({ target, onClose, onSaved }: Props) {
             />
           </div>
 
-          {errorBox}
-          <label className="flex items-center gap-2 text-sm text-gray-700">
-            <input type="checkbox" checked={publish} onChange={(e) => setPublish(e.target.checked)} />
-            Шууд нийтлэх
-          </label>
-          {!publish && (
-            <p className="text-xs text-gray-500">
-              ⚠️ Ноорог болж хадгалагдана — апп дээр гарахгүй. Жагсаалтаас шалгаад
-              "Нийтлэх" дарна уу.
-            </p>
+          <ErrorBox message={error} />
+
+          {/* Хуваасан үед хадгалалт хэдэн хүсэлт болдог тул жинхэнэ явц харуулна. */}
+          {saving && Number(splitInto) > 1 && (
+            <div className="space-y-1">
+              <ProgressBar pct={(savedParts / Number(splitInto)) * 100} />
+              <p className="text-xs text-gray-500">
+                Хадгалж байна… {savedParts}/{splitInto} хэсэг
+              </p>
+            </div>
           )}
+
+          <p className="text-xs text-gray-500">✅ Хадгалмагц шууд нийтлэгдэж, апп дээр гарна.</p>
           <FormActions
             onCancel={onClose}
             onSave={save}
             saving={saving}
-            saveLabel={publish ? 'Нийтлэж хадгалах' : 'Ноорог болгож хадгалах'}
+            saveLabel="Нийтлэж хадгалах"
+            savingLabel="Нийтэлж байна..."
           />
         </div>
       </Modal>
@@ -338,7 +371,21 @@ export function AiBulkGenerator({ target, onClose, onSaved }: Props) {
           />
         </div>
 
-        {errorBox}
+        {/* Явцын мөр — AI 20–40 секунд бодох тул хоосон хүлээлгэхгүй. */}
+        {loading && (
+          <div className="space-y-1 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5">
+            <div className="flex items-center justify-between text-xs font-medium text-blue-800">
+              <span>{genStage}</span>
+              <span>{Math.round(genPct)}%</span>
+            </div>
+            <ProgressBar pct={genPct} />
+            <p className="text-xs text-blue-600">
+              Цонхыг бүү хаа — {count} асуулт үүсгэхэд ойролцоогоор {Math.round(6 + Number(count) * 1.5)} секунд.
+            </p>
+          </div>
+        )}
+
+        <ErrorBox message={error} onRetry={loading ? undefined : generate} />
 
         <div className="flex justify-end gap-2 border-t border-gray-100 pt-4">
           <Button variant="secondary" onClick={onClose} disabled={loading}>
@@ -346,7 +393,7 @@ export function AiBulkGenerator({ target, onClose, onSaved }: Props) {
           </Button>
           <Button onClick={generate} disabled={loading}>
             <Sparkles className="h-4 w-4" />
-            {loading ? 'AI үүсгэж байна…' : 'Үүсгэх'}
+            {loading ? `AI үүсгэж байна… ${Math.round(genPct)}%` : 'Үүсгэх'}
           </Button>
         </div>
       </div>
