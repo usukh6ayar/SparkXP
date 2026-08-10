@@ -9,6 +9,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
+import * as Speech from 'expo-speech';
 import { useAuth } from '../../src/auth/AuthContext';
 import * as quizzesApi from '../../src/api/quizzes';
 import type { Quiz, QuizQuestion, AnswerItem, QuizResult } from '../../src/api/quizzes';
@@ -288,6 +289,84 @@ export default function QuizScreen() {
   // Questions are asked from the head of `queue`; a wrong one goes to the back.
   const currentIndex = queue[0] ?? 0;
   const currentQ = quiz?.questions[currentIndex];
+
+  /**
+   * Сонсголын дасгал: асуултын бичвэрийг УНШУУЛАХГҮЙ, төхөөрөмжийн хоолойгоор
+   * СОНСГОНО. Урьд нь эдгээр нь зүгээр л текстэн сонголт байсан тул сонсголын
+   * дасгал огт биш байв — уншиж чаддаг хүн бүр хариулж чадна.
+   *
+   * IELTS Listening (`audioUrl`) нь бодит бичлэгтэй тул хөндөгдөхгүй.
+   */
+  const isListening = quiz?.category === 'listening' && !quiz?.audioUrl;
+  /**
+   * Сонсох зүйл. Шинэ дасгалд энэ нь `passageText` дэх БОГИНО ЯРИА (нэг
+   * өгүүлбэр сонсох нь дасгал болохооргүй богино байсан); хуучин дасгалд
+   * зөвхөн асуултын өгүүлбэр байдаг тул түүн рүү буцна.
+   */
+  const listenScript = isListening ? (quiz?.passageText || currentQ?.question || '') : '';
+  const hasScript = isListening && !!quiz?.passageText;
+  /**
+   * Юуг нуух вэ:
+   *  · Ярианы бичвэрийг ҮРГЭЛЖ (хариултаа өгтөл) — эс бөгөөс уншчихаад хариулна.
+   *  · Хуучин загварын дасгалд асуулт нь ӨӨРӨӨ сонсох зүйл тул түүнийг нуана.
+   *    Шинэ загварт асуулт нь даалгавар учир харагдах ЁСТОЙ.
+   */
+  const hidePassage = isListening && !feedback;
+  const hideQuestionText = isListening && !hasScript && !feedback;
+
+  /**
+   * Задгай бичих даалгавар (`open_response`) нь **өөрөө үнэлэх** — сервер
+   * түүнийг хэзээ ч зөв гэж тооцдоггүй (`gradeQuestion` → `false`). Тиймээс
+   * ердийн шалгах урсгалаар явуулбал сурагч бичсэн ч буруу гэж тэмдэглэгдэж,
+   * зүрхээ алдаж, дасгалыг хэзээ ч дуусгаж чадахгүй байв.
+   * Оронд нь: бичээд, жишиг хариулттай нь харьцуулаад цааш үргэлжлүүлнэ.
+   */
+  const isOpenResponse = currentQ?.type === 'open_response';
+  const [modelShown, setModelShown] = useState(false);
+
+  /** Удаан хурд — A1 түвшний сурагчид энгийн хурдыг дагаж амждаггүй. */
+  const [slowSpeech, setSlowSpeech] = useState(false);
+  /** Хэдэн удаа сонссоныг харуулна — «дахин сонсож болно» гэдгийг ойлгуулна. */
+  const [playCount, setPlayCount] = useState(0);
+
+  const speakScript = useCallback(() => {
+    if (!listenScript) return;
+    void Speech.stop();
+    Speech.speak(listenScript, { language: 'en-US', rate: slowSpeech ? 0.55 : 0.9 });
+    setPlayCount((n) => n + 1);
+  }, [listenScript, slowSpeech]);
+
+  // Шинэ дасгал/асуулт гармагц нэг удаа уншина — сурагч товч хайх шаардлагагүй.
+  // Яриатай дасгалд зөвхөн НЭГ удаа (асуулт бүрд дахин уншвал таагүй).
+  const spokenFor = useRef<string | null>(null);
+  useEffect(() => {
+    const key = hasScript ? `q:${quiz?.id}` : `i:${currentIndex}`;
+    if (!isListening || !listenScript || spokenFor.current === key) return;
+    spokenFor.current = key;
+    setPlayCount(0);
+    speakScript();
+  }, [isListening, listenScript, hasScript, quiz?.id, currentIndex, speakScript]);
+
+  // Дэлгэцээс гарахад дуу үргэлжлэхгүй.
+  useEffect(() => () => { void Speech.stop(); }, []);
+
+  /**
+   * `fill_blank`-ийн үгийн сан. Гараар бичих нь хэт хэцүү байсан (зөв санааг
+   * олсон ч үсэг алдвал буруу) тул серверээс ирсэн сангаас **дарж сонгоно**.
+   * Сан ирээгүй дасгалд бичих талбар хэвээр — хуучин контент эвдрэхгүй.
+   */
+  /**
+   * Цоорхойн сонголтууд, дэс дарааллаар:
+   *  1. Асуултынхаа өөрийн 4 сонголт (`choices`) — ижил үгийн өөр хэлбэрүүд,
+   *     дүрэм заадаг учир хамгийн зөв нь.
+   *  2. Дасгалын үгийн сан (`wordBank`) — хуучин контентод сонголт байхгүй тул.
+   *  3. Аль нь ч байхгүй бол бичих талбар (хамгийн хуучин контент).
+   */
+  const fillChoices =
+    currentQ?.type === 'fill_blank'
+      ? (currentQ.choices?.length ? currentQ.choices : (quiz?.wordBank ?? null))
+      : null;
+  const useWordBank = !!fillChoices && fillChoices.length > 1;
   // "Last" only if this answer is right — a wrong one re-queues, so the run
   // isn't over. Computed from the feedback we already have.
   // `finishing` counts the last question as done so the bar fills to 100% the
@@ -348,6 +427,8 @@ export default function QuizScreen() {
   }
 
   function canAnswer() {
+    // Задгай хариултад "зөв" гэж байхгүй — ямар нэг зүйл бичсэн бол хангалттай.
+    if (currentQ?.type === 'open_response') return fillText.trim().length > 0;
     if (currentQ?.type === 'multiple_choice') return selected !== null;
     if (currentQ?.type === 'word_match') {
       const n = currentQ.pairs?.length ?? 0;
@@ -380,6 +461,24 @@ export default function QuizScreen() {
     // Phase 1 — answer is in, but not yet checked: grade THIS question, show
     // ✓/✗ feedback, and wait for a second tap before moving on.
     if (!feedback) {
+      // Задгай бичих даалгаврыг серверт шалгуулахгүй: тэр үргэлж `false`
+      // буцаадаг тул сурагч зүрхээ алдаж, дасгал хэзээ ч дуусахгүй байв.
+      // Өөрөө үнэлэх даалгавар — бичсэн бол болсон, цааш үргэлжилнэ.
+      if (isOpenResponse) {
+        haptics.select();
+        const all = answersWithCurrent();
+        setAnswers(all);
+        // Дахин асуухгүй — "буруу" гэж байхгүй тул давтуулах ч утгагүй.
+        const next = queue.slice(1);
+        setQueue(next);
+        if (next.length === 0) {
+          setFinishing(true);
+          finishTimer.current = setTimeout(() => submit(all), FINISH_HOLD_MS);
+        } else {
+          resetQuestionInput();
+        }
+        return;
+      }
       setChecking(true);
       try {
         const fb = await quizzesApi.checkAnswer(id!, currentIndex, currentAnswer(), token!);
@@ -468,6 +567,7 @@ export default function QuizScreen() {
     setFillText('');
     setMatches({});
     setFeedback(null);
+    setModelShown(false);
     setAttempt((n) => n + 1);
   }
 
@@ -733,10 +833,14 @@ export default function QuizScreen() {
 
         {/* IELTS Reading — the passage, open by default and collapsible so the
             questions stay reachable on a phone screen. */}
-        {quiz!.passageText ? (
+        {quiz!.passageText && !hidePassage ? (
           <View style={styles.passageBox}>
             <Pressable onPress={() => setPassageOpen((v) => !v)} hitSlop={6} style={styles.passageHead}>
-              <AppText variant="bodyStrong">{t('ieltsPassage')}</AppText>
+              <AppText variant="bodyStrong">
+                {/* Сонсголд энэ нь "уншлагын эх" биш, сонссон зүйлийн БИЧВЭР —
+                    хариулсны дараа өөрийгөө шалгах зорилготой. */}
+                {isListening ? t('listenTranscript') : t('ieltsPassage')}
+              </AppText>
               <Ionicons name={passageOpen ? 'chevron-up' : 'chevron-down'} size={18} color={c.textMuted} />
             </Pressable>
             {passageOpen ? (
@@ -744,9 +848,73 @@ export default function QuizScreen() {
             ) : null}
           </View>
         ) : null}
-        <AppText variant="h2" style={styles.questionText}>
-          {currentQ!.question ?? (currentQ!.type === 'word_match' ? t('matchPairsPrompt') : '')}
+        {/* Заавар. Урьд нь юу ч байгаагүй тул сурагч цоорхойтой өгүүлбэр, хоосон
+            хайрцаг хоёрыг хараад юу хийхээ таамаглах хэрэгтэй болдог байв. */}
+        <AppText variant="overline" color={c.textMuted} style={styles.howTo}>
+          {isOpenResponse
+            ? t('howToWrite')
+            : isListening
+            ? t('howToListen')
+            : currentQ!.type === 'multiple_choice'
+              ? t('howToChoose')
+              : currentQ!.type === 'word_match'
+                ? t('howToMatch')
+                : currentQ!.type === 'fill_blank'
+                  ? t(useWordBank ? 'howToFillBank' : 'howToFillType')
+                  : ''}
         </AppText>
+
+        {/* Сонсголын дасгал: бичвэрийг УНШУУЛАХГҮЙ, дуугаар нь сонсгоно.
+            Хариулсны дараа бичвэр ил болж, юу сонссоноо шалгаж болно. */}
+        {isListening ? (
+          <View style={styles.listenBox}>
+            <PressableScale onPress={speakScript} style={styles.listenBtn}>
+              <Ionicons name="volume-high" size={26} color={c.white} />
+              <AppText variant="bodyStrong" color={c.white}>
+                {playCount > 0 ? t('listenReplay') : t('listenPlay')}
+              </AppText>
+            </PressableScale>
+            <View style={styles.listenTools}>
+              {/* Удаан хурд — сонсоод амжихгүй байгаа хүнд хамгийн том тусламж.
+                  Дарангуут дахин уншина, тэгэхгүй бол сонгосон нь мэдрэгдэхгүй. */}
+              <PressableScale
+                haptic={false}
+                onPress={() => { setSlowSpeech((v) => !v); }}
+                style={[styles.speedPill, slowSpeech && styles.speedPillOn]}
+              >
+                <Ionicons
+                  name="hourglass-outline"
+                  size={14}
+                  color={slowSpeech ? c.white : c.textSecondary}
+                />
+                <AppText variant="caption" color={slowSpeech ? c.white : c.textSecondary}>
+                  {t('listenSlow')}
+                </AppText>
+              </PressableScale>
+              {playCount > 0 ? (
+                <AppText variant="caption" color={c.textMuted}>
+                  {tf('listenCount', { n: playCount })}
+                </AppText>
+              ) : null}
+            </View>
+          </View>
+        ) : null}
+
+        {hideQuestionText ? (
+          <AppText variant="caption" center color={c.textMuted} style={styles.questionText}>
+            {t('listenHiddenHint')}
+          </AppText>
+        ) : (
+          <AppText variant="h2" style={styles.questionText}>
+            {currentQ!.question
+              ?? (currentQ!.type === 'word_match'
+                ? t('matchPairsPrompt')
+                // `open_response` нь `prompt` талбартай ба энэ дэлгэц түүнийг
+                // ажиллуулж чаддаггүй. Хоосон гарчиг үзүүлэхийн оронд ядаж
+                // даалгаврыг харуулна (өмнө нь бүтэн хоосон дэлгэц гардаг байв).
+                : (currentQ as { prompt?: string }).prompt ?? '')}
+          </AppText>
+        )}
 
         {currentQ!.type === 'multiple_choice' && currentQ!.imageUrl ? (
           <AppImage
@@ -800,7 +968,40 @@ export default function QuizScreen() {
           </View>
         )}
 
-        {currentQ!.type === 'fill_blank' && (
+        {/* Цоорхойг ГАРААР бичих нь хэт хэцүү байв: зөв санааг олсон ч үсэг
+            алдвал буруу гэж тооцогдоно. Сан ирсэн үед сурагч дарж сонгоно —
+            бичих ачаалал ч, таамаглал ч алга. */}
+        {currentQ!.type === 'fill_blank' && useWordBank && (
+          <View style={styles.bank}>
+            {fillChoices!.map((word) => {
+              const picked = fillText === word;
+              return (
+                <PressableScale
+                  key={word}
+                  haptic={false}
+                  disabled={!!feedback}
+                  style={[
+                    styles.bankChip,
+                    picked && styles.bankChipOn,
+                    feedback?.correct && picked && styles.bankChipCorrect,
+                    feedback && !feedback.correct && picked && styles.bankChipWrong,
+                  ]}
+                  // Дахин дарвал сонголт цуцлагдана — буруу дарсан хүн гацахгүй.
+                  onPress={() => { haptics.select(); setFillText(picked ? '' : word); }}
+                >
+                  <AppText variant="body" color={picked ? c.white : c.text}>{word}</AppText>
+                </PressableScale>
+              );
+            })}
+            {feedback && !feedback.correct && typeof feedback.correctAnswer === 'string' ? (
+              <AppText variant="bodyStrong" color={c.success} style={styles.fillAnswer}>
+                {feedback.correctAnswer}
+              </AppText>
+            ) : null}
+          </View>
+        )}
+
+        {currentQ!.type === 'fill_blank' && !useWordBank && (
           <>
             <TextInput
               style={[
@@ -822,6 +1023,42 @@ export default function QuizScreen() {
               <AppText variant="bodyStrong" color={c.success} style={styles.fillAnswer}>
                 {feedback.correctAnswer}
               </AppText>
+            ) : null}
+          </>
+        )}
+
+        {/* Задгай бичих даалгавар. Урьд нь энд ЮУ Ч байгаагүй — сурагч
+            "Write a sentence…" гэсэн бичгийг хараад бичих газаргүй гацдаг байв.
+            Автомат үнэлгээ байхгүй тул жишиг хариулттай нь өөрөө харьцуулна. */}
+        {isOpenResponse && (
+          <>
+            <TextInput
+              style={styles.writeInput}
+              value={fillText}
+              onChangeText={setFillText}
+              placeholder={t('ieltsWritePlaceholder')}
+              placeholderTextColor={c.textMuted}
+              multiline
+              textAlignVertical="top"
+            />
+            {currentQ!.modelAnswer ? (
+              <>
+                <Button
+                  label={t(modelShown ? 'ieltsHideModel' : 'ieltsRevealModel')}
+                  variant="secondary"
+                  icon={modelShown ? 'eye-off' : 'eye'}
+                  onPress={() => setModelShown((v) => !v)}
+                  style={{ marginTop: spacing.md }}
+                />
+                {modelShown ? (
+                  <View style={styles.modelBox}>
+                    <AppText variant="overline" color={c.textSecondary}>
+                      {t('ieltsModelAnswer')}
+                    </AppText>
+                    <AppText variant="body">{currentQ!.modelAnswer}</AppText>
+                  </View>
+                ) : null}
+              </>
             ) : null}
           </>
         )}
@@ -984,6 +1221,57 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   // Instant-feedback option states.
   optionCorrect: { borderColor: c.success, backgroundColor: c.successSoft },
   optionWrong: { borderColor: c.danger, backgroundColor: c.dangerSoft },
+  howTo: { marginBottom: spacing.xs },
+  listenBox: { marginBottom: spacing.md },
+  listenTools: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: spacing.md, marginTop: spacing.sm,
+  },
+  speedPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    borderWidth: 1, borderColor: c.border, borderRadius: radius.full,
+    paddingVertical: 4, paddingHorizontal: spacing.sm,
+  },
+  speedPillOn: { backgroundColor: c.primary, borderColor: c.primary },
+  listenBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    alignSelf: 'stretch',
+    backgroundColor: c.primary,
+    borderRadius: radius.lg,
+    paddingVertical: spacing.lg,
+  },
+  writeInput: {
+    minHeight: 140,
+    borderWidth: 2,
+    borderColor: c.border,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    fontSize: fontSize.md,
+    color: c.text,
+    backgroundColor: c.surface,
+  },
+  modelBox: {
+    marginTop: spacing.md,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    backgroundColor: c.surfaceAlt,
+    gap: spacing.xs,
+  },
+  bank: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  bankChip: {
+    borderWidth: 2,
+    borderColor: c.border,
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    backgroundColor: c.surface,
+  },
+  bankChipOn: { borderColor: c.primary, backgroundColor: c.primary },
+  bankChipCorrect: { borderColor: c.success, backgroundColor: c.success },
+  bankChipWrong: { borderColor: c.danger, backgroundColor: c.danger },
   fillInput: {
     borderWidth: 2,
     borderColor: c.border,
