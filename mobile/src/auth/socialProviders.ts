@@ -36,8 +36,32 @@ export class SocialCancelled extends Error {
   }
 }
 
-const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
-const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+/**
+ * Google OAuth client ids (Firebase project `sparkxp-1`).
+ *
+ * ⚠️ **Hardcoded defaults on purpose — do not move these into `eas.json`.**
+ * `hot-updater deploy` runs `expo export` locally and inlines `EXPO_PUBLIC_*`
+ * from `mobile/.env`, never from an `eas.json` build profile. A value that
+ * lives only in `eas.json` therefore reaches EAS builds but is `undefined` in
+ * every OTA bundle — which is exactly how OTA silently disabled itself on
+ * 2026-08-07 (see `HOT_UPDATER_URL` in `app/_layout.tsx`). Here the same
+ * mistake would produce a Google button that opens and then fails.
+ *
+ * These are not secrets: OAuth client ids ship inside every app binary and the
+ * iOS one is visible as a URL scheme in `Info.plist`. The security boundary is
+ * the backend's `GOOGLE_CLIENT_IDS` audience allow-list, which is what actually
+ * decides whether a token is accepted.
+ *
+ * Env still overrides, for pointing a build at a different Google project.
+ */
+const GOOGLE_IOS_CLIENT_ID =
+  process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ||
+  '371417423446-mv0qftkp1gmhldktqdnf1vonsfob802g.apps.googleusercontent.com';
+
+/** Decides the id token's `aud` — must be listed in backend `GOOGLE_CLIENT_IDS`. */
+const GOOGLE_WEB_CLIENT_ID =
+  process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ||
+  '371417423446-o1df8ivrimesdo4a2ea6mrarv4jeqnaf.apps.googleusercontent.com';
 
 let googleConfigured = false;
 
