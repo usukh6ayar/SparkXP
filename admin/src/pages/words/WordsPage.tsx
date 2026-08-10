@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ImageIcon, Plus, Pencil, Sparkles, Trash2, Upload, AlertCircle, BarChart2, Volume2, Play } from 'lucide-react';
 import { api } from '../../api/client';
+import { JobProgress } from '../../components/JobProgress';
 import { PageHeader } from '../../components/PageHeader';
 import { Button } from '../../components/Button';
 import { Badge } from '../../components/Badge';
@@ -120,7 +121,13 @@ const statusMeta: Record<string, { label: string; color: 'green' | 'blue' | 'yel
   rejected:     { label: 'Татгалзсан',  color: 'red'    },
   published:    { label: 'Нийтэлсэн',   color: 'green'  },
 };
-const statusFormOptions = Object.entries(statusMeta).map(([value, m]) => ({ value, label: m.label }));
+// Формоос "Ноорог"-ыг ЗОРИУД хассан — админ гараар ноорог үг үүсгэдэггүй болсон
+// (Хадгалах = нийтлэх). Шүүлтүүрт (`STATUS_TABS`) хэвээр үлдээсэн нь хуучин
+// ноорог үгсийг олж, нийтлэх зам хэрэгтэй учраас. `needs_review` бол AI
+// pipeline-ийн хяналтын төлөв тул хэвээр.
+const statusFormOptions = Object.entries(statusMeta)
+  .filter(([value]) => value !== 'draft')
+  .map(([value, m]) => ({ value, label: m.label }));
 
 const levelColors: Record<string, 'green' | 'blue' | 'yellow' | 'red' | 'gray'> = {
   a1: 'green', a2: 'green', b1: 'blue', b2: 'blue', c1: 'yellow', c2: 'red',
@@ -948,49 +955,25 @@ export default function WordsPage() {
       })()}
 
       {/* Background media/import job progress — visible while you keep working */}
-      {aiReport && aiReport.background && (() => {
-        const total = aiReport.total ?? aiReport.requested ?? 0;
-        const processed = aiReport.processed ?? 0;
-        const pct = total ? Math.round((processed / total) * 100) : 0;
-        return (
-          <div className="mb-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 space-y-2">
-            <div className="flex items-center justify-between gap-3">
-              <span>
-                {aiReport.done
-                  ? (aiReport.canceled ? '🛑 Зогсоосон' : '✅ AI боловсруулж дууслаа')
-                  : (aiReport.canceled ? '🛑 Зогсоож байна… (ажиллаж буй үгс дуусаад зогсоно)' : '⏳ AI боловсруулж байна (background — үргэлжлүүлэн ажиллаж болно)')}
-              </span>
-              {aiReport.done ? (
-                <button onClick={() => setAiReport(null)} className="text-xs text-blue-500 hover:underline">Хаах</button>
-              ) : (
-                <button
-                  onClick={cancelBulkJob}
-                  disabled={aiReport.canceled}
-                  className="rounded-md bg-red-500 px-3 py-1 text-xs font-medium text-white hover:bg-red-600 disabled:opacity-50"
-                >
-                  {aiReport.canceled ? 'Зогсоож байна…' : 'Зогсоох'}
-                </button>
-              )}
-            </div>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-blue-100">
-              <div className="h-full bg-blue-500 transition-all duration-500" style={{ width: `${pct}%` }} />
-            </div>
-            <p className="text-xs">
-              {processed}/{total} ({pct}%) · амжилттай <strong>{aiReport.inserted}</strong> · алдаа {aiReport.failed.length}
-            </p>
-            {aiReport.failed.length > 0 && (
-              <details className="text-xs text-red-600">
-                <summary className="cursor-pointer">{aiReport.failed.length} амжилтгүй</summary>
-                <ul className="mt-1 list-disc pl-4">
-                  {aiReport.failed.slice(0, 20).map((f) => (
-                    <li key={f.word}>{f.word}: {f.message}</li>
-                  ))}
-                </ul>
-              </details>
-            )}
-          </div>
-        );
-      })()}
+      {aiReport && aiReport.background && (
+        <JobProgress
+          label={
+            aiReport.done
+              ? (aiReport.canceled ? '🛑 Зогсоосон' : '✅ AI боловсруулж дууслаа')
+              : (aiReport.canceled
+                  ? '🛑 Зогсоож байна… (ажиллаж буй үгс дуусаад зогсоно)'
+                  : '⏳ AI боловсруулж байна (background — үргэлжлүүлэн ажиллаж болно)')
+          }
+          processed={aiReport.processed ?? 0}
+          total={aiReport.total ?? aiReport.requested ?? 0}
+          done={aiReport.done}
+          canceling={aiReport.canceled}
+          onCancel={cancelBulkJob}
+          onClose={() => setAiReport(null)}
+          stats={<> · амжилттай <strong>{aiReport.inserted}</strong></>}
+          failures={aiReport.failed.map((f) => ({ key: f.word, message: f.message }))}
+        />
+      )}
 
       <Table columns={columns} rows={pagedWords} keyFn={(w) => w.id} empty="Үг байхгүй байна" />
       <Pagination page={page} total={words.length} limit={PAGE_SIZE} onPage={setPage} />

@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Plus, Image as ImageIcon, Eye, EyeOff, Sparkles, Volume2, Upload, AlertCircle, Trash2 } from 'lucide-react';
+import { Plus, Image as ImageIcon, Sparkles, Volume2, Upload, AlertCircle, Trash2 } from 'lucide-react';
 import { api } from '../../api/client';
+import { HiddenBadge, VisibilityButton, UnpublishedBanner } from '../../components/Publish';
+import { ErrorBox } from '../../components/ErrorBox';
+import { JobProgress } from '../../components/JobProgress';
 import { PageHeader } from '../../components/PageHeader';
 import { Button } from '../../components/Button';
-import { Badge } from '../../components/Badge';
 import { Table } from '../../components/Table';
 import { Modal } from '../../components/Modal';
 import { Input } from '../../components/Input';
@@ -37,15 +39,11 @@ interface IdiomForm {
   exampleTranslation: string;
   imageUrl: string;
   audioUrl: string;
-  isPublished: boolean;
 }
-// Publish by default. Drafting was the default before, and since the app only
-// ever fetches `isPublished=true` idioms, every phrase authored here was
-// invisible on the phone until someone found the publish toggle — the same trap
-// that had already been fixed for Дасгал / Сорил / IELTS and missed here.
+// "Ноорог" төлөв формд байхгүй: Хадгалах = шууд нийтлэх (`components/Publish.tsx`).
 const emptyForm: IdiomForm = {
   phrase: '', mongolian: '', meaning: '', definition: '',
-  exampleSentence: '', exampleTranslation: '', imageUrl: '', audioUrl: '', isPublished: true,
+  exampleSentence: '', exampleTranslation: '', imageUrl: '', audioUrl: '',
 };
 
 interface ImageJob { total: number; processed: number; ok?: number; failed?: number; done: boolean }
@@ -170,7 +168,7 @@ export default function IdiomsPage() {
       phrase: it.phrase, mongolian: it.mongolian,
       meaning: it.meaning ?? '', definition: it.definition ?? '',
       exampleSentence: it.exampleSentence ?? '', exampleTranslation: it.exampleTranslation ?? '',
-      imageUrl: it.imageUrl ?? '', audioUrl: it.audioUrl ?? '', isPublished: it.isPublished,
+      imageUrl: it.imageUrl ?? '', audioUrl: it.audioUrl ?? '',
     });
     setEditing(it); setError(''); setModal('edit');
   }
@@ -200,6 +198,14 @@ export default function IdiomsPage() {
   }
 
   // ── Bulk actions ──
+  /** Хуучин ноорог мөрүүдийг нэг товчоор нийтлэх (баннераас). */
+  async function publishAllHidden() {
+    setBulkBusy(true);
+    try {
+      await api.patch('/idioms/bulk', { ids: hiddenIdioms.map((i) => i.id), isPublished: true });
+      load();
+    } finally { setBulkBusy(false); }
+  }
   async function bulkPublish(isPublished: boolean) {
     if (selected.size === 0) return;
     setBulkBusy(true); setError('');
@@ -360,7 +366,7 @@ export default function IdiomsPage() {
         exampleTranslation: form.exampleTranslation || undefined,
         imageUrl: form.imageUrl || undefined,
         audioUrl: form.audioUrl || undefined,
-        isPublished: form.isPublished,
+        isPublished: true, // хадгалсан хэлц шууд аппад гарна
       };
       if (modal === 'create') await api.post('/idioms', payload);
       else if (editing) await api.patch(`/idioms/${editing.id}`, payload);
@@ -410,24 +416,22 @@ export default function IdiomsPage() {
         : <div className="flex h-10 w-14 items-center justify-center rounded border border-dashed border-gray-200 bg-gray-50"><ImageIcon className="h-4 w-4 text-gray-300" /></div>,
       className: 'w-16',
     },
-    { key: 'phrase', header: 'Хэлц', render: (it: Idiom) => <span className="font-medium">{it.phrase}</span> },
-    { key: 'mongolian', header: 'Монгол', render: (it: Idiom) => <span className="text-gray-600">{it.mongolian}</span> },
-    { key: 'audio', header: '🔊', render: (it: Idiom) => it.audioUrl ? <Volume2 className="h-4 w-4 text-primary" /> : <span className="text-gray-300">—</span> },
     {
-      key: 'status', header: 'Төлөв',
+      key: 'phrase', header: 'Хэлц',
       render: (it: Idiom) => (
-        <button onClick={() => togglePublish(it)} title="Дарж нийтлэх төлөв солих">
-          {it.isPublished ? <Badge color="green">Нийтэлсэн</Badge> : <Badge color="gray">Ноорог</Badge>}
-        </button>
+        <span className="flex items-center gap-2">
+          <span className="font-medium">{it.phrase}</span>
+          <HiddenBadge published={it.isPublished} />
+        </span>
       ),
     },
+    { key: 'mongolian', header: 'Монгол', render: (it: Idiom) => <span className="text-gray-600">{it.mongolian}</span> },
+    { key: 'audio', header: '🔊', render: (it: Idiom) => it.audioUrl ? <Volume2 className="h-4 w-4 text-primary" /> : <span className="text-gray-300">—</span> },
     {
       key: 'actions', header: '',
       render: (it: Idiom) => (
         <div className="flex gap-1 justify-end">
-          <Button variant="ghost" size="sm" onClick={() => togglePublish(it)} title={it.isPublished ? 'Нийтлэхээ болих' : 'Нийтлэх'}>
-            {it.isPublished ? <EyeOff className="h-4 w-4 text-gray-500" /> : <Eye className="h-4 w-4 text-green-600" />}
-          </Button>
+          <VisibilityButton published={it.isPublished} onToggle={() => togglePublish(it)} />
           <RowActions onEdit={() => openEdit(it)} onDelete={() => remove(it.id)} />
         </div>
       ),
@@ -436,8 +440,8 @@ export default function IdiomsPage() {
   ];
 
   const publishedCount = idioms.filter((i) => i.isPublished).length;
+  const hiddenIdioms = idioms.filter((i) => !i.isPublished);
   const noImageCount = idioms.filter((i) => !i.imageUrl).length;
-  const imagePct = imageJob && imageJob.total ? Math.round((imageJob.processed / imageJob.total) * 100) : 0;
 
   return (
     <>
@@ -466,7 +470,7 @@ export default function IdiomsPage() {
         <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primarySoft px-4 py-2 text-sm">
           <span className="font-medium text-primary">{selected.size} сонгосон:</span>
           <Button size="sm" onClick={() => bulkPublish(true)} disabled={bulkBusy}>Нийтлэх</Button>
-          <Button variant="secondary" size="sm" onClick={() => bulkPublish(false)} disabled={bulkBusy}>Ноорог болгох</Button>
+          <Button variant="secondary" size="sm" onClick={() => bulkPublish(false)} disabled={bulkBusy}>Аппаас нуух</Button>
           <Button variant="secondary" size="sm" onClick={bulkGenerateImages} disabled={bulkBusy || (!!imageJob && !imageJob.done)} title="Сонгосон хэлцэд AI зураг үүсгэх">
             <ImageIcon className="h-4 w-4 text-primary" /> Зураг үүсгэх
           </Button>
@@ -477,63 +481,48 @@ export default function IdiomsPage() {
         </div>
       )}
 
+      <UnpublishedBanner
+        count={hiddenIdioms.length}
+        onPublishAll={publishAllHidden}
+        busy={bulkBusy}
+        noun="хэлц"
+        paged
+      />
+
       {imageJob && (
-        <div className="mb-3">
-          <div className="h-2 w-full rounded-full bg-gray-100">
-            <div className="h-2 rounded-full bg-primary transition-all" style={{ width: `${imagePct}%` }} />
-          </div>
-          <p className="mt-1 text-xs text-gray-500">
-            {imageJob.done ? '✓ Дууссан' : `Зураг үүсгэж байна… ${imageJob.processed}/${imageJob.total}`}
-          </p>
-        </div>
+        <JobProgress
+          label={imageJob.done ? '✅ Зураг үүсгэж дууслаа' : '🖼️ AI зураг үүсгэж байна'}
+          processed={imageJob.processed}
+          total={imageJob.total}
+          done={imageJob.done}
+          onClose={() => setImageJob(null)}
+          stats={imageJob.ok !== undefined ? <> · амжилттай <strong>{imageJob.ok}</strong></> : undefined}
+        />
       )}
 
       {/* Background AI-bulk job progress — visible while you keep working */}
-      {aiReport && aiReport.background && (() => {
-        const jobTotal = aiReport.total ?? aiReport.requested ?? 0;
-        const processed = aiReport.processed ?? 0;
-        const pct = jobTotal ? Math.round((processed / jobTotal) * 100) : 0;
-        return (
-          <div className="mb-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 space-y-2">
-            <div className="flex items-center justify-between gap-3">
-              <span>
-                {aiReport.done
-                  ? (aiReport.canceled ? '🛑 Зогсоосон' : '✅ AI боловсруулж дууслаа')
-                  : (aiReport.canceled ? '🛑 Зогсоож байна…' : '⏳ AI хэлц боловсруулж байна (background)')}
-              </span>
-              {aiReport.done ? (
-                <button onClick={() => setAiReport(null)} className="text-xs text-blue-500 hover:underline">Хаах</button>
-              ) : (
-                <button
-                  onClick={cancelBulkJob}
-                  disabled={aiReport.canceled}
-                  className="rounded-md bg-red-500 px-3 py-1 text-xs font-medium text-white hover:bg-red-600 disabled:opacity-50"
-                >
-                  {aiReport.canceled ? 'Зогсоож байна…' : 'Зогсоох'}
-                </button>
-              )}
-            </div>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-blue-100">
-              <div className="h-full bg-blue-500 transition-all duration-500" style={{ width: `${pct}%` }} />
-            </div>
-            <p className="text-xs">
-              {processed}/{jobTotal} ({pct}%) · амжилттай <strong>{aiReport.inserted}</strong>
+      {aiReport && aiReport.background && (
+        <JobProgress
+          label={
+            aiReport.done
+              ? (aiReport.canceled ? '🛑 Зогсоосон' : '✅ AI боловсруулж дууслаа')
+              : (aiReport.canceled ? '🛑 Зогсоож байна…' : '⏳ AI хэлц боловсруулж байна (background)')
+          }
+          processed={aiReport.processed ?? 0}
+          total={aiReport.total ?? aiReport.requested ?? 0}
+          done={aiReport.done}
+          canceling={aiReport.canceled}
+          onCancel={cancelBulkJob}
+          onClose={() => setAiReport(null)}
+          stats={
+            <>
+              {' '}· амжилттай <strong>{aiReport.inserted}</strong>
               {aiReport.skipped > 0 && <> · давхардал {aiReport.skipped}</>}
-              {' '}· алдаа {aiReport.failed.length}
-            </p>
-            {aiReport.failed.length > 0 && (
-              <details className="text-xs text-red-600">
-                <summary className="cursor-pointer">{aiReport.failed.length} амжилтгүй</summary>
-                <ul className="mt-1 list-disc pl-4">
-                  {aiReport.failed.slice(0, 20).map((f) => (
-                    <li key={f.phrase}>{f.phrase}: {f.message}</li>
-                  ))}
-                </ul>
-              </details>
-            )}
-          </div>
-        );
-      })()}
+            </>
+          }
+          failures={aiReport.failed.map((f) => ({ key: f.phrase, message: f.message }))}
+        />
+      )}
 
       <Table columns={columns} rows={idioms} keyFn={(i) => i.id} empty="Хэлц байхгүй" />
       <Pagination page={page} total={total} limit={LIMIT} onPage={setPage} />
@@ -569,12 +558,8 @@ export default function IdiomsPage() {
               )}
             </div>
 
-            <label className="flex items-center gap-2 text-sm text-gray-700">
-              <input type="checkbox" checked={form.isPublished} onChange={(e) => setForm({ ...form, isPublished: e.target.checked })} />
-              Шууд нийтлэх
-            </label>
-
-            {error && <p className="text-sm text-red-500">{error}</p>}
+            <p className="text-xs text-gray-500">✅ Хадгалмагц шууд нийтлэгдэж, апп дээр гарна.</p>
+            <ErrorBox message={error} />
             <FormActions onCancel={() => setModal(null)} onSave={save} saving={saving} />
           </div>
         </Modal>
@@ -611,7 +596,7 @@ export default function IdiomsPage() {
                   <input type="checkbox" checked={aiAudio} onChange={(e) => setAiAudio(e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary" />
                   <span className="flex items-center gap-1.5"><Volume2 className="h-4 w-4 text-primary" /> Дуудлага бас үүсгэх (удаан)</span>
                 </label>
-                <p className="mt-1 text-xs text-gray-400">Шинэ хэлцүүд → ноорог болж нэмэгдэнэ.</p>
+                <p className="mt-1 text-xs text-gray-400">Шинэ хэлцүүд шууд нийтлэгдэнэ.</p>
               </div>
             ) : (
               <div className="rounded-lg bg-gray-50 border border-gray-200 px-4 py-3 text-sm text-gray-700">
@@ -619,7 +604,7 @@ export default function IdiomsPage() {
                 <p className="text-xs text-gray-500 font-mono bg-white rounded px-2 py-1 border border-gray-100 overflow-x-auto whitespace-nowrap">
                   phrase, mongolian, meaning, definition, exampleSentence, exampleTranslation, imageUrl, audioUrl
                 </p>
-                <p className="mt-1 text-xs text-gray-400">Зөвхөн <strong>phrase, mongolian</strong> шаардлагатай. Шинэ хэлцүүд → ноорог.</p>
+                <p className="mt-1 text-xs text-gray-400">Зөвхөн <strong>phrase, mongolian</strong> шаардлагатай. Шинэ хэлц шууд нийтлэгдэнэ.</p>
                 <button onClick={downloadCsvTemplate} className="mt-2 flex items-center gap-1 text-xs text-primary hover:underline">
                   <Upload className="h-3 w-3 rotate-180" /> Загвар татах
                 </button>

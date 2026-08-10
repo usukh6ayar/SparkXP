@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Plus, Pencil, Image, Film } from 'lucide-react';
 import { api } from '../../api/client';
+import { HiddenBadge, VisibilityButton, UnpublishedBanner } from '../../components/Publish';
+import { ErrorBox } from '../../components/ErrorBox';
+import { friendlyError } from '../../lib/errors';
 import { PageHeader } from '../../components/PageHeader';
 import { Button } from '../../components/Button';
 import { Badge } from '../../components/Badge';
@@ -49,11 +52,12 @@ interface LessonForm {
   title: string; type: string; level: string; priceSparks: number;
   /** Text, not number: empty = "auto" (backend appends to the end of the level). */
   position: string;
-  description: string; imageUrl: string; videoUrl: string; isPublished: boolean;
+  description: string; imageUrl: string; videoUrl: string;
 }
+// "Ноорог" төлөв формд байхгүй: Хадгалах = шууд нийтлэх (`components/Publish.tsx`).
 const emptyForm: LessonForm = {
   title: '', type: 'vocabulary', level: 'a1', priceSparks: 0, position: '',
-  description: '', imageUrl: '', videoUrl: '', isPublished: true,
+  description: '', imageUrl: '', videoUrl: '',
 };
 
 export default function LessonsPage() {
@@ -66,6 +70,7 @@ export default function LessonsPage() {
   const [preview, setPreview] = useState<Lesson | null>(null);
   const [form, setForm] = useState<LessonForm>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [publishingAll, setPublishingAll] = useState(false);
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
@@ -92,7 +97,6 @@ export default function LessonsPage() {
       // Older lessons kept the cover only in `content`; newer ones in the column.
       imageUrl: l.thumbnailUrl ?? l.content?.imageUrl ?? '',
       videoUrl: l.content?.videoUrl ?? '',
-      isPublished: l.isPublished,
     });
     setEditing(l); setError(''); setModal('edit');
   }
@@ -116,12 +120,13 @@ export default function LessonsPage() {
         thumbnailUrl: imageUrl || null,
         // Empty = let the backend append it to the end of the level.
         position: position.trim() === '' ? undefined : Number(position),
+        isPublished: true, // хадгалсан хичээл шууд аппад гарна
       };
       if (modal === 'create') await api.post('/lessons', payload);
       else if (editing) await api.patch(`/lessons/${editing.id}`, payload);
       setModal(null); load();
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Алдаа гарлаа');
+      setError(friendlyError(e));
     } finally { setSaving(false); }
   }
 
@@ -131,6 +136,21 @@ export default function LessonsPage() {
     load();
   }
 
+  /** Аппад харагдах эсэх (устгахгүйгээр түр нуух). */
+  async function togglePublish(l: Lesson) {
+    await api.patch(`/lessons/${l.id}`, { isPublished: !l.isPublished });
+    load();
+  }
+  /** Хуучин ноорог хичээлүүдийг нэг товчоор нийтлэх (энэ хуудсан дээрхийг). */
+  async function publishAllHidden() {
+    setPublishingAll(true);
+    try {
+      await Promise.all(hidden.map((l) => api.patch(`/lessons/${l.id}`, { isPublished: true })));
+      load();
+    } finally { setPublishingAll(false); }
+  }
+
+  const hidden = lessons.filter((l) => !l.isPublished);
   const columns = [
     {
       key: 'position', header: '#',
@@ -159,13 +179,17 @@ export default function LessonsPage() {
       },
       className: 'w-16',
     },
-    { key: 'title', header: 'Гарчиг', render: (l: Lesson) => <span className="font-medium">{l.title}</span> },
+    {
+      key: 'title', header: 'Гарчиг',
+      render: (l: Lesson) => (
+        <span className="flex items-center gap-2">
+          <span className="font-medium">{l.title}</span>
+          <HiddenBadge published={l.isPublished} />
+        </span>
+      ),
+    },
     { key: 'type', header: 'Төрөл', render: (l: Lesson) => <Badge color="blue">{l.type}</Badge> },
     { key: 'level', header: 'Түвшин', render: (l: Lesson) => <Badge color="gray">{l.level.toUpperCase()}</Badge> },
-    {
-      key: 'published', header: 'Төлөв', render: (l: Lesson) =>
-        l.isPublished ? <Badge color="green">Нийтэлсэн</Badge> : <Badge color="gray">Ноорог</Badge>,
-    },
     {
       key: 'price', header: 'Үнэ', render: (l: Lesson) =>
         l.priceSparks > 0 ? <span className="text-amber font-medium">✨ {l.priceSparks}</span> : <span className="text-gray-400">Үнэгүй</span>,
@@ -173,6 +197,7 @@ export default function LessonsPage() {
     {
       key: 'actions', header: '', render: (l: Lesson) => (
         <div className="flex gap-1 justify-end">
+          <VisibilityButton published={l.isPublished} onToggle={() => togglePublish(l)} />
           <RowActions onEdit={() => openEdit(l)} onDelete={() => remove(l.id)} />
         </div>
       ), className: 'text-right',
@@ -186,6 +211,8 @@ export default function LessonsPage() {
         description={`Нийт: ${total}`}
         action={<Button onClick={openCreate}><Plus className="h-4 w-4" /> Хичээл нэмэх</Button>}
       />
+      <UnpublishedBanner count={hidden.length} onPublishAll={publishAllHidden} busy={publishingAll} noun="хичээл"
+        paged />
       <Table columns={columns} rows={lessons} keyFn={(l) => l.id} empty="Хичээл байхгүй" loading={loading} />
       <Pagination page={page} total={total} limit={LIMIT} onPage={setPage} />
 
@@ -240,12 +267,8 @@ export default function LessonsPage() {
                 </p>
               </div>
             </div>
-            <label className="flex items-center gap-2 text-sm text-gray-700">
-              <input type="checkbox" checked={form.isPublished}
-                onChange={(e) => setForm({ ...form, isPublished: e.target.checked })} />
-              Нийтлэх <span className="text-xs text-gray-400">(нийтлээгүй хичээл апп дээр харагдахгүй)</span>
-            </label>
-            {error && <p className="text-sm text-red-500">{error}</p>}
+            <p className="text-xs text-gray-500">✅ Хадгалмагц шууд нийтлэгдэж, апп дээр гарна.</p>
+            <ErrorBox message={error} />
             <FormActions onCancel={() => setModal(null)} onSave={save} saving={saving} />
 
             {/* Per-lesson tests (4 categories) — needs a saved lesson id */}

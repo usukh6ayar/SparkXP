@@ -4,13 +4,12 @@ import {
   Image as ImageIcon,
   Scissors,
   X,
-  Eye,
-  EyeOff,
   Sparkles,
   Volume2,
   RefreshCw,
 } from 'lucide-react';
 import { api } from '../../api/client';
+import { HiddenBadge, VisibilityButton, UnpublishedBanner } from '../../components/Publish';
 import { PageHeader } from '../../components/PageHeader';
 import { Button } from '../../components/Button';
 import { Badge } from '../../components/Badge';
@@ -72,7 +71,6 @@ interface ReadingForm {
   comprehensionQuestions: ReadingQuestion[];
   rawText: string;
   sentences: SentenceForm[];
-  isPublished: boolean;
 }
 const emptyForm: ReadingForm = {
   title: '',
@@ -83,11 +81,6 @@ const emptyForm: ReadingForm = {
   comprehensionQuestions: [],
   rawText: '',
   sentences: [],
-  // Publish by default — the same trap idioms had. The app only ever fetches
-  // published passages, so a draft default means everything authored here is
-  // invisible on the phone until someone finds the toggle. Hand-authoring forms
-  // publish; only the bulk CSV/JSON imports stay drafts (they need review).
-  isPublished: true,
 };
 
 interface AudioJob {
@@ -120,6 +113,7 @@ export default function ReadingPage({ embedded = false }: { embedded?: boolean }
   const [editing, setEditing] = useState<Passage | null>(null);
   const [form, setForm] = useState<ReadingForm>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [publishingAll, setPublishingAll] = useState(false);
   const [error, setError] = useState('');
 
   // F1 — AI guess-choices
@@ -162,7 +156,6 @@ export default function ReadingPage({ embedded = false }: { embedded?: boolean }
       comprehensionQuestions: p.comprehensionQuestions ?? [],
       rawText: '',
       sentences: (p.sentences ?? []).map((s) => ({ text: s.text, audioUrl: s.audioUrl })),
-      isPublished: p.isPublished,
     });
     setEditing(p);
     setError('');
@@ -388,7 +381,7 @@ export default function ReadingPage({ embedded = false }: { embedded?: boolean }
         keyVocab: form.keyVocab,
         comprehensionQuestions: form.comprehensionQuestions,
         sentences,
-        isPublished: form.isPublished,
+        isPublished: true, // хадгалсан материал шууд аппад гарна
       };
       if (modal === 'create') await api.post('/reading', payload);
       else if (editing) await api.patch(`/reading/${editing.id}`, payload);
@@ -404,6 +397,15 @@ export default function ReadingPage({ embedded = false }: { embedded?: boolean }
   async function togglePublish(p: Passage) {
     await api.patch(`/reading/${p.id}`, { isPublished: !p.isPublished });
     load();
+  }
+
+  /** Хуучин ноорог мөрүүдийг нэг товчоор нийтлэх (баннераас). */
+  async function publishAllHidden() {
+    setPublishingAll(true);
+    try {
+      await Promise.all(hidden.map((p) => api.patch(`/reading/${p.id}`, { isPublished: true })));
+      load();
+    } finally { setPublishingAll(false); }
   }
 
   async function remove(id: string) {
@@ -426,7 +428,15 @@ export default function ReadingPage({ embedded = false }: { embedded?: boolean }
         ),
       className: 'w-16',
     },
-    { key: 'title', header: 'Гарчиг', render: (p: Passage) => <span className="font-medium">{p.title}</span> },
+    {
+      key: 'title', header: 'Гарчиг',
+      render: (p: Passage) => (
+        <span className="flex items-center gap-2">
+          <span className="font-medium">{p.title}</span>
+          <HiddenBadge published={p.isPublished} />
+        </span>
+      ),
+    },
     { key: 'cefr', header: 'CEFR', render: (p: Passage) => <Badge color="blue">{p.cefr.toUpperCase()}</Badge> },
     {
       key: 'category',
@@ -442,22 +452,11 @@ export default function ReadingPage({ embedded = false }: { embedded?: boolean }
     },
     { key: 'time', header: 'Хугацаа', render: (p: Passage) => <span className="text-gray-500">{fmtTime(p.estimatedReadingTime)}</span> },
     {
-      key: 'status',
-      header: 'Төлөв',
-      render: (p: Passage) => (
-        <button onClick={() => togglePublish(p)} title="Дарж нийтлэх төлөв солих">
-          {p.isPublished ? <Badge color="green">Нийтэлсэн</Badge> : <Badge color="gray">Ноорог</Badge>}
-        </button>
-      ),
-    },
-    {
       key: 'actions',
       header: '',
       render: (p: Passage) => (
         <div className="flex gap-1 justify-end">
-          <Button variant="ghost" size="sm" onClick={() => togglePublish(p)} title={p.isPublished ? 'Нийтлэхээ болих' : 'Нийтлэх'}>
-            {p.isPublished ? <EyeOff className="h-4 w-4 text-gray-500" /> : <Eye className="h-4 w-4 text-green-600" />}
-          </Button>
+          <VisibilityButton published={p.isPublished} onToggle={() => togglePublish(p)} />
           <RowActions onEdit={() => openEdit(p)} onDelete={() => remove(p.id)} />
         </div>
       ),
@@ -466,6 +465,7 @@ export default function ReadingPage({ embedded = false }: { embedded?: boolean }
   ];
 
   const publishedCount = passages.filter((p) => p.isPublished).length;
+  const hidden = passages.filter((p) => !p.isPublished);
   const audioPct = audioJob && audioJob.total ? Math.round((audioJob.processed / audioJob.total) * 100) : 0;
 
   return (
@@ -482,6 +482,8 @@ export default function ReadingPage({ embedded = false }: { embedded?: boolean }
           action={<Button onClick={openCreate}><Plus className="h-4 w-4" /> Материал нэмэх</Button>}
         />
       )}
+      <UnpublishedBanner count={hidden.length} onPublishAll={publishAllHidden} busy={publishingAll} noun="унших материал"
+        paged />
       <Table columns={columns} rows={passages} keyFn={(p) => p.id} empty="Унших материал байхгүй" />
       <Pagination page={page} total={total} limit={LIMIT} onPage={setPage} />
 
@@ -693,10 +695,7 @@ export default function ReadingPage({ embedded = false }: { embedded?: boolean }
               </div>
             </div>
 
-            <label className="flex items-center gap-2 text-sm text-gray-700">
-              <input type="checkbox" checked={form.isPublished} onChange={(e) => setForm({ ...form, isPublished: e.target.checked })} />
-              Шууд нийтлэх
-            </label>
+            <p className="text-xs text-gray-500">✅ Хадгалмагц шууд нийтлэгдэж, апп дээр гарна.</p>
 
             {modal === 'create' && (
               <p className="text-xs text-gray-400">💡 Аудио үүсгэхийн тулд эхлээд хадгална уу (засах горимд боломжтой).</p>
