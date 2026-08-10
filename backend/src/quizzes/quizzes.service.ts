@@ -1,10 +1,12 @@
 import {
   Injectable,
+  Logger,
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
+import { randomUUID } from 'crypto';
 import { IsNull, Repository } from 'typeorm';
 import { Quiz } from '../entities/quiz.entity';
 import { runGeminiText } from '../dictionary/gemini-text';
@@ -21,7 +23,18 @@ import {
   type GenerateOptions,
   type GenQuestionType,
 } from './ai-generate';
+import {
+  buildStepBrief,
+  dedupKey,
+  planSteps,
+  questionText,
+  stepName,
+  MAX_TOTAL_STEPS,
+  type BulkGenerateReport,
+  type BulkStep,
+} from './bulk-generate';
 import { AiGenerateQuizDto } from './dto/ai-generate-quiz.dto';
+import { BulkGenerateQuizDto } from './dto/bulk-generate-quiz.dto';
 import { CreateQuizDto, QuestionDto } from './dto/create-quiz.dto';
 import { UpdateQuizDto } from './dto/update-quiz.dto';
 import { QueryQuizzesDto } from './dto/query-quizzes.dto';
@@ -65,10 +78,10 @@ interface OrQuestion {
 type StoredQuestion = McQuestion | FbQuestion | WmQuestion | OrQuestion;
 
 export interface QuizResult {
-  score: number;       // correct points earned
-  total: number;       // max possible points
-  percentage: number;  // 0–100
-  passed: boolean;     // >= 50%
+  score: number; // correct points earned
+  total: number; // max possible points
+  percentage: number; // 0–100
+  passed: boolean; // >= 50%
   xpEarned: number;
   breakdown: { questionIndex: number; correct: boolean; points: number }[];
   /** Approximate IELTS band (0–9) — set only for ielts_listening/reading. */
@@ -89,8 +102,32 @@ export interface PaginatedQuizzes {
   limit: number;
 }
 
+/**
+ * Давхардлаас хамгаалах "банк" — нэг ангиллын одоо байгаа бүх асуултын түлхүүр
+ * + гарчиг. Гүйлтийн явцад шинээр үүссэн зүйл ч энд нэмэгдэнэ.
+ */
+interface CategoryBank {
+  keys: Set<string>;
+  titles: string[];
+}
+
+/** Зэрэг явуулах AI дуудлагын тоо. Gemini-гийн хурдны хязгаарт эвтэй утга. */
+const BULK_CONCURRENCY = 3;
+/** Давхардлыг хассаны дараа энэ тооноос цөөн асуулт үлдвэл дасгалыг хаяна. */
+const MIN_QUESTIONS_KEPT = 3;
+/** Давхардал шалгахад ачаалах хамгийн олон мөр (нэг ангилалд). */
+const EXISTING_SCAN_LIMIT = 500;
+
 @Injectable()
 export class QuizzesService {
+  private readonly logger = new Logger(QuizzesService.name);
+
+  /**
+   * "Бүх төрлөөр үүсгэх" background ажлуудын явц, jobId-гаар. Санах ойд
+   * (нэг instance) — Үгс/Хэлц хуудасны загвартай ижил, MVP-д хангалттай.
+   */
+  private readonly bulkJobs = new Map<string, BulkGenerateReport>();
+
   constructor(
     @InjectRepository(Quiz)
     private readonly quizzes: Repository<Quiz>,
@@ -138,14 +175,193 @@ export class QuizzesService {
     }
   }
 
+  // ── "Бүх төрлөөр үүсгэх" (bulk) ──────────────────────────────────────────
+
+  /**
+   * Агуулга бичихгүйгээр бүхэл түвшний контент үүсгэх ажлыг эхлүүлнэ.
+   *
+   * `aiGenerate`-аас ялгаатай нь энэ нь **DB рүү шууд бичнэ** — 40 дасгалыг
+   * preview дээр нэг бүрчлэн шалгах боломжгүй. Оронд нь хамгаалалт нь: асуулт
+   * бүр `ai-generate.ts`-ийн чанарын шалгуурыг дамжина, давхардсан асуулт
+   * хаягдана, мөн бүх мөр админд жагсаалтад харагдаад засагдах/устгагдах
+   * боломжтой хэвээр.
+   *
+   * Урт ажил (40 дасгал ≈ 3 мин) тул background-д явж, `jobId` буцаана.
+   */
+  startBulkGenerate(dto: BulkGenerateQuizDto): {
+    jobId: string;
+    total: number;
+  } {
+    const steps = planSteps(dto.targets, dto.perTarget);
+    if (steps.length > MAX_TOTAL_STEPS) {
+      throw new BadRequestException(
+        `Нэг удаад хамгийн ихдээ ${MAX_TOTAL_STEPS} дасгал үүсгэнэ ` +
+          `(та ${steps.length} хүссэн). Төрөл эсвэл тоогоо багасгана уу.`,
+      );
+    }
+
+    const jobId = randomUUID();
+    const report: BulkGenerateReport = {
+      total: steps.length,
+      processed: 0,
+      created: 0,
+      skipped: 0,
+      failed: [],
+      done: false,
+    };
+    this.bulkJobs.set(jobId, report);
+
+    void this.runBulkGenerate(dto, steps, report)
+      .catch((e: unknown) =>
+        this.logger.error(
+          `[bulk-generate] job ${jobId} crashed: ${e instanceof Error ? e.message : String(e)}`,
+        ),
+      )
+      .finally(() => {
+        report.done = true;
+        report.current = undefined;
+        // Дууссан үр дүнг админ уншиж амжтал барьж байгаад чөлөөлнө.
+        setTimeout(() => this.bulkJobs.delete(jobId), 5 * 60_000);
+      });
+
+    return { jobId, total: steps.length };
+  }
+
+  /** Явцыг татах (админ 2.5 секунд тутам дуудна). */
+  getBulkJob(jobId: string): BulkGenerateReport | undefined {
+    return this.bulkJobs.get(jobId);
+  }
+
+  /**
+   * "Зогсоох" — ажиллаж буй дуудлагууд дуусаад шинэ нь эхлэхгүй.
+   * Танихгүй id (дууссан/хугацаа нь дууссан) бол `false`.
+   */
+  cancelBulkJob(jobId: string): boolean {
+    const job = this.bulkJobs.get(jobId);
+    if (!job) return false;
+    job.canceled = true;
+    this.logger.log(`[bulk-generate] cancel requested for job ${jobId}`);
+    return true;
+  }
+
+  /**
+   * Тухайн ангилалд одоо байгаа бүх асуулт + гарчгийг цуглуулна.
+   *
+   * Хоёр зорилготой: (1) гарчгуудыг prompt-д өгч AI-г давтахаас нь сэргийлэх,
+   * (2) буцаж ирсэн асуултаас давхардсаныг нь хасах. Түвшнээр шүүхгүй —
+   * A1-д байгаа асуултыг B1-д дахин гаргах нь мөн л давхардал.
+   */
+  private async loadCategoryBank(category: string): Promise<CategoryBank> {
+    const rows = await this.quizzes.find({
+      where: { category },
+      order: { createdAt: 'DESC' },
+      take: EXISTING_SCAN_LIMIT,
+    });
+    const bank: CategoryBank = { keys: new Set(), titles: [] };
+    for (const row of rows) {
+      bank.titles.push(row.title);
+      for (const q of row.questions ?? []) {
+        const key = dedupKey(questionText(q));
+        if (key) bank.keys.add(key);
+      }
+    }
+    return bank;
+  }
+
+  /** Нэг алхам = нэг дасгал: AI-аар үүсгэх → давхардал хасах → хадгалах. */
+  private async runStep(
+    step: BulkStep,
+    dto: BulkGenerateQuizDto,
+    bank: CategoryBank,
+    report: BulkGenerateReport,
+  ): Promise<void> {
+    report.current = stepName(step);
+    try {
+      const draft = await this.aiGenerate({
+        brief: buildStepBrief(step, bank.titles),
+        kind: dto.kind,
+        category: step.category,
+        topic: step.topic ?? undefined,
+        level: dto.level,
+        questionType: step.questionType as AiGenerateQuizDto['questionType'],
+        count: dto.questionCount,
+        contextNote: step.contextNote,
+      });
+
+      // Аль хэдийн байгаа (эсвэл энэ гүйлтэд дөнгөж үүссэн) асуултыг хасна.
+      // Түлхүүрийг хадгалахаас ӨМНӨ нэмнэ — зэрэг явж буй алхам мөн үүнийг харна.
+      const fresh = draft.questions.filter((q) => {
+        const key = dedupKey(questionText(q));
+        if (!key || bank.keys.has(key)) return false;
+        bank.keys.add(key);
+        return true;
+      });
+
+      const minKept = Math.min(MIN_QUESTIONS_KEPT, dto.questionCount);
+      if (fresh.length < minKept) {
+        report.skipped++;
+        return;
+      }
+
+      await this.create({
+        title: draft.title,
+        level: dto.level,
+        category: step.category,
+        topic: step.topic ?? undefined,
+        quizType: step.quizType ?? draft.questionType,
+        questions: fresh as CreateQuizDto['questions'],
+        xpReward: dto.xpReward ?? 50,
+        passageText: draft.passageText ?? undefined,
+        // Хадгалах = шууд нийтлэх (админд "ноорог" төлөв байхгүй).
+        isPublished: true,
+      });
+      bank.titles.push(draft.title);
+      report.created++;
+    } catch (e: unknown) {
+      report.failed.push({
+        key: stepName(step),
+        message: e instanceof Error ? e.message : 'Тодорхойгүй алдаа',
+      });
+    } finally {
+      report.processed++;
+    }
+  }
+
+  /** Төлөвлөсөн алхмуудыг хязгаарлагдмал зэрэгцээгээр гүйцэтгэнэ. */
+  private async runBulkGenerate(
+    dto: BulkGenerateQuizDto,
+    steps: BulkStep[],
+    report: BulkGenerateReport,
+  ): Promise<void> {
+    // Ангилал тус бүрийн давхардлын банкийг нэг л удаа ачаална.
+    const banks = new Map<string, CategoryBank>();
+    for (const target of dto.targets) {
+      if (!banks.has(target.category)) {
+        banks.set(
+          target.category,
+          await this.loadCategoryBank(target.category),
+        );
+      }
+    }
+
+    let cursor = 0;
+    const worker = async (): Promise<void> => {
+      while (cursor < steps.length && !report.canceled) {
+        const step = steps[cursor++];
+        await this.runStep(step, dto, banks.get(step.category)!, report);
+      }
+    };
+    await Promise.all(
+      Array.from({ length: Math.min(BULK_CONCURRENCY, steps.length) }, worker),
+    );
+  }
+
   /**
    * Агуулгад хамгийн тохирох асуултын форматыг AI-аар сонгуулна.
    * Бүтэлгүйтвэл хамгийн түгээмэл формат руу буцна — энэ жижиг алхмаас болж
    * бүхэл онцлог унах ёсгүй.
    */
-  private async pickQuestionType(
-    o: GenerateOptions,
-  ): Promise<GenQuestionType> {
+  private async pickQuestionType(o: GenerateOptions): Promise<GenQuestionType> {
     try {
       const { text } = await runGeminiText(
         this.config,
@@ -344,9 +560,17 @@ export class QuizzesService {
     const percentage = Math.round((earned / totalPoints) * 100);
     const passed = percentage >= 50;
     // XP is proportional: full xpReward for 100%, scaled linearly, 0 for no correct answers.
-    const xpEarned = earned > 0 ? Math.floor(quiz.xpReward * (earned / totalPoints)) : 0;
+    const xpEarned =
+      earned > 0 ? Math.floor(quiz.xpReward * (earned / totalPoints)) : 0;
 
-    return { score: earned, total: totalPoints, percentage, passed, xpEarned, breakdown };
+    return {
+      score: earned,
+      total: totalPoints,
+      percentage,
+      passed,
+      xpEarned,
+      breakdown,
+    };
   }
 
   /**
@@ -370,15 +594,19 @@ export class QuizzesService {
     if (q.type === 'word_match') {
       // Mobile sends matched pairs as JSON string; full match = correct.
       try {
-        const submitted = typeof userAnswer === 'string' ? JSON.parse(userAnswer) : userAnswer;
+        const submitted =
+          typeof userAnswer === 'string' ? JSON.parse(userAnswer) : userAnswer;
         if (Array.isArray(submitted)) {
           return q.pairs.every((pair) =>
-            submitted.some((s: { left: string; right: string }) =>
-              s.left === pair.left && s.right === pair.right,
+            submitted.some(
+              (s: { left: string; right: string }) =>
+                s.left === pair.left && s.right === pair.right,
             ),
           );
         }
-      } catch { return false; }
+      } catch {
+        return false;
+      }
     }
     // open_response (Writing/Speaking) is self-study only → never auto-correct.
     return false;
@@ -386,7 +614,9 @@ export class QuizzesService {
 
   /** The correct answer to reveal for a single question (mc → index,
    *  fill_blank → string, word_match → pairs). */
-  private correctAnswerOf(q: StoredQuestion): CheckAnswerResult['correctAnswer'] {
+  private correctAnswerOf(
+    q: StoredQuestion,
+  ): CheckAnswerResult['correctAnswer'] {
     if (q.type === 'multiple_choice') return q.correct;
     if (q.type === 'fill_blank') return q.answer;
     if (q.type === 'word_match') return q.pairs;
@@ -406,7 +636,9 @@ export class QuizzesService {
     const questions = quiz.questions as StoredQuestion[];
     const q = questions[questionIndex];
     if (!q) {
-      throw new BadRequestException(`questionIndex ${questionIndex} нь quiz-д байхгүй`);
+      throw new BadRequestException(
+        `questionIndex ${questionIndex} нь quiz-д байхгүй`,
+      );
     }
     const correct = this.gradeQuestion(q, answer);
     return correct

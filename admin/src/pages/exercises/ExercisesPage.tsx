@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Eye, EyeOff, Upload, Trash2, Sparkles } from 'lucide-react';
+import { Plus, Upload, Trash2, Sparkles } from 'lucide-react';
 import { AiBulkGenerator } from '../../components/AiBulkGenerator';
+import { HiddenBadge, VisibilityButton, UnpublishedBanner } from '../../components/Publish';
+import { BulkGenerateModal, BulkGenerateProgress, BulkGenerateButton } from '../../components/BulkGenerate';
+import { ErrorBox } from '../../components/ErrorBox';
 import { api } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
 import { Button } from '../../components/Button';
@@ -12,7 +15,7 @@ import { Select } from '../../components/Select';
 import { FormActions } from '../../components/FormActions';
 import { RowActions } from '../../components/RowActions';
 import { Pagination } from '../../components/Pagination';
-import { levelFormOptions as LEVEL_OPTIONS, exerciseCategoryOptions } from '../../lib/options';
+import { levelFormOptions as LEVEL_OPTIONS, exerciseCategoryOptions, EXERCISE_CATEGORIES } from '../../lib/options';
 import {
   QuizQuestionsEditor,
   type Question,
@@ -41,6 +44,24 @@ const CATS = [
   { key: 'grammar', label: 'Дүрэм' },
 ] as const;
 
+/**
+ * "Бүх төрлөөр үүсгэх"-д орох төрлүүд. `speaking` (тун удахгүй) ба `reading`
+ * (өөрийн `ReadingPassage` хуудастай) хоёр орохгүй — тэднийг энд үүсгэвэл апп
+ * дээр хүрэх дэлгэцгүй мөр болно.
+ *
+ * `topics` нь аппын бүлэглэлт (`mobile/app/skill/[key].tsx` нь дасгалыг
+ * `topic`-оор нь бүлэглэдэг) — AI-д сэдэв зохиолгохын оронд байгаа бүлгүүд рүү
+ * тараана.
+ */
+const BULK_TARGETS = CATS
+  .filter((c) => c.key !== 'speaking' && c.key !== 'reading')
+  .map((c) => ({
+    key: c.key,
+    category: c.key,
+    label: c.label,
+    topics: EXERCISE_CATEGORIES[c.key] ?? [],
+  }));
+
 const QTYPE_OPTIONS = [
   { value: 'multiple_choice', label: 'Олон сонголт' },
   { value: 'fill_blank', label: 'Нөхөх' },
@@ -66,12 +87,10 @@ interface Form {
   questionType: QuestionType;
   questions: Question[];
   xpReward: number;
-  isPublished: boolean;
 }
-// Published by default: the app only lists `isPublished=true` exercises, and a
-// draft-by-default form is why newly authored дасгал never showed up on mobile.
+// "Ноорог" төлөв формд байхгүй: Хадгалах = шууд нийтлэх (`components/Publish.tsx`).
 const emptyForm: Form = {
-  title: '', level: 'a1', topic: '', questionType: 'multiple_choice', questions: [], xpReward: 50, isPublished: true,
+  title: '', level: 'a1', topic: '', questionType: 'multiple_choice', questions: [], xpReward: 50,
 };
 
 export default function ExercisesPage() {
@@ -86,8 +105,14 @@ export default function ExercisesPage() {
 
   // Selection (bulk publish/delete)
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [publishingAll, setPublishingAll] = useState(false);
   // AI-аар үүсгэх (дундын AiBulkGenerator)
   const [aiOpen, setAiOpen] = useState(false);
+  /** Импортын цонхонд буулгасан текстийг AI руу дамжуулах үед л дүүрнэ. */
+  const [aiBrief, setAiBrief] = useState('');
+  // Бүх төрлөөр үүсгэх (background job)
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkJobId, setBulkJobId] = useState<string | null>(null);
   // CSV/JSON import
   const [importOpen, setImportOpen] = useState(false);
   const [impTitle, setImpTitle] = useState('');
@@ -115,7 +140,7 @@ export default function ExercisesPage() {
     const qt = (ex.quizType as QuestionType) || (ex.questions[0]?.type ?? 'multiple_choice');
     setForm({
       title: ex.title, level: ex.level, topic: ex.topic ?? '', questionType: qt,
-      questions: ex.questions ?? [], xpReward: ex.xpReward, isPublished: ex.isPublished,
+      questions: ex.questions ?? [], xpReward: ex.xpReward,
     });
     setEditing(ex); setError(''); setModal('edit');
   }
@@ -138,7 +163,7 @@ export default function ExercisesPage() {
         quizType: form.questionType,
         questions: form.questions,
         xpReward: form.xpReward,
-        isPublished: form.isPublished,
+        isPublished: true, // хадгалсан контент шууд аппад гарна
       };
       if (modal === 'create') await api.post('/quizzes', payload);
       else if (editing) await api.patch(`/quizzes/${editing.id}`, payload);
@@ -172,6 +197,14 @@ export default function ExercisesPage() {
   async function bulkPublish(isPublished: boolean) {
     await Promise.all([...selected].map((id) => api.patch(`/quizzes/${id}`, { isPublished })));
     load();
+  }
+  /** Хуучин ноорог мөрүүдийг нэг товчоор нийтлэх (баннераас). */
+  async function publishAllHidden() {
+    setPublishingAll(true);
+    try {
+      await Promise.all(hidden.map((e) => api.patch(`/quizzes/${e.id}`, { isPublished: true })));
+      load();
+    } finally { setPublishingAll(false); }
   }
   async function bulkDelete() {
     if (!confirm(`${selected.size} дасгал устгах уу?`)) return;
@@ -220,7 +253,7 @@ export default function ExercisesPage() {
     try {
       await api.post('/quizzes', {
         title: impTitle.trim(), level: impLevel, category: cat, topic: impTopic,
-        quizType: impType, questions, xpReward: 50, isPublished: false,
+        quizType: impType, questions, xpReward: 50, isPublished: true,
       });
       setImportOpen(false); setImpTitle(''); setImpText('');
       load();
@@ -231,6 +264,7 @@ export default function ExercisesPage() {
 
   const total = items.length;
   const paged = items.slice((page - 1) * LIMIT, page * LIMIT);
+  const hidden = items.filter((e) => !e.isPublished);
   const allChecked = paged.length > 0 && paged.every((e) => selected.has(e.id));
   const columns = [
     {
@@ -239,7 +273,15 @@ export default function ExercisesPage() {
       render: (e: Exercise) => <input type="checkbox" checked={selected.has(e.id)} onChange={() => toggleRow(e.id)} />,
       className: 'w-8',
     },
-    { key: 'title', header: 'Гарчиг', render: (e: Exercise) => <span className="font-medium">{e.title}</span> },
+    {
+      key: 'title', header: 'Гарчиг',
+      render: (e: Exercise) => (
+        <span className="flex items-center gap-2">
+          <span className="font-medium">{e.title}</span>
+          <HiddenBadge published={e.isPublished} />
+        </span>
+      ),
+    },
     {
       key: 'topic', header: 'Сэдэв',
       render: (e: Exercise) =>
@@ -249,20 +291,10 @@ export default function ExercisesPage() {
     { key: 'qs', header: 'Асуулт', render: (e: Exercise) => <span className="text-gray-600">{e.questions?.length ?? 0}</span> },
     { key: 'xp', header: 'XP', render: (e: Exercise) => <span className="text-primary font-medium">⚡ {e.xpReward}</span> },
     {
-      key: 'status', header: 'Төлөв',
-      render: (e: Exercise) => (
-        <button onClick={() => togglePublish(e)} title="Дарж нийтлэх төлөв солих">
-          {e.isPublished ? <Badge color="green">Нийтэлсэн</Badge> : <Badge color="gray">Ноорог</Badge>}
-        </button>
-      ),
-    },
-    {
       key: 'actions', header: '',
       render: (e: Exercise) => (
         <div className="flex gap-1 justify-end">
-          <Button variant="ghost" size="sm" onClick={() => togglePublish(e)} title={e.isPublished ? 'Нийтлэхээ болих' : 'Нийтлэх'}>
-            {e.isPublished ? <EyeOff className="h-4 w-4 text-gray-500" /> : <Eye className="h-4 w-4 text-green-600" />}
-          </Button>
+          <VisibilityButton published={e.isPublished} onToggle={() => togglePublish(e)} />
           <RowActions onEdit={() => openEdit(e)} onDelete={() => remove(e.id)} />
         </div>
       ),
@@ -281,7 +313,8 @@ export default function ExercisesPage() {
         action={!speaking && !reading && (
           <div className="flex gap-2">
             <Button variant="secondary" onClick={() => { setImpError(''); setImportOpen(true); }}><Upload className="h-4 w-4" /> Импорт</Button>
-            <Button variant="secondary" onClick={() => setAiOpen(true)}><Sparkles className="h-4 w-4" /> AI-аар үүсгэх</Button>
+            <Button variant="secondary" onClick={() => { setAiBrief(''); setAiOpen(true); }}><Sparkles className="h-4 w-4" /> AI-аар үүсгэх</Button>
+            <BulkGenerateButton onClick={() => setBulkOpen(true)} />
             <Button onClick={openCreate}><Plus className="h-4 w-4" /> Дасгал нэмэх</Button>
           </div>
         )}
@@ -296,8 +329,20 @@ export default function ExercisesPage() {
             topicOptions: exerciseCategoryOptions(cat),
             xpReward: 50,
           }}
+          initialBrief={aiBrief}
           onClose={() => setAiOpen(false)}
           onSaved={load}
+        />
+      )}
+
+      {bulkOpen && (
+        <BulkGenerateModal
+          kind="exercise"
+          title="Дасгал"
+          targets={BULK_TARGETS}
+          defaultXp={50}
+          onClose={() => setBulkOpen(false)}
+          onStarted={setBulkJobId}
         />
       )}
 
@@ -314,12 +359,30 @@ export default function ExercisesPage() {
         ))}
       </div>
 
+      {bulkJobId && (
+        <BulkGenerateProgress
+          jobId={bulkJobId}
+          onRefresh={load}
+          onClose={() => setBulkJobId(null)}
+        />
+      )}
+
+      {/* Хуучин ноорог мөр үлдсэн бол ил гаргана (шинэ хадгалалт үргэлж нийтлэгддэг). */}
+      {!speaking && !reading && (
+        <UnpublishedBanner
+          count={hidden.length}
+          onPublishAll={publishAllHidden}
+          busy={publishingAll}
+          noun="дасгал"
+        />
+      )}
+
       {/* Bulk action bar */}
       {!speaking && !reading && selected.size > 0 && (
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <span className="text-sm text-gray-500">{selected.size} сонгосон:</span>
           <Button variant="secondary" size="sm" onClick={() => bulkPublish(true)}>Нийтлэх</Button>
-          <Button variant="secondary" size="sm" onClick={() => bulkPublish(false)}>Ноорог болгох</Button>
+          <Button variant="secondary" size="sm" onClick={() => bulkPublish(false)}>Аппаас нуух</Button>
           <Button variant="danger" size="sm" onClick={bulkDelete}><Trash2 className="h-4 w-4" /> Устгах</Button>
         </div>
       )}
@@ -357,12 +420,8 @@ export default function ExercisesPage() {
               />
             </div>
 
-            <label className="flex items-center gap-2 text-sm text-gray-700">
-              <input type="checkbox" checked={form.isPublished} onChange={(e) => setForm({ ...form, isPublished: e.target.checked })} />
-              Шууд нийтлэх
-            </label>
-
-            {error && <p className="text-sm text-red-500">{error}</p>}
+            <p className="text-xs text-gray-500">✅ Хадгалмагц шууд нийтлэгдэж, апп дээр гарна.</p>
+            <ErrorBox message={error} />
             <FormActions onCancel={() => setModal(null)} onSave={save} saving={saving} />
           </div>
         </Modal>
@@ -407,11 +466,23 @@ export default function ExercisesPage() {
                 placeholder="Энд CSV (|-аар) эсвэл JSON буулгана..."
               />
             </div>
-            <p className="text-xs text-amber-600">
-              ⚠️ Импортолсон дасгал <b>ноорог</b> болж үүснэ — шалгаад "Нийтлэх" дарж
-              идэвхжүүлнэ. Нийтлээгүй дасгал апп дээр огт харагдахгүй.
-            </p>
-            {impError && <p className="text-sm text-red-500">{impError}</p>}
+            {/* Формат тааруулах цаг заваарахгүй бол — яг тэр текстийг AI-д өгнө. */}
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primarySoft px-3 py-2.5">
+              <Sparkles className="h-4 w-4 shrink-0 text-primary" />
+              <span className="flex-1 text-xs text-gray-600">
+                Формат нь таарахгүй байна уу? Дээрх текстээ AI-д өгөөд асуулт болгож
+                үүсгүүлж болно — гарчиг, хариулт, оноог нь өөрөө бөглөнө.
+              </span>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => { setAiBrief(impText); setImportOpen(false); setAiOpen(true); }}
+              >
+                <Sparkles className="h-4 w-4" /> AI-аар үүсгэх
+              </Button>
+            </div>
+            <p className="text-xs text-gray-500">✅ Импортолсон дасгал шууд нийтлэгдэж, апп дээр гарна.</p>
+            <ErrorBox message={impError} />
             <FormActions onCancel={() => setImportOpen(false)} onSave={runImport} saving={importing} saveLabel="Импортлох" />
           </div>
         </Modal>

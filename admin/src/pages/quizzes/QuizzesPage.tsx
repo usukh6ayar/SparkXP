@@ -1,7 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, GripVertical, X, Eye, EyeOff, Upload, Trash2, Sparkles } from 'lucide-react';
+import { Plus, GripVertical, X, Upload, Trash2, Sparkles } from 'lucide-react';
 import { api } from '../../api/client';
 import { AiBulkGenerator } from '../../components/AiBulkGenerator';
+import { HiddenBadge, VisibilityButton, UnpublishedBanner } from '../../components/Publish';
+import { BulkGenerateModal, BulkGenerateProgress, BulkGenerateButton } from '../../components/BulkGenerate';
+import { ErrorBox } from '../../components/ErrorBox';
 import type { QuestionType } from '../../components/QuizQuestionsEditor';
 import { PageHeader } from '../../components/PageHeader';
 import { Button } from '../../components/Button';
@@ -77,6 +80,23 @@ const QUIZ_TYPES = [
   { value: 'fill',        label: '✏️ Дүүргэх',          desc: 'Хоосон зайг нөх',                 questionType: 'fill_blank'      },
 ];
 
+
+/**
+ * "Бүх төрлөөр үүсгэх"-ийн төрлүүд = 6 тоглоом. Бүгд `category: 'soril'` тул
+ * жагсаалтын түлхүүр нь `quizType` (энэ л тэднийг ялгана).
+ *
+ * `topics` алга: Сорилын таб нь дасгалыг сэдвээр бүлэглэдэггүй — тоглоомын
+ * төрлөөр л ялгадаг. Тиймээс олон янз байдал нь `contextNote` + backend-ийн
+ * "өмнөхөөсөө өөр бич" зааврын үүрэг.
+ */
+const BULK_TARGETS = QUIZ_TYPES.map((q) => ({
+  key: q.value,
+  category: SORIL_CATEGORY,
+  label: q.label,
+  questionType: q.questionType,
+  quizType: q.value,
+  contextNote: `Сорилын тоглоом: ${q.label} — ${q.desc}`,
+}));
 
 const TYPE_COLORS: Record<string, 'blue' | 'green' | 'yellow' | 'gray'> = {
   word_guess: 'green',
@@ -311,15 +331,11 @@ interface QuizForm {
   xpReward: number;
   quizType: string;
   questions: Question[];
-  isPublished: boolean;
 }
 
-// Анхдагчаар нийтэлнэ: апп зөвхөн `isPublished=true` сорилыг татдаг. Энэ форм
-// урьд нь `isPublished`-ыг ОГТ илгээдэггүй байсан тул entity-ийн анхдагч
-// (`false`) хүчинтэй болж, энд үүсгэсэн сорил апп дээр хэзээ ч гардаггүй байв.
+// "Ноорог" төлөв формд байхгүй: Хадгалах = шууд нийтлэх (`components/Publish.tsx`).
 const emptyForm = (qt = 'word_guess'): QuizForm => ({
   title: '', level: 'a1', xpReward: 10, quizType: qt, questions: [blankFor(qt)],
-  isPublished: true,
 });
 
 /** questionType (mc/fill/match) that a game type maps to. */
@@ -340,9 +356,15 @@ export default function QuizzesPage() {
 
   // Selection (bulk publish/delete)
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [publishingAll, setPublishingAll] = useState(false);
 
   // AI-аар үүсгэх (дундын AiBulkGenerator). "Бүгд" таб дээр анхдагч тоглоомыг авна.
   const [aiOpen, setAiOpen] = useState(false);
+  /** Импортын цонхонд буулгасан текстийг AI руу дамжуулах үед л дүүрнэ. */
+  const [aiBrief, setAiBrief] = useState('');
+  // Бүх төрлөөр үүсгэх (background job)
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkJobId, setBulkJobId] = useState<string | null>(null);
   const aiGame = QUIZ_TYPES.find((t) => t.value === typeFilter) ?? QUIZ_TYPES[0];
 
   // CSV / JSON import
@@ -377,6 +399,7 @@ export default function QuizzesPage() {
     : quizzes.filter((q) => (q.quizType ?? 'multiple_choice') === typeFilter);
   const total = filtered.length;
   const paged = filtered.slice((page - 1) * LIMIT, page * LIMIT);
+  const hidden = filtered.filter((q) => !q.isPublished);
 
   function openCreate(qt = 'multiple_choice') {
     setForm(emptyForm(qt));
@@ -390,7 +413,6 @@ export default function QuizzesPage() {
       xpReward: q.xpReward,
       quizType: q.quizType ?? 'multiple_choice',
       questions: (q.questions ?? []) as Question[],
-      isPublished: q.isPublished,
     });
     setEditing(q); setError(''); setModal('edit');
   }
@@ -437,7 +459,7 @@ export default function QuizzesPage() {
         xpReward: form.xpReward,
         quizType: form.quizType,
         questions: form.questions,
-        isPublished: form.isPublished,
+        isPublished: true, // хадгалсан сорил шууд аппад гарна
       };
       // `category` зөвхөн ҮҮСГЭХЭД, эсвэл засаж буй мөр нь category-гүй үед
       // (= энэ хуудсаар хуучин үүсгэсэн, аппд хүрэх замгүй сорил). Бусад
@@ -483,6 +505,14 @@ export default function QuizzesPage() {
   async function bulkPublish(isPublished: boolean) {
     await Promise.all([...selected].map((id) => api.patch(`/quizzes/${id}`, { isPublished })));
     load();
+  }
+  /** Хуучин ноорог мөрүүдийг нэг товчоор нийтлэх (баннераас). */
+  async function publishAllHidden() {
+    setPublishingAll(true);
+    try {
+      await Promise.all(hidden.map((q) => api.patch(`/quizzes/${q.id}`, { isPublished: true })));
+      load();
+    } finally { setPublishingAll(false); }
   }
   async function bulkDelete() {
     if (!confirm(`${selected.size} quiz устгах уу?`)) return;
@@ -532,10 +562,9 @@ export default function QuizzesPage() {
     try {
       await api.post('/quizzes', {
         title: impTitle.trim(), level: impLevel, quizType: impQuizType,
-        // Импорт нь ноорог хэвээр (шалгаад нийтэлнэ), гэхдээ category заавал —
-        // эс бөгөөс нийтэлсэн ч апп татах замгүй болно.
+        // `category` заавал — эс бөгөөс нийтэлсэн ч апп татах замгүй болно.
         category: SORIL_CATEGORY,
-        questions, xpReward: 10, isPublished: false,
+        questions, xpReward: 10, isPublished: true,
       });
       setImportOpen(false); setImpTitle(''); setImpText('');
       load();
@@ -554,7 +583,12 @@ export default function QuizzesPage() {
     },
     {
       key: 'title', header: 'Гарчиг',
-      render: (q: Quiz) => <span className="font-medium">{q.title}</span>,
+      render: (q: Quiz) => (
+        <span className="flex items-center gap-2">
+          <span className="font-medium">{q.title}</span>
+          <HiddenBadge published={q.isPublished} />
+        </span>
+      ),
     },
     {
       key: 'quizType', header: 'Төрөл',
@@ -571,22 +605,10 @@ export default function QuizzesPage() {
         <span className="font-medium text-primary">⚡ {q.xpReward}</span>,
     },
     {
-      key: 'status', header: 'Статус',
-      render: (q: Quiz) => <Badge color={q.isPublished ? 'green' : 'gray'}>{q.isPublished ? 'Нийтлэгдсэн' : 'Ноорог'}</Badge>,
-    },
-    {
       key: 'actions', header: '',
       render: (q: Quiz) => (
         <div className="flex gap-1 justify-end">
-          <Button
-            variant="ghost" size="sm"
-            title={q.isPublished ? 'Нуух' : 'Нийтлэх'}
-            onClick={() => togglePublish(q)}
-          >
-            {q.isPublished
-              ? <Eye className="h-4 w-4 text-green-500" />
-              : <EyeOff className="h-4 w-4 text-gray-400" />}
-          </Button>
+          <VisibilityButton published={q.isPublished} onToggle={() => togglePublish(q)} />
           <RowActions onEdit={() => openEdit(q)} onDelete={() => remove(q.id)} />
         </div>
       ), className: 'text-right',
@@ -601,7 +623,8 @@ export default function QuizzesPage() {
         action={
           <div className="flex gap-2">
             <Button variant="secondary" onClick={() => { setImpError(''); setImportOpen(true); }}><Upload className="h-4 w-4" /> Импорт</Button>
-            <Button variant="secondary" onClick={() => setAiOpen(true)}><Sparkles className="h-4 w-4" /> AI-аар үүсгэх</Button>
+            <Button variant="secondary" onClick={() => { setAiBrief(''); setAiOpen(true); }}><Sparkles className="h-4 w-4" /> AI-аар үүсгэх</Button>
+            <BulkGenerateButton onClick={() => setBulkOpen(true)} />
             <Button onClick={() => openCreate()}><Plus className="h-4 w-4" /> Quiz нэмэх</Button>
           </div>
         }
@@ -619,8 +642,20 @@ export default function QuizzesPage() {
             save: { quizType: aiGame.value },
             xpReward: 10,
           }}
+          initialBrief={aiBrief}
           onClose={() => setAiOpen(false)}
           onSaved={load}
+        />
+      )}
+
+      {bulkOpen && (
+        <BulkGenerateModal
+          kind="exercise"
+          title="Сорил"
+          targets={BULK_TARGETS}
+          defaultXp={10}
+          onClose={() => setBulkOpen(false)}
+          onStarted={setBulkJobId}
         />
       )}
 
@@ -643,12 +678,19 @@ export default function QuizzesPage() {
         ))}
       </div>
 
+      {bulkJobId && (
+        <BulkGenerateProgress jobId={bulkJobId} onRefresh={load} onClose={() => setBulkJobId(null)} />
+      )}
+
+      {/* Хуучин ноорог мөр үлдсэн бол ил гаргана. */}
+      <UnpublishedBanner count={hidden.length} onPublishAll={publishAllHidden} busy={publishingAll} noun="сорил" />
+
       {/* Bulk action bar */}
       {selected.size > 0 && (
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <span className="text-sm text-gray-500">{selected.size} сонгосон:</span>
           <Button variant="secondary" size="sm" onClick={() => bulkPublish(true)}>Нийтлэх</Button>
-          <Button variant="secondary" size="sm" onClick={() => bulkPublish(false)}>Ноорог болгох</Button>
+          <Button variant="secondary" size="sm" onClick={() => bulkPublish(false)}>Аппаас нуух</Button>
           <Button variant="danger" size="sm" onClick={bulkDelete}><Trash2 className="h-4 w-4" /> Устгах</Button>
         </div>
       )}
@@ -760,16 +802,8 @@ export default function QuizzesPage() {
               </div>
             </div>
 
-            <label className="flex items-center gap-2 text-sm text-gray-700">
-              <input
-                type="checkbox"
-                checked={form.isPublished}
-                onChange={(e) => setForm(f => ({ ...f, isPublished: e.target.checked }))}
-              />
-              Шууд нийтлэх <span className="text-gray-400">(ноорог бол апп дээр гарахгүй)</span>
-            </label>
-
-            {error && <p className="text-sm text-red-500">{error}</p>}
+            <p className="text-xs text-gray-500">✅ Хадгалмагц шууд нийтлэгдэж, апп дээр гарна.</p>
+            <ErrorBox message={error} />
 
             <FormActions onCancel={() => setModal(null)} onSave={save} saving={saving}
               className="flex justify-end gap-2 pt-2 border-t border-gray-100" />
@@ -820,7 +854,23 @@ export default function QuizzesPage() {
                 placeholder="Энд CSV (|-аар) эсвэл JSON буулгана..."
               />
             </div>
-            {impError && <p className="text-sm text-red-500">{impError}</p>}
+            {/* Формат тааруулах цаг заваарахгүй бол — яг тэр текстийг AI-д өгнө. */}
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primarySoft px-3 py-2.5">
+              <Sparkles className="h-4 w-4 shrink-0 text-primary" />
+              <span className="flex-1 text-xs text-gray-600">
+                Формат нь таарахгүй байна уу? Дээрх текстээ AI-д өгөөд асуулт болгож
+                үүсгүүлж болно — гарчиг, хариулт, оноог нь өөрөө бөглөнө.
+              </span>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => { setAiBrief(impText); setImportOpen(false); setAiOpen(true); }}
+              >
+                <Sparkles className="h-4 w-4" /> AI-аар үүсгэх
+              </Button>
+            </div>
+            <p className="text-xs text-gray-500">✅ Импортолсон сорил шууд нийтлэгдэж, апп дээр гарна.</p>
+            <ErrorBox message={impError} />
             <FormActions onCancel={() => setImportOpen(false)} onSave={runImport} saving={importing} saveLabel="Импорт" />
           </div>
         </Modal>
