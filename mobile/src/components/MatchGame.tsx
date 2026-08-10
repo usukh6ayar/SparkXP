@@ -18,6 +18,9 @@ import { AppText } from "./Text";
 import { Button } from "./Button";
 import { Skeleton } from "./Skeleton";
 import { EmptyState } from "./EmptyState";
+import { CelebrationScreen } from "./celebration/CelebrationScreen";
+import { celebrationCopy } from "./celebration/copy";
+import { checkCelebrations } from "../lib/useCelebrations";
 import { t } from "../i18n";
 import { spacing, radius, type AppColors } from "../theme/theme";
 import { useColors } from "../settings/SettingsContext";
@@ -63,6 +66,17 @@ export function MatchGame() {
   const [error, setError] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<QuizResult | null>(null);
+  /**
+   * Дуусгалтын баяр хүргэлт. Бусад бүх дуусгалт (хичээл · сорил · дасгал ·
+   * давталт · тоглоом) энэ ёслолыг үзүүлдэг ч энэ тоглоом орхигдож, зөвхөн
+   * хуучин «0 / 5 зөв» оноон дэлгэц гардаг байв.
+   */
+  const [celebrating, setCelebrating] = useState(false);
+  /** Хаахад ард нь хүлээж буй цом/дараалал суллагдана (хэзээ ч 2 модал биш). */
+  const closeCelebration = useCallback(() => {
+    setCelebrating(false);
+    checkCelebrations();
+  }, []);
 
   const load = useCallback(() => {
     if (!token) return;
@@ -99,6 +113,7 @@ export function MatchGame() {
       const res = await submitQuiz(token, answers);
       setResult(res);
       getMe(token).then(updateUser).catch(() => {});
+      setCelebrating(true); // цом/дараалал үүнийг хаахыг хүлээнэ
     } catch {
       setError(true);
     } finally {
@@ -169,6 +184,36 @@ export function MatchGame() {
             <AppText variant="label" color={colors.textSecondary}>{t("backToQuizzes")}</AppText>
           </Pressable>
         </View>
+
+        {/* Дундын дуусгалтын ёслол — аппын бусад бүх дуусгалттай ижил.
+            Хаахад ард нь буй оноон хураангуй харагдана. */}
+        <CelebrationScreen
+          visible={celebrating}
+          {...celebrationCopy("game", { perfect })}
+          xp={result.xpAwarded}
+          stats={[
+            {
+              icon: "checkmark-circle",
+              label: t("celebrationStatCorrect"),
+              value: `${result.correct}/${result.total}`,
+              color: colors.success,
+            },
+            {
+              icon: "diamond",
+              label: t("celebrationStatSparks"),
+              value: `+${result.sparksAwarded}`,
+              color: colors.sparks,
+            },
+          ]}
+          primary={{
+            label: t("playAgain"),
+            onPress: () => { closeCelebration(); setResult(null); load(); },
+          }}
+          secondary={{
+            label: t("backToQuizzes"),
+            onPress: () => { closeCelebration(); router.back(); },
+          }}
+        />
       </SafeAreaView>
     );
   }
