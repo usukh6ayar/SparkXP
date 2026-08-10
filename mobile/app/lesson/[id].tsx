@@ -357,6 +357,18 @@ export default function LessonDetailScreen() {
                     </View>
                   ))}
                 </View>
+                {/* The list above is reference only — this is what turns it into
+                    study. Opens the flashcard deck limited to THIS lesson's
+                    words, so they enter the SM-2 schedule like any other card. */}
+                <Pressable
+                  onPress={() => router.push({ pathname: '/swipe', params: { lessonId: id } })}
+                  style={({ pressed }) => [styles.practiseBtn, pressed && { opacity: 0.85 }]}
+                >
+                  <Ionicons name="albums-outline" size={18} color={c.primary} />
+                  <AppText variant="bodyStrong" color={c.primary}>
+                    {t('practiseLessonWords')}
+                  </AppText>
+                </Pressable>
               </>
             ) : null}
 
@@ -479,6 +491,12 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   wordRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
   wordRowBorder: { borderTopWidth: 1, borderTopColor: c.border },
   wordMn: { maxWidth: '45%', textAlign: 'right' },
+  practiseBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: spacing.sm, marginTop: spacing.sm,
+    paddingVertical: spacing.md, borderRadius: radius.lg,
+    borderWidth: 1, borderColor: c.primary, backgroundColor: c.surface,
+  },
   catGroup: { marginBottom: spacing.md },
   catLabel: { marginBottom: spacing.sm },
   quizRow: {

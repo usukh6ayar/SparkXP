@@ -53,8 +53,17 @@ export interface LearnWord {
 }
 
 /** GET /api/reviews/learn — published words not yet known (swipe deck). */
-export function getLearnQueue(token: string): Promise<LearnWord[]> {
-  return apiRequest<LearnWord[]>('/reviews/learn', { token });
+export function getLearnQueue(
+  token: string,
+  /**
+   * Narrow the deck to one lesson's curated words ("practise this lesson's
+   * words"). Omitted → the general deck, which the server orders by how close
+   * each word is to the learner's own CEFR level.
+   */
+  lessonId?: string,
+): Promise<LearnWord[]> {
+  const q = lessonId ? `?lessonId=${encodeURIComponent(lessonId)}` : '';
+  return apiRequest<LearnWord[]>(`/reviews/learn${q}`, { token });
 }
 
 /** ⭐ Toggle saved (star) for a word. Returns the new state. */
