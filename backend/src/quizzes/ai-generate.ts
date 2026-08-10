@@ -9,6 +9,8 @@
  * Энд зөвхөн цэвэр функцууд байна (сүлжээ/DB хөндөхгүй) — үүнийг тусад нь
  * уншиж, тестлэж болно. Gemini рүү бодит дуудлагыг `QuizzesService` хийнэ.
  */
+import { normalizeChoices } from './bulk-generate';
+
 
 /** Асуултын формат — `QuizQuestionsEditor` (admin) -тэй яг ижил 4 төрөл. */
 export type GenQuestionType =
@@ -26,7 +28,14 @@ export type GeneratedQuestion =
       correct: number;
       points: number;
     }
-  | { type: 'fill_blank'; question: string; answer: string; points: number }
+  | {
+      type: 'fill_blank';
+      question: string;
+      answer: string;
+      /** Дарж сонгох 4 хувилбар (зөв хариулт багтсан). */
+      choices?: string[];
+      points: number;
+    }
   | {
       type: 'word_match';
       pairs: { left: string; right: string }[];
@@ -92,7 +101,17 @@ const TYPE_RULES: Record<GenQuestionType, string> = {
     '(санамсаргүй биш, сурагчийн түгээмэл алдаан дээр суурилсан).',
   fill_blank:
     '"fill_blank": `question` дотор орхигдсон үгийн оронд ЗААВАЛ `___` (3 доогуур зураас) байна. ' +
-    '`answer` нь тэр цоорхойд орох ЯГ нэг үг эсвэл богино хэллэг.',
+    '`answer` нь тэр цоорхойд орох ЯГ нэг үг эсвэл богино хэллэг. ' +
+    // ⚠️ Сурагч чөлөөтэй БИЧДЭГ тул зөв хариулт цорын ганц байх ёстой.
+    // Үүнгүйгээр "She ___ to school every day." → `goes` гэсэн асуулт үүсдэг
+    // байсан бөгөөд `walks`/`runs`/`drives` бүгд зөв мөртлөө тэнцдэггүй байв.
+    'ХАМГИЙН ЧУХАЛ: зөв хариулт нь ЦОРЫН ГАНЦ байх ёстой. Өөр үг бас тохирохоор ' +
+    'бол цоорхойн ард үндсэн хэлбэрийг хаалтанд бич: ' +
+    '"She ___ (go) to school every day." → answer: "goes". ' +
+    '`choices` талбарт ЯГ 4 сонголт өг: зөв хариулт + ижил үгийн 3 өөр хэлбэр ' +
+    '(ж: answer "goes" → choices ["go", "goes", "going", "went"]). Сурагч эдгээрээс ' +
+    'дарж сонгоно. Огт өөр утгатай үг сонголт болгож БОЛОХГҮЙ — тэгвэл дасгал ' +
+    'хэтэрхий амархан болж, дүрэм заахаа болино.',
   word_match:
     '"word_match": `pairs` массив — `left` = англи үг/хэллэг, `right` = монгол утга. 5–8 хос.',
   open_response:
@@ -203,6 +222,12 @@ const QUESTION_FIELDS: Record<string, unknown> = {
   },
   correct: { type: 'INTEGER' },
   answer: { type: 'STRING', maxLength: 60 },
+  choices: {
+    type: 'ARRAY',
+    minItems: 4,
+    maxItems: 4,
+    items: { type: 'STRING', maxLength: 60 },
+  },
   pairs: {
     type: 'ARRAY',
     minItems: 4,
@@ -224,7 +249,7 @@ const QUESTION_FIELDS: Record<string, unknown> = {
 /** Төрөл бүрт ЗААВАЛ байх талбарууд — "асуулт бүрэн боллоо" гэсэн дохио. */
 const REQUIRED_BY_TYPE: Record<GenQuestionType, string[]> = {
   multiple_choice: ['type', 'question', 'options', 'correct'],
-  fill_blank: ['type', 'question', 'answer'],
+  fill_blank: ['type', 'question', 'answer', 'choices'],
   word_match: ['type', 'pairs'],
   open_response: ['type', 'prompt', 'modelAnswer'],
 };
@@ -330,6 +355,7 @@ interface RawQuestion {
   options?: unknown;
   correct?: unknown;
   answer?: unknown;
+  choices?: unknown;
   pairs?: unknown;
   prompt?: unknown;
   modelAnswer?: unknown;
@@ -385,7 +411,10 @@ function normalizeQuestion(
     if (!question) return drop('асуулт хоосон');
     if (!answer) return drop('хариулт хоосон');
     if (!question.includes('___')) warn('өгүүлбэрт `___` цоорхой алга');
-    return { type, question, answer, points: 10 };
+    // Сонголтгүй бол апп бичүүлэх горим руугаа буцна — асуулт хаягдахгүй.
+    const choices = normalizeChoices(raw.choices, answer);
+    if (!choices) warn('сонголт ирсэнгүй — гараар бичих хэлбэрээр үлдлээ');
+    return { type, question, answer, ...(choices ? { choices } : {}), points: 10 };
   }
 
   if (type === 'word_match') {

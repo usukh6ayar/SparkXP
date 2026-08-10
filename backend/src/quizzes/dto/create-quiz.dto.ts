@@ -9,6 +9,8 @@ import {
   IsIn,
   Min,
   ArrayNotEmpty,
+  ArrayMinSize,
+  ArrayMaxSize,
   IsUUID,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -52,6 +54,19 @@ export class FillBlankQuestionDto {
   /** Expected answer (comparison is case-insensitive, trimmed). */
   @IsString()
   answer: string;
+
+  /**
+   * Цоорхойд тавих сонголтууд (зөв хариулт + 3 ойролцоо буруу). Байвал апп
+   * бичих талбарын оронд **дарж сонгох** 4 товч харуулна — гараар бичих нь
+   * сурагчид хэт хэцүү байсан (зөв санааг олсон ч үсэг алдвал буруу).
+   * Байхгүй бол хуучнаараа бичнэ.
+   */
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(2)
+  @ArrayMaxSize(6)
+  @IsString({ each: true })
+  choices?: string[];
 
   @IsInt()
   @Min(1)
