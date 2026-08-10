@@ -25,6 +25,8 @@ import {
 } from './ai-generate';
 import {
   buildStepBrief,
+  buildWordBank,
+  normalizeChoices,
   dedupKey,
   planSteps,
   questionText,
@@ -55,6 +57,8 @@ interface FbQuestion {
   type: 'fill_blank';
   question: string;
   answer: string;
+  /** Дарж сонгох 4 сонголт (зөв хариулт багтсан). Байхгүй бол апп бичүүлнэ. */
+  choices?: string[];
   points: number;
 }
 
@@ -423,10 +427,14 @@ export class QuizzesService {
             `questions[${i}]: fill_blank requires question, answer, points (≥1)`,
           );
         }
+        // Сонголт байвал зөв хариулт нь ЗААВАЛ дотор нь байх ёстой — эс бөгөөс
+        // сурагч дөрвөн буруу хувилбараас сонгох болно.
+        const choices = normalizeChoices(fb.choices, fb.answer);
         return {
           type: 'fill_blank' as const,
           question: fb.question,
           answer: fb.answer,
+          ...(choices ? { choices } : {}),
           points: fb.points,
         };
       }
@@ -505,10 +513,11 @@ export class QuizzesService {
     return { items, total, page, limit };
   }
 
-  async findOne(id: string): Promise<Quiz> {
+  async findOne(id: string): Promise<Quiz & { wordBank?: string[] }> {
     const quiz = await this.quizzes.findOne({ where: { id } });
     if (!quiz) throw new NotFoundException('Quiz олдсонгүй');
-    return quiz;
+    const wordBank = buildWordBank(quiz.questions);
+    return wordBank ? Object.assign(quiz, { wordBank }) : quiz;
   }
 
   async update(id: string, dto: UpdateQuizDto): Promise<Quiz> {

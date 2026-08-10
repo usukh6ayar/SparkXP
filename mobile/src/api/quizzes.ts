@@ -11,6 +11,13 @@ export interface QuizQuestion {
   prompt?: string;
   modelAnswer?: string;
   bandNote?: string;
+  /**
+   * `fill_blank` — дарж сонгох 4 хувилбар (зөв хариулт нь дотор нь, эрэмбэ нь
+   * холигдсон). Цоорхойг гараар бичих нь сурагчид хэт хэцүү байсан: зөв санааг
+   * олсон ч үсэг алдвал буруу гэж тооцогддог. Хуучин дасгалд байхгүй тул апп
+   * тэр үед бичих талбар руугаа буцна.
+   */
+  choices?: string[];
   points: number;
   // correct & answer are NOT returned to the client (server-side only)
 }
@@ -30,6 +37,13 @@ export interface Quiz {
   passageText: string | null;
   /** IELTS Listening: the section's recording (null for other quizzes). */
   audioUrl: string | null;
+  /**
+   * `fill_blank` дасгалын үгийн сан — тухайн дасгалын бүх хариултыг холисон
+   * жагсаалт (сервер `GET /quizzes/:id`-д тооцоолж өгнө). Цоорхойг гараар
+   * бичих нь хэт хэцүү байсан тул сурагч эндээс **дарж сонгоно**.
+   * 2-оос цөөн үгтэй дасгалд ирэхгүй — тэгвэл сонголт нь хариулт өөрөө болно.
+   */
+  wordBank?: string[];
   questions: QuizQuestion[];
 }
 

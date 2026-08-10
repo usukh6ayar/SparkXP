@@ -79,6 +79,7 @@ interface Exercise {
   xpReward: number;
   isPublished: boolean;
   questions: Question[];
+  passageText: string | null;
 }
 
 interface Form {
@@ -88,10 +89,13 @@ interface Form {
   questionType: QuestionType;
   questions: Question[];
   xpReward: number;
+  /** Сонсголын дасгал: аппын дуугаар уншуулах яриа. Бусад ангилалд хоосон. */
+  passageText: string;
 }
 // "Ноорог" төлөв формд байхгүй: Хадгалах = шууд нийтлэх (`components/Publish.tsx`).
 const emptyForm: Form = {
   title: '', level: 'a1', topic: '', questionType: 'multiple_choice', questions: [], xpReward: 50,
+  passageText: '',
 };
 
 export default function ExercisesPage() {
@@ -142,6 +146,7 @@ export default function ExercisesPage() {
     setForm({
       title: ex.title, level: ex.level, topic: ex.topic ?? '', questionType: qt,
       questions: ex.questions ?? [], xpReward: ex.xpReward,
+      passageText: ex.passageText ?? '',
     });
     setEditing(ex); setError(''); setModal('edit');
   }
@@ -164,6 +169,8 @@ export default function ExercisesPage() {
         quizType: form.questionType,
         questions: form.questions,
         xpReward: form.xpReward,
+        // Зөвхөн сонсголд утгатай — бусад ангилалд хоосон явуулж цэвэрлэнэ.
+        passageText: cat === 'listening' ? form.passageText.trim() || undefined : undefined,
         isPublished: true, // хадгалсан контент шууд аппад гарна
       };
       if (modal === 'create') await api.post('/quizzes', payload);
@@ -409,6 +416,28 @@ export default function ExercisesPage() {
               <Select label="Асуултын төрөл" options={QTYPE_OPTIONS} value={form.questionType} onChange={(e) => changeType(e.target.value as QuestionType)} />
               <Input label="XP шагнал" type="number" min={0} value={form.xpReward} onChange={(e) => setForm({ ...form, xpReward: Number(e.target.value) })} />
             </div>
+
+            {/* Сонсголын дасгалын цөм: апп ЭНЭ бичвэрийг дуугаар уншиж, сурагч
+                хариулах хүртэл нуудаг. Хоосон бол асуултын текстээ уншина
+                (хуучин дасгалуудын зан төлөв). */}
+            {cat === 'listening' && (
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium text-gray-700">
+                  Ярианы бичвэр <span className="text-gray-400">(апп үүнийг дуугаар уншина)</span>
+                </label>
+                <textarea
+                  className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  rows={5}
+                  placeholder={'Sarah: Hi Tom, how are you?\nTom: I am good, thanks.'}
+                  value={form.passageText}
+                  onChange={(e) => setForm({ ...form, passageText: e.target.value })}
+                />
+                <p className="text-xs text-gray-400">
+                  Сурагч үүнийг зөвхөн сонсоно — хариулсны дараа бичвэр нь харагдана.
+                  Асуултууд энэ яриан дээр тулгуурлана.
+                </p>
+              </div>
+            )}
 
             <div>
               <label className="mb-2 block text-sm font-medium text-gray-700">Асуултууд ({form.questions.length})</label>

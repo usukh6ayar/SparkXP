@@ -1,8 +1,10 @@
 import {
   buildStepBrief,
+  buildWordBank,
   dedupKey,
   planSteps,
   questionText,
+  recipeFor,
   stepName,
   type BulkStep,
 } from './bulk-generate';
@@ -135,10 +137,73 @@ describe('buildStepBrief', () => {
 
   it('гарчиг хэт олон бол prompt-ыг хязгаарлана (токен хэмнэлт)', () => {
     const many = Array.from({ length: 60 }, (_, i) => `Гарчиг ${i}`);
+    // Зөвхөн гарчгийн мөрийг тоолно — жорын дүрмүүд ч "- "-ээр эхэлдэг.
     const lines = buildStepBrief(step, many)
       .split('\n')
-      .filter((l) => l.startsWith('- '));
+      .filter((l) => l.startsWith('- Гарчиг'));
     expect(lines).toHaveLength(25);
+  });
+
+  it('ангиллын дүрмийг даалгаварт оруулна', () => {
+    // Энэ л мөрүүд байхгүйгээс "хариулах боломжгүй" дасгал үүсдэг байсан.
+    expect(buildStepBrief(step, [])).toContain('СОНСГОЛЫН дасгал');
+  });
+
+  it('жоргүй ангилалд нэмэлт дүрэм оруулахгүй (Сорил, IELTS)', () => {
+    const soril: BulkStep = {
+      category: 'soril',
+      label: 'Үг таах',
+      topic: null,
+      nth: 1,
+    };
+    expect(buildStepBrief(soril, [])).not.toContain('- ');
+  });
+});
+
+/**
+ * Форматыг AI-д чөлөөтэй сонгуулахад дүрмийн дасгал нь `fill_blank` болж
+ * "She ___ to school every day." → `goes` гэсэн ХАРИУЛАХ БОЛОМЖГҮЙ асуулт
+ * үүсгэж байв (`walks`/`runs` бүгд зөв мөртлөө тэнцдэггүй). Жор нь үүнийг
+ * барьдаг тул тестээр түгжив.
+ */
+describe('recipeFor', () => {
+  it('дүрэм · бичих · сонсгол → multiple_choice (ганц зөв хариулттай)', () => {
+    for (const cat of ['grammar', 'writing', 'listening']) {
+      expect(recipeFor(cat)?.questionType).toBe('multiple_choice');
+    }
+  });
+
+  it('нөхөх → fill_blank, гэхдээ үндсэн үгийг хаалтанд өгөхийг шаардана', () => {
+    const recipe = recipeFor('fill');
+    expect(recipe?.questionType).toBe('fill_blank');
+    expect(recipe?.rules.join(' ')).toContain('(go)');
+  });
+
+  it('Бичих нь open_response БОЛОХГҮЙ — аппын runner түүнийг харуулдаггүй', () => {
+    expect(recipeFor('writing')?.questionType).not.toBe('open_response');
+  });
+
+  it('танихгүй ангилалд null (админаас ирсэн төрөл хүчинтэй хэвээр)', () => {
+    expect(recipeFor('soril')).toBeNull();
+    expect(recipeFor('ielts_reading')).toBeNull();
+  });
+});
+
+describe('planSteps — жорын төрөл', () => {
+  it('жортой ангилалд админы төрлийг ЖОРООРОО дарж бичнэ', () => {
+    const steps = planSteps(
+      [{ category: 'grammar', label: 'Дүрэм', questionType: 'fill_blank' }],
+      1,
+    );
+    expect(steps[0].questionType).toBe('multiple_choice');
+  });
+
+  it('жоргүй ангилалд админы төрөл хэвээр (Сорилын тоглоом)', () => {
+    const steps = planSteps(
+      [{ category: 'soril', label: 'Холбох', questionType: 'word_match' }],
+      1,
+    );
+    expect(steps[0].questionType).toBe('word_match');
   });
 });
 
@@ -150,5 +215,38 @@ describe('stepName', () => {
     expect(stepName({ category: 's', label: 'Үг таах', topic: null, nth: 1 })).toBe(
       'Үг таах #1',
     );
+  });
+});
+
+/**
+ * Цоорхойг ГАРААР бичих нь сурагчид хэт хэцүү байв (зөв санааг олсон ч үсэг
+ * алдвал буруу). Сан нь түүнийг "дарж сонгох" болгодог тул зан төлөвийг
+ * тестээр түгжив.
+ */
+describe('buildWordBank', () => {
+  const fb = (answer: string) => ({ type: 'fill_blank', answer });
+
+  it('бүх хариултыг нэг санд цуглуулна', () => {
+    const bank = buildWordBank([fb('goes'), fb('are'), fb('bought')]);
+    expect(bank?.sort()).toEqual(['are', 'bought', 'goes']);
+  });
+
+  it('давхардсан хариултыг нэг л удаа оруулна', () => {
+    expect(buildWordBank([fb('goes'), fb('goes'), fb('are')])).toHaveLength(2);
+  });
+
+  it('нэг л үгтэй бол сан үүсгэхгүй — сонголт нь хариулт өөрөө болно', () => {
+    expect(buildWordBank([fb('goes')])).toBeNull();
+    expect(buildWordBank([fb('goes'), fb('goes')])).toBeNull();
+  });
+
+  it('fill_blank биш дасгалд сан хэрэггүй', () => {
+    expect(buildWordBank([{ type: 'multiple_choice', question: 'a' }])).toBeNull();
+  });
+
+  it('гэмтсэн/дутуу өгөгдөлд унахгүй', () => {
+    expect(buildWordBank([])).toBeNull();
+    expect(buildWordBank([null, { type: 'fill_blank' }])).toBeNull();
+    expect(buildWordBank([fb('  '), fb('goes'), fb('are')])).toHaveLength(2);
   });
 });
