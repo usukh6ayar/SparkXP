@@ -23,7 +23,6 @@ import {
 import { DictionaryProvider } from "../src/components/DictionaryProvider";
 import { ToastHost } from "../src/components/Toast";
 import { CelebrationHost } from "../src/components/CelebrationHost";
-import { LockScreen } from "../src/components/LockScreen";
 import { AnalyticsProvider } from "../src/components/AnalyticsProvider";
 import {
   initMonitoring, monitoringEnabled, navigationIntegration, wrapRoot,
@@ -58,7 +57,7 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 const SPLASH_BG = { light: "#F6F4FD", dark: "#0B0716" } as const;
 
 function RootNavigator() {
-  const { token, user, loading, onboarded, biometricEnabled, biometricLocked } = useAuth();
+  const { token, user, loading, onboarded } = useAuth();
   const colors = useColors();
   const segments = useSegments();
   const router = useRouter();
@@ -93,12 +92,9 @@ function RootNavigator() {
   }
 
   // Platform-standard push transition so screens slide in instead of snapping.
-  // The lock overlay renders ON TOP of the (still-mounted) navigator so routing
-  // keeps working underneath while content stays hidden until biometrics pass.
   return (
     <>
       <Stack screenOptions={{ headerShown: false, animation: "slide_from_right" }} />
-      {token && biometricEnabled && biometricLocked ? <LockScreen /> : null}
     </>
   );
 }

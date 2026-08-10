@@ -2,12 +2,11 @@ import { memo, useCallback, useEffect, useState } from 'react';
 import { View, StyleSheet, ScrollView, Pressable, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppImage } from '../src/components/AppImage';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../src/auth/AuthContext';
-import { isBiometricAvailable } from '../src/auth/biometrics';
 import { useSettings, type ThemePref } from '../src/settings/SettingsContext';
 import { loadSoundEnabled, setSoundEnabled } from '../src/lib/sound';
 import { AppText } from '../src/components/Text';
@@ -100,9 +99,8 @@ const Switcher = memo(function Switcher({
  *
  * The returned setter has a STABLE identity — unlike an inline
  * `(v) => { set(v); save(v); }`, which is a new function on every render and
- * therefore re-renders the switch it feeds. That is exactly how the biometric
- * lock switch behaves (its setter is a `useCallback` in AuthContext), which is
- * why that one always animated cleanly.
+ * therefore re-renders the switch it feeds — which makes the toggle animation
+ * stutter.
  */
 function usePref(key: string): [boolean, (v: boolean) => void] {
   const [value, setValue] = useState(true);
@@ -202,21 +200,14 @@ function SegToggle<T extends string>({
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { user, token, biometricEnabled, setBiometricEnabled } = useAuth();
+  const { user, token } = useAuth();
   const { themePref, lang, palette: p, setTheme, setLang, t } = useSettings();
 
   const [notifications, setNotifications] = usePushPref(token);
   const [sound, setSound] = useSoundPref();
   const [haptics, setHaptics] = usePref(KEYS.haptics);
-  // Only offer the biometric lock when the device actually supports it.
-  const [bioAvailable, setBioAvailable] = useState(false);
 
   // (The status bar is handled app-wide in `app/_layout.tsx` — never per screen.)
-  useFocusEffect(
-    useCallback(() => {
-      isBiometricAvailable().then(setBioAvailable);
-    }, []),
-  );
 
   const soon = useComingSoon();
   const confirmLogout = useLogoutConfirm();
@@ -301,17 +292,6 @@ export default function SettingsScreen() {
             <Row p={p} icon="phone-portrait" tint={tints.teal} label={t('haptics')}
               right={<Switcher p={p} value={haptics} onValueChange={setHaptics} />} />
           </Card>
-
-          {/* Security — biometric app-lock (only on devices that support it) */}
-          {bioAvailable ? (
-            <>
-              <SectionLabel p={p}>{t('security').toUpperCase()}</SectionLabel>
-              <Card p={p}>
-                <Row p={p} icon="finger-print" tint={tints.green} label={t('biometricLock')}
-                  right={<Switcher p={p} value={biometricEnabled} onValueChange={setBiometricEnabled} />} />
-              </Card>
-            </>
-          ) : null}
 
           {/* Account */}
           <SectionLabel p={p}>{t('account').toUpperCase()}</SectionLabel>

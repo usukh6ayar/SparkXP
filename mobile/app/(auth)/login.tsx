@@ -1,18 +1,26 @@
 import { useEffect, useState, useMemo } from 'react';
-import { View, Image, Pressable, StyleSheet } from 'react-native';
+import { View, Image, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { t } from '../../src/i18n';
+import { t, tf } from '../../src/i18n';
 import { spacing, radius, type AppColors } from '../../src/theme/theme';
 import { ms, vs, bounded } from '../../src/theme/responsive';
 import { useColors, useSettings } from '../../src/settings/SettingsContext';
 import { AppText } from '../../src/components/Text';
+import { PressableScale } from '../../src/components/PressableScale';
+import { useAuth } from '../../src/auth/AuthContext';
+import { ApiError } from '../../src/api/client';
+import { resolveAvatar } from '../../src/lib/avatar';
 import { SignInSheet } from '../../src/components/SignInSheet';
 import { AuthFooter } from '../../src/components/AuthFooter';
-import { loadCredentials, type SavedCredentials } from '../../src/lib/savedCredentials';
+import {
+  loadSavedAccount,
+  clearCredentials,
+  type SavedAccount,
+} from '../../src/lib/savedCredentials';
 import { useSocialSignIn } from '../../src/auth/useSocialSignIn';
 
 const wordmark = require('../../assets/logoSparkXP.webp');
@@ -33,19 +41,59 @@ export default function WelcomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { signin } = useLocalSearchParams<{ signin?: string }>();
+  const { login } = useAuth();
   const [sheetOpen, setSheetOpen] = useState(false);
   // Load saved "remember me" creds here (before the sheet mounts) so the sheet
   // can seed its inputs synchronously — avoids an uncontrolled-input prefill race.
-  const [creds, setCreds] = useState<SavedCredentials | null>(null);
+  // The same record backs the "continue as…" card below.
+  const [creds, setCreds] = useState<SavedAccount | null>(null);
+  const [signingIn, setSigningIn] = useState(false);
+  const [cardError, setCardError] = useState<string | null>(null);
 
   useEffect(() => {
-    loadCredentials().then(setCreds);
+    loadSavedAccount().then(setCreds);
   }, []);
+
+  /**
+   * One-tap return, the way Duolingo does it: the card signs straight in with
+   * the stored credentials, no prompt. Face ID used to guard this; it was
+   * dropped (owner's decision) — and the session already survives a restart
+   * anyway, so the card only shortens the path back after an explicit sign-out.
+   */
+  async function continueAsSaved() {
+    if (!creds || signingIn) return;
+    setCardError(null);
+    setSigningIn(true);
+    try {
+      await login(creds.username, creds.password); // the auth gate redirects
+    } catch (e) {
+      // The stored password can go stale (changed on another device). Say so
+      // and fall back to the form rather than leaving a card that does nothing.
+      if (e instanceof ApiError && e.status === 401) {
+        await clearCredentials();
+        setCreds(null);
+        setCardError(t('sessionExpiredSignIn'));
+      } else {
+        setCardError(e instanceof ApiError ? e.message : t('errorGeneric'));
+      }
+    } finally {
+      setSigningIn(false);
+    }
+  }
+
+  /** "Use another account" — forget the card and open the empty form. */
+  async function forgetSaved() {
+    await clearCredentials();
+    setCreds(null);
+    setSheetOpen(true);
+  }
 
   // Auto-open the sheet when arriving with ?signin=1 (from register/forgot).
   useEffect(() => {
     if (signin === '1') setSheetOpen(true);
   }, [signin]);
+
+  const avatarSrc = useMemo(() => resolveAvatar(creds?.avatarUrl), [creds?.avatarUrl]);
 
   // Google/Apple. `available` is server-driven (client ids configured) and, for
   // Apple, device-driven (iOS 13+) — a button that cannot work is never shown.
@@ -71,6 +119,49 @@ export default function WelcomeScreen() {
 
         {/* Actions */}
         <View style={styles.actions}>
+          {/* Returning learner: one tap back in, rather than a form. Shown only
+              when this device remembers someone. */}
+          {creds ? (
+            <>
+              <PressableScale onPress={continueAsSaved} disabled={signingIn} style={styles.profileCard}>
+                {avatarSrc ? (
+                  <Image source={avatarSrc} style={styles.profileAvatar} />
+                ) : (
+                  <View style={[styles.profileAvatar, styles.profileAvatarFallback]}>
+                    <AppText variant="h3" color={colors.white}>
+                      {(creds.fullName ?? creds.username).trim().charAt(0).toUpperCase()}
+                    </AppText>
+                  </View>
+                )}
+                <View style={styles.profileText}>
+                  <AppText variant="bodyStrong" numberOfLines={1}>
+                    {creds.fullName?.trim() || creds.username}
+                  </AppText>
+                  <AppText variant="caption" color={colors.textSecondary} numberOfLines={1}>
+                    {tf('continueAs', { name: creds.fullName?.trim() || creds.username })}
+                  </AppText>
+                </View>
+                {signingIn ? (
+                  <ActivityIndicator color={colors.primary} />
+                ) : (
+                  <Ionicons name="arrow-forward" size={20} color={colors.primary} />
+                )}
+              </PressableScale>
+
+              <Pressable onPress={forgetSaved} hitSlop={8} style={styles.switchAccount}>
+                <AppText variant="caption" center color={colors.textSecondary}>
+                  {t('useAnotherAccount')}
+                </AppText>
+              </Pressable>
+
+              {cardError ? (
+                <AppText variant="caption" center color={colors.textSecondary} style={styles.notice}>
+                  {cardError}
+                </AppText>
+              ) : null}
+            </>
+          ) : null}
+
           <AuthButton
             icon="mail"
             label={t('continueWithEmail')}
@@ -264,4 +355,15 @@ const makeStyles = (colors: AppColors) => StyleSheet.create({
   btnLabel: { fontWeight: '700' },
   pressed: { opacity: 0.9, transform: [{ scale: 0.99 }] },
   notice: { marginTop: spacing.xs },
+  profileCard: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+    padding: spacing.md, borderRadius: radius.lg,
+    borderWidth: 1, borderColor: colors.primary, backgroundColor: colors.surface,
+  },
+  profileAvatar: { width: 44, height: 44, borderRadius: radius.full },
+  profileAvatarFallback: {
+    alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary,
+  },
+  profileText: { flex: 1, gap: 1 },
+  switchAccount: { paddingVertical: spacing.xs },
 });

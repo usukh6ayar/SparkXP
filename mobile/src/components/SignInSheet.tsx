@@ -22,8 +22,7 @@ import { useAuth } from '../auth/AuthContext';
 import { ApiError } from '../api/client';
 import { haptics } from '../lib/haptics';
 import { shake, useReduceMotion } from '../lib/motion';
-import { saveCredentials, clearCredentials, type SavedCredentials } from '../lib/savedCredentials';
-import { isBiometricAvailable, authenticateBiometric } from '../auth/biometrics';
+import { type SavedCredentials } from '../lib/savedCredentials';
 import { t } from '../i18n';
 import { spacing, radius, type AppColors } from '../theme/theme';
 import { useColors, useSettings } from '../settings/SettingsContext';
@@ -86,10 +85,6 @@ export function SignInSheet({
   const [remember, setRemember] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  // Biometric unlock is offered only when creds are saved AND a face/finger is enrolled.
-  const [bioAvailable, setBioAvailable] = useState(false);
-  // Guards the one-shot auto Face ID prompt (see the effect below).
-  const autoPromptedRef = useRef(false);
   const reduce = useReduceMotion();
 
   // Shake + error haptic when sign-in fails.
@@ -114,27 +109,6 @@ export function SignInSheet({
   useEffect(() => {
     ref.current?.present();
   }, []);
-
-  // Offer biometric unlock only if we have saved creds to unlock with — and go
-  // straight to the prompt instead of making a returning user tap first.
-  useEffect(() => {
-    if (!initial) return;
-    let cancelled = false;
-    isBiometricAvailable().then((ok) => {
-      if (cancelled) return;
-      setBioAvailable(ok);
-      // Auto-prompt once per sheet open. If the user cancels, the button is
-      // still there for a manual retry — re-prompting on its own would trap
-      // them in a loop they can't dismiss to reach the password fields.
-      if (ok && !autoPromptedRef.current) {
-        autoPromptedRef.current = true;
-        void onBiometric();
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [initial]);
 
   const close = useCallback(() => ref.current?.dismiss(), []);
 
@@ -169,12 +143,10 @@ export function SignInSheet({
     setError(null);
     setBusy(true);
     try {
-      await login(username.trim(), password); // auth gate redirects on success
-      // Persist / forget for next time (fire-and-forget: the gate is redirecting).
-      const persist = remember
-        ? saveCredentials(username.trim(), password)
-        : clearCredentials();
-      persist.catch(() => {});
+      // `login` also stores (or forgets) the credentials + the display fields
+      // the welcome screen's "continue as…" card renders — it is the only place
+      // the fresh user and the password exist together.
+      await login(username.trim(), password, remember); // auth gate redirects
     } catch (e) {
       handleLoginError(e);
     } finally {
@@ -182,23 +154,6 @@ export function SignInSheet({
     }
   }
 
-  // Face ID / fingerprint → unlock the saved creds and sign in.
-  async function onBiometric() {
-    if (!initial) return;
-    setError(null);
-    // `authenticateBiometric` swallows hardware errors and returns false, so a
-    // quirky device silently falls back to typing rather than throwing here.
-    const ok = await authenticateBiometric(t('biometricPrompt'));
-    if (!ok) return; // user cancelled or scan failed
-    setBusy(true);
-    try {
-      await login(initial.username, initial.password);
-    } catch (e) {
-      handleLoginError(e);
-    } finally {
-      setBusy(false);
-    }
-  }
 
   // Google/Apple — the hook hides buttons the server hasn't enabled.
   const social = useSocialSignIn();
@@ -286,14 +241,6 @@ export function SignInSheet({
             )}
           </LinearGradient>
         </Pressable>
-
-        {/* Biometric unlock — only when creds are saved and a face/finger is enrolled. */}
-        {bioAvailable ? (
-          <Pressable onPress={onBiometric} disabled={busy} style={({ pressed }) => [styles.bioBtn, pressed && styles.pressed]}>
-            <Ionicons name="finger-print" size={22} color={colors.primary} />
-            <AppText variant="bodyStrong" color={colors.primary}>{t('biometricLogin')}</AppText>
-          </Pressable>
-        ) : null}
 
         <View style={styles.divider}>
           <View style={styles.line} />
