@@ -760,6 +760,21 @@ Deploy хийсний дараа нэг удаа `src/scripts/backfill-trophies.
 
 ---
 
+## 24. Speaking (дуудлагын дасгал) — `/api/speaking` (2026-08-10)
+
+Ярианы дасгал: сурагч үгээ дуудаж бичих → сервер STT-ээр таниж, зорилтот үгтэй
+харьцуулна. AI-gateway-ийн **STT adapter (ElevenLabs Scribe)-ыг reuse** хийнэ
+(шинэ provider үгүй). Контент нь одоо байгаа **Үгс банк** (`GET /words`).
+
+| Method + Path | Auth | Зорилго | Params / Body |
+| --- | --- | --- | --- |
+| POST `/speaking/check` | JWT | Дуудлага шалгах (multipart `file` аудио) → `{ correct, transcript, similarity }` | query `target=<үг>` · file |
+
+`correct` = яг таарсан / зорилтот үг transcript дотор орсон / fuzzy ≥ 0.8.
+Mobile: **`app/speaking.tsx`** (үг → 🔊 сонсох → 🎤 хэлэх → шалгах, 3 оролдлого),
+`src/api/speaking.ts` (`checkPronunciation`). Home "Ярих" tile → `/speaking`.
+⚠️ App PROD руу заадаг тул **prod-д deploy болтол** ажиллахгүй.
+
 ## 23. Learning Analytics — `/api/analytics` (2026-08-06)
 
 Read-only статистик. **Шинэ хүснэгт байхгүй** — бүх метрикийг одоо байгаа

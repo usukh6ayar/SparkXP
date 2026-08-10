@@ -19,6 +19,7 @@ import {
   type QuestionType,
 } from '../../components/QuizQuestionsEditor';
 import ReadingPage from '../reading/ReadingPage';
+import { SpeakingPanel } from './SpeakingPanel';
 import { toggleInSet } from '../../lib/utils';
 
 const LIMIT = 20;
@@ -325,9 +326,7 @@ export default function ExercisesPage() {
       )}
 
       {speaking ? (
-        <div className="rounded-xl border border-dashed border-gray-200 bg-white p-10 text-center text-sm text-gray-400">
-          🎤 Ярих дасгал — тун удахгүй (яриа таних дэд бүтэц бэлэн болоход)
-        </div>
+        <SpeakingPanel />
       ) : reading ? (
         <ReadingPage embedded />
       ) : (

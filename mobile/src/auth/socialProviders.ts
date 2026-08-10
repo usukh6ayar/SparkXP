@@ -1,9 +1,20 @@
 import { Platform } from 'react-native';
 import * as AppleAuthentication from 'expo-apple-authentication';
-import {
-  GoogleSignin,
-  statusCodes,
-} from '@react-native-google-signin/google-signin';
+
+/**
+ * Lazily load the Google native module.
+ *
+ * A STATIC `import` of `@react-native-google-signin/google-signin` crashes Expo
+ * Go at startup — the package touches its native `RNGoogleSignin` TurboModule at
+ * eval time, and that module isn't in Expo Go. Requiring it only inside the
+ * sign-in functions (which are only reachable in a dev/store build, where the
+ * Google button is actually shown) keeps Expo Go working: the button is hidden
+ * there, so this is never called and the native module is never touched.
+ */
+function googleModule(): typeof import('@react-native-google-signin/google-signin') {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  return require('@react-native-google-signin/google-signin');
+}
 
 /**
  * The native half of Google / Apple sign-in.
@@ -32,6 +43,7 @@ let googleConfigured = false;
 
 function configureGoogle(): void {
   if (googleConfigured) return;
+  const { GoogleSignin } = googleModule();
   GoogleSignin.configure({
     iosClientId: GOOGLE_IOS_CLIENT_ID,
     // Required on Android to get an idToken at all, and it decides the token's
@@ -44,6 +56,7 @@ function configureGoogle(): void {
 
 /** Native Google sign-in → the account's identity token. */
 export async function signInWithGoogle(): Promise<string> {
+  const { GoogleSignin, statusCodes } = googleModule();
   configureGoogle();
   // Android only; resolves immediately elsewhere. Surfaces "no Play Services"
   // as an error instead of an empty sign-in sheet.

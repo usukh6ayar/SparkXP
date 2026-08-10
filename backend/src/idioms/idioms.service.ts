@@ -183,7 +183,9 @@ export class IdiomsService {
       exampleTranslation: dto.exampleTranslation ?? null,
       imageUrl: dto.imageUrl ?? null,
       audioUrl: dto.audioUrl ?? null,
-      isPublished: dto.isPublished ?? false,
+      // Default to PUBLISHED so an idiom added in admin shows in the app right
+      // away (students see published only). Uncheck "Нийтлэх" to save a draft.
+      isPublished: dto.isPublished ?? true,
     });
     return this.idioms.save(idiom);
   }
@@ -333,8 +335,9 @@ export class IdiomsService {
                 definition: text.definition || null,
                 exampleSentence: text.exampleSentence || null,
                 exampleTranslation: text.exampleTranslation || null,
-                // AI-generated idioms start as drafts → admin reviews then publishes.
-                isPublished: false,
+                // Published on creation so AI-bulk idioms appear in the app
+                // immediately; admin can still edit or unpublish any of them.
+                isPublished: true,
               }),
             );
 

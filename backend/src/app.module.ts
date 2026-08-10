@@ -35,6 +35,7 @@ import { TeacherModule } from './teacher/teacher.module';
 import { EventsModule } from './events/events.module';
 import { BuddyBackgroundsModule } from './buddy-backgrounds/buddy-backgrounds.module';
 import { AnalyticsModule } from './analytics/analytics.module';
+import { SpeakingModule } from './speaking/speaking.module';
 
 @Module({
   imports: [
@@ -78,6 +79,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
     EventsModule,
     BuddyBackgroundsModule,
     AnalyticsModule,
+    SpeakingModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
