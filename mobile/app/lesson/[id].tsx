@@ -40,6 +40,20 @@ const banner = require('../../assets/home-banner.webp');
  *  render. */
 const FULLSCREEN = { enable: true } as const;
 
+/**
+ * How much of the video counts as watched before the lesson can be finished.
+ *
+ * Short of 1.0 on purpose: the last seconds are usually an outro, players
+ * routinely stop a hair before `duration`, and a student who genuinely watched
+ * must never be locked out of their own XP. 0.9 is high enough that skipping to
+ * the end doesn't pass — the point of the gate is that XP follows real watching.
+ */
+const WATCHED_ENOUGH = 0.9;
+/** How often the watched fraction is sampled from the player. */
+const WATCH_POLL_MS = 1000;
+/** Only persist after this much new progress — AsyncStorage on every tick is waste. */
+const WATCH_SAVE_STEP = 0.05;
+
 /** Nice labels for the 4 lesson-test categories. */
 function catLabels(): Record<string, string> {
   return {
@@ -65,6 +79,11 @@ export default function LessonDetailScreen() {
   // Words an admin attached to this lesson (empty for lessons with none).
   const [words, setWords] = useState<Word[]>([]);
   const [done, setDone] = useState(false); // lesson watched → quizzes unlocked
+  /**
+   * Highest fraction of the video actually reached (0–1). Monotonic on purpose:
+   * seeking backwards to re-hear something must not take progress away.
+   */
+  const [watched, setWatched] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [unlocking, setUnlocking] = useState(false);
@@ -76,6 +95,7 @@ export default function LessonDetailScreen() {
   const scrollRef = useRef<ScrollView>(null);
 
   const doneKey = `lesson_done:${id}`;
+  const watchKey = `lesson_watch:${id}`;
   const videoUrl = (lesson?.content as { videoUrl?: string } | undefined)?.videoUrl ?? null;
   // Cover uploaded in admin. Newer lessons keep it on the column, older ones only
   // inside `content` — read both so an authored image always shows.
@@ -92,19 +112,24 @@ export default function LessonDetailScreen() {
     if (!token || !id) return;
     setLoading(true);
     try {
-      const [l, access, qz, wordList, savedDone] = await Promise.all([
+      const [l, access, qz, wordList, savedDone, savedWatched] = await Promise.all([
         lessonsApi.getLesson(id, token),
         lessonsApi.checkAccess(id, token),
         getQuizzes(token, { lessonId: id }),
         // Optional section — a failure here must not blank the whole lesson.
         getWords(token, { lessonId: id, limit: 100 }).catch(() => ({ items: [] as Word[] })),
         AsyncStorage.getItem(doneKey),
+        AsyncStorage.getItem(watchKey),
       ]);
       setLesson(l);
       setHasAccess(access.hasAccess);
       setQuizzes(qz.items);
       setWords(wordList.items);
       setDone(savedDone === '1');
+      // Restore how far they got last time — closing the app mid-video must not
+      // send the progress bar back to zero.
+      const restored = Number(savedWatched);
+      setWatched(Number.isFinite(restored) ? Math.min(1, Math.max(0, restored)) : 0);
       setLastLesson({ id: l.id, title: l.title, thumbnailUrl: l.thumbnailUrl, type: l.type, level: l.level });
       setError(false);
     } catch (e) {
@@ -113,9 +138,44 @@ export default function LessonDetailScreen() {
     } finally {
       setLoading(false);
     }
-  }, [id, token, doneKey]);
+  }, [id, token, doneKey, watchKey]);
 
   useEffect(() => { load(); }, [load]);
+
+  /**
+   * Track how much of the video was actually watched, so finishing the lesson
+   * (and its XP) can't be claimed by opening the screen and tapping the button.
+   *
+   * Polled rather than subscribed to `timeUpdate`: the event only fires during
+   * playback and its interval is a player-wide setting, while this also keeps
+   * working across the player being rebuilt when the lesson's URL arrives.
+   */
+  useEffect(() => {
+    if (!videoUrl) return;
+    const timer = setInterval(() => {
+      const total = player.duration;
+      // `duration` is 0 until the video has loaded, and NaN on a failed source.
+      if (!Number.isFinite(total) || total <= 0) return;
+      const fraction = Math.min(1, player.currentTime / total);
+      setWatched((prev) => (fraction > prev ? fraction : prev));
+    }, WATCH_POLL_MS);
+    return () => clearInterval(timer);
+  }, [player, videoUrl]);
+
+  // Persist progress in coarse steps: a write every second would hammer
+  // AsyncStorage for a value nobody reads until the screen opens again.
+  const savedWatch = useRef(0);
+  useEffect(() => {
+    if (watched <= savedWatch.current + WATCH_SAVE_STEP && watched < 1) return;
+    savedWatch.current = watched;
+    AsyncStorage.setItem(watchKey, String(watched)).catch(() => {});
+  }, [watched, watchKey]);
+
+  // A lesson with no video has nothing to watch, so it is never gated —
+  // otherwise every image-only or text-only lesson would become impossible to
+  // finish. `done` lessons stay finished even if the rule changes later.
+  const canFinish = !videoUrl || done || watched >= WATCHED_ENOUGH;
+  const watchedPct = Math.round(watched * 100);
 
   // Stars for a lesson with NO test: such a lesson can never earn stars from a
   // quiz, so finishing it IS its mastery → award full stars once it's done. This
@@ -146,6 +206,9 @@ export default function LessonDetailScreen() {
    * the student did the work either way.
    */
   async function markDone() {
+    // Belt and braces: the button is already disabled until the video has been
+    // watched, but nothing else may award XP for a video nobody played.
+    if (!canFinish) return;
     await AsyncStorage.setItem(doneKey, '1');
     setDone(true);
     let xp = 0;
@@ -394,7 +457,21 @@ export default function LessonDetailScreen() {
                     {tf('testsReadyCount', { n: quizzes.length })}
                   </AppText>
                 ) : null}
-                <Button label={t('lessonWatched')} icon="checkmark" onPress={markDone} style={{ marginTop: spacing.md, alignSelf: 'stretch' }} />
+                {/* Why the button can be locked: XP for a lesson is meant to
+                    follow actually watching it. A lesson with no video has
+                    nothing to watch, so it is never gated. */}
+                {!canFinish ? (
+                  <AppText variant="caption" center color={c.textMuted} style={{ marginTop: 6 }}>
+                    {tf('lessonWatchGate', { need: Math.round(WATCHED_ENOUGH * 100) })}
+                  </AppText>
+                ) : null}
+                <Button
+                  label={canFinish ? t('lessonWatched') : tf('lessonWatchProgress', { pct: watchedPct })}
+                  icon={canFinish ? 'checkmark' : 'lock-closed'}
+                  disabled={!canFinish}
+                  onPress={markDone}
+                  style={{ marginTop: spacing.md, alignSelf: 'stretch' }}
+                />
               </View>
             ) : quizzes.length === 0 ? (
               <View style={styles.quizEmpty}>

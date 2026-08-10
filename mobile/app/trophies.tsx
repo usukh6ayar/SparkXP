@@ -283,6 +283,17 @@ function TrophyDetail({
           <AppText variant="h2" center>{trophy.name}</AppText>
           <AppText variant="label" color={c.textMuted} center>{tierLabel(trophy.tier)}</AppText>
 
+          {/* The condition shows either way. It used to appear only while the
+              trophy was LOCKED, so earning one made its detail sheet lose the
+              one line that said what it was for — the reward explained less
+              than the promise did. */}
+          <View style={styles.detailLocked}>
+            <AppText variant="overline" color={c.textMuted}>
+              {trophy.earned ? t('trophyEarnedFor') : t('trophyHowTo')}
+            </AppText>
+            <AppText variant="bodyStrong" center>{describeCondition(trophy.condition)}</AppText>
+          </View>
+
           {trophy.earned ? (
             <View style={styles.detailNote}>
               <Ionicons name="checkmark-circle" size={18} color={c.success} />
@@ -292,12 +303,7 @@ function TrophyDetail({
                   : t('trophyFilterEarned')}
               </AppText>
             </View>
-          ) : (
-            <View style={styles.detailLocked}>
-              <AppText variant="overline" color={c.textMuted}>{t('trophyHowTo')}</AppText>
-              <AppText variant="bodyStrong" center>{describeCondition(trophy.condition)}</AppText>
-            </View>
-          )}
+          ) : null}
 
           {pinned ? (
             <View style={styles.detailNote}>

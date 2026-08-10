@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AppText } from './Text';
 import { Button } from './Button';
@@ -74,22 +74,32 @@ export function DeleteAccountSheet({
       <AppText variant="h2" center style={styles.title}>
         {t('deleteAccount')}
       </AppText>
-      <AppText variant="body" center color={c.textSecondary} style={styles.body}>
-        {t('deleteAccountBody')}
-      </AppText>
+      {/* The explanation is the part that can afford to give way: once the
+          password field takes focus the keyboard eats half a small phone, and
+          the field and its buttons are what must stay reachable. This block
+          shrinks and scrolls instead; nothing below it moves. */}
+      <ScrollView
+        style={styles.explain}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        <AppText variant="body" center color={c.textSecondary} style={styles.body}>
+          {t('deleteAccountBody')}
+        </AppText>
 
-      {/* What actually goes. Vague warnings make people tap through; a concrete
-          list is what makes the choice informed. */}
-      <View style={[styles.losses, { backgroundColor: c.surfaceAlt }]}>
-        {(['deleteAccountLoss1', 'deleteAccountLoss2', 'deleteAccountLoss3'] as const).map((key) => (
-          <View key={key} style={styles.lossRow}>
-            <Ionicons name="close-circle" size={16} color={c.danger} />
-            <AppText variant="caption" color={c.textSecondary} style={styles.lossText}>
-              {t(key)}
-            </AppText>
-          </View>
-        ))}
-      </View>
+        {/* What actually goes. Vague warnings make people tap through; a concrete
+            list is what makes the choice informed. */}
+        <View style={[styles.losses, { backgroundColor: c.surfaceAlt }]}>
+          {(['deleteAccountLoss1', 'deleteAccountLoss2', 'deleteAccountLoss3'] as const).map((key) => (
+            <View key={key} style={styles.lossRow}>
+              <Ionicons name="close-circle" size={16} color={c.danger} />
+              <AppText variant="caption" color={c.textSecondary} style={styles.lossText}>
+                {t(key)}
+              </AppText>
+            </View>
+          ))}
+        </View>
+      </ScrollView>
 
       <TextField
         leftIcon="lock-closed-outline"
@@ -127,6 +137,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   title: { marginTop: spacing.md },
+  // `flexGrow: 0` so a short explanation takes only the room it needs (the
+  // sheet stays compact); `flexShrink: 1` lets the keyboard squeeze it.
+  explain: { flexGrow: 0, flexShrink: 1 },
   body: { marginTop: spacing.sm },
   losses: {
     gap: spacing.sm,
