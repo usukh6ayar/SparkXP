@@ -4,6 +4,7 @@ import { AiBulkGenerator } from '../../components/AiBulkGenerator';
 import { HiddenBadge, VisibilityButton, UnpublishedBanner } from '../../components/Publish';
 import { BulkGenerateModal, BulkGenerateProgress, BulkGenerateButton } from '../../components/BulkGenerate';
 import { ErrorBox } from '../../components/ErrorBox';
+import { QualityPanel, type QualityRow } from '../../components/QualityPanel';
 import { api } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
 import { Button } from '../../components/Button';
@@ -44,6 +45,19 @@ const CATS = [
   { key: 'fill', label: 'Нөхөх' },
   { key: 'grammar', label: 'Дүрэм' },
 ] as const;
+
+/**
+ * Сонсох яриа хамгийн багадаа хэдэн тэмдэгт байх вэ — backend-ийн
+ * `MIN_LISTENING_SCRIPT`-тэй ижил байх ёстой (`backend/src/quizzes/ai-generate.ts`).
+ */
+const MIN_SCRIPT = 40;
+
+/*
+ * Чанарын шалгуурыг энд давхардуулж бичихгүй — backend-ийн `quality.ts` бол
+ * цорын ганц эх сурвалж (DRY). Эс бөгөөс хоёр газарт өөр дүрэм үүсээд, админд
+ * "зүгээр" харагдсан дасгал аппаас нуугдаж, шалтгаан нь ойлгомжгүй болно.
+ * Төрөл + харуулах UI → `components/QualityPanel.tsx`.
+ */
 
 /**
  * "Бүх төрлөөр үүсгэх"-д орох төрлүүд. `speaking` (тун удахгүй) ба `reading`
@@ -101,6 +115,8 @@ const emptyForm: Form = {
 export default function ExercisesPage() {
   const [cat, setCat] = useState<string>('listening');
   const [items, setItems] = useState<Exercise[]>([]);
+  /** Серверийн чанарын тайлан, дасгалын id-гаар. */
+  const [quality, setQuality] = useState<Map<string, QualityRow>>(new Map());
   const [page, setPage] = useState(1);
   const [modal, setModal] = useState<null | 'create' | 'edit'>(null);
   const [editing, setEditing] = useState<Exercise | null>(null);
@@ -125,15 +141,24 @@ export default function ExercisesPage() {
   const [impTopic, setImpTopic] = useState('');
   const [impType, setImpType] = useState<QuestionType>('multiple_choice');
   const [impText, setImpText] = useState('');
+  /** Сонсголын импортод заавал — асуултууд энэ яриан дээр тулгуурлана. */
+  const [impScript, setImpScript] = useState('');
   const [importing, setImporting] = useState(false);
   const [impError, setImpError] = useState('');
 
   const load = useCallback(async () => {
     if (cat === 'speaking' || cat === 'reading') { setItems([]); return; }
-    const data = await api.get<{ items: Exercise[] }>(
-      `/quizzes?standalone=true&category=${cat}&limit=200`,
-    );
+    // `includeUnanswerable=true` — сервер нь хариулах боломжгүй дасгалыг
+    // анхдагчаар нуудаг (сурагч руу гаргахгүйн тулд). Админ л тэдгээрийг
+    // хараад засах ёстой тул энд зориудаар асаана.
+    const [data, report] = await Promise.all([
+      api.get<{ items: Exercise[] }>(
+        `/quizzes?standalone=true&category=${cat}&limit=200&includeUnanswerable=true`,
+      ),
+      api.get<{ items: QualityRow[] }>(`/quizzes/quality-report?category=${cat}`),
+    ]);
     setItems(data.items ?? []);
+    setQuality(new Map((report.items ?? []).map((r) => [r.id, r])));
     setSelected(new Set());
   }, [cat]);
   useEffect(() => { load(); }, [load]);
@@ -159,6 +184,16 @@ export default function ExercisesPage() {
   async function save() {
     if (!form.title.trim()) { setError('Гарчиг оруулна уу'); return; }
     if (form.questions.length === 0) { setError('Дор хаяж нэг асуулт нэмнэ үү'); return; }
+    // Сонсох яриагүй сонсголын дасгал = хариулах боломжгүй дасгал. Сурагч
+    // асуултын хариултыг хаанаас ч олохгүй тул таамаглана. Сервер ч үүнийг
+    // татгалзана — энд шалгаснаар админ шалтгааныг нь шууд, ойлгомжтой харна.
+    if (cat === 'listening' && form.passageText.trim().length < MIN_SCRIPT) {
+      setError(
+        'Сонсох яриаг бөглөнө үү. Яриагүй бол сурагч асуултын хариултыг ' +
+        'хаанаас ч олж чадахгүй — зөвхөн таамаглана.',
+      );
+      return;
+    }
     setSaving(true); setError('');
     try {
       const payload = {
@@ -257,13 +292,18 @@ export default function ExercisesPage() {
       return;
     }
     if (questions.length === 0) { setImpError('Асуулт олдсонгүй'); return; }
+    if (cat === 'listening' && impScript.trim().length < MIN_SCRIPT) {
+      setImpError('Сонсох яриаг бөглөнө үү — яриагүй бол сурагч зөвхөн таамаглана.');
+      return;
+    }
     setImporting(true); setImpError('');
     try {
       await api.post('/quizzes', {
         title: impTitle.trim(), level: impLevel, category: cat, topic: impTopic,
         quizType: impType, questions, xpReward: 50, isPublished: true,
+        ...(cat === 'listening' ? { passageText: impScript.trim() } : {}),
       });
-      setImportOpen(false); setImpTitle(''); setImpText('');
+      setImportOpen(false); setImpTitle(''); setImpText(''); setImpScript('');
       load();
     } catch (e: unknown) {
       setImpError(e instanceof Error ? e.message : 'Импорт амжилтгүй');
@@ -273,6 +313,12 @@ export default function ExercisesPage() {
   const total = items.length;
   const paged = items.slice((page - 1) * LIMIT, page * LIMIT);
   const hidden = items.filter((e) => !e.isPublished);
+  /** Сервер эдгээрийг аппаас нууж байна — засахгүй бол сурагч хэзээ ч харахгүй. */
+  const broken = items.filter((e) => quality.get(e.id)?.blocked);
+  /** Магадгүй эвдэрсэн — хүн шийднэ (аппад харагдсаар байна). */
+  const suspect = items.filter(
+    (e) => quality.has(e.id) && !quality.get(e.id)?.blocked,
+  );
   const allChecked = paged.length > 0 && paged.every((e) => selected.has(e.id));
   const columns = [
     {
@@ -287,6 +333,11 @@ export default function ExercisesPage() {
         <span className="flex items-center gap-2">
           <span className="font-medium">{e.title}</span>
           <HiddenBadge published={e.isPublished} />
+          {quality.has(e.id) && (
+            <Badge color={quality.get(e.id)!.blocked ? 'red' : 'yellow'}>
+              {quality.get(e.id)!.blocked ? 'Хариулах боломжгүй' : 'Шалгах'}
+            </Badge>
+          )}
         </span>
       ),
     },
@@ -385,6 +436,19 @@ export default function ExercisesPage() {
         />
       )}
 
+      {/*
+        Чанарын тайлан. Сервер «хариулах боломжгүй» дасгалыг аппаас аль хэдийн
+        нуусан — энд шалтгаан бүрийг нь нэрлэж, засах мөр рүү нь шууд хүргэнэ.
+      */}
+      {(broken.length > 0 || suspect.length > 0) && (
+        <QualityPanel
+          broken={broken}
+          suspect={suspect}
+          quality={quality}
+          onEdit={openEdit}
+        />
+      )}
+
       {/* Bulk action bar */}
       {!speaking && !reading && selected.size > 0 && (
         <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -418,12 +482,13 @@ export default function ExercisesPage() {
             </div>
 
             {/* Сонсголын дасгалын цөм: апп ЭНЭ бичвэрийг дуугаар уншиж, сурагч
-                хариулах хүртэл нуудаг. Хоосон бол асуултын текстээ уншина
-                (хуучин дасгалуудын зан төлөв). */}
+                хариулах хүртэл нуудаг. ЗААВАЛ бөглөнө — хоосон бол асуултууд
+                эх мэдээлэлгүй үлдэж, сурагч таамаглахаас өөр аргагүй болно. */}
             {cat === 'listening' && (
               <div className="flex flex-col gap-1">
                 <label className="text-sm font-medium text-gray-700">
-                  Ярианы бичвэр <span className="text-gray-400">(апп үүнийг дуугаар уншина)</span>
+                  Сонсох яриа <span className="text-red-500">*</span>{' '}
+                  <span className="text-gray-400">(апп үүнийг дуугаар уншина)</span>
                 </label>
                 <textarea
                   className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
@@ -434,7 +499,8 @@ export default function ExercisesPage() {
                 />
                 <p className="text-xs text-gray-400">
                   Сурагч үүнийг зөвхөн сонсоно — хариулсны дараа бичвэр нь харагдана.
-                  Асуултууд энэ яриан дээр тулгуурлана.
+                  <b className="text-gray-500"> Асуулт бүрийн хариулт энэ яриан дотор
+                  байх ёстой</b> — эс бөгөөс сурагч таамаглана.
                 </p>
               </div>
             )}
@@ -484,6 +550,23 @@ export default function ExercisesPage() {
                 . Эсвэл JSON массив ([{'{'}…{'}'}) буулгаж болно.
               </p>
             </div>
+            {/* Импортоор ч сонсголын дасгал ЯРИАГҮЙ орж болохгүй — эс бөгөөс
+                асуултууд эх мэдээлэлгүй үлдэнэ (сервер ч татгалзана). */}
+            {cat === 'listening' && (
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium text-gray-700">
+                  Сонсох яриа <span className="text-red-500">*</span>{' '}
+                  <span className="text-gray-400">(бүх асуултад нэг яриа)</span>
+                </label>
+                <textarea
+                  className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  rows={4}
+                  placeholder={'Sarah: Hi Tom, how are you?\nTom: I am good, thanks.'}
+                  value={impScript}
+                  onChange={(e) => setImpScript(e.target.value)}
+                />
+              </div>
+            )}
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium text-gray-700">Өгөгдөл</label>
               <textarea
