@@ -8,6 +8,9 @@
  * Энд зөвхөн цэвэр функцууд (сүлжээ/DB хөндөхгүй) — `QuizzesService` эдгээрийг
  * ашиглаад Gemini рүү бодит дуудлагыг хийнэ.
  */
+// Зөвхөн төрөл (runtime import БИШ) — `ai-generate.ts` энэ файлаас функц
+// импортолдог тул бодит import хийвэл дугуй хамаарал үүснэ.
+import type { GenQuestionType } from './ai-generate';
 
 /** Нэг ажлын мөр: аль төрөлд, ямар сэдвээр, хэд дэх дасгал. */
 export interface BulkStep {
@@ -70,7 +73,8 @@ export function planSteps(
         // Ангиллын жор ялгааг нь мэднэ; админы заасан төрөл зөвхөн жоргүй
         // ангилалд (Сорилын тоглоом, IELTS) хүчинтэй. Форматыг AI-д чөлөөтэй
         // сонгуулах нь хариулах боломжгүй дасгал үүсгэдэг байсан.
-        questionType: recipeFor(t.category, nth)?.questionType ?? t.questionType,
+        questionType:
+          recipeFor(t.category, nth)?.questionType ?? t.questionType,
         quizType: t.quizType,
         contextNote: t.contextNote,
       });
@@ -106,7 +110,12 @@ const MAX_AVOID_TITLES = 25;
  * зөв хариулт нь **цорын ганц** байхаар.
  */
 interface CategoryRecipe {
-  questionType: string;
+  /**
+   * Форматыг жор шийднэ (админы сонголт ч, AI-гийн таамаг ч ДАРАГДАНА).
+   * `GenQuestionType` гэж бичсэн шалтгаан: аппын runner зөвхөн эдгээрийг
+   * харуулж чаддаг тул алдаатай нэр бичвэл compile үед баригдана.
+   */
+  questionType: GenQuestionType;
   /** Prompt-д нэмэх дүрмүүд. */
   rules: string[];
 }
@@ -125,9 +134,17 @@ const LISTENING_VARIANTS: CategoryRecipe[] = [
     questionType: 'multiple_choice',
     rules: [
       'Энэ бол СОНСГОЛЫН дасгал. `passageText` талбарт 2 хүний хоорондох ' +
-        '3–5 мөрт БОГИНО ЯРИА бич (ж: "A: Hi Tom, how are you?\nB: I am fine, thanks.").',
+        '3–5 мөрт БОГИНО ЯРИА бич.',
+      // ⚠️ "A:" / "B:" гэж бичүүлбэл загвар асуултдаа гэнэт нэр зохиож оруулдаг
+      // ("What time does Sarah start work?" — гэтэл яриан дотор Sarah гэж хэн ч
+      // алга). Ярианы оролцогчдыг НЭРЭЭР нь бичүүлснээр энэ нүх хаагдана.
+      'Ярианы мөр бүрийг оролцогчийн НЭРЭЭР эхлүүл, "A:" / "B:" гэж БИЧИХГҮЙ ' +
+        '(ж: "Sarah: Hi Tom, how are you?\nTom: I am fine, thanks.").',
       'Сурагч энэ яриаг зөвхөн СОНСоно — уншихгүй (апп дуугаар уншина).',
       'Асуултууд нь тэр яриаг ойлгосон эсэхийг шалгана: хэн, хаана, хэзээ, юу хийсэн.',
+      'Асуултад дурдсан хүн бүрийн нэр яриан дотор ЗААВАЛ сонсогдсон байх ёстой. ' +
+        'Яриан дотор гараагүй нэрийг асуултад бичиж БОЛОХГҮЙ — сурагч тэр хүн нь ' +
+        'хэн болохыг мэдэхгүй тул хариулж чадахгүй.',
       'Бичгээр л ялгагдах зүйл (зөв бичих дүрэм, цэг таслал) шалгаж БОЛОХГҮЙ — ' +
         'сонсоод ялгах боломжгүй.',
       'Яриа нь чангаар уншихад байгалийн сонсогдох, өдөр тутмын хэллэг байх.',
@@ -138,9 +155,15 @@ const LISTENING_VARIANTS: CategoryRecipe[] = [
     questionType: 'fill_blank',
     rules: [
       'Энэ бол СОНСООД НӨХӨХ дасгал. `passageText` талбарт 3–5 мөрт БОГИНО ЯРИА бич.',
+      'Ярианы мөр бүрийг оролцогчийн НЭРЭЭР эхлүүл, "A:" / "B:" гэж БИЧИХГҮЙ.',
       'Сурагч яриаг СОНСоод, доорх өгүүлбэрүүдийн дутуу үгийг нөхнө.',
       '`question` бүр нь тэр яриан дотор БОДИТООР гарсан өгүүлбэр байх ба ' +
         'нэг үгийг нь `___` болгож нуусан байна.',
+      // ⚠️ Сурагч апп-ын уншсан ярианаас л тэр үгийг сонсоно. Яриан дотор
+      // байхгүй үгийг нөхүүлбэл "ямар үг байхыг мэдэхгүй" болж, таамаглана.
+      '`answer` нь тэр яриан дотор ЗААВАЛ сонсогдсон үг байх ёстой. Яриан дотор ' +
+        'огт хэлээгүй үгийг нөхүүлж БОЛОХГҮЙ — сурагч түүнийг сонсоогүй тул ' +
+        'нөхөж чадахгүй.',
       '`answer` нь тэр нуусан үг; `choices`-д зөв хариулт + сонсоход ойролцоо ' +
         'сонсогдох 3 үг (ж: "fine" → ["fine", "find", "five", "fun"]).',
     ],
@@ -188,9 +211,23 @@ const RECIPES: Record<string, CategoryRecipe> = {
  * `nth` нь сонсголын хэлбэрийг ээлжлүүлнэ — 10 дасгал үүсгэхэд тал нь ойлголт
  * шалгах, тал нь сонсоод нөхөх болж, нэг хэвийн байдал арилна.
  */
-export function recipeFor(category: string, nth = 1): CategoryRecipe | null {
+export function recipeFor(
+  category: string,
+  nth = 1,
+  /**
+   * Админы ЗААСАН төрөл. Сонсголд хоёр хэлбэр (сонгох · нөхөх) байдаг тул
+   * түүнд тохирох жорыг сонгоно.
+   *
+   * ⚠️ Үүнгүйгээр админ «Нөхөх» гэж сонгосон ч үргэлж эхний хэлбэр (сонгох)
+   * буцаж, сонсоод нөхөх дасгал ОГТ үүсгэж болохгүй болж байв.
+   */
+  wantType?: string,
+): CategoryRecipe | null {
   if (category === 'listening') {
-    return LISTENING_VARIANTS[(nth - 1) % LISTENING_VARIANTS.length];
+    const match = wantType
+      ? LISTENING_VARIANTS.find((v) => v.questionType === wantType)
+      : undefined;
+    return match ?? LISTENING_VARIANTS[(nth - 1) % LISTENING_VARIANTS.length];
   }
   return RECIPES[category] ?? null;
 }

@@ -58,6 +58,117 @@ type Phase = 'loading' | 'quiz' | 'result' | 'error';
 const FINISH_HOLD_MS = 700;
 
 /**
+ * Текстийг дуугаар уншихад бэлдэнэ.
+ *
+ * ⚠️ Сонсголын дасгалд **цоорхойтой текст хэзээ ч уншигдах ёсгүй** — сурагч
+ * нөхөх үгээ ЧИХЭЭРЭЭ барьж авах учиртай тул тэр үг нь дуунд байх ёстой.
+ * Тиймээс апп үргэлж ЯРИАнаас (`passageText`) уншина; яриа нь бүтэн үгтэй
+ * ирдгийг сервер баталгаажуулдаг (`quality.ts` — нөхөх үг яриан дотор
+ * заавал байх).
+ *
+ * Энэ функц бол зөвхөн хамгаалалт: ямар нэг замаар цоорхой орж ирвэл «blank»
+ * гэх мэт сонин үг хэлэхийн оронд **богино завсарлага** болгоно.
+ */
+const speakable = (text: string): string => text.replace(/_{2,}/g, ', ');
+
+/** Харьцуулахад: жижиг үсэг, цэг таслалыг арилгаад үгс болгоно. */
+const words = (s: string): string[] =>
+  s.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).filter(Boolean);
+
+/**
+ * Цоорхойтой өгүүлбэр яриан дотор ХААНА байгааг олно.
+ *
+ * Яагаад: бүтэн яриаг сонсох нь нэг үг нөхөхөд хэтэрхий урт — сурагч дутуу
+ * үгийг нь хаанаас сонсохоо мэдэхгүй, дахин дахин бүтнээр нь сонсох болно.
+ * Тухайн өгүүлбэрийг л тусад нь уншвал дутуу үг тод сонсогдоно.
+ *
+ * ⚠️ Хариултыг нь **шууд уншуулах боломжгүй**: сервер зөв хариултыг аппад
+ * хэзээ ч илгээдэггүй (`api/quizzes.ts` — зөвхөн сервер шалгана). Өгүүлбэрийг
+ * нь олж унших нь тэр үгийг хамгийн ойрхон, аюулгүй сонсгох арга.
+ *
+ * Ярианы мөрүүдээс асуултын үгстэй хамгийн их давхцаж буйг нь сонгоно;
+ * итгэлтэй таарахгүй бол `null` (тэгвэл бүтэн яриаг уншина).
+ */
+function findScriptSentence(script: string, question: string): string | null {
+  const need = words(question.replace(/_{2,}/g, ' '));
+  if (need.length < 2) return null;
+
+  let best: { line: string; hits: number } | null = null;
+  for (const line of script.split(/(?<=[.!?])\s+|\n+/)) {
+    const have = new Set(words(line));
+    const hits = need.filter((w) => have.has(w)).length;
+    if (!best || hits > best.hits) best = { line: line.trim(), hits };
+  }
+  // Талаас илүү үг нь таарсан үед л итгэнэ — эс бөгөөс огт өөр өгүүлбэр уншина.
+  return best && best.hits * 2 > need.length ? best.line : null;
+}
+
+/**
+ * Цоорхойтой өгүүлбэр — `___` нь **харагдах нүх** болж, сонгосон үг нь тэр
+ * нүхэн дотор суудаг.
+ *
+ * Урьд нь цоорхой нь зүгээр гурван зураас байсан тул өгүүлбэрийн дунд алга
+ * болж, сурагч юуг нөхөж байгаагаа харахгүй байв. Одоо нүх нь өнгөөр
+ * тодорч, сонголт хиймэгц үг нь байрандаа орж, өгүүлбэр бүтэн болж уншигдана.
+ */
+function QuestionWithBlank({
+  text,
+  filled,
+  state = 'idle',
+  styles,
+}: {
+  text: string;
+  /** Сурагчийн сонгосон/бичсэн үг. Хоосон бол хоосон нүх харагдана. */
+  filled: string;
+  /** Шалгасны дараа нүх нь өөрөө ногоон/улаан болж хариултаа хэлнэ. */
+  state?: 'idle' | 'correct' | 'wrong';
+  styles: ReturnType<typeof makeStyles>;
+}) {
+  const parts = text.split(/_{2,}/);
+  if (parts.length === 1) {
+    return <AppText variant="h2" style={styles.questionText}>{text}</AppText>;
+  }
+
+  /*
+   * ⚠️ Цоорхойг `Text` дотор дэвсгэр өнгөөр хийж БОЛОХГҮЙ: React Native нь
+   * үүрлэсэн `Text`-д `borderRadius`-ыг үл тоодог тул мохоо дөрвөлжин
+   * хайрцаг гарч, өгүүлбэрийн дунд наалдсан шошго шиг сонин харагддаг байв.
+   *
+   * Тиймээс өгүүлбэрийг **үг тус бүрээр** зурж, цоорхойг жинхэнэ `View`
+   * болгоно — бөөрөнхий булан, зөв өндөр, тэгш зай бүгд боломжтой.
+   */
+  const nodes: React.ReactNode[] = [];
+  parts.forEach((part, i) => {
+    part.split(/\s+/).filter(Boolean).forEach((word, j) => {
+      nodes.push(
+        <AppText key={`w${i}-${j}`} variant="h2" style={styles.questionWord}>
+          {word}
+        </AppText>,
+      );
+    });
+    if (i < parts.length - 1) {
+      nodes.push(
+        <View
+          key={`b${i}`}
+          style={[
+            styles.blank,
+            filled ? styles.blankFilled : null,
+            state === 'correct' ? styles.blankCorrect : null,
+            state === 'wrong' ? styles.blankWrong : null,
+          ]}
+        >
+          {filled ? (
+            <AppText variant="h2" style={styles.blankWord}>{filled}</AppText>
+          ) : null}
+        </View>,
+      );
+    }
+  });
+
+  return <View style={styles.questionWrap}>{nodes}</View>;
+}
+
+/**
  * One question the student got wrong, kept so the result screen can explain it.
  *
  * Nothing else can supply this: `GET /quizzes/:id` deliberately withholds the
@@ -303,16 +414,46 @@ export default function QuizScreen() {
    * өгүүлбэр сонсох нь дасгал болохооргүй богино байсан); хуучин дасгалд
    * зөвхөн асуултын өгүүлбэр байдаг тул түүн рүү буцна.
    */
-  const listenScript = isListening ? (quiz?.passageText || currentQ?.question || '') : '';
+  /*
+   * ⚠️ НӨХӨХ дасгал цоорхойтой асуулт руу ХЭЗЭЭ Ч буцахгүй.
+   *
+   * Сурагч нөхөх үгээ чихээрээ барьж авах ёстой тул тэр үг дуунд байх ЁСТОЙ.
+   * Цоорхойтой өгүүлбэрийг уншвал яг тэр үг нь дутуу байх тул дасгал нь утгаа
+   * алдана (өмнө нь TTS цоорхойг чимээгүй алгасаад «How are you?» гэж уншдаг
+   * байсан). Яриа заавал байхыг сервер баталгаажуулдаг — байхгүй бол тэр
+   * дасгалыг аппад огт өгдөггүй.
+   *
+   * Сонгох (multiple_choice) дасгалд асуулт нь өөрөө сонсох зүйл байж болно
+   * (цоорхойгүй) тул тэнд хуучин зан төлөв хэвээр.
+   */
+  const listenScript = !isListening
+    ? ''
+    : quiz?.passageText
+      || (currentQ?.type === 'fill_blank' ? '' : currentQ?.question || '');
   const hasScript = isListening && !!quiz?.passageText;
+  /**
+   * Сонсоод НӨХӨХ дасгалд бүтэн яриа нь хэтэрхий урт — нөхөх үг нь хаана
+   * сонсогдохыг олох гэж сурагч бүтнээр нь дахин дахин сонсдог. Тухайн
+   * өгүүлбэрийг нь тусад нь уншвал дутуу үг тод сонсогдоно.
+   */
+  const focusSentence =
+    hasScript && currentQ?.type === 'fill_blank' && currentQ.question
+      ? findScriptSentence(quiz!.passageText!, currentQ.question)
+      : null;
   /**
    * Юуг нуух вэ:
    *  · Ярианы бичвэрийг ҮРГЭЛЖ (хариултаа өгтөл) — эс бөгөөс уншчихаад хариулна.
    *  · Хуучин загварын дасгалд асуулт нь ӨӨРӨӨ сонсох зүйл тул түүнийг нуана.
    *    Шинэ загварт асуулт нь даалгавар учир харагдах ЁСТОЙ.
+   *
+   * ⚠️ `fill_blank`-ийг ХЭЗЭЭ Ч нуухгүй. Цоорхойтой өгүүлбэр нь дасгалын
+   * өөрийнх нь интерфэйс — цоорхой хаана байгааг харахгүй бол юуг нөхөхөө
+   * мэдэхгүй. Урьд нь яриагүй хуучин дасгал дээр өгүүлбэр нь бүхэлдээ нуугдаж,
+   * зөвхөн хариултаа илгээсний ДАРАА гарч ирдэг байв.
    */
   const hidePassage = isListening && !feedback;
-  const hideQuestionText = isListening && !hasScript && !feedback;
+  const hideQuestionText =
+    isListening && !hasScript && !feedback && currentQ?.type !== 'fill_blank';
 
   /**
    * Задгай бичих даалгавар (`open_response`) нь **өөрөө үнэлэх** — сервер
@@ -329,26 +470,60 @@ export default function QuizScreen() {
   /** Хэдэн удаа сонссоныг харуулна — «дахин сонсож болно» гэдгийг ойлгуулна. */
   const [playCount, setPlayCount] = useState(0);
 
-  const speakScript = useCallback(() => {
-    if (!listenScript) return;
+  /**
+   * Нэг дуудлагаар хоёуланг нь: өгүүлбэр эсвэл бүтэн яриа.
+   *
+   * ⚠️ `Speech.stop()` нь **асинхрон**. Шууд араас нь `speak()` дуудвал шинэ
+   * өгүүлбэрийг зогсоолт нь залгиж, дуу ОГТ гардаггүй — «Үргэлжлүүлэх» дарахад
+   * дараагийн үг уншигдахгүй, товчийг дахин дарах шаардлагатай болдог байв.
+   * Богино хүлээлт нь зогсоолт бүрэн болсны дараа эхлүүлнэ.
+   */
+  const speakTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const speak = useCallback((text: string) => {
+    if (!text) return;
+    if (speakTimer.current) clearTimeout(speakTimer.current);
     void Speech.stop();
-    Speech.speak(listenScript, { language: 'en-US', rate: slowSpeech ? 0.55 : 0.9 });
-    setPlayCount((n) => n + 1);
-  }, [listenScript, slowSpeech]);
+    speakTimer.current = setTimeout(() => {
+      Speech.speak(speakable(text), {
+        language: 'en-US',
+        rate: slowSpeech ? 0.55 : 0.9,
+      });
+    }, 160);
+  }, [slowSpeech]);
 
-  // Шинэ дасгал/асуулт гармагц нэг удаа уншина — сурагч товч хайх шаардлагагүй.
-  // Яриатай дасгалд зөвхөн НЭГ удаа (асуулт бүрд дахин уншвал таагүй).
+  /**
+   * Үндсэн товч. Нөхөх дасгалд **тухайн өгүүлбэрийг**, бусад үед бүтэн яриаг —
+   * сурагчид хэрэгтэй зүйл нь өөр учраас.
+   */
+  const speakScript = useCallback(() => {
+    speak(focusSentence ?? listenScript);
+    setPlayCount((n) => n + 1);
+  }, [speak, focusSentence, listenScript]);
+
+  /**
+   * Шинэ асуулт гармагц өөрөө уншина — сурагч товч хайх шаардлагагүй.
+   *
+   * Түлхүүр нь **унших текст өөрөө**: өгүүлбэр солигдвол (нөхөх дасгал) шинэ
+   * асуулт бүрд уншина, харин бүтэн яриа өөрчлөгдөөгүй бол (сонгох дасгал)
+   * дахин давтахгүй. `attempt` нь буруу хариулаад **эргэж ирсэн** асуултыг ч
+   * дахин уншуулна — өмнө нь тэр тохиолдолд чимээгүй үлддэг байв.
+   */
   const spokenFor = useRef<string | null>(null);
   useEffect(() => {
-    const key = hasScript ? `q:${quiz?.id}` : `i:${currentIndex}`;
-    if (!isListening || !listenScript || spokenFor.current === key) return;
+    const target = focusSentence ?? listenScript;
+    // Өгүүлбэр бүрийн хувьд оролдлогыг ялгана; бүтэн яриаг нэг л удаа.
+    const key = focusSentence ? `${target}#${attempt}` : target;
+    if (!isListening || !target || spokenFor.current === key) return;
     spokenFor.current = key;
     setPlayCount(0);
     speakScript();
-  }, [isListening, listenScript, hasScript, quiz?.id, currentIndex, speakScript]);
+  }, [isListening, listenScript, focusSentence, attempt, speakScript]);
 
-  // Дэлгэцээс гарахад дуу үргэлжлэхгүй.
-  useEffect(() => () => { void Speech.stop(); }, []);
+  // Дэлгэцээс гарахад дуу үргэлжлэхгүй (хүлээж буй уншилт ч цуцлагдана).
+  useEffect(() => () => {
+    if (speakTimer.current) clearTimeout(speakTimer.current);
+    void Speech.stop();
+  }, []);
 
   /**
    * `fill_blank`-ийн үгийн сан. Гараар бичих нь хэт хэцүү байсан (зөв санааг
@@ -367,6 +542,25 @@ export default function QuizScreen() {
       ? (currentQ.choices?.length ? currentQ.choices : (quiz?.wordBank ?? null))
       : null;
   const useWordBank = !!fillChoices && fillChoices.length > 1;
+
+  /**
+   * Асуултын төрөл бүрийн заавар. Сонсоод НӨХӨХ нь өөр даалгавар —
+   * «хариултыг сонго» гэвэл сурагч доорх цоорхойтой өгүүлбэрийг анзаарахгүй.
+   */
+  const howToText = !currentQ
+    ? ''
+    : isOpenResponse
+      ? t('howToWrite')
+      : isListening
+        ? t(currentQ.type === 'fill_blank' ? 'howToListenFill' : 'howToListen')
+        : currentQ.type === 'multiple_choice'
+          ? t('howToChoose')
+          : currentQ.type === 'word_match'
+            ? t('howToMatch')
+            : currentQ.type === 'fill_blank'
+              ? t(useWordBank ? 'howToFillBank' : 'howToFillType')
+              : '';
+
   // "Last" only if this answer is right — a wrong one re-queues, so the run
   // isn't over. Computed from the feedback we already have.
   // `finishing` counts the last question as done so the bar fills to 100% the
@@ -849,30 +1043,35 @@ export default function QuizScreen() {
           </View>
         ) : null}
         {/* Заавар. Урьд нь юу ч байгаагүй тул сурагч цоорхойтой өгүүлбэр, хоосон
-            хайрцаг хоёрыг хараад юу хийхээ таамаглах хэрэгтэй болдог байв. */}
-        <AppText variant="overline" color={c.textMuted} style={styles.howTo}>
-          {isOpenResponse
-            ? t('howToWrite')
-            : isListening
-            ? t('howToListen')
-            : currentQ!.type === 'multiple_choice'
-              ? t('howToChoose')
-              : currentQ!.type === 'word_match'
-                ? t('howToMatch')
-                : currentQ!.type === 'fill_blank'
-                  ? t(useWordBank ? 'howToFillBank' : 'howToFillType')
-                  : ''}
-        </AppText>
+            хайрцаг хоёрыг хараад юу хийхээ таамаглах хэрэгтэй болдог байв.
+            Текстгүй үед шошгыг ОГТ гаргахгүй — хоосон бөмбөлөг харагдана. */}
+        {howToText ? (
+          <AppText variant="overline" color={c.textSecondary} style={styles.howTo}>
+            {howToText}
+          </AppText>
+        ) : null}
 
         {/* Сонсголын дасгал: бичвэрийг УНШУУЛАХГҮЙ, дуугаар нь сонсгоно.
-            Хариулсны дараа бичвэр ил болж, юу сонссоноо шалгаж болно. */}
-        {isListening ? (
+            Хариулсны дараа бичвэр ил болж, юу сонссоноо шалгаж болно.
+            Сонсох зүйлгүй бол товчийг ОГТ гаргахгүй — дардаг мөртлөө чимээгүй
+            товч бол байхгүйгээс дор. */}
+        {isListening && listenScript ? (
           <View style={styles.listenBox}>
+            {/* Дугуй товч + тайлбар — сонсох нь энэ дасгалын ГОЛ үйлдэл тул
+                хамгийн том, хамгийн тод элемент байх ёстой. */}
             <PressableScale onPress={speakScript} style={styles.listenBtn}>
-              <Ionicons name="volume-high" size={26} color={c.white} />
-              <AppText variant="bodyStrong" color={c.white}>
-                {playCount > 0 ? t('listenReplay') : t('listenPlay')}
-              </AppText>
+              <View style={styles.listenIcon}>
+                <Ionicons name="volume-high" size={26} color={c.primary} />
+              </View>
+              <View style={styles.listenLabel}>
+                <AppText variant="bodyStrong" color={c.white}>
+                  {playCount > 0 ? t('listenReplay') : t('listenPlay')}
+                </AppText>
+                <AppText variant="caption" color={c.white} style={styles.listenSub}>
+                  {playCount > 0 ? tf('listenCount', { n: playCount }) : t('listenTapHint')}
+                </AppText>
+              </View>
+              <Ionicons name="play-circle" size={30} color={c.white} />
             </PressableScale>
             <View style={styles.listenTools}>
               {/* Удаан хурд — сонсоод амжихгүй байгаа хүнд хамгийн том тусламж.
@@ -891,11 +1090,21 @@ export default function QuizScreen() {
                   {t('listenSlow')}
                 </AppText>
               </PressableScale>
-              {playCount > 0 ? (
-                <AppText variant="caption" color={c.textMuted}>
-                  {tf('listenCount', { n: playCount })}
-                </AppText>
+              {/* Нөхөх дасгалд үндсэн товч нь ӨГҮҮЛБЭРийг уншина. Хэрэв
+                  контекст дутвал бүтэн яриаг сонсох гарц энд байна. */}
+              {focusSentence ? (
+                <PressableScale
+                  haptic={false}
+                  onPress={() => speak(listenScript)}
+                  style={styles.speedPill}
+                >
+                  <Ionicons name="chatbubbles-outline" size={14} color={c.textSecondary} />
+                  <AppText variant="caption" color={c.textSecondary}>
+                    {t('listenWhole')}
+                  </AppText>
+                </PressableScale>
               ) : null}
+              {/* Сонссон тоо нь дээрх картад аль хэдийн байгаа — энд давтахгүй. */}
             </View>
           </View>
         ) : null}
@@ -905,15 +1114,37 @@ export default function QuizScreen() {
             {t('listenHiddenHint')}
           </AppText>
         ) : (
-          <AppText variant="h2" style={styles.questionText}>
-            {currentQ!.question
-              ?? (currentQ!.type === 'word_match'
-                ? t('matchPairsPrompt')
-                // `open_response` нь `prompt` талбартай ба энэ дэлгэц түүнийг
-                // ажиллуулж чаддаггүй. Хоосон гарчиг үзүүлэхийн оронд ядаж
-                // даалгаврыг харуулна (өмнө нь бүтэн хоосон дэлгэц гардаг байв).
-                : (currentQ as { prompt?: string }).prompt ?? '')}
-          </AppText>
+          /* Асуулт нь өөрийн КАРТтай — урьд нь дэвсгэр дээр чөлөөтэй хэвтэх тул
+             хариултын товчнуудтай нийлж, аль нь асуулт болох нь тодорхойгүй
+             байв. Карт нь "энэ бол бодох зүйл" гэдгийг нэг харцаар хэлнэ. */
+          <View style={styles.questionCard}>
+            <QuestionWithBlank
+              styles={styles}
+              // Сонгосон үг цоорхой дотроо суух тул сурагч бүтэн өгүүлбэрээ
+              // уншиж, зөв эсэхээ шалгаж чадна.
+              //
+              // ⚠️ Хариулсны ДАРАА ч үлдэнэ: урьд нь зөв хийхэд үг нь цоорхойноос
+              // алга болж, өгүүлбэр дахин цоорхойтой болдог байв — сурагч юуг нь
+              // зөв хийснээ харах ч завдалгүй.
+              filled={currentQ!.type === 'fill_blank' ? fillText : ''}
+              state={
+                currentQ!.type !== 'fill_blank' || !feedback
+                  ? 'idle'
+                  : feedback.correct
+                    ? 'correct'
+                    : 'wrong'
+              }
+              text={
+                currentQ!.question
+                ?? (currentQ!.type === 'word_match'
+                  ? t('matchPairsPrompt')
+                  // `open_response` нь `prompt` талбартай ба энэ дэлгэц түүнийг
+                  // ажиллуулж чаддаггүй. Хоосон гарчиг үзүүлэхийн оронд ядаж
+                  // даалгаврыг харуулна (өмнө нь бүтэн хоосон дэлгэц гардаг байв).
+                  : (currentQ as { prompt?: string }).prompt ?? '')
+              }
+            />
+          </View>
         )}
 
         {currentQ!.type === 'multiple_choice' && currentQ!.imageUrl ? (
@@ -972,33 +1203,53 @@ export default function QuizScreen() {
             алдвал буруу гэж тооцогдоно. Сан ирсэн үед сурагч дарж сонгоно —
             бичих ачаалал ч, таамаглал ч алга. */}
         {currentQ!.type === 'fill_blank' && useWordBank && (
-          <View style={styles.bank}>
-            {fillChoices!.map((word) => {
-              const picked = fillText === word;
-              return (
-                <PressableScale
-                  key={word}
-                  haptic={false}
-                  disabled={!!feedback}
-                  style={[
-                    styles.bankChip,
-                    picked && styles.bankChipOn,
-                    feedback?.correct && picked && styles.bankChipCorrect,
-                    feedback && !feedback.correct && picked && styles.bankChipWrong,
-                  ]}
-                  // Дахин дарвал сонголт цуцлагдана — буруу дарсан хүн гацахгүй.
-                  onPress={() => { haptics.select(); setFillText(picked ? '' : word); }}
-                >
-                  <AppText variant="body" color={picked ? c.white : c.text}>{word}</AppText>
-                </PressableScale>
-              );
-            })}
-            {feedback && !feedback.correct && typeof feedback.correctAnswer === 'string' ? (
-              <AppText variant="bodyStrong" color={c.success} style={styles.fillAnswer}>
-                {feedback.correctAnswer}
-              </AppText>
-            ) : null}
-          </View>
+          <>
+            <View style={styles.bank}>
+              {fillChoices!.map((word) => {
+                const picked = fillText === word;
+                /*
+                 * Буруу хариулахад зөв нь ЧИПС дотроо ногоороно.
+                 *
+                 * Урьд нь зөв хариулт доор нь тусдаа мөр болж гардаг байсан —
+                 * сурагч дээш доош хараад аль нь зөв болохыг тааруулах хэрэгтэй
+                 * болдог байв. Одоо аль товч зөв болох нь өөрөө хэлнэ
+                 * (сонгох дасгалын зан төлөвтэй ижил).
+                 */
+                const isCorrectWord =
+                  !!feedback &&
+                  (typeof feedback.correctAnswer === 'string'
+                    ? word.toLowerCase() === feedback.correctAnswer.toLowerCase()
+                    : feedback.correct && picked);
+                const isWrongPick = !!feedback && !feedback.correct && picked;
+                return (
+                  <PressableScale
+                    key={word}
+                    haptic={false}
+                    disabled={!!feedback}
+                    style={[
+                      styles.bankChip,
+                      picked && !feedback && styles.bankChipOn,
+                      isCorrectWord && styles.bankChipCorrect,
+                      isWrongPick && styles.bankChipWrong,
+                    ]}
+                    // Дахин дарвал сонголт цуцлагдана — буруу дарсан хүн гацахгүй.
+                    onPress={() => { haptics.select(); setFillText(picked ? '' : word); }}
+                  >
+                    <AppText
+                      variant="bodyStrong"
+                      color={
+                        (picked && !feedback) || isCorrectWord || isWrongPick
+                          ? c.white
+                          : c.text
+                      }
+                    >
+                      {word}
+                    </AppText>
+                  </PressableScale>
+                );
+              })}
+            </View>
+          </>
         )}
 
         {currentQ!.type === 'fill_blank' && !useWordBank && (
@@ -1020,9 +1271,12 @@ export default function QuizScreen() {
                 what the word was. Options and pairs light up green on their own,
                 so this is the only written correction left in the quiz. */}
             {feedback && !feedback.correct && typeof feedback.correctAnswer === 'string' ? (
-              <AppText variant="bodyStrong" color={c.success} style={styles.fillAnswer}>
-                {feedback.correctAnswer}
-              </AppText>
+              <View style={styles.correctRow}>
+                <Ionicons name="checkmark-circle" size={18} color={c.success} />
+                <AppText variant="bodyStrong" color={c.success}>
+                  {feedback.correctAnswer}
+                </AppText>
+              </View>
             ) : null}
           </>
         )}
@@ -1163,7 +1417,7 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   },
   passageBox: {
     backgroundColor: c.surfaceAlt,
-    borderRadius: radius.md,
+    borderRadius: radius.lg,
     padding: spacing.md,
     marginBottom: spacing.lg,
     gap: spacing.sm,
@@ -1179,12 +1433,31 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
     borderColor: c.border,
     paddingVertical: spacing.lg,
   },
+  /**
+   * Асуултын карт — "энэ бол бодох зүйл" гэдгийг нэг харцаар хэлнэ.
+   * Зүүн талын өнгөт зурвас нь картыг брэндийн өнгөнд холбож, нүдийг
+   * эхлэх цэг рүү нь чиглүүлнэ.
+   */
+  questionCard: {
+    backgroundColor: c.surface,
+    borderRadius: radius.xl,
+    borderLeftWidth: 4,
+    borderLeftColor: c.primary,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    marginBottom: spacing.lg,
+    shadowColor: c.navy,
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+  },
   questionText: {
     fontSize: fontSize.lg,
     fontWeight: '700',
     color: c.navy,
-    marginBottom: spacing.xl,
-    lineHeight: 30,
+    // Цоорхойн нүх мөр дотор багтахын тулд мөр хоорондын зай өргөн байна.
+    lineHeight: 34,
   },
   questionImage: {
     width: '100%',
@@ -1196,21 +1469,33 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   },
   optionsContainer: { gap: spacing.sm },
   option: {
+    minHeight: 56, // хуруугаар оноход хангалттай том
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 2,
     borderColor: c.border,
-    borderRadius: radius.md,
-    padding: spacing.md,
+    borderRadius: radius.lg,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
     gap: spacing.md,
+    backgroundColor: c.surface,
   },
-  optionSelected: { borderColor: c.primary, backgroundColor: c.primarySoft },
+  optionSelected: {
+    borderColor: c.primary,
+    backgroundColor: c.primarySoft,
+    // Сонгосон нь дэвсгэрээс өргөгдөж, "энэ бол миний сонголт" гэж мэдрэгдэнэ.
+    shadowColor: c.primary,
+    shadowOpacity: 0.22,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
+  },
   optionLabel: {
-    width: 28, height: 28,
-    borderRadius: 14,
+    width: 30, height: 30,
+    borderRadius: 15,
     backgroundColor: c.surfaceAlt,
     textAlign: 'center',
-    lineHeight: 28,
+    lineHeight: 30,
     fontWeight: '700',
     color: c.textMuted,
     fontSize: fontSize.sm,
@@ -1221,8 +1506,17 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   // Instant-feedback option states.
   optionCorrect: { borderColor: c.success, backgroundColor: c.successSoft },
   optionWrong: { borderColor: c.danger, backgroundColor: c.dangerSoft },
-  howTo: { marginBottom: spacing.xs },
-  listenBox: { marginBottom: spacing.md },
+  /** Заавар — энгийн текст байсныг зөөлөн шошго болгов (нүд түүн рүү очно). */
+  howTo: {
+    alignSelf: 'flex-start',
+    backgroundColor: c.surfaceAlt,
+    borderRadius: radius.full,
+    paddingVertical: 6,
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.md,
+    overflow: 'hidden',
+  },
+  listenBox: { marginBottom: spacing.lg },
   listenTools: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: spacing.md, marginTop: spacing.sm,
@@ -1230,18 +1524,87 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   speedPill: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     borderWidth: 1, borderColor: c.border, borderRadius: radius.full,
-    paddingVertical: 4, paddingHorizontal: spacing.sm,
+    paddingVertical: 5, paddingHorizontal: spacing.md,
   },
   speedPillOn: { backgroundColor: c.primary, borderColor: c.primary },
+  /** Сонсох карт — дасгалын гол үйлдэл тул хамгийн тод элемент. */
   listenBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
+    gap: spacing.md,
     alignSelf: 'stretch',
     backgroundColor: c.primary,
-    borderRadius: radius.lg,
-    paddingVertical: spacing.lg,
+    borderRadius: radius.xl,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    // Зөөлөн өргөлт — карт нь дэвсгэрээс салж, дарахуйц мэдрэгдэнэ.
+    shadowColor: c.primary,
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
+  },
+  listenIcon: {
+    width: 48, height: 48, borderRadius: 24,
+    // Цайвар тунгалаг дугуй — цагаан дэвсгэрээс зөөлөн, картад уусна.
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.5)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  listenLabel: { flex: 1, gap: 1 },
+  listenSub: { opacity: 0.85 },
+
+  /**
+   * Цоорхойн НҮХ — өгүүлбэр дотор харагдах байрлал.
+   *
+   * `___` нь текстийн дунд алга болж, сурагч юуг нөхөж байгаагаа мэдэхгүй
+   * байв. Одоо өнгөт суурьтай нүх болж, сонгосон үг нь дотор нь ордог.
+   */
+  /** Өгүүлбэр — үг тус бүр тусдаа зурагдаж, мөр дуусмагц доош ордог. */
+  questionWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    // Үг хоорондын зай (энгийн хоосон зайны оронд).
+    columnGap: 6,
+    rowGap: spacing.xs,
+  },
+  questionWord: {
+    fontSize: fontSize.lg,
+    fontWeight: '700',
+    color: c.navy,
+    lineHeight: 32,
+  },
+  /**
+   * Цоорхойн нүх — жинхэнэ `View` тул бөөрөнхий булантай.
+   * Хоосон үедээ тасархай хүрээтэй: "энд үг орно" гэдгийг хэлнэ.
+   */
+  blank: {
+    minWidth: 84,
+    height: 38,
+    borderRadius: radius.md,
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderColor: c.primary,
+    backgroundColor: c.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.sm,
+  },
+  blankFilled: {
+    borderStyle: 'solid',
+    borderColor: c.primary,
+    backgroundColor: c.primary,
+  },
+  // Шалгасны дараа нүх нь өөрөө хариултаа хэлнэ — доор нэмэлт мөр хэрэггүй.
+  blankCorrect: { borderStyle: 'solid', borderColor: c.success, backgroundColor: c.success },
+  blankWrong: { borderStyle: 'solid', borderColor: c.danger, backgroundColor: c.danger },
+  blankWord: {
+    fontSize: fontSize.md,
+    fontWeight: '800',
+    color: c.white,
+    lineHeight: 22,
   },
   writeInput: {
     minHeight: 140,
@@ -1261,28 +1624,46 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
     gap: spacing.xs,
   },
   bank: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  /** Сонгох үг — хуруугаар оноход хангалттай том, бүрэн бөөрөнхий. */
   bankChip: {
+    minHeight: 48,
+    justifyContent: 'center',
     borderWidth: 2,
     borderColor: c.border,
-    borderRadius: radius.md,
+    borderRadius: radius.full,
     paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: spacing.lg,
     backgroundColor: c.surface,
   },
-  bankChipOn: { borderColor: c.primary, backgroundColor: c.primary },
+  correctRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginTop: spacing.md,
+  },
+  bankChipOn: {
+    borderColor: c.primary,
+    backgroundColor: c.primary,
+    shadowColor: c.primary,
+    shadowOpacity: 0.28,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
+  },
   bankChipCorrect: { borderColor: c.success, backgroundColor: c.success },
   bankChipWrong: { borderColor: c.danger, backgroundColor: c.danger },
   fillInput: {
+    minHeight: 52,
     borderWidth: 2,
     borderColor: c.border,
-    borderRadius: radius.md,
+    borderRadius: radius.lg,
     padding: spacing.md,
     fontSize: fontSize.md,
     color: c.text,
+    backgroundColor: c.surface,
   },
   fillInputCorrect: { borderColor: c.success, backgroundColor: c.successSoft },
   fillInputWrong: { borderColor: c.danger, backgroundColor: c.dangerSoft },
-  fillAnswer: { marginTop: spacing.sm },
   errorText: { color: c.danger, fontSize: fontSize.md },
   // Result styles
   resultContainer: { padding: spacing.lg, paddingTop: spacing.md, gap: spacing.lg },

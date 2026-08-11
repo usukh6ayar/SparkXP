@@ -9,8 +9,7 @@
  * Энд зөвхөн цэвэр функцууд байна (сүлжээ/DB хөндөхгүй) — үүнийг тусад нь
  * уншиж, тестлэж болно. Gemini рүү бодит дуудлагыг `QuizzesService` хийнэ.
  */
-import { normalizeChoices } from './bulk-generate';
-
+import { normalizeChoices, recipeFor } from './bulk-generate';
 
 /** Асуултын формат — `QuizQuestionsEditor` (admin) -тэй яг ижил 4 төрөл. */
 export type GenQuestionType =
@@ -91,6 +90,24 @@ const VALID_TYPES: GenQuestionType[] = [
 ];
 const VALID_LEVELS = ['a1', 'a2', 'b1', 'b2', 'c1', 'c2'];
 
+export const LISTENING_CATEGORY = 'listening';
+
+/**
+ * Аппын "Сонсгол" дасгал мөн үү — эдгээрт сонсох яриа (`passageText`) ЗААВАЛ
+ * хэрэгтэй, эс бөгөөс асуулт нь эх мэдээлэлгүй үлдэж хариулах боломжгүй болно.
+ *
+ * IELTS Listening (`ielts_listening`) нь энд ОРОХГҮЙ: тэр нь админы
+ * байршуулсан бодит бичлэгтэй (`audioUrl`) тул бичвэр шаардахгүй.
+ */
+export const isListeningCategory = (category?: string | null): boolean =>
+  category === LISTENING_CATEGORY;
+
+/**
+ * Сонсох яриа хамгийн багадаа хэдэн тэмдэгт байх вэ. 3–5 мөрт яриа нь үргэлж
+ * үүнээс урт; харин загвар нэг хагас өгүүлбэр бичээд орхивол энд баригдана.
+ */
+export const MIN_LISTENING_SCRIPT = 40;
+
 // ─────────────────────────── Prompt ───────────────────────────
 
 /** Асуултын төрөл бүрийн бичих дүрэм — prompt дотор шууд орно. */
@@ -151,11 +168,21 @@ export function buildPrompt(o: GenerateOptions): string {
     ? TYPE_RULES[type]
     : VALID_TYPES.map((t) => TYPE_RULES[t]).join('\n  - ');
 
+  // ⚠️ Ангиллын жор. Үүнгүйгээр загвар "listening" гэдгийг зүгээр л шошго гэж
+  // үзээд сонсох ЯРИАГ огт зохиодоггүй байсан — тэгээд "What time does Sarah
+  // usually wake up?" гэх мэт, хариулт нь хаанаас ч гарахгүй асуулт үүсдэг байв.
+  // Bulk зам үүнийг аль хэдийн хэрэглэдэг байсан; энэ (ганцаарчилсан) зам
+  // орхигдсоны улмаас админ нэг дасгал үүсгэх бүрд алдаа давтагдаж байлаа.
+  const recipe = o.category ? recipeFor(o.category, 1, o.questionType) : null;
+
   const lines = [
     'Чи бол монгол сурагчдад англи хэл заадаг туршлагатай багш, шалгалтын материал зохиогч.',
     '',
     kindContext(o),
     ...(o.contextNote ? [`Нэмэлт контекст: ${o.contextNote.trim()}`] : []),
+    ...(recipe
+      ? ['', 'АНГИЛЛЫН ДҮРЭМ:', ...recipe.rules.map((r) => `- ${r}`)]
+      : []),
     '',
     `АДМИНЫ ХҮСЭЛТ (үүн дээр үндэслэ):\n"""\n${o.brief.trim()}\n"""`,
     '',
@@ -198,6 +225,20 @@ export function buildPrompt(o: GenerateOptions): string {
       o.passageText
         ? `- Асуултуудыг ЗӨВХӨН дараах эх бичвэр дээр үндэслэ:\n"""\n${o.passageText.trim()}\n"""`
         : '- 250–350 үгтэй IELTS Academic хэв маягийн эх бичвэр зохиогоод `passageText` талбарт буцаа. Асуултууд түүн дээр л тулгуурлана.',
+    );
+  }
+
+  // Сонсголд эх яриа нь дасгалын ЦӨМ — түүнгүйгээр асуулт хариулах боломжгүй.
+  // Тиймээс "заавал" гэдгийг prompt-д дахин, шууд хэлж өгнө (schema дээр ч
+  // `required` — хоёр давхар хамгаалалт).
+  if (isListeningCategory(o.category)) {
+    lines.push(
+      o.passageText
+        ? `- Асуултуудыг ЗӨВХӨН дараах яриан дээр үндэслэ:\n"""\n${o.passageText.trim()}\n"""`
+        : '- `passageText` талбарт сонсох ЯРИАГ ЗААВАЛ бич. Энэ талбар хоосон бол дасгал хүчингүй.',
+      '- Асуулт бүрийн хариулт нь тэр яриан дотор ШУУД сонсогдож байх ёстой. ' +
+        'Сурагч яриаг сонсоод хариултыг нь олох боломжгүй асуулт бичиж БОЛОХГҮЙ ' +
+        '(ж: яриан дотор цаг дурдаагүй байж "What time …?" гэж асуувал таамаглахаас өөр аргагүй).',
     );
   }
 
@@ -275,6 +316,10 @@ export function buildSchema(
     REQUIRED_BY_TYPE[type].map((f) => [f, QUESTION_FIELDS[f]]),
   );
 
+  // Сонсголд яриа нь заавал — schema түвшинд шаардвал загвар түүнийг орхиж
+  // чадахгүй (prompt-ийн зааврыг үл тоомсорлох магадлал үлддэг).
+  const needsPassage = isListeningCategory(o.category);
+
   return {
     type: 'OBJECT',
     properties: {
@@ -282,7 +327,11 @@ export function buildSchema(
       level: { type: 'STRING', enum: VALID_LEVELS },
       questionType: { type: 'STRING', enum: VALID_TYPES },
       topic: { type: 'STRING', maxLength: 60 },
-      passageText: { type: 'STRING', maxLength: 3000 },
+      passageText: {
+        type: 'STRING',
+        maxLength: 3000,
+        ...(needsPassage ? { minLength: MIN_LISTENING_SCRIPT } : {}),
+      },
       questions: {
         type: 'ARRAY',
         minItems: count,
@@ -294,7 +343,13 @@ export function buildSchema(
         },
       },
     },
-    required: ['title', 'level', 'questionType', 'questions'],
+    required: [
+      'title',
+      'level',
+      'questionType',
+      'questions',
+      ...(needsPassage ? ['passageText'] : []),
+    ],
   };
 }
 
@@ -414,7 +469,13 @@ function normalizeQuestion(
     // Сонголтгүй бол апп бичүүлэх горим руугаа буцна — асуулт хаягдахгүй.
     const choices = normalizeChoices(raw.choices, answer);
     if (!choices) warn('сонголт ирсэнгүй — гараар бичих хэлбэрээр үлдлээ');
-    return { type, question, answer, ...(choices ? { choices } : {}), points: 10 };
+    return {
+      type,
+      question,
+      answer,
+      ...(choices ? { choices } : {}),
+      points: 10,
+    };
   }
 
   if (type === 'word_match') {
@@ -514,6 +575,22 @@ export function parseDraft(text: string, o: GenerateOptions): GeneratedDraft {
     warnings.push(`${wanted} асуулт хүссэнээс ${questions.length} нь үлдлээ`);
   }
 
+  const passageText = str(root.passageText) || o.passageText || null;
+
+  // ⚠️ Сонсголын дасгал яриагүй бол ХАРИУЛАХ БОЛОМЖГҮЙ — сурагчид эх мэдээлэл
+  // өгөлгүй асуулт асуусан болно. Ийм ноорогийг админд харуулахын оронд
+  // алдаа болгож буцаана: bulk зам түүнийг алгасаад дараагийнхийг үүсгэнэ,
+  // ганцаарчилсан зам админд "дахин оролдоно уу" гэж хэлнэ.
+  if (
+    isListeningCategory(o.category) &&
+    (passageText ?? '').length < MIN_LISTENING_SCRIPT
+  ) {
+    throw new Error(
+      'Сонсголын дасгал үүсгэхэд сонсох яриа (эх бичвэр) дутуу гарлаа — ' +
+        'яриагүй бол асуулт хариулах боломжгүй болно. Дахин оролдоно уу.',
+    );
+  }
+
   const level = str(root.level).toLowerCase();
   const aiType = str(root.questionType) as GenQuestionType;
   return {
@@ -522,7 +599,7 @@ export function parseDraft(text: string, o: GenerateOptions): GeneratedDraft {
     // Бодит асуултууд нь эцсийн үнэн — AI-гийн хэлсэн төрөл зөрвөл эхнийхийг авна.
     questionType: VALID_TYPES.includes(aiType) ? aiType : questions[0].type,
     topic: str(root.topic) || o.topic || null,
-    passageText: str(root.passageText) || o.passageText || null,
+    passageText,
     questions,
     warnings,
   };

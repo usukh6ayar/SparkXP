@@ -431,7 +431,21 @@ const makeStyles = (colors: AppColors) =>
     },
     timerBar: { flex: 1 },
     body: { padding: spacing.lg, flexGrow: 1, justifyContent: "center" },
-    prompt: { alignItems: "center", marginBottom: spacing.xxl },
+    /**
+     * Асуултын карт — дасгалын дэлгэцтэй (`app/quiz/[id].tsx`) НЭГ загвартай
+     * байхын тулд. Урьд нь үг дэвсгэр дээр чөлөөтэй хэвтэж, доорх сонголтуудтай
+     * нийлж харагддаг байв.
+     */
+    prompt: {
+      alignItems: "center",
+      backgroundColor: colors.surface,
+      borderRadius: radius.xl,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingVertical: spacing.xl,
+      paddingHorizontal: spacing.lg,
+      marginBottom: spacing.xl,
+    },
     playBtn: {
       width: 96,
       height: 96,
@@ -452,11 +466,13 @@ const makeStyles = (colors: AppColors) =>
     },
     options: { gap: spacing.md },
     option: {
+      minHeight: 56, // хуруугаар оноход хангалттай том
+      justifyContent: "center",
       backgroundColor: colors.surface,
       borderRadius: radius.lg,
-      borderWidth: 1.5,
+      borderWidth: 2,
       borderColor: colors.border,
-      paddingVertical: spacing.lg,
+      paddingVertical: spacing.md,
       paddingHorizontal: spacing.xl,
       alignItems: "center",
     },

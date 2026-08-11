@@ -169,7 +169,7 @@ Controller-level: JWT. Бичилт admin-баг. (Хичээлийн тест �
 
 | Method + Path | Auth | Зорилго | Params / Body |
 | --- | --- | --- | --- |
-| GET `/quizzes` | JWT | Quiz жагсаах (шүүлттэй) | `QueryQuizzesDto` (lessonId, category, topic, standalone, isPublished) |
+| GET `/quizzes` | JWT | Quiz жагсаах (шүүлттэй) | `QueryQuizzesDto` (lessonId, category, topic, standalone, isPublished, **includeUnanswerable**) |
 | GET `/quizzes/:id` | JWT | Нэг quiz (зөв хариу нуугдана) | path `id` |
 | POST `/quizzes` | admin-баг | Quiz үүсгэх | `CreateQuizDto` |
 | PATCH `/quizzes/:id` | admin-баг | Quiz засах | `UpdateQuizDto` |
@@ -227,6 +227,30 @@ Controller-level: JWT. Бичилт admin-баг. (Хичээлийн тест �
 > `imageUrl`/`bandNote`, `points:0`, self-study — no submit). Listening/Reading
 > `POST /quizzes/:id/submit` responses include an approximate **`band`** (0–9)
 > from the count of correct questions.
+
+> ⚠️ **Чанарын шалгуур — хариулах боломжгүй дасгал үүсэхгүй** (2026-08-11).
+> Бүх дүрэм нэг файлд: `backend/src/quizzes/quality.ts` (`checkQuiz`). Шинэ
+> дүрэм нэмэхдээ **зөвхөн тэнд** нэм — үүсгэх · хадгалах · тайлагнах гурвуулан
+> түүнийг ашигладаг (админд өөр, аппад өөр дүрэм үүсгэж БОЛОХГҮЙ).
+>
+> `block` = хадгалалт **400**-аар татгалзана, аппаас нуугдана:
+> · сонсголын дасгал сонсох яриагүй (`passageText` < 40 тэмдэгт, `audioUrl`-гүй)
+> · сонсголын асуултад дурдсан нэр яриан дотор огт сонсогдоогүй
+> · `fill_blank` сонголтод gerund («swimming») ба infinitive («to swim») хоёулаа
+> · зөв хариулт сонголтуудын дунд алга · `___` цоорхойгүй · сонголт давхардсан
+> · зөв хариултын индекс мужаас гарсан · асуулт/хариулт хоосон
+>
+> `warn` = **блоклохгүй**, зөвхөн админд жагсаана (хүн шийднэ):
+> · сонголтууд нэг үгийн хэлбэрүүд биш (утгаараа сонгох цоорхой)
+> · зөв хариулт асуултын дотор шууд бичигдсэн · хоёр үг ижил орчуулгатай
+> · сонсголын хариулт яриан дотор сонсогдохгүй · давхардсан асуулт
+>
+> **`GET /quizzes` нь `block`-той мөрүүдийг анхдагчаар НУУНА** — сонсголынхыг
+> SQL-ээр, үлдсэнийг JS-ээр. Апп ямар ч туггүй дуудах тул **шинэчлэл хүлээхгүй**
+> шууд цэвэр контент авна. Админ **`includeUnanswerable=true`**-ээр бүгдийг харна.
+> ⚠️ IELTS Listening (`ielts_listening`) энэ дүрэмд **орохгүй** — бодит бичлэгтэй.
+
+| GET `/quizzes/quality-report` | admin | Эвдэрсэн/эргэлзээтэй бүх дасгалыг шалтгаантай нь жагсаана | `?category=` (заавал биш) |
 
 > ⚠️ **`category` = аппын дэлгэц.** Bие даасан (standalone) quiz-ийг апп ЗӨВХӨН
 > `category`-гаар нь татдаг тул `category`-гүй quiz хаана ч харагдахгүй. Одоо

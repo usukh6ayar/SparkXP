@@ -7,7 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
-import { IsNull, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { Quiz } from '../entities/quiz.entity';
 import { runGeminiText } from '../dictionary/gemini-text';
 import {
@@ -15,7 +15,9 @@ import {
   buildSchema,
   buildTypePrompt,
   clampCount,
+  LISTENING_CATEGORY,
   maxTokensFor,
+  MIN_LISTENING_SCRIPT,
   parseDraft,
   parseTypePick,
   TYPE_PICK_SCHEMA,
@@ -30,11 +32,19 @@ import {
   dedupKey,
   planSteps,
   questionText,
+  recipeFor,
   stepName,
   MAX_TOTAL_STEPS,
   type BulkGenerateReport,
   type BulkStep,
 } from './bulk-generate';
+import {
+  blockingIssues,
+  checkQuiz,
+  describeIssues,
+  type QualityIssue,
+  type QuizLike,
+} from './quality';
 import { AiGenerateQuizDto } from './dto/ai-generate-quiz.dto';
 import { BulkGenerateQuizDto } from './dto/bulk-generate-quiz.dto';
 import { CreateQuizDto, QuestionDto } from './dto/create-quiz.dto';
@@ -121,6 +131,8 @@ const BULK_CONCURRENCY = 3;
 const MIN_QUESTIONS_KEPT = 3;
 /** Давхардал шалгахад ачаалах хамгийн олон мөр (нэг ангилалд). */
 const EXISTING_SCAN_LIMIT = 500;
+/** Чанарын тайланд нэг удаад шалгах хамгийн олон мөр. */
+const QUALITY_SCAN_LIMIT = 2000;
 
 @Injectable()
 export class QuizzesService {
@@ -148,9 +160,18 @@ export class QuizzesService {
    */
   async aiGenerate(dto: AiGenerateQuizDto): Promise<GeneratedDraft> {
     const options: GenerateOptions = { ...dto, count: clampCount(dto.count) };
-    // Төрөл заагаагүй бол эхлээд түүнийг тодруулна — үндсэн дуудлага үргэлж
-    // чанга schema-тай явахын тулд (сул schema дээр загвар гогцоонд ордог).
-    const type = options.questionType ?? (await this.pickQuestionType(options));
+    // Форматыг ангиллын жор мэднэ (Сонсгол · Дүрэм · Нөхөх · Бичих). Жор нь
+    // админы сонголтоос ч, AI-гийн таамгаас ч ДЭЭГҮҮР: формат буруу байвал
+    // дасгал хариулах боломжгүй болдог (ж: сонсгол `open_response` болчихвол
+    // аппын runner түүнийг харуулж ч чадахгүй). Bulk зам аль хэдийн ингэдэг —
+    // энэ зам орхигдсоноос болж админы үүсгэсэн дасгал эвдэрдэг байв.
+    // Дараалал: админы ЗААСАН төрөл → ангиллын жор → AI-гийн таамаг.
+    // ⚠️ Жорыг админаас дээгүүр тавибал сонсголд «Нөхөх» сонгох боломжгүй
+    // болно (жор нь үргэлж эхний хэлбэрээ буцаана).
+    const type =
+      options.questionType ??
+      (dto.category ? recipeFor(dto.category)?.questionType : undefined) ??
+      (await this.pickQuestionType(options));
     options.questionType = type;
 
     const { text } = await runGeminiText(
@@ -169,14 +190,39 @@ export class QuizzesService {
         maxOutputTokens: maxTokensFor(options.count ?? 10),
       },
     );
+    let draft: GeneratedDraft;
     try {
-      return parseDraft(text, options);
+      draft = parseDraft(text, options);
     } catch (e) {
       // parseDraft-ийн алдаанууд нь админд шууд харуулах монгол мессежүүд.
       throw new BadRequestException(
         e instanceof Error ? e.message : 'AI-гийн хариуг боловсруулж чадсангүй',
       );
     }
+
+    // ⚠️ Чанарын шалгуур. AI дүрмийг уншсан ч заримдаа хариулах боломжгүй
+    // асуулт бичдэг (хоёрдмол цоорхой, gerund↔infinitive хос г.м.). Ийм
+    // ноорогийг админд өгвөл тэр нь шууд Хадгалах дараад аппад гарна —
+    // тиймээс эх үүсвэрт нь зогсоож, дахин оролдохыг хэлнэ.
+    const issues = checkQuiz({
+      ...options,
+      questions: draft.questions,
+      passageText: draft.passageText,
+    });
+    const blocking = blockingIssues(issues);
+    if (blocking.length > 0) {
+      throw new BadRequestException(
+        `AI хариулах боломжгүй дасгал үүсгэлээ. ${describeIssues(blocking)} Дахин оролдоно уу.`,
+      );
+    }
+    // Магадгүй эвдэрсэн зүйлсийг **хаяхгүй**, админд анхааруулга болгож үзүүлнэ
+    // (шийдэх нь хүний ажил — жинхэнэ алдаа ч, худал дуулга ч байж болно).
+    draft.warnings.push(
+      ...issues.map((i) =>
+        i.questionNo ? `${i.questionNo}-р асуулт: ${i.message}` : i.message,
+      ),
+    );
+    return draft;
   }
 
   // ── "Бүх төрлөөр үүсгэх" (bulk) ──────────────────────────────────────────
@@ -486,8 +532,29 @@ export class QuizzesService {
     });
   }
 
+  /**
+   * Сонсголын дасгал хариулах боломжтой эсэхийг шалгана.
+   *
+   * Сонсох зүйлгүй сонсголын дасгал бол сурагчид эх мэдээлэл өгөлгүй асуулт
+   * асуусан хэрэг — таамаглахаас өөр арга үлдэхгүй. Бодит жишээ: "Өдөр тутмын
+   * ярианы сонсгол" гэсэн дасгал шууд "What time does Sarah usually wake up?"
+   * гэж асууж, Сара хэдэд босдог тухай хаана ч дурдаагүй байв.
+   *
+   * Бүх дүрэм `quality.ts`-д — үүсгэх · хадгалах · тайлагнах гурвуулан ижил
+   * шалгуур ашиглана (DRY). Тиймээс ийм мөр DB рүү огт орохгүй.
+   */
+  private assertAnswerable(quiz: QuizLike): void {
+    const blocking = blockingIssues(checkQuiz(quiz));
+    if (blocking.length === 0) return;
+
+    throw new BadRequestException(
+      `Дасгал хариулах боломжгүй байна. ${describeIssues(blocking)}`,
+    );
+  }
+
   create(dto: CreateQuizDto): Promise<Quiz> {
     const validatedQuestions = this.validateQuestions(dto.questions);
+    this.assertAnswerable({ ...dto, questions: validatedQuestions });
     const quiz = this.quizzes.create({ ...dto, questions: validatedQuestions });
     return this.quizzes.save(quiz);
   }
@@ -495,22 +562,106 @@ export class QuizzesService {
   async findAll(query: QueryQuizzesDto): Promise<PaginatedQuizzes> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
-    const where: Record<string, unknown> = {};
-    if (query.level) where.level = query.level;
-    if (query.isPublished !== undefined) where.isPublished = query.isPublished;
-    if (query.lessonId) where.lessonId = query.lessonId;
-    if (query.category) where.category = query.category;
-    if (query.topic) where.topic = query.topic;
-    // Standalone "Дасгал" = quizzes not attached to any lesson.
-    if (query.standalone) where.lessonId = IsNull();
 
-    const [items, total] = await this.quizzes.findAndCount({
-      where,
+    const qb = this.quizzes.createQueryBuilder('q');
+    if (query.level) qb.andWhere('q.level = :level', { level: query.level });
+    if (query.isPublished !== undefined) {
+      qb.andWhere('q.isPublished = :isPublished', {
+        isPublished: query.isPublished,
+      });
+    }
+    if (query.lessonId)
+      qb.andWhere('q.lessonId = :lessonId', { lessonId: query.lessonId });
+    if (query.category)
+      qb.andWhere('q.category = :category', { category: query.category });
+    if (query.topic) qb.andWhere('q.topic = :topic', { topic: query.topic });
+    // Standalone "Дасгал" = quizzes not attached to any lesson.
+    if (query.standalone) qb.andWhere('q.lessonId IS NULL');
+
+    // ⚠️ Сонсох яриагүй сонсголын дасгалыг SQL түвшинд шууд хасна — энэ нь
+    // хамгийн олон тохиолддог эвдрэл бөгөөд хуудаслалтыг зөв байлгана.
+    if (!query.includeUnanswerable) {
+      qb.andWhere(
+        `NOT (q.category = :listening
+              AND q.audioUrl IS NULL
+              AND COALESCE(LENGTH(TRIM(q.passageText)), 0) < :minScript)`,
+        { listening: LISTENING_CATEGORY, minScript: MIN_LISTENING_SCRIPT },
+      );
+    }
+
+    const [items, total] = await qb
+      .orderBy('q.createdAt', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
+
+    // ⚠️ Үлдсэн эвдрэлүүд (хоёрдмол хариулт, gerund↔infinitive хос, зөв хариулт
+    // сонголтод байхгүй г.м.) нь асуултын jsonb дотор байдаг тул SQL-ээр
+    // шүүхэд хэцүү — эдгээрийг JS-ээр хасна. Шинэ контент хадгалалт дээр аль
+    // хэдийн блоклогддог тул энэ нь зөвхөн **хуучин мөрүүдийн** цэвэрлэгээ.
+    // Серверт хийсэн тул апп шинэчлэхгүйгээр шууд үйлчилнэ.
+    if (query.includeUnanswerable) return { items, total, page, limit };
+
+    const clean = items.filter(
+      (q) => blockingIssues(checkQuiz(q)).length === 0,
+    );
+    // `total` нь энэ хуудсанд хасагдсаныг л тооцно (бүх хуудсыг уншихгүйгээр
+    // яг таг тоог мэдэх боломжгүй). Апп 100-гийн хязгаартай нэг хуудсаар
+    // татдаг тул практикт яг таарна.
+    return {
+      items: clean,
+      total: total - (items.length - clean.length),
+      page,
+      limit,
+    };
+  }
+
+  /**
+   * Админы **чанарын тайлан** — хариулах боломжгүй (`block`) ба эргэлзээтэй
+   * (`warn`) бүх дасгалыг олж жагсаана.
+   *
+   * Яагаад хэрэгтэй вэ: шинэ контент хадгалалт дээр блоклогддог болсон ч
+   * **хуучин мөрүүд DB-д үлдсэн**. Тэдгээрийг гараар хайх боломжгүй тул
+   * админд "юуг засах вэ" гэсэн бэлэн жагсаалт өгнө.
+   */
+  async qualityReport(category?: string): Promise<{
+    items: {
+      id: string;
+      title: string;
+      category: string | null;
+      topic: string | null;
+      isPublished: boolean;
+      /** `true` = апп дээр огт харагдахгүй (хариулах боломжгүй). */
+      blocked: boolean;
+      issues: QualityIssue[];
+    }[];
+    total: number;
+    blocked: number;
+  }> {
+    const rows = await this.quizzes.find({
+      where: category ? { category } : {},
       order: { createdAt: 'DESC' },
-      skip: (page - 1) * limit,
-      take: limit,
+      take: QUALITY_SCAN_LIMIT,
     });
-    return { items, total, page, limit };
+
+    const items = rows
+      .map((q) => ({ quiz: q, issues: checkQuiz(q) }))
+      .filter((r) => r.issues.length > 0)
+      .map(({ quiz, issues }) => ({
+        id: quiz.id,
+        title: quiz.title,
+        category: quiz.category,
+        topic: quiz.topic,
+        isPublished: quiz.isPublished,
+        blocked: blockingIssues(issues).length > 0,
+        issues,
+      }));
+
+    return {
+      items,
+      total: items.length,
+      blocked: items.filter((i) => i.blocked).length,
+    };
   }
 
   async findOne(id: string): Promise<Quiz & { wordBank?: string[] }> {
@@ -528,6 +679,9 @@ export class QuizzesService {
     } else {
       Object.assign(quiz, dto);
     }
+    // Нэгтгэсний ДАРАА шалгана: админ энэ хадгалалтаар яриаг нь цэвэрлэсэн ч,
+    // эсвэл ангиллыг нь сонсгол болгож сольсон ч аль ч тохиолдолд баригдана.
+    this.assertAnswerable(quiz);
     return this.quizzes.save(quiz);
   }
 
