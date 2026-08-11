@@ -334,7 +334,7 @@ export default function LessonsPage() {
             {modal === 'edit' && editing ? (
               <>
                 <LessonWords lessonId={editing.id} />
-                <LessonTests lessonId={editing.id} level={form.level} title={form.title} />
+                <LessonTests lessonId={editing.id} level={form.level} title={form.title} transcript={transcript} />
               </>
             ) : (
               <p className="text-xs text-gray-400">💡 Тест нэмэхийн тулд эхлээд хичээлээ хадгална уу.</p>

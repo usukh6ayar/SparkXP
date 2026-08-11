@@ -41,6 +41,11 @@ export interface AiTarget {
   xpReward: number;
   /** Prompt-д нэмэх нэмэлт контекст (хичээлийн тайлбар, тоглоомын төрөл г.м.). */
   contextNote?: string;
+  /**
+   * Хичээлийн видеоны бичвэр. `contextNote`-оос урт бөгөөд эх материал тул
+   * prompt-д тусдаа блок болж ордог (backend `ai-generate.ts`).
+   */
+  lessonSource?: string;
   /** IELTS Reading — эх бичвэрийн талбарыг харуулах. */
   withPassage?: boolean;
   /**
@@ -154,6 +159,7 @@ export function AiBulkGenerator({ target, onClose, onSaved, initialBrief }: Prop
         count: Number(count),
         passageText: passageText.trim() || undefined,
         contextNote: target.contextNote,
+        lessonSource: target.lessonSource,
       });
       setDraft(d);
       setTitle(d.title);

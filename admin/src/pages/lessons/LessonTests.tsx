@@ -60,11 +60,15 @@ export function LessonTests({
   lessonId,
   level,
   title,
+  transcript,
 }: {
   lessonId: string;
   level: string;
   /** Lesson title — given to the AI as context so questions match the lesson. */
   title?: string;
+  /** Видеоны бичвэр — AI-д хичээлийн бодит агуулгыг өгнө. Хоосон бол зөвхөн
+   *  гарчиг очно (өмнөх зан төлөв). */
+  transcript?: string;
 }) {
   const [cat, setCat] = useState<string>('listening');
   const [aiOpen, setAiOpen] = useState(false);
@@ -159,6 +163,13 @@ export function LessonTests({
             <Button variant="secondary" size="sm" onClick={() => setAiOpen(true)}>
               <Sparkles className="h-4 w-4" /> AI-аар үүсгэх
             </Button>
+            {!transcript && (
+              <p className="mt-2 text-xs text-amber-600">
+                ⚠️ Видеоны бичвэр байхгүй тул AI зөвхөн гарчгаас үүсгэнэ. Дээрх
+                «Видеоны бичвэр» хэсгээс гаргавал тест хичээлийн агуулгад
+                тулгуурлана.
+              </p>
+            )}
           </div>
         </>
       )}
@@ -177,6 +188,7 @@ export function LessonTests({
             defaultLevel: level,
             xpReward: 20,
             contextNote: title ? `Хичээлийн нэр: "${title}".` : undefined,
+            lessonSource: transcript || undefined,
           }}
           onClose={() => setAiOpen(false)}
           onSaved={() => { setAiOpen(false); load(); }}
