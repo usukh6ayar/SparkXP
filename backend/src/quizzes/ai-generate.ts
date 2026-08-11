@@ -67,6 +67,12 @@ export interface GenerateOptions {
    * төрөл. Админы хуудас өөрт байгаа мэдээллээ эндүүр дамжуулна.
    */
   contextNote?: string;
+  /**
+   * Хичээлийн видеоны бичвэр (транскрипт). `contextNote`-оос ялгаатай нь энэ
+   * нь **урт, эх материал** тул prompt-д тусдаа тэмдэглэгээтэй блок болж
+   * орно — загвар үүнийг заавар биш, агуулга гэж уншина.
+   */
+  lessonSource?: string;
 }
 
 /** AI-гаас гарч ирсэн, админ засахад бэлэн ноорог. */
@@ -82,6 +88,12 @@ export interface GeneratedDraft {
 }
 
 export const MAX_QUESTION_COUNT = 20;
+/**
+ * Prompt-д орох бичвэрийн дээд урт. Зардлыг урьдчилан таамаглахуйц байлгах
+ * (~4,000 токен) ба `runGeminiText`-ийн `MAX_TOKENS` хамгаалалтад мөргөхгүй
+ * байх зорилготой. 12,000 тэмдэгт ≈ 25 минутын хичээлийн яриа.
+ */
+export const MAX_LESSON_SOURCE_CHARS = 12_000;
 const DEFAULT_COUNT = 10;
 const VALID_TYPES: GenQuestionType[] = [
   'multiple_choice',
@@ -129,10 +141,17 @@ function kindContext(o: GenerateOptions): string {
     );
   }
   if (o.kind === 'lesson') {
-    return (
+    const base =
       'Энэ бол тодорхой хичээлийн дараах шалгах тест. Хичээлийн агуулгад ' +
-      'шууд тулгуурласан асуулт бич.'
-    );
+      'шууд тулгуурласан асуулт бич.';
+    // Бичвэр нь монгол багшийн яриаг автоматаар хөрвүүлсэн байдаг. Үүнийг
+    // хэлж өгөхгүй бол загвар бичвэрийн алдааг "заасан материал" гэж үзэж,
+    // эсвэл монголоор асуулт бичиж эхэлдэг.
+    return o.lessonSource
+      ? `${base} Доорх бичвэр нь монгол багшийн тайлбар бөгөөд дунд нь англи ` +
+          'жишээ орсон, автомат хөрвүүлсэн тул алдаатай байж болно. Бичвэрийн ' +
+          'монгол хэсгийг сэдэв тодорхойлоход ашигла, асуултыг англиар бич.'
+      : base;
   }
   const skill = o.category ?? '';
   return skill
@@ -157,6 +176,13 @@ export function buildPrompt(o: GenerateOptions): string {
     kindContext(o),
     ...(o.contextNote ? [`Нэмэлт контекст: ${o.contextNote.trim()}`] : []),
     '',
+    ...(o.lessonSource?.trim()
+      ? [
+          'ХИЧЭЭЛИЙН АГУУЛГА (видеоны бичвэр):',
+          `"""\n${o.lessonSource.trim().slice(0, MAX_LESSON_SOURCE_CHARS)}\n"""`,
+          '',
+        ]
+      : []),
     `АДМИНЫ ХҮСЭЛТ (үүн дээр үндэслэ):\n"""\n${o.brief.trim()}\n"""`,
     '',
     'ДҮРЭМ:',
