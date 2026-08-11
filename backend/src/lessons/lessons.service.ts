@@ -1,9 +1,19 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull } from 'typeorm';
 import { Lesson } from '../entities/lesson.entity';
+import { AiUsage } from '../entities/ai-usage.entity';
 import { XpService } from '../xp/xp.service';
-import { XpSource, ContentLevel } from '../common/enums';
+import { XpSource, ContentLevel, AiUsageType } from '../common/enums';
+import { STT_ADAPTER, type SttAdapter } from '../ai-gateway/providers/stt.adapter';
+import {
+  readVideoUrl,
+  readTranscript,
+  withTranscript,
+  stripTranscript,
+  preserveTranscript,
+  type LessonTranscript,
+} from './lesson-transcript';
 import { CreateLessonDto } from './dto/create-lesson.dto';
 import { UpdateLessonDto } from './dto/update-lesson.dto';
 import { QueryLessonsDto } from './dto/query-lessons.dto';
@@ -29,6 +39,10 @@ export class LessonsService {
   constructor(
     @InjectRepository(Lesson)
     private readonly lessons: Repository<Lesson>,
+    @InjectRepository(AiUsage)
+    private readonly aiUsages: Repository<AiUsage>,
+    @Inject(STT_ADAPTER)
+    private readonly stt: SttAdapter,
     private readonly xp: XpService,
   ) {}
 
@@ -143,25 +157,109 @@ export class LessonsService {
       take: limit,
     });
 
-    return { items, total, page, limit };
+    // Бичвэр нь зохиогчийн материал — сурагчийн апп руу явуулах шалтгаан алга
+    // (жагсаалтад 20 хичээл × ~20KB болно).
+    return {
+      items: items.map((l) => ({ ...l, content: stripTranscript(l.content) })),
+      total,
+      page,
+      limit,
+    };
   }
 
-  async findOne(id: string): Promise<Lesson> {
+  /**
+   * Дотоод хэрэглээний хичээл — бичвэр нь ХЭВЭЭР. Хадгалах гэж байгаа код
+   * ЗААВАЛ үүнийг ашиглана: `findOne()`-ийн хассан хувилбарыг `save()` хийвэл
+   * бичвэр DB-ээс устана.
+   */
+  private async findRaw(id: string): Promise<Lesson> {
     const lesson = await this.lessons.findOne({ where: { id } });
-    if (!lesson) {
-      throw new NotFoundException('Хичээл олдсонгүй');
-    }
+    if (!lesson) throw new NotFoundException('Хичээл олдсонгүй');
     return lesson;
   }
 
+  /** Гадагш буцаах хичээл — бичвэр хасагдсан ХУВИЛБАР (эх мөр хөндөгдөхгүй). */
+  async findOne(id: string): Promise<Lesson> {
+    const lesson = await this.findRaw(id);
+    return { ...lesson, content: stripTranscript(lesson.content) };
+  }
+
   async update(id: string, dto: UpdateLessonDto): Promise<Lesson> {
-    const lesson = await this.findOne(id);
-    Object.assign(lesson, dto);
-    return this.lessons.save(lesson);
+    const lesson = await this.findRaw(id);
+    // Админы форм `content`-оо жагсаалтын хариунаас угсардаг бөгөөд тэнд
+    // бичвэр байхгүй → хамгаалахгүй бол хадгалах бүрд устана.
+    const content =
+      dto.content !== undefined ? preserveTranscript(lesson.content, dto.content) : lesson.content;
+    Object.assign(lesson, dto, { content });
+    const saved = await this.lessons.save(lesson);
+    return { ...saved, content: stripTranscript(saved.content) };
   }
 
   async remove(id: string): Promise<void> {
-    const lesson = await this.findOne(id);
+    const lesson = await this.findRaw(id);
     await this.lessons.remove(lesson);
+  }
+
+  // ── Видеоны бичвэр (транскрипт) ──────────────────────────────────────────
+
+  /** Админд харуулах бичвэр. Хөрвүүлээгүй бол `text` хоосон. */
+  async getTranscript(id: string): Promise<LessonTranscript> {
+    const lesson = await this.findRaw(id);
+    return readTranscript(lesson.content) ?? { text: '', seconds: 0, at: '' };
+  }
+
+  /**
+   * Видеог ElevenLabs Scribe-аар бичвэр болгоно.
+   *
+   * Видео энэ процессоор дамжихгүй — Scribe-д URL өгнө (`transcribeUrl`).
+   * Зардлыг `ai_usages`-д АДМИНЫ нэр дээр бичнэ: сурагчийн
+   * `plans.sttMinutesLimit` рүү хүрэхгүй (тэр хязгаар buddy-гийн дуудлагын
+   * цэг дээр тусдаа шалгагддаг), гэхдээ зардал хаанаас гарсан нь ил үлдэнэ.
+   */
+  async transcribe(id: string, adminId: string): Promise<LessonTranscript> {
+    const lesson = await this.findRaw(id);
+    const videoUrl = readVideoUrl(lesson.content);
+    if (!videoUrl) {
+      throw new BadRequestException('Эхлээд видео оруулна уу');
+    }
+
+    const result = await this.stt.transcribeUrl(videoUrl);
+    if (!result.text) {
+      throw new BadRequestException('Видеонээс яриа олдсонгүй — өөр видео оруулна уу');
+    }
+
+    const transcript: LessonTranscript = {
+      text: result.text,
+      seconds: result.seconds,
+      at: new Date().toISOString(),
+    };
+    lesson.content = withTranscript(lesson.content, transcript);
+    await this.lessons.save(lesson);
+
+    await this.aiUsages.save(
+      this.aiUsages.create({
+        userId: adminId,
+        type: AiUsageType.STT,
+        model: 'scribe_v1',
+        voiceSeconds: result.seconds,
+        metadata: { purpose: 'lesson_transcript', lessonId: id },
+      }),
+    );
+
+    return transcript;
+  }
+
+  /** Админы гараар засварласан бичвэрийг хадгална. */
+  async saveTranscript(id: string, text: string): Promise<LessonTranscript> {
+    const lesson = await this.findRaw(id);
+    const previous = readTranscript(lesson.content);
+    const transcript: LessonTranscript = {
+      text,
+      seconds: previous?.seconds ?? 0,
+      at: previous?.at ?? new Date().toISOString(),
+    };
+    lesson.content = withTranscript(lesson.content, transcript);
+    await this.lessons.save(lesson);
+    return transcript;
   }
 }
