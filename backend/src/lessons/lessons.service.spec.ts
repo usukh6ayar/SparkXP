@@ -13,6 +13,7 @@ function makeService(lesson: Partial<Lesson>, sttText = 'Hello world') {
   const lessons = {
     findOne: async () => lesson as Lesson,
     findAndCount: async () => [[lesson as Lesson], 1] as [Lesson[], number],
+    create: (dto: Partial<Lesson>) => ({ ...dto }) as Lesson,
     save: async (l: Lesson) => {
       saved.push({ ...l });
       return l;
@@ -118,5 +119,22 @@ describe('LessonsService.update — бичвэрийн хамгаалалт', ()
     const { svc } = makeService(withVideo({ transcript: storedTranscript }));
     const out = await svc.update('l1', { title: 'Шинэ нэр' } as never);
     expect(out.content.transcript).toBeUndefined();
+  });
+});
+
+describe('LessonsService.create — бичвэрийн хамгаалалт', () => {
+  // `update()`-тэй ижил дүрэм: бичвэрийг зөвхөн /transcribe бичнэ. Үүсгэх үед
+  // хамгаалахгүй бол клиент хүссэн бичвэрээ суулгачихна.
+  it('drops a transcript sent when creating a lesson', async () => {
+    const { svc, saved } = makeService(withVideo());
+
+    await svc.create({
+      title: 'Шинэ хичээл',
+      content: { videoUrl: 'https://cdn.example.com/a.mp4', transcript: { text: 'forged', seconds: 1, at: 'x' } },
+      position: 1,
+    } as never);
+
+    expect(saved[0].content!.transcript).toBeUndefined();
+    expect(saved[0].content!.videoUrl).toBe('https://cdn.example.com/a.mp4');
   });
 });

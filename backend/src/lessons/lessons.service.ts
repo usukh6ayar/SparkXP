@@ -105,6 +105,9 @@ export class LessonsService {
    *  sane order instead of everything piling up at 0. */
   async create(dto: CreateLessonDto): Promise<Lesson> {
     const lesson = this.lessons.create(dto);
+    // Бичвэрийг зөвхөн `/transcribe` бичнэ — үүсгэх үед клиентээс ирсэн
+    // `content.transcript`-ыг хаяна (`update()`-тэй ижил дүрэм).
+    if (dto.content) lesson.content = stripTranscript(dto.content);
     if (dto.position === undefined) lesson.position = await this.nextPosition(dto);
     return this.lessons.save(lesson);
   }
@@ -225,7 +228,7 @@ export class LessonsService {
 
     const result = await this.stt.transcribeUrl(videoUrl);
     if (!result.text) {
-      throw new BadRequestException('Видеонээс яриа олдсонгүй — өөр видео оруулна уу');
+      throw new BadRequestException('Видеоноос яриа олдсонгүй — өөр видео оруулна уу');
     }
 
     const transcript: LessonTranscript = {
