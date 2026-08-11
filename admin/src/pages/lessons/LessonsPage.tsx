@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Pencil, Image, Film } from 'lucide-react';
+import { Plus, Pencil, Image, Film, Sparkles } from 'lucide-react';
 import { api } from '../../api/client';
 import { HiddenBadge, VisibilityButton, UnpublishedBanner } from '../../components/Publish';
 import { ErrorBox } from '../../components/ErrorBox';
@@ -72,6 +72,12 @@ export default function LessonsPage() {
   const [saving, setSaving] = useState(false);
   const [publishingAll, setPublishingAll] = useState(false);
   const [error, setError] = useState('');
+  // ── Видеоны бичвэр ──
+  // Хичээлийн жагсаалтын хариунд бичвэр ОРДОГГҮЙ (сервер хасдаг) тул засах
+  // цонх нээгдэхэд тусад нь татна.
+  const [transcript, setTranscript] = useState('');
+  const [transcriptDirty, setTranscriptDirty] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -88,7 +94,11 @@ export default function LessonsPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  function openCreate() { setForm(emptyForm); setEditing(null); setError(''); setModal('create'); }
+  function openCreate() {
+    setForm(emptyForm); setEditing(null); setError('');
+    setTranscript(''); setTranscriptDirty(false);
+    setModal('create');
+  }
   function openEdit(l: Lesson) {
     setForm({
       title: l.title, type: l.type, level: l.level, priceSparks: l.priceSparks,
@@ -98,9 +108,27 @@ export default function LessonsPage() {
       imageUrl: l.thumbnailUrl ?? l.content?.imageUrl ?? '',
       videoUrl: l.content?.videoUrl ?? '',
     });
-    setEditing(l); setError(''); setModal('edit');
+    setEditing(l); setError('');
+    setTranscript(''); setTranscriptDirty(false);
+    api.get<{ text: string }>(`/lessons/${l.id}/transcript`)
+      .then((t) => setTranscript(t.text ?? ''))
+      .catch(() => setTranscript('')); // бичвэр байхгүй нь алдаа биш
+    setModal('edit');
   }
   function openPreview(l: Lesson) { setPreview(l); setModal('preview'); }
+
+  /** Видеог ElevenLabs Scribe-аар бичвэр болгоно (~30–60 сек). */
+  async function runTranscribe() {
+    if (!editing) return;
+    setTranscribing(true); setError('');
+    try {
+      const t = await api.post<{ text: string }>(`/lessons/${editing.id}/transcribe`, {});
+      setTranscript(t.text);
+      setTranscriptDirty(false);
+    } catch (e: unknown) {
+      setError(friendlyError(e, 'Бичвэр гаргахад алдаа гарлаа'));
+    } finally { setTranscribing(false); }
+  }
 
   async function save() {
     if (!form.title.trim()) { setError('Гарчиг оруулна уу'); return; }
@@ -123,7 +151,13 @@ export default function LessonsPage() {
         isPublished: true, // хадгалсан хичээл шууд аппад гарна
       };
       if (modal === 'create') await api.post('/lessons', payload);
-      else if (editing) await api.patch(`/lessons/${editing.id}`, payload);
+      else if (editing) {
+        await api.patch(`/lessons/${editing.id}`, payload);
+        // Бичвэр нь серверийн эзэмшилтэй — үндсэн PATCH түүнийг бичихгүй.
+        if (transcriptDirty) {
+          await api.patch(`/lessons/${editing.id}/transcript`, { text: transcript });
+        }
+      }
       setModal(null); load();
     } catch (e: unknown) {
       setError(friendlyError(e));
@@ -255,6 +289,31 @@ export default function LessonsPage() {
                 onChange={(url) => setForm({ ...form, videoUrl: url })}
               />
             </div>
+
+            {/* Видеоны бичвэр — AI тест үүсгэхэд контекст болно. Сурагчид
+                харагдахгүй тул хөрвүүлэлтийн алдаа гамшиг биш; админ засна. */}
+            {editing && form.videoUrl && (
+              <div className="rounded-lg border border-gray-200 p-4">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <h3 className="text-sm font-semibold text-gray-800">Видеоны бичвэр</h3>
+                  <Button variant="secondary" size="sm" onClick={runTranscribe} disabled={transcribing}>
+                    <Sparkles className="h-4 w-4" />
+                    {transcribing ? 'Хөрвүүлж байна…' : transcript ? 'Дахин гаргах' : 'Видеоноос бичвэр гаргах'}
+                  </Button>
+                </div>
+                <p className="mb-2 text-xs text-gray-400">
+                  AI тест үүсгэхэд ашиглана. Сурагчид харагдахгүй — алдаатай хэсгийг нь засаад хадгална уу.
+                </p>
+                <textarea
+                  className="h-40 w-full rounded-lg border border-gray-200 p-2 text-sm"
+                  placeholder="Хараахан хөрвүүлээгүй байна."
+                  value={transcript}
+                  onChange={(e) => { setTranscript(e.target.value); setTranscriptDirty(true); }}
+                />
+                <p className="mt-1 text-xs text-gray-400">{transcript.length.toLocaleString()} тэмдэгт</p>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Input label="Үнэ (Sparks, 0=үнэгүй)" type="number" min={0} value={form.priceSparks}
                 onChange={(e) => setForm({ ...form, priceSparks: Number(e.target.value) })} />
