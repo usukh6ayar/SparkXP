@@ -15,6 +15,7 @@ import { LessonsService } from './lessons.service';
 import { CreateLessonDto } from './dto/create-lesson.dto';
 import { UpdateLessonDto } from './dto/update-lesson.dto';
 import { QueryLessonsDto } from './dto/query-lessons.dto';
+import { UpdateTranscriptDto } from './dto/update-transcript.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -60,6 +61,36 @@ export class LessonsController {
   @UseGuards(JwtAuthGuard)
   completed(@CurrentUser() user: User) {
     return this.lessonsService.completedIds(user.id);
+  }
+
+  /**
+   * Видеог бичвэр болгоно (ElevenLabs Scribe). Админ-only: энэ нь мөнгө
+   * зарцуулдаг дуудлага. 10 минутын видео ≈ 30–60 секунд тул синхрон.
+   */
+  @Post(':id/transcribe')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  transcribe(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string) {
+    return this.lessonsService.transcribe(id, user.id);
+  }
+
+  /** Админд бичвэрийг тусад нь өгнө — GET /lessons дээрээс хасагддаг. */
+  @Get(':id/transcript')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  getTranscript(@Param('id', ParseUUIDPipe) id: string) {
+    return this.lessonsService.getTranscript(id);
+  }
+
+  /** Гараар засварласан бичвэр. PATCH /lessons/:id үүнийг бичиж ЧАДАХГҮЙ. */
+  @Patch(':id/transcript')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  saveTranscript(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateTranscriptDto,
+  ) {
+    return this.lessonsService.saveTranscript(id, dto.text);
   }
 
   @Get(':id')
