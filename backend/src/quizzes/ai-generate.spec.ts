@@ -36,6 +36,10 @@ describe('buildPrompt lessonSource', () => {
   });
 
   it('omits the block when the transcript is only whitespace', () => {
-    expect(buildPrompt({ ...base, lessonSource: '   \n  ' })).not.toContain('ХИЧЭЭЛИЙН АГУУЛГА');
+    const prompt = buildPrompt({ ...base, lessonSource: '   \n  ' });
+    expect(prompt).not.toContain('ХИЧЭЭЛИЙН АГУУЛГА');
+    // Блокгүй үед "доорх бичвэр" гэсэн заавар ч гарах ёсгүй — эс бөгөөс
+    // загварт байхгүй материалыг заана.
+    expect(prompt).not.toContain('Доорх бичвэр');
   });
 });
