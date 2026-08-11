@@ -6,11 +6,12 @@ import { LevelRequirement } from '../entities/level-requirement.entity';
 import { Lesson } from '../entities/lesson.entity';
 import { ContentLevel } from '../common/enums';
 
-/** How many stars a lesson-test score earns. Tunable here (thresholds only). */
+/** How many stars a lesson-test score earns. Tunable here (thresholds only).
+ *  A pass (≥50%) is worth 2 stars; ace it (≥90%) for the third. */
 export function starsForScore(percentage: number): number {
   if (percentage >= 90) return 3;
-  if (percentage >= 70) return 2;
-  if (percentage >= 50) return 1;
+  if (percentage >= 50) return 2;
+  if (percentage > 0) return 1;
   return 0;
 }
 

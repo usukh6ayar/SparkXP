@@ -25,7 +25,7 @@ import { IconTile } from "../../src/components/IconTile";
 import { Pill } from "../../src/components/Pill";
 import { ProgressBar } from "../../src/components/ProgressBar";
 import { t, tf } from "../../src/i18n";
-import { useColors } from "../../src/settings/SettingsContext";
+import { useColors, useSettings } from "../../src/settings/SettingsContext";
 import {
   spacing,
   radius,
@@ -69,7 +69,7 @@ function games(t: (key: import("../../src/i18n").TranslationKey) => string): Gam
       img: appIcons.reading,
       title: t("gameVocabQuizTitle"),
       desc: t("gameVocabQuizDesc"),
-      tint: tints.purple,
+      tint: tints.green,
       route: "/game/classic",
     },
     {
@@ -77,7 +77,7 @@ function games(t: (key: import("../../src/i18n").TranslationKey) => string): Gam
       img: appIcons.listening,
       title: t("gameListenTitle"),
       desc: t("gameListenDesc"),
-      tint: tints.blue,
+      tint: tints.purple,
       route: "/game/listen",
     },
     {
@@ -93,7 +93,7 @@ function games(t: (key: import("../../src/i18n").TranslationKey) => string): Gam
       img: appIcons.water,
       title: t("gameMatchTitle"),
       desc: t("gameMatchDesc"),
-      tint: tints.teal,
+      tint: tints.blue,
       route: "/game/match",
     },
     {
@@ -101,7 +101,7 @@ function games(t: (key: import("../../src/i18n").TranslationKey) => string): Gam
       img: appIcons.fill,
       title: t("gameFillTitle"),
       desc: t("gameFillDesc"),
-      tint: tints.pink,
+      tint: tints.orange,
       route: "/skill/fill",
     },
     {
@@ -109,7 +109,7 @@ function games(t: (key: import("../../src/i18n").TranslationKey) => string): Gam
       img: appIcons.grammar,
       title: t("gameGrammarTitle"),
       desc: t("gameGrammarDesc"),
-      tint: tints.green,
+      tint: tints.pink,
       route: "/skill/grammar",
     },
   ];
@@ -130,7 +130,9 @@ const SORIL_CATEGORY = "soril";
 export default function SorilScreen() {
   const { user, token } = useAuth();
   const c = useColors();
-  const styles = useMemo(() => makeStyles(c), [c]);
+  const { theme } = useSettings();
+  const isDark = theme === "dark";
+  const styles = useMemo(() => makeStyles(c, isDark), [c, isDark]);
   const [gam, setGam] = useState<Gamification | null>(null);
   useEffect(() => {
     if (token) getGamification(token).then(setGam).catch(() => {});
@@ -278,7 +280,18 @@ export default function SorilScreen() {
           {GAMES.map((g, i) => (
             <Animated.View key={g.title} entering={enter(i * 60)} style={styles.cardWrap}>
             <Pressable
-              style={({ pressed }) => [styles.card, pressed && styles.pressed]}
+              style={({ pressed }) => [
+                styles.card,
+                // Dark: a luminous accent FRAME — 1.5px bright border + a soft
+                // same-colour outer glow (iOS shadow). The interior stays dark;
+                // only the frame emits light. Press brightens the bloom.
+                isDark && {
+                  borderColor: g.tint.fg,
+                  shadowColor: g.tint.fg,
+                  shadowOpacity: pressed ? 0.75 : 0.5,
+                },
+                pressed && styles.pressed,
+              ]}
               onPress={() => openGame(g)}
             >
               <IconTile
@@ -288,6 +301,7 @@ export default function SorilScreen() {
                 fg={g.tint.fg}
                 size={56}
                 iconSize={28}
+                borderColor={isDark ? g.tint.fg : undefined}
               />
               <View style={styles.cardBody}>
                 <AppText variant="h3" numberOfLines={1}>
@@ -295,17 +309,21 @@ export default function SorilScreen() {
                 </AppText>
                 <AppText
                   variant="caption"
+                  color={c.textMuted}
                   numberOfLines={2}
                   style={styles.cardDesc}
                 >
                   {g.desc}
                 </AppText>
                 <View style={styles.cardPill}>
+                  {/* Dark: the XP badge takes the CARD's own accent (not one
+                      global purple), so icon + badge read as one accent and stop
+                      competing across the grid. Light stays as it was. */}
                   <Pill
                     label="+10 XP"
                     icon="flash"
-                    bg={tints.purple.bg}
-                    fg={c.primary}
+                    bg={isDark ? g.tint.bg : tints.purple.bg}
+                    fg={isDark ? g.tint.fg : c.primary}
                   />
                 </View>
               </View>
@@ -426,7 +444,7 @@ export default function SorilScreen() {
   );
 }
 
-const makeStyles = (c: AppColors) => StyleSheet.create({
+const makeStyles = (c: AppColors, isDark: boolean) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: c.background },
   container: { paddingHorizontal: spacing.lg, paddingTop: spacing.xs },
 
@@ -444,7 +462,7 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: 8,
     borderRadius: radius.full,
-    ...(elevation.sm as object),
+    ...(isDark ? { borderWidth: 1, borderColor: c.border } : (elevation.sm as object)),
   },
   subtitle: { marginTop: 2, marginBottom: spacing.lg },
 
@@ -510,13 +528,25 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   },
   cardWrap: { width: "48.5%" },
   card: {
+    flex: 1, // fill the (stretched) wrapper → both cards in a row share a height
     width: "100%",
     flexDirection: "row",
     backgroundColor: c.surface,
     borderRadius: radius.lg,
     padding: spacing.md,
     gap: spacing.sm,
-    ...(elevation.sm as object),
+    // Dark: a glowing accent FRAME. The border WIDTH + the glow's shape live
+    // here; the accent COLOUR (borderColor / shadowColor) is applied inline per
+    // card. Centred shadow (offset 0) = an even bloom around the frame. Light
+    // keeps the original soft lift, untouched.
+    ...(isDark
+      ? {
+          borderWidth: 1.5,
+          shadowOffset: { width: 0, height: 0 },
+          shadowRadius: 11,
+          shadowOpacity: 0.5,
+        }
+      : (elevation.sm as object)),
   },
   cardBody: { flex: 1, gap: 2 },
   cardDesc: { marginBottom: spacing.sm },
@@ -531,7 +561,7 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
     backgroundColor: c.surface,
     borderRadius: radius.lg,
     padding: spacing.md,
-    ...(elevation.sm as object),
+    ...(isDark ? { borderWidth: 1, borderColor: c.border } : (elevation.sm as object)),
   },
   quizBody: { flex: 1, gap: 2 },
 
@@ -541,7 +571,7 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
     borderRadius: radius.xl,
     padding: spacing.lg,
     marginTop: spacing.xl,
-    ...(elevation.sm as object),
+    ...(isDark ? { borderWidth: 1, borderColor: c.border } : (elevation.sm as object)),
   },
   pathHead: {
     flexDirection: "row",

@@ -21,7 +21,7 @@ const CATS = [
   { key: 'listening', label: 'Сонсгол' },
   { key: 'reading', label: 'Унших' },
   { key: 'writing', label: 'Бичих' },
-  { key: 'speaking', label: 'Ярих' },
+  { key: 'speaking', label: 'Дуудлага' },
 ] as const;
 
 const QTYPE_OPTIONS = [
@@ -136,7 +136,7 @@ export function LessonTests({
       </div>
 
       {speaking ? (
-        <p className="py-4 text-center text-xs text-gray-400">🎤 Ярих тест — тун удахгүй</p>
+        <p className="py-4 text-center text-xs text-gray-400">🎤 Дуудлага тест — тун удахгүй</p>
       ) : (
         <>
           <div className="space-y-2">

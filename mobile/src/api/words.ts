@@ -32,10 +32,11 @@ export function getSampleQuestions(count = 3): Promise<SampleQuestion[]> {
  *  `lessonId` narrows it to the words an admin attached to that lesson. */
 export function getWords(
   token: string,
-  params: { limit?: number; lessonId?: string } = {},
+  params: { limit?: number; page?: number; lessonId?: string } = {},
 ): Promise<Paginated<Word>> {
   const parts: string[] = [];
   if (params.limit) parts.push(`limit=${params.limit}`);
+  if (params.page) parts.push(`page=${params.page}`);
   if (params.lessonId) parts.push(`lessonId=${params.lessonId}`);
   const query = parts.length ? `?${parts.join('&')}` : '';
   return apiRequest<Paginated<Word>>(`/words${query}`, { token });
