@@ -55,37 +55,16 @@ export class ElevenLabsSttAdapter implements SttAdapter {
   constructor(private readonly config: ConfigService) {}
 
   async transcribe(audio: Buffer, mime: string): Promise<SttResult> {
-    const apiKey = this.config.get<string>('ELEVENLABS_API_KEY');
-    if (!apiKey) {
-      throw new InternalServerErrorException('ELEVENLABS_API_KEY тохируулаагүй байна');
-    }
-
-    // Retry once on 5xx (mirrors the Gemini retry style in words.service.ts).
-    let lastStatus = 0;
-    for (let attempt = 0; attempt < 2; attempt++) {
-      const form = new FormData();
-      form.append('model_id', SCRIBE_MODEL);
-      form.append(
-        'file',
-        new Blob([new Uint8Array(audio)], { type: mime || 'audio/mp4' }),
-        'audio',
-      );
-
-      const response = await fetch('https://api.elevenlabs.io/v1/speech-to-text', {
-        method: 'POST',
-        headers: { 'xi-api-key': apiKey },
-        body: form,
-      });
-
-      if (response.ok) return parseSttResponse(await response.json());
-
-      lastStatus = response.status;
-      if (response.status < 500) break; // client error → don't retry
-      await sleep(1000);
-    }
-
-    this.logger.error(`ElevenLabs STT failed (${lastStatus})`);
-    throw new InternalServerErrorException('Дуу хоолойг таньж чадсангүй');
+    return this.postToScribe(
+      (form) =>
+        form.append(
+          'file',
+          new Blob([new Uint8Array(audio)], { type: mime || 'audio/mp4' }),
+          'audio',
+        ),
+      'file',
+      'Дуу хоолойг таньж чадсангүй',
+    );
   }
 
   /**
@@ -97,16 +76,37 @@ export class ElevenLabsSttAdapter implements SttAdapter {
    * гуйвуулж бичдэг.
    */
   async transcribeUrl(url: string): Promise<SttResult> {
+    return this.postToScribe(
+      (form) => form.append('source_url', url),
+      'url',
+      'Видеоны яриаг таньж чадсангүй',
+    );
+  }
+
+  /**
+   * Scribe рүү нэг хүсэлт. Файлаар ба URL-ээр хөрвүүлэх хоёр нь зөвхөн form-д
+   * юу нэмэхээрээ ялгаатай тул түлхүүр шалгах, retry, алдаа шидэх хэсгийг энд
+   * нэг л удаа бичнэ (CODING_RULES §0.2 DRY).
+   *
+   * @param fill  `model_id`-аас гадна form-д юу нэмэхийг шийднэ.
+   * @param label логт л харагдана — аль зам унасныг ялгах.
+   */
+  private async postToScribe(
+    fill: (form: FormData) => void,
+    label: string,
+    failureMessage: string,
+  ): Promise<SttResult> {
     const apiKey = this.config.get<string>('ELEVENLABS_API_KEY');
     if (!apiKey) {
       throw new InternalServerErrorException('ELEVENLABS_API_KEY тохируулаагүй байна');
     }
 
+    // Retry once on 5xx (mirrors the Gemini retry style in words.service.ts).
     let lastStatus = 0;
     for (let attempt = 0; attempt < 2; attempt++) {
       const form = new FormData();
       form.append('model_id', SCRIBE_MODEL);
-      form.append('source_url', url);
+      fill(form);
 
       const response = await fetch('https://api.elevenlabs.io/v1/speech-to-text', {
         method: 'POST',
@@ -121,7 +121,7 @@ export class ElevenLabsSttAdapter implements SttAdapter {
       await sleep(1000);
     }
 
-    this.logger.error(`ElevenLabs STT (url) failed (${lastStatus})`);
-    throw new InternalServerErrorException('Видеоны яриаг таньж чадсангүй');
+    this.logger.error(`ElevenLabs STT (${label}) failed (${lastStatus})`);
+    throw new InternalServerErrorException(failureMessage);
   }
 }
