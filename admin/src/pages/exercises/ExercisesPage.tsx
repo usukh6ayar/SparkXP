@@ -41,7 +41,7 @@ const CATS = [
   { key: 'listening', label: 'Сонсгол' },
   { key: 'reading', label: 'Унших' },
   { key: 'writing', label: 'Бичих' },
-  { key: 'speaking', label: 'Ярих' },
+  { key: 'speaking', label: 'Дуудлага' },
   { key: 'fill', label: 'Нөхөх' },
   { key: 'grammar', label: 'Дүрэм' },
 ] as const;

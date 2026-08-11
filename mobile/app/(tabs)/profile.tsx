@@ -21,6 +21,7 @@ import { useSWR } from '../../src/api/useSWR';
 import { AppText } from '../../src/components/Text';
 import { AppIcon } from '../../src/components/AppIcon';
 import { DictionaryButton } from '../../src/components/DictionaryButton';
+import { IconButton } from '../../src/components/IconButton';
 import { type AppIconName } from '../../src/constants/appIcons';
 import { CountUp } from '../../src/components/CountUp';
 import { ProgressRing } from '../../src/components/ProgressRing';
@@ -127,6 +128,13 @@ export default function ProfileScreen() {
   const confirmLogout = useLogoutConfirm();
   const { pickPhoto, busy: avatarBusy } = useAvatarPicker();
 
+  // The default avatar (buddy-menu.webp) is a fox STICKER with padding around
+  // it, so `cover` in the circle leaves the fox looking small. When it's the
+  // default we oversize + crop the padding (like the buddy tab); an uploaded
+  // photo has no padding and fills the circle as-is.
+  const avatarUrl = resolveAvatar(user?.avatarUrl);
+  const isDefaultAvatar = !avatarUrl;
+
   // CEFR level (B1/B2…) chosen at registration; fall back to the graded level.
   const cefr = (user?.level ?? gam?.cefrLevel ?? '').toUpperCase();
   // Place chip on the status card (§3.3): province · district, omitted if unset.
@@ -189,19 +197,21 @@ export default function ProfileScreen() {
           {/* Header */}
           <View style={styles.header}>
             <AppText variant="h1" color={p.text}>{t('profile')}</AppText>
+            {/* One consistent control row: same-size round buttons + a matching
+                Sparks pill, all on the card colour so the header reads tidy. */}
             <View style={styles.headerActions}>
-              <DictionaryButton size={38} iconColor={p.text} />
-              <Pressable
+              <DictionaryButton size={44} iconSize={22} iconColor={p.text} style={styles.headerIcon} />
+              <IconButton
+                icon="settings-outline"
+                size={44}
+                iconSize={22}
+                iconColor={p.text}
                 onPress={() => router.push('/settings')}
-                hitSlop={8}
-                style={styles.iconBtn}
-                accessibilityRole="button"
                 accessibilityLabel={t('settings')}
-              >
-                <Ionicons name="settings-outline" size={26} color={p.text} />
-              </Pressable>
+                style={styles.headerIcon}
+              />
               <View style={styles.diamondBadge}>
-                <AppIcon name="sparks" size={26} />
+                <AppIcon name="sparks" size={22} />
                 <AppText variant="label" color={p.text}>{sparks}</AppText>
               </View>
             </View>
@@ -216,8 +226,13 @@ export default function ProfileScreen() {
               <View style={styles.crownTop}>
                 <View style={styles.avatarWrap}>
                   <ProgressRing progress={pct / 100} size={88} stroke={4} gradient={progressGradients.xp} track="rgba(255,255,255,0.28)">
-                    <Pressable onPress={pickPhoto} disabled={avatarBusy}>
-                      <AppImage source={resolveAvatar(user?.avatarUrl) ?? avatarImg} width={200} style={styles.avatar} contentFit="cover" />
+                    <Pressable onPress={pickPhoto} disabled={avatarBusy} style={styles.avatarClip}>
+                      <AppImage
+                        source={avatarUrl ?? avatarImg}
+                        width={200}
+                        style={isDefaultAvatar ? styles.avatarDefault : styles.avatarFill}
+                        contentFit="cover"
+                      />
                     </Pressable>
                   </ProgressRing>
                   <View style={styles.levelBadgeWrap} pointerEvents="none">
@@ -443,14 +458,14 @@ const makeStyles = (p: PremiumPalette, isDark: boolean) => {
 
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  iconBtn: {
-    width: 46, height: 46, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: p.card, ...cardEdge,
-  },
+  // Shared look for the header round buttons (search + settings): the card
+  // colour + edge, so they match each other and the Sparks pill. IconButton
+  // supplies the size, circle shape and centring.
+  headerIcon: { backgroundColor: p.card, ...cardEdge },
   diamondBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: p.card, paddingHorizontal: spacing.md, paddingVertical: 8, borderRadius: radius.full,
-    ...cardEdge,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
+    height: 44, paddingHorizontal: spacing.md, borderRadius: radius.full,
+    backgroundColor: p.card, ...cardEdge,
   },
 
   // Status card (§3.3) — one radius.xl card: crown gradient + stats below.
@@ -461,7 +476,16 @@ const makeStyles = (p: PremiumPalette, isDark: boolean) => {
   crownGrad: { padding: spacing.lg },
   crownTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
   avatarWrap: { width: 88, height: 88 },
-  avatar: { width: 76, height: 76, borderRadius: 38, backgroundColor: 'rgba(255,255,255,0.20)' },
+  // The circle that clips the avatar. The image inside either fills it (uploaded
+  // photo) or is oversized to crop the default fox sticker's padding.
+  avatarClip: {
+    width: 76, height: 76, borderRadius: 38, overflow: 'hidden',
+    backgroundColor: 'rgba(255,255,255,0.20)',
+  },
+  avatarFill: { width: 76, height: 76 },
+  // 76 × 1.42 ≈ 108, centred (−16) and nudged down 3px so the fox — which sits
+  // slightly above the sticker's centre — lands in the middle and fills.
+  avatarDefault: { width: 108, height: 108, marginLeft: -16, marginTop: -13 },
   levelBadgeWrap: { position: 'absolute', bottom: -4, left: 0, right: 0, alignItems: 'center' },
   levelBadge: {
     minWidth: 24, paddingHorizontal: 6, height: 22, borderRadius: radius.full,
