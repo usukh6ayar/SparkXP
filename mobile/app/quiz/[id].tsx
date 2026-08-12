@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput,
-  Pressable,
+  Pressable, Keyboard,
 } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle } from 'react-native-reanimated';
 import { enter, shake } from '../../src/lib/motion';
@@ -70,6 +70,52 @@ const FINISH_HOLD_MS = 700;
  * гэх мэт сонин үг хэлэхийн оронд **богино завсарлага** болгоно.
  */
 const speakable = (text: string): string => text.replace(/_{2,}/g, ', ');
+
+/** Цоорхойн сонголтын дээд тоо. Үүнээс олон бол сонгоход хэцүү, дэлгэц бөглөрнө. */
+const MAX_FILL_CHOICES = 4;
+
+/**
+ * Цоорхойд харуулах сонголтууд, дэс дарааллаар:
+ *  1. Асуултынхаа өөрийн `choices` — хамгийн зөв нь (ижил үгийн хэлбэрүүд).
+ *  2. Дасгалын `wordBank` — хуучин контентод сонголт байхгүй тул.
+ *  3. Аль нь ч байхгүй бол `null` → апп бичих талбар руугаа буцна.
+ *
+ * ⚠️ **`wordBank` нь бүх дасгалын хариултыг агуулдаг** тул 10 асуулттай
+ * дасгалд 10 чипс гарч, дэлгэц бөглөрдөг. Түүнийг 4 болгож таслах нь зөвхөн
+ * **зөв хариулт нь дотор нь үлдэх баталгаатай** үед л аюулгүй — эс бөгөөс
+ * дасгал хариулах боломжгүй болно.
+ *
+ * Сервер `answer`-ыг хариудаа явуулдаг бол (одоогийн prod ингэдэг) түүгээр
+ * баталгаатай 4 бүрдүүлнэ. Явуулаагүй бол таслахгүй — бүтэн сан хэвээр үлдэнэ
+ * (бөглөрсөн ч хариулж болно). Backend шинэчлэгдсэний дараа асуулт бүр өөрийн
+ * 4 сонголттой ирэх тул энэ зам огт хэрэглэгдэхгүй.
+ */
+function pickFillChoices(
+  q: QuizQuestion | undefined,
+  wordBank: string[] | undefined,
+): string[] | null {
+  if (q?.type !== 'fill_blank') return null;
+  if (q.choices?.length) return q.choices.slice(0, MAX_FILL_CHOICES);
+  if (!wordBank?.length) return null;
+  if (wordBank.length <= MAX_FILL_CHOICES) return wordBank;
+
+  const answer = (q as { answer?: unknown }).answer;
+  if (typeof answer !== 'string' || !answer.trim()) return wordBank;
+
+  const shuffle = (a: string[]) => {
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  };
+  const key = answer.trim();
+  const others = shuffle(
+    wordBank.filter((w) => w.toLowerCase() !== key.toLowerCase()),
+  );
+  return shuffle([key, ...others.slice(0, MAX_FILL_CHOICES - 1)]);
+}
+
 
 /** Харьцуулахад: жижиг үсэг, цэг таслалыг арилгаад үгс болгоно. */
 const words = (s: string): string[] =>
@@ -464,6 +510,8 @@ export default function QuizScreen() {
    */
   const isOpenResponse = currentQ?.type === 'open_response';
   const [modelShown, setModelShown] = useState(false);
+  /** Бичих талбар идэвхтэй үү — «Болсон» товчийг зөвхөн тэр үед харуулна. */
+  const [writeFocused, setWriteFocused] = useState(false);
 
   /** Удаан хурд — A1 түвшний сурагчид энгийн хурдыг дагаж амждаггүй. */
   const [slowSpeech, setSlowSpeech] = useState(false);
@@ -537,10 +585,12 @@ export default function QuizScreen() {
    *  2. Дасгалын үгийн сан (`wordBank`) — хуучин контентод сонголт байхгүй тул.
    *  3. Аль нь ч байхгүй бол бичих талбар (хамгийн хуучин контент).
    */
-  const fillChoices =
-    currentQ?.type === 'fill_blank'
-      ? (currentQ.choices?.length ? currentQ.choices : (quiz?.wordBank ?? null))
-      : null;
+  const fillChoices = useMemo(
+    () => pickFillChoices(currentQ, quiz?.wordBank),
+    // `attempt` — асуулт эргэж ирэхэд сонголтууд дахин холигдоно.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [currentQ, quiz?.wordBank, attempt],
+  );
   const useWordBank = !!fillChoices && fillChoices.length > 1;
 
   /**
@@ -793,8 +843,14 @@ export default function QuizScreen() {
        * card below, not a verdict on whether the work counted.
        */
       setCelebrating(true);
-    } catch {
-      alertError(t('submitAnswerError'));
+    } catch (e) {
+      /*
+       * Серверийн мессежийг ЗАЛГИХГҮЙ. Урьд нь үргэлж ерөнхий «Failed to
+       * submit your answer» гардаг тул шалтгаан нь нуугддаг байв — жишээ нь
+       * бүхэлдээ бичих дасгал илгээхэд сервер «Quiz-д оноогүй асуулт байна»
+       * гэж 400 буцаадаг байсныг хэрэглэгч ч, бид ч харж чаддаггүй байлаа.
+       */
+      alertError(e instanceof Error && e.message ? e.message : t('submitAnswerError'));
       // Hand the button back so a failed auto-finish can be retried by tapping.
       setFinishing(false);
     } finally {
@@ -1286,6 +1342,24 @@ export default function QuizScreen() {
             Автомат үнэлгээ байхгүй тул жишиг хариулттай нь өөрөө харьцуулна. */}
         {isOpenResponse && (
           <>
+            {/*
+              ⚠️ Олон мөрт талбарт Enter нь шинэ мөр нэмдэг тул гарын түлхүүрийг
+              хураах арга байдаггүй — сурагч бичээд дуусаад «хаана дарж хаах вэ»
+              гэж гацдаг байв (өөр хэсэг рүү дарж байж арай гаргадаг). Одоо
+              бичиж эхэлмэгц «Болсон» товч гарч ирнэ.
+            */}
+            {writeFocused ? (
+              <PressableScale
+                haptic={false}
+                onPress={() => Keyboard.dismiss()}
+                style={styles.kbDone}
+              >
+                <Ionicons name="chevron-down" size={16} color={c.primary} />
+                <AppText variant="caption" color={c.primary}>
+                  {t('keyboardDone')}
+                </AppText>
+              </PressableScale>
+            ) : null}
             <TextInput
               style={styles.writeInput}
               value={fillText}
@@ -1294,6 +1368,8 @@ export default function QuizScreen() {
               placeholderTextColor={c.textMuted}
               multiline
               textAlignVertical="top"
+              onFocus={() => setWriteFocused(true)}
+              onBlur={() => setWriteFocused(false)}
             />
             {currentQ!.modelAnswer ? (
               <>
@@ -1616,6 +1692,18 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
     color: c.text,
     backgroundColor: c.surface,
   },
+  /** Гар хураах товч — бичих талбарын дээр, баруун талд. */
+  kbDone: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    alignSelf: 'flex-end',
+    backgroundColor: c.primarySoft,
+    borderRadius: radius.full,
+    paddingVertical: 6,
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.xs,
+  },
   modelBox: {
     marginTop: spacing.md,
     padding: spacing.md,
@@ -1623,16 +1711,30 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
     backgroundColor: c.surfaceAlt,
     gap: spacing.xs,
   },
+  /**
+   * Сонголтын байрлал — **2 баганат сүлжээ**.
+   *
+   * Урьд нь чипс нь уртаараа урсаж (`flexWrap`), мөр бүрд өөр өөр тооны үг
+   * багтаж, зарим нь ганцаараа үлдэж эмх замбараагүй харагддаг байв. Сервер
+   * одоо үргэлж 4 сонголт өгдөг тул 2×2 тэгш сүлжээ болно.
+   */
   bank: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  /** Сонгох үг — хуруугаар оноход хангалттай том, бүрэн бөөрөнхий. */
+  /** Сонгох үг — хуруугаар оноход хангалттай том, хоёр багана тэнцүү. */
   bankChip: {
-    minHeight: 48,
+    // Хоёр багана: (100% − завсар) / 2. `flexBasis`-ээр өргөнийг тогтооно.
+    //
+    // ⚠️ `flexGrow` БАЙХГҮЙ: 3 сонголттой үед сүүлийн чипс мөрийг бүтнээр
+    // эзэлж сунаад, сүлжээ эвдэрдэг байв. Одоо сондгой тоотой ч зүүн талдаа
+    // тэгш эгнэнэ.
+    flexBasis: '48%',
+    minHeight: 52,
+    alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
     borderColor: c.border,
-    borderRadius: radius.full,
+    borderRadius: radius.lg,
     paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.md,
     backgroundColor: c.surface,
   },
   correctRow: {

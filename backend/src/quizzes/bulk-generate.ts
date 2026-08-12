@@ -329,8 +329,69 @@ export function normalizeChoices(
 }
 
 /**
+ * `fill_blank` асуулт бүрд **яг 4 сонголт** баталгаажуулна.
+ *
+ * ⚠️ Яагаад: хуучин контентод асуултын өөрийн `choices` байдаггүй тул апп
+ * бүх дасгалын хариултыг агуулсан «үгийн сан» (`buildWordBank`) руу буцдаг
+ * байв — 10 асуулттай дасгалд **10 чипс** гарч, дэлгэц эмх замбараагүй
+ * болж, сонгох нь ч хэцүү болдог байлаа.
+ *
+ * Хажуугийн сонголтууд нь **тухайн дасгалын бусад хариултууд** — ижил
+ * сэдэвтэй тул итгэмээр, мөн зөв хариулт нь үргэлж дотор нь байна
+ * (`normalizeChoices` баталгаажуулна).
+ */
+export function withFillChoices(questions: unknown[]): unknown[] {
+  const list = questions ?? [];
+  const answers = list
+    .map((q) => (q ?? {}) as { type?: string; answer?: unknown })
+    .filter((q) => q.type === 'fill_blank' && typeof q.answer === 'string')
+    .map((q) => (q.answer as string).trim())
+    .filter(Boolean);
+
+  return list.map((raw) => {
+    const q = (raw ?? {}) as {
+      type?: string;
+      answer?: unknown;
+      choices?: unknown;
+    };
+    if (q.type !== 'fill_blank' || typeof q.answer !== 'string') return raw;
+    // Аль хэдийн 2+ сонголттой бол хөндөхгүй (AI-гийн үүсгэсэн шинэ контент).
+    if (Array.isArray(q.choices) && q.choices.length >= 2) return raw;
+
+    const answer = q.answer.trim();
+    /*
+     * ⚠️ Давхардлыг ЭХЛЭЭД цэвэрлэнэ. Нэг үг хэд хэдэн асуултын хариулт байвал
+     * (ж: «doing» хоёр удаа) санамсаргүй 3-ыг авахад ижил үг хоёр удаа орж,
+     * дараа нь давхардал арилгагдаад сонголт **3 болж хумигддаг** байв —
+     * тэгээд зарим асуулт 4, зарим нь 3 сонголттой болж, сүлжээ эвдэрнэ.
+     */
+    const others = [
+      ...new Map(
+        answers
+          .filter((a) => a.toLowerCase() !== answer.toLowerCase())
+          .map((a) => [a.toLowerCase(), a]),
+      ).values(),
+    ];
+    // Санамсаргүй 3 өөр хариулт — дараалал нь асуултын дарааллыг задлахгүй.
+    for (let i = others.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [others[i], others[j]] = [others[j], others[i]];
+    }
+    const choices = normalizeChoices(
+      others.slice(0, FILL_CHOICE_COUNT - 1),
+      answer,
+    );
+    return choices ? { ...q, choices } : raw;
+  });
+}
+
+/**
  * `fill_blank` дасгалын **үгийн сан** — тухайн дасгалын бүх хариултыг холиод
  * нэг жагсаалт болгоно.
+ *
+ * @deprecated `withFillChoices` асуулт бүрд 4 сонголт өгдөг болсон тул апп
+ * үүнийг ашиглахаа больсон. Хуучин суулгацтай апп эвдрэхгүйн тулд буцаасаар
+ * байна — дараагийн том хувилбарт устгаж болно.
  *
  * Яагаад хэрэгтэй вэ: цоорхойг гараар бичих нь сурагчид хэт хэцүү байв —
  * зөв санааг олсон ч үсэг алдвал буруу гэж тооцогдоно. Санг өгснөөр сурагч
