@@ -454,7 +454,15 @@ export default function QuizScreen() {
    *
    * IELTS Listening (`audioUrl`) нь бодит бичлэгтэй тул хөндөгдөхгүй.
    */
-  const isListening = quiz?.category === 'listening' && !quiz?.audioUrl;
+  /**
+   * ⚠️ `ielts_listening` ч ОРНО: AI-гаар үүсгэсэн IELTS сонсголд бодит бичлэг
+   * байдаггүй тул апп бичвэрийг нь дуугаар уншина. Үүнгүйгээр тэдгээр дасгал
+   * дуугүй үлдэж, асуулт нь эх мэдээлэлгүй болно. Админ бодит бичлэг
+   * (`audioUrl`) хийсэн бол доорх нөхцөл түүнийг чөлөөлж, тоглуулагч гарна.
+   */
+  const isListening =
+    (quiz?.category === 'listening' || quiz?.category === 'ielts_listening') &&
+    !quiz?.audioUrl;
   /**
    * Сонсох зүйл. Шинэ дасгалд энэ нь `passageText` дэх БОГИНО ЯРИА (нэг
    * өгүүлбэр сонсох нь дасгал болохооргүй богино байсан); хуучин дасгалд

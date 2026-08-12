@@ -15,7 +15,7 @@ import {
   buildSchema,
   buildTypePrompt,
   clampCount,
-  LISTENING_CATEGORY,
+  LISTENING_CATEGORIES,
   maxTokensFor,
   MIN_LISTENING_SCRIPT,
   parseDraft,
@@ -46,6 +46,7 @@ import {
   type QualityIssue,
   type QuizLike,
 } from './quality';
+import { bandToLevel, parseBandTopic } from './ielts';
 import { AiGenerateQuizDto } from './dto/ai-generate-quiz.dto';
 import { BulkGenerateQuizDto } from './dto/bulk-generate-quiz.dto';
 import { CreateQuizDto, QuestionDto } from './dto/create-quiz.dto';
@@ -188,7 +189,7 @@ export class QuizzesService {
         // JSON горимд бодлоо талбар дотор бичиж, хариуг эвдэж, 10+ дахин
         // уртасгаж байсан (5 асуултад 19,550 токен / 76 секунд).
         thinkingBudget: 0,
-        maxOutputTokens: maxTokensFor(options.count ?? 10),
+        maxOutputTokens: maxTokensFor(options.count ?? 10, type),
       },
     );
     let draft: GeneratedDraft;
@@ -328,12 +329,21 @@ export class QuizzesService {
   ): Promise<void> {
     report.current = stepName(step);
     try {
+      /*
+       * IELTS-д `topic` нь **зорилтот band**. `Quiz.level` нь CEFR enum тул
+       * band-ыг тэнд хадгалж болохгүй — band-аасаа түвшинг автоматаар гаргана.
+       * Ингэснээр админ зөвхөн band-аа сонгоно (хоёр талбар бөглөхгүй) бөгөөд
+       * band бүр өөрийн зөв түвшинтэй хадгалагдана.
+       */
+      const band = parseBandTopic(step.topic);
+      const level = band !== null ? bandToLevel(band) : dto.level;
+
       const draft = await this.aiGenerate({
         brief: buildStepBrief(step, bank.titles),
         kind: dto.kind,
         category: step.category,
         topic: step.topic ?? undefined,
-        level: dto.level,
+        level,
         questionType: step.questionType as AiGenerateQuizDto['questionType'],
         count: dto.questionCount,
         contextNote: step.contextNote,
@@ -356,7 +366,7 @@ export class QuizzesService {
 
       await this.create({
         title: draft.title,
-        level: dto.level,
+        level,
         category: step.category,
         topic: step.topic ?? undefined,
         quizType: step.quizType ?? draft.questionType,
@@ -583,10 +593,13 @@ export class QuizzesService {
     // хамгийн олон тохиолддог эвдрэл бөгөөд хуудаслалтыг зөв байлгана.
     if (!query.includeUnanswerable) {
       qb.andWhere(
-        `NOT (q.category = :listening
+        `NOT (q.category IN (:...listening)
               AND q.audioUrl IS NULL
               AND COALESCE(LENGTH(TRIM(q.passageText)), 0) < :minScript)`,
-        { listening: LISTENING_CATEGORY, minScript: MIN_LISTENING_SCRIPT },
+        {
+          listening: [...LISTENING_CATEGORIES],
+          minScript: MIN_LISTENING_SCRIPT,
+        },
       );
     }
 
