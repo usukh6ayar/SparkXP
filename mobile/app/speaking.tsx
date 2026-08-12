@@ -1,6 +1,14 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, StyleSheet, Alert, ActivityIndicator, ScrollView } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { View, StyleSheet, Alert, ActivityIndicator, FlatList, Modal, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+  cancelAnimation,
+  FadeIn,
+} from 'react-native-reanimated';
 import {
   useAudioRecorder,
   RecordingPresets,
@@ -19,79 +27,79 @@ import { PressableScale } from '../src/components/PressableScale';
 import { EmptyState } from '../src/components/EmptyState';
 import { haptics } from '../src/lib/haptics';
 import { alertError } from '../src/lib/alerts';
-import { t, tf } from '../src/i18n';
+import { useReduceMotion } from '../src/lib/motion';
+import { t } from '../src/i18n';
 import { useColors } from '../src/settings/SettingsContext';
 import { spacing, radius, colors as staticColors, type AppColors } from '../src/theme/theme';
 import { bounded } from '../src/theme/responsive';
 
-/** How many words a practice round pulls, and how many tries per word. */
-const ROUND_SIZE = 10;
+/** Words per page (the list pages in as you scroll) and tries per word. */
+const PAGE_SIZE = 40;
 const MAX_ATTEMPTS = 3;
 
 type Phase = 'idle' | 'recording' | 'checking' | 'result';
 
-/**
- * Speaking exercise — say the word aloud.
- *
- * Listen to the word (device TTS), tap the mic, say it; the recording goes to
- * `POST /speaking/check` (server STT) and comes back right/wrong. Three tries per
- * word, then the answer is revealed. A word-level pronunciation drill.
- */
-export default function SpeakingScreen() {
-  const c = useColors();
-  const styles = useMemo(() => makeStyles(c), [c]);
-  const { token } = useAuth();
-  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+/* ─────────────────────────── Practice modal ─────────────────────────── */
 
-  const [words, setWords] = useState<Word[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [index, setIndex] = useState(0);
-  const [attempts, setAttempts] = useState(0);
+/** The mic button — pulses a soft ring while recording. */
+function MicButton({ phase, onPress, color, danger }: {
+  phase: Phase; onPress: () => void; color: string; danger: string;
+}) {
+  const reduce = useReduceMotion();
+  const pulse = useSharedValue(0);
+  const recording = phase === 'recording';
+  useEffect(() => {
+    cancelAnimation(pulse);
+    if (recording && !reduce) pulse.value = withRepeat(withTiming(1, { duration: 1100 }), -1, false);
+    else pulse.value = 0;
+  }, [recording, reduce, pulse]);
+  const ringStyle = useAnimatedStyle(() => ({
+    opacity: 0.5 * (1 - pulse.value),
+    transform: [{ scale: 1 + pulse.value * 0.6 }],
+  }));
+  return (
+    <View style={micStyles.wrap}>
+      {recording ? <Animated.View style={[micStyles.ring, { backgroundColor: danger }, ringStyle]} pointerEvents="none" /> : null}
+      <PressableScale
+        style={[micStyles.btn, { backgroundColor: recording ? danger : color }]}
+        disabled={phase === 'checking'}
+        onPress={onPress}
+      >
+        {phase === 'checking' ? (
+          <ActivityIndicator color={staticColors.white} />
+        ) : (
+          <Ionicons name={recording ? 'stop' : 'mic'} size={40} color={staticColors.white} />
+        )}
+      </PressableScale>
+    </View>
+  );
+}
+
+/** Practise one word: listen, record, check. Three tries, then reveal. */
+function PracticeModal({ word, token, onClose }: { word: Word; token: string; onClose: () => void }) {
+  const c = useColors();
+  const styles = useMemo(() => makeModalStyles(c), [c]);
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const [phase, setPhase] = useState<Phase>('idle');
   const [result, setResult] = useState<SpeakCheckResult | null>(null);
+  const [attempts, setAttempts] = useState(0);
   const [revealed, setRevealed] = useState(false);
-  const [correctCount, setCorrectCount] = useState(0);
-
-  const word = words[index];
-  const finished = !loading && words.length > 0 && index >= words.length;
-
-  useEffect(() => {
-    if (!token) return;
-    getWords(token, { limit: ROUND_SIZE })
-      .then((r) => setWords(r.items))
-      .catch((e) => console.warn('Speaking words load failed:', (e as Error)?.message ?? e))
-      .finally(() => setLoading(false));
-  }, [token]);
-
-  /** Advance to the next word, resetting the per-word state. */
-  const next = useCallback(() => {
-    setIndex((i) => i + 1);
-    setAttempts(0);
-    setResult(null);
-    setRevealed(false);
-    setPhase('idle');
-  }, []);
 
   async function startRecording() {
     if (phase !== 'idle') return;
     const { granted } = await requestRecordingPermissionsAsync();
-    if (!granted) {
-      Alert.alert(t('permissionTitle'), t('micPermission'));
-      return;
-    }
+    if (!granted) { Alert.alert(t('permissionTitle'), t('micPermission')); return; }
     try {
       await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
       await recorder.prepareToRecordAsync();
       recorder.record();
       haptics.tap();
       setPhase('recording');
-    } catch {
-      setPhase('idle');
-    }
+    } catch { setPhase('idle'); }
   }
 
   async function stopAndCheck() {
-    if (phase !== 'recording' || !word || !token) return;
+    if (phase !== 'recording') return;
     setPhase('checking');
     try {
       await recorder.stop();
@@ -101,12 +109,9 @@ export default function SpeakingScreen() {
       const res = await checkPronunciation(uri, word.english, token);
       setResult(res);
       setPhase('result');
-      if (res.correct) {
-        haptics.success();
-        setCorrectCount((n) => n + 1);
-      } else {
+      if (res.correct) haptics.success();
+      else {
         haptics.warning();
-        // Out of tries → reveal the answer, then let them move on.
         if (attempts + 1 >= MAX_ATTEMPTS) setRevealed(true);
         setAttempts((a) => a + 1);
       }
@@ -116,7 +121,140 @@ export default function SpeakingScreen() {
     }
   }
 
-  // ── Loading / empty / finished ────────────────────────────────────────────
+  function retry() {
+    setPhase('idle');
+    setResult(null);
+  }
+
+  const isCorrect = phase === 'result' && result?.correct;
+
+  return (
+    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.sheetWrap}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <View style={[styles.sheet, bounded]}>
+          <Pressable style={styles.closeBtn} onPress={onClose} hitSlop={8}>
+            <Ionicons name="close" size={22} color={c.textSecondary} />
+          </Pressable>
+
+          <AppText variant="overline" color={c.textMuted} center>{t('speakInstruction')}</AppText>
+          <AppText style={styles.word} color={c.text} center numberOfLines={1}>{word.english}</AppText>
+          <AppText variant="body" color={c.textSecondary} center>{word.mongolian}</AppText>
+          <PressableScale style={styles.listenBtn} onPress={() => speakEnglish(word.english)}>
+            <Ionicons name="volume-high" size={18} color={c.primary} />
+            <AppText variant="label" color={c.primary}>{t('speakListen')}</AppText>
+          </PressableScale>
+
+          {phase === 'result' && result ? (
+            <Animated.View entering={FadeIn.duration(200)} style={[styles.feedback, { backgroundColor: isCorrect ? c.successSoft : c.surfaceAlt }]}>
+              <View style={styles.feedbackHead}>
+                <Ionicons name={isCorrect ? 'checkmark-circle' : 'close-circle'} size={20} color={isCorrect ? c.success : c.danger} />
+                <AppText variant="bodyStrong" color={isCorrect ? c.success : c.danger}>
+                  {isCorrect ? t('speakCorrect') : t('speakTryAgain')}
+                </AppText>
+              </View>
+              {result.transcript ? (
+                <AppText variant="caption" color={c.textSecondary} center>{t('speakHeard')}: “{result.transcript}”</AppText>
+              ) : null}
+              {revealed && !isCorrect ? (
+                <AppText variant="caption" color={c.textMuted} center>{t('speakAnswerWas')} {word.english}</AppText>
+              ) : null}
+            </Animated.View>
+          ) : (
+            <AppText variant="caption" color={c.textMuted} center style={styles.status}>
+              {phase === 'recording' ? t('speakRecording') : phase === 'checking' ? t('speakChecking') : `${attempts}/${MAX_ATTEMPTS}`}
+            </AppText>
+          )}
+
+          {/* Controls */}
+          {isCorrect || revealed ? (
+            <PressableScale style={styles.doneBtn} onPress={onClose}>
+              <LinearGradient colors={staticColors.primaryGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
+              <AppText variant="bodyStrong" color={staticColors.white}>{t('continue')}</AppText>
+            </PressableScale>
+          ) : phase === 'result' ? (
+            <PressableScale style={styles.retryBtn} onPress={retry}>
+              <Ionicons name="refresh" size={18} color={c.primary} />
+              <AppText variant="bodyStrong" color={c.primary}>{t('speakTryAgain')}</AppText>
+            </PressableScale>
+          ) : (
+            <MicButton phase={phase} onPress={phase === 'recording' ? stopAndCheck : startRecording} color={c.primary} danger={c.danger} />
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+/* ───────────────────────────── List screen ───────────────────────────── */
+
+/**
+ * Speaking / pronunciation exercise.
+ *
+ * A scrollable list of ALL the words the admin added (the Үгс bank). Tap a word
+ * to practise it: listen, record, and the server STT checks your pronunciation.
+ */
+export default function SpeakingScreen() {
+  const c = useColors();
+  const styles = useMemo(() => makeStyles(c), [c]);
+  const { token } = useAuth();
+
+  const [words, setWords] = useState<Word[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [selected, setSelected] = useState<Word | null>(null);
+  const pageRef = useRef(1);
+  const loadingMoreRef = useRef(false);
+
+  useEffect(() => {
+    if (!token) return;
+    getWords(token, { page: 1, limit: PAGE_SIZE })
+      .then((r) => { setWords(r.items); setTotal(r.total); })
+      .catch((e) => console.warn('Speaking words load failed:', (e as Error)?.message ?? e))
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  const loadMore = useCallback(async () => {
+    if (!token || loadingMoreRef.current || words.length >= total) return;
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+    try {
+      const next = pageRef.current + 1;
+      const r = await getWords(token, { page: next, limit: PAGE_SIZE });
+      setWords((prev) => {
+        const seen = new Set(prev.map((w) => w.id));
+        return [...prev, ...r.items.filter((w) => !seen.has(w.id))];
+      });
+      setTotal(r.total);
+      pageRef.current = next;
+    } catch (e) {
+      console.warn('Speaking loadMore failed:', (e as Error)?.message ?? e);
+    } finally {
+      loadingMoreRef.current = false;
+      setLoadingMore(false);
+    }
+  }, [token, words.length, total]);
+
+  const renderItem = useCallback(
+    ({ item: w }: { item: Word }) => (
+      <Pressable
+        style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+        onPress={() => { haptics.tap(); setSelected(w); }}
+      >
+        <View style={styles.rowIcon}>
+          <Ionicons name="mic" size={18} color={c.primary} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <AppText variant="bodyStrong" numberOfLines={1}>{w.english}</AppText>
+          <AppText variant="caption" color={c.textSecondary} numberOfLines={1}>{w.mongolian}</AppText>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color={c.textMuted} />
+      </Pressable>
+    ),
+    [styles, c],
+  );
+
   if (loading) {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
@@ -125,143 +263,102 @@ export default function SpeakingScreen() {
       </SafeAreaView>
     );
   }
-  if (words.length === 0) {
-    return (
-      <SafeAreaView style={styles.safe} edges={['top']}>
-        <TopBar title={t('speakTitle')} back showBadges={false} />
-        <EmptyState icon="mic-outline" title={t('speakTitle')} hint={t('speakEmpty')} style={styles.center} />
-      </SafeAreaView>
-    );
-  }
-  if (finished) {
-    return (
-      <SafeAreaView style={styles.safe} edges={['top']}>
-        <TopBar title={t('speakTitle')} back showBadges={false} />
-        <View style={styles.center}>
-          <Ionicons name="trophy" size={64} color={staticColors.xp} />
-          <AppText variant="h1" color={c.text} style={{ marginTop: spacing.md }}>{t('speakDoneTitle')}</AppText>
-          <AppText variant="h3" color={c.textSecondary}>{tf('speakScore', { n: correctCount, total: words.length })}</AppText>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  const isCorrect = phase === 'result' && result?.correct;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <TopBar title={t('speakTitle')} back showBadges={false} />
-      <ScrollView contentContainerStyle={[styles.container, bounded]}>
-        <AppText variant="caption" color={c.textMuted} center>
-          {index + 1} / {words.length}
-        </AppText>
+      <FlatList
+        data={words}
+        keyExtractor={(w) => w.id}
+        renderItem={renderItem}
+        contentContainerStyle={[styles.container, bounded]}
+        showsVerticalScrollIndicator={false}
+        ListHeaderComponent={
+          words.length > 0 ? (
+            <AppText variant="caption" color={c.textMuted} style={styles.hint}>{t('speakPickWord')}</AppText>
+          ) : null
+        }
+        ListEmptyComponent={
+          <EmptyState icon="mic-outline" title={t('speakTitle')} hint={t('speakEmpty')} style={styles.center} />
+        }
+        onEndReached={loadMore}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={
+          loadingMore ? <ActivityIndicator color={c.primary} style={styles.footer} /> : <View style={styles.footerSpacer} />
+        }
+      />
 
-        {/* The word to say */}
-        <View style={styles.card}>
-          <AppText variant="h1" color={c.text} center>{word.english}</AppText>
-          <AppText variant="body" color={c.textSecondary} center>{word.mongolian}</AppText>
-          <PressableScale style={styles.listenBtn} onPress={() => speakEnglish(word.english)}>
-            <Ionicons name="volume-high" size={18} color={c.primary} />
-            <AppText variant="label" color={c.primary}>{t('speakListen')}</AppText>
-          </PressableScale>
-        </View>
-
-        {/* Feedback */}
-        {phase === 'result' && result ? (
-          <View style={[styles.feedback, { backgroundColor: isCorrect ? c.successSoft : c.surfaceAlt }]}>
-            <AppText variant="bodyStrong" color={isCorrect ? c.success : c.danger} center>
-              {isCorrect ? t('speakCorrect') : t('speakTryAgain')}
-            </AppText>
-            {result.transcript ? (
-              <AppText variant="caption" color={c.textSecondary} center>
-                {t('speakHeard')}: “{result.transcript}”
-              </AppText>
-            ) : null}
-            {revealed && !isCorrect ? (
-              <AppText variant="caption" color={c.textMuted} center>{t('speakAnswerWas')} {word.english}</AppText>
-            ) : null}
-          </View>
-        ) : (
-          <AppText variant="body" color={c.textMuted} center style={styles.hint}>
-            {phase === 'recording' ? t('speakRecording') : phase === 'checking' ? t('speakChecking') : t('speakInstruction')}
-          </AppText>
-        )}
-
-        {/* Mic / next control */}
-        <View style={styles.controls}>
-          {phase === 'result' && (isCorrect || revealed) ? (
-            <PressableScale style={styles.nextBtn} onPress={next}>
-              <LinearGradient colors={staticColors.primaryGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
-              <AppText variant="bodyStrong" color={staticColors.white}>{t('continue')}</AppText>
-              <Ionicons name="arrow-forward" size={18} color={staticColors.white} />
-            </PressableScale>
-          ) : (
-            <PressableScale
-              style={[styles.micBtn, phase === 'recording' && styles.micBtnActive]}
-              disabled={phase === 'checking'}
-              onPress={phase === 'recording' ? stopAndCheck : startRecording}
-            >
-              {phase === 'checking' ? (
-                <ActivityIndicator color={staticColors.white} />
-              ) : (
-                <Ionicons name={phase === 'recording' ? 'stop' : 'mic'} size={36} color={staticColors.white} />
-              )}
-            </PressableScale>
-          )}
-          {phase !== 'result' || (!isCorrect && !revealed) ? (
-            <AppText variant="caption" color={c.textMuted}>
-              {phase === 'recording' ? t('speakRecording') : `${attempts}/${MAX_ATTEMPTS}`}
-            </AppText>
-          ) : null}
-        </View>
-      </ScrollView>
+      {selected && token ? (
+        <PracticeModal key={selected.id} word={selected} token={token} onClose={() => setSelected(null)} />
+      ) : null}
     </SafeAreaView>
   );
 }
 
+const micStyles = StyleSheet.create({
+  wrap: { alignItems: 'center', justifyContent: 'center' },
+  ring: { position: 'absolute', width: 96, height: 96, borderRadius: 48 },
+  btn: {
+    width: 96, height: 96, borderRadius: 48, alignItems: 'center', justifyContent: 'center',
+    shadowColor: staticColors.primary, shadowOpacity: 0.35, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 6,
+  },
+});
+
 const makeStyles = (c: AppColors) =>
   StyleSheet.create({
     safe: { flex: 1, backgroundColor: c.background },
-    center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
-    container: { padding: spacing.lg, gap: spacing.lg, alignItems: 'stretch' },
-    card: {
+    center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl, marginTop: spacing.xxl },
+    container: { paddingHorizontal: spacing.lg, paddingTop: spacing.xs },
+    hint: { marginBottom: spacing.sm },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
       backgroundColor: c.surface,
-      borderRadius: radius.xl,
+      borderRadius: radius.lg,
       borderWidth: 1,
       borderColor: c.border,
-      padding: spacing.xl,
+      padding: spacing.md,
+      marginBottom: spacing.sm,
+    },
+    rowIcon: {
+      width: 40, height: 40, borderRadius: radius.md,
+      backgroundColor: c.primarySoft, alignItems: 'center', justifyContent: 'center',
+    },
+    footer: { marginVertical: spacing.lg },
+    footerSpacer: { height: 110 },
+    pressed: { opacity: 0.92, transform: [{ scale: 0.99 }] },
+  });
+
+const makeModalStyles = (c: AppColors) =>
+  StyleSheet.create({
+    sheetWrap: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(8,4,26,0.55)' },
+    sheet: {
+      backgroundColor: c.background,
+      borderTopLeftRadius: radius.xl,
+      borderTopRightRadius: radius.xl,
+      paddingHorizontal: spacing.xl,
+      paddingTop: spacing.xxl,
+      paddingBottom: spacing.xxl,
       gap: spacing.sm,
       alignItems: 'center',
     },
+    closeBtn: { position: 'absolute', top: spacing.md, right: spacing.md, padding: 4 },
+    word: { fontSize: 40, lineHeight: 48, fontWeight: '800', textAlign: 'center', marginTop: 4 },
     listenBtn: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-      marginTop: spacing.sm,
-      paddingHorizontal: spacing.md,
-      paddingVertical: 8,
-      borderRadius: radius.full,
-      backgroundColor: c.primarySoft,
+      flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: spacing.sm,
+      paddingHorizontal: spacing.lg, paddingVertical: 10, borderRadius: radius.full, backgroundColor: c.primarySoft,
     },
-    hint: { marginTop: spacing.sm },
-    feedback: { borderRadius: radius.lg, padding: spacing.md, gap: 4 },
-    controls: { alignItems: 'center', gap: spacing.md, marginTop: spacing.lg },
-    micBtn: {
-      width: 88,
-      height: 88,
-      borderRadius: 44,
-      backgroundColor: c.primary,
-      alignItems: 'center',
-      justifyContent: 'center',
+    status: { minHeight: 20, marginTop: spacing.sm },
+    feedback: { alignSelf: 'stretch', borderRadius: radius.lg, padding: spacing.md, gap: 6, alignItems: 'center', marginTop: spacing.sm },
+    feedbackHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    doneBtn: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+      height: 54, alignSelf: 'stretch', marginTop: spacing.lg, borderRadius: radius.lg, overflow: 'hidden',
     },
-    micBtnActive: { backgroundColor: c.danger },
-    nextBtn: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-      height: 52,
-      paddingHorizontal: spacing.xl,
-      borderRadius: radius.lg,
-      overflow: 'hidden',
+    retryBtn: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+      height: 54, alignSelf: 'stretch', marginTop: spacing.lg, borderRadius: radius.lg,
+      borderWidth: 1, borderColor: c.primary,
     },
   });

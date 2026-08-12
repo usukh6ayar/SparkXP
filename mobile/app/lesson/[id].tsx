@@ -177,19 +177,19 @@ export default function LessonDetailScreen() {
   const canFinish = !videoUrl || done || watched >= WATCHED_ENOUGH;
   const watchedPct = Math.round(watched * 100);
 
-  // Stars for a lesson with NO test: such a lesson can never earn stars from a
-  // quiz, so finishing it IS its mastery → award full stars once it's done. This
-  // covers both a fresh finish (markDone flips `done`) and a lesson completed
-  // before this rule existed. Idempotent (awardFromScore is monotonic best-of)
-  // and gated to fire once per open, only after the load resolved so
-  // `quizzes.length` is accurate (a lesson WITH a test keeps its test-driven stars).
+  // Finishing a lesson earns its stars. Completing it awards a 2-star baseline
+  // (score 70 → 2 stars in any threshold) so the map always progresses and the
+  // next lesson unlocks — even for lessons with no test, or where the student
+  // didn't take it. Taking the lesson's test can still raise it to 3 stars
+  // (awardFromScore is monotonic best-of, so this baseline never lowers a
+  // higher test score). Idempotent + fires once per open, after the load.
   const starBackfilled = useRef(false);
   useEffect(() => {
-    if (!loading && lesson && done && quizzes.length === 0 && token && id && !starBackfilled.current) {
+    if (!loading && lesson && done && token && id && !starBackfilled.current) {
       starBackfilled.current = true;
-      postLessonResult(id, 100, token).catch(() => {});
+      postLessonResult(id, 70, token).catch(() => {});
     }
-  }, [loading, lesson, done, quizzes.length, token, id]);
+  }, [loading, lesson, done, token, id]);
 
   useFocusEffect(
     useCallback(() => {

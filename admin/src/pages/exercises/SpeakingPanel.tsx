@@ -40,7 +40,7 @@ export function SpeakingPanel() {
           <Mic className="h-5 w-5 text-primary" />
         </div>
         <div className="min-w-0 flex-1">
-          <h3 className="font-semibold text-gray-900">Ярих (дуудлага) дасгал</h3>
+          <h3 className="font-semibold text-gray-900">Дуудлага дасгал</h3>
           <p className="text-sm text-gray-500">
             Сурагч үгийг чангаар дуудаж, апп нь ярианы таних (STT)-аар шалгана. Энэ дасгал{' '}
             <b>Үгс</b> банкийг ашигладаг — доорх {total} үг апп дээр гарна. Үг нэмэх, засах, устгах
