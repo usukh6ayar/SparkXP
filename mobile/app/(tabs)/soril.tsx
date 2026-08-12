@@ -15,9 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { haptics } from "../../src/lib/haptics";
 import { useAuth } from "../../src/auth/AuthContext";
 import { getGamification, type Gamification } from "../../src/api/gamification";
-import { getExercises, type Quiz } from "../../src/api/quizzes";
 import { loadDailyTasks, DAILY_TASK_GOAL } from "../../src/lib/dailyTasks";
-import { loadCompletedExercises } from "../../src/lib/exerciseProgress";
 import { AppText } from "../../src/components/Text";
 import { AppIcon } from "../../src/components/AppIcon";
 import { DictionaryButton } from "../../src/components/DictionaryButton";
@@ -119,104 +117,6 @@ function games(t: (key: import("../../src/i18n").TranslationKey) => string): Gam
 /** Daily-goal fallback while `/gamification` is still loading (backend: 50 XP). */
 const DAILY_GOAL_FALLBACK = 50;
 
-/**
- * Админаас нэмсэн сорилын `Quiz.category` (admin → Сорил хуудас).
- *
- * Дээрх 6 карт бол үгийн сангаас автоматаар үүсдэг тоглоомууд — админы бичсэн
- * сорилыг харуулдаггүй. Тэр контентыг гаргах цорын ганц зам нь энэ хэсэг тул
- * утга нь `admin/src/pages/quizzes/QuizzesPage.tsx`-ийн `SORIL_CATEGORY`-тэй
- * ЯГ таарах ёстой.
- */
-const SORIL_CATEGORY = "soril";
-
-/**
- * Тоглоомын төрлийн нэр — админы `QUIZ_TYPES`-тэй ЯГ таарах ёстой
- * (`admin/src/pages/quizzes/QuizzesPage.tsx`). Шинэ төрөл нэмэхэд энд ч нэм,
- * эс бөгөөс тэр төрлийн сорилууд «Бусад» бүлэгт унана.
- */
-const SORIL_TYPE_LABELS: Record<string, string> = {
-  word_guess: "Үг таах",
-  listening: "Сонсох",
-  grammar: "Дүрэм",
-  speed: "Хурдан хариулт",
-  matching: "Холбох",
-  fill: "Дүүргэх",
-};
-/**
- * Нэг сорилын мөр. Картын жагсаалт ба «харьяалалгүй» хэсэг хоёулаа энүүгээр
- * зурагдана — хоёр газар хуулбарлахгүй (CODING_RULES §0.2).
- */
-function QuizRow({
-  quiz,
-  done,
-  isNew,
-  styles,
-  c,
-  router,
-  onPress,
-}: {
-  quiz: Quiz;
-  /** Сурагч энэ сорилыг аль хэдийн давсан уу. */
-  done?: boolean;
-  /** Сүүлийн үед админаас нэмэгдсэн үү (хийгээгүй үед л утгатай). */
-  isNew?: boolean;
-  styles: ReturnType<typeof makeStyles>;
-  c: AppColors;
-  router: ReturnType<typeof useRouter>;
-  onPress?: () => void;
-}) {
-  return (
-    <Pressable
-      style={({ pressed }) => [styles.quizRow, done && styles.quizRowDone, pressed && styles.pressed]}
-      onPress={() => {
-        haptics.tap();
-        onPress?.();
-        router.push(`/quiz/${quiz.id}`);
-      }}
-      accessibilityRole="button"
-      accessibilityLabel={quiz.title}
-    >
-      {/* Хийсэн нь ✓, хийгээгүй нь асуултын тэмдэг — нэг харцаар ялгарна. */}
-      <IconTile
-        icon={done ? "checkmark" : "help-circle"}
-        bg={done ? tints.green.bg : tints.purple.bg}
-        fg={done ? tints.green.fg : tints.purple.fg}
-        size={44}
-        iconSize={24}
-      />
-      <View style={styles.quizBody}>
-        <View style={styles.quizTitleRow}>
-          <AppText
-            variant="bodyStrong"
-            numberOfLines={2}
-            color={done ? c.textSecondary : undefined}
-            style={styles.quizTitle}
-          >
-            {quiz.title}
-          </AppText>
-          {/* «Шинэ» нь зөвхөн ХИЙГЭЭГҮЙ дээр — хийчихсэн зүйлийг шинэ гэж
-              нэрлэх нь худал мэдээлэл болно. */}
-          {!done && isNew ? (
-            <View style={styles.newTag}>
-              <AppText variant="caption" color={c.white}>{t("sorilNewTag")}</AppText>
-            </View>
-          ) : null}
-        </View>
-        <AppText variant="caption" color={c.textSecondary}>
-          {done ? `${t("sorilDone")} · ` : ""}
-          {tf("questionCount", { n: quiz.questions?.length ?? 0 })} · {quiz.xpReward} XP ·{" "}
-          {quiz.level.toUpperCase()}
-        </AppText>
-      </View>
-      <Ionicons name="chevron-forward" size={20} color={c.textMuted} />
-    </Pressable>
-  );
-}
-
-/** «Шинэ» гэж тооцох хугацаа — үүнээс хойш нэмэгдсэн бол тэмдэглэнэ. */
-const NEW_DAYS = 7;
-const isRecent = (iso: string): boolean =>
-  Date.now() - new Date(iso).getTime() < NEW_DAYS * 24 * 60 * 60 * 1000;
 
 export default function SorilScreen() {
   const { user, token } = useAuth();
@@ -229,65 +129,7 @@ export default function SorilScreen() {
     if (token) getGamification(token).then(setGam).catch(() => {});
   }, [token]);
 
-  // Админаас нэмсэн сорилууд. Хоосон бол хэсэг нь бүрэн нуугдана — "тун
-  // удахгүй" маягийн хуурамч мөр үзүүлэхгүй.
-  const [customQuizzes, setCustomQuizzes] = useState<Quiz[]>([]);
-  useEffect(() => {
-    if (!token) return;
-    getExercises(token, SORIL_CATEGORY)
-      .then((r) => setCustomQuizzes(r.items))
-      .catch(() => setCustomQuizzes([]));
-  }, [token]);
 
-  /**
-   * Админы сорилуудыг **тоглоомын төрлөөр** бүлэглэнэ.
-   *
-   * Урьд нь бүгд нэг хавтгай жагсаалт байсан тул админ 60 сорил нэмэхэд
-   * ялгаагүй 60 мөр цувж, сурагч юу нь юу болохыг олж харахгүй байв.
-   *
-   * ⚠️ Яагаад `topic` БИШ вэ: админы **Сорил хуудас «Сэдэв» талбаргүй**
-   * (`admin/src/pages/quizzes/QuizzesPage.tsx`) тул `topic` үргэлж хоосон —
-   * түүгээр бүлэглэвэл бүгд «Бусад»-д орно. `quizType` нь харин мөр бүрд
-   * бөглөгддөг ба сурагчид утга учиртай (Сонсох · Дүрэм · Холбох…).
-   */
-  /**
-   * Давсан сорилууд. Дэлгэц рүү буцаж ирэх бүрд дахин уншина — сорил хийгээд
-   * гарангуут ✓ нь шууд суух ёстой (`useFocusEffect`).
-   */
-  const [completed, setCompleted] = useState<Set<string>>(new Set());
-  useFocusEffect(
-    useCallback(() => {
-      let active = true;
-      loadCompletedExercises().then((s) => { if (active) setCompleted(s); });
-      return () => { active = false; };
-    }, []),
-  );
-
-  /**
-   * Төрөл бүрийн хэсэг: `[нэр, сорилууд]`. Дотор нь **хийгээгүйг нь түрүүлж**
-   * эрэмбэлнэ — сурагчид хамгийн хэрэгтэй нь "юу үлдсэн" явдал. Хийсэн нь
-   * доошоо буугаад ✓-тэй, бүдэг өнгөөр үлдэнэ (устгахгүй — дахин хийж болно).
-   * Серверээс шинэ нь эхэлж ирдэг тул хэсэг доторх эрэмбэ «шинэ → хуучин».
-   */
-  const quizSections = useMemo(() => {
-    const byType = new Map<string, Quiz[]>();
-    for (const q of customQuizzes) {
-      // Танихгүй/хоосон төрөл алдагдахгүй — «Бусад» хэсэгт орно.
-      const name = (q.quizType && SORIL_TYPE_LABELS[q.quizType]) || t('otherTopic');
-      const list = byType.get(name);
-      if (list) list.push(q);
-      else byType.set(name, [q]);
-    }
-    return [...byType.entries()].map(
-      ([name, list]) =>
-        [
-          name,
-          [...list].sort(
-            (a, b) => Number(completed.has(a.id)) - Number(completed.has(b.id)),
-          ),
-        ] as const,
-    );
-  }, [customQuizzes, completed]);
   const level = gam?.level ?? 1;
   const dailyExerciseGoal = gam?.dailyExerciseGoal ?? DAILY_TASK_GOAL;
   const path = useMemo(
@@ -317,7 +159,7 @@ export default function SorilScreen() {
   const router = useRouter();
   const open = () =>
     Alert.alert(t("comingSoon"), t("gameComingSoon"));
-  /** Карт дарахад шууд тоглоом руу — дунд нь нэмэлт цонх гаргахгүй. */
+  /** Карт дарахад шууд өөрийн газар руу — дунд нь нэмэлт дэлгэц гаргахгүй. */
   const openGame = (g: Game) => {
     haptics.tap();
     return g.route ? router.push(g.route as never) : open();
@@ -473,32 +315,6 @@ export default function SorilScreen() {
             </Animated.View>
           ))}
         </View>
-
-        {/*
-          Админаас нэмсэн сорилууд — **төрөл тус бүр өөрийн хэсэгтэй**.
-          Урьд нь бүгд «Шинэ сорилууд» гэсэн нэг овоо болж, аль нь ямар төрөл
-          болох нь мэдэгддэггүй байв.
-        */}
-        {quizSections.map(([name, list]) => (
-          <Fragment key={name}>
-            <View style={styles.sectionRow}>
-              <AppText variant="h2">{name}</AppText>
-            </View>
-            <View style={styles.quizList}>
-              {list.map((q) => (
-                <QuizRow
-                  key={q.id}
-                  quiz={q}
-                  done={completed.has(q.id)}
-                  isNew={isRecent(q.createdAt)}
-                  styles={styles}
-                  c={c}
-                  router={router}
-                />
-              ))}
-            </View>
-          </Fragment>
-        ))}
 
         {/* Progress path */}
         <View style={styles.pathCard}>

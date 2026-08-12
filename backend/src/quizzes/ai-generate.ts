@@ -90,17 +90,19 @@ const VALID_TYPES: GenQuestionType[] = [
 ];
 const VALID_LEVELS = ['a1', 'a2', 'b1', 'b2', 'c1', 'c2'];
 
-export const LISTENING_CATEGORY = 'listening';
-
 /**
- * Аппын "Сонсгол" дасгал мөн үү — эдгээрт сонсох яриа (`passageText`) ЗААВАЛ
- * хэрэгтэй, эс бөгөөс асуулт нь эх мэдээлэлгүй үлдэж хариулах боломжгүй болно.
+ * Сонсох замаар хийгддэг ангиллууд.
  *
- * IELTS Listening (`ielts_listening`) нь энд ОРОХГҮЙ: тэр нь админы
- * байршуулсан бодит бичлэгтэй (`audioUrl`) тул бичвэр шаардахгүй.
+ * ⚠️ `ielts_listening` энд **ОРНО**: AI-гаар үүсгэсэн IELTS сонсголд бодит
+ * бичлэг байдаггүй тул апп бичвэрийг нь дуугаар уншина. Бичвэргүй бол
+ * асуулт нь эх мэдээлэлгүй үлдэж хариулах боломжгүй болно — яг ердийн
+ * сонсголын дасгалтай ижил дүрэм. Админ бодит бичлэг (`audioUrl`) хийсэн бол
+ * бичвэр шаардахгүй (шалгагч түүнийг чөлөөлдөг).
  */
+export const LISTENING_CATEGORIES = ['listening', 'ielts_listening'] as const;
+
 export const isListeningCategory = (category?: string | null): boolean =>
-  category === LISTENING_CATEGORY;
+  LISTENING_CATEGORIES.includes(category as (typeof LISTENING_CATEGORIES)[number]);
 
 /**
  * Сонсох яриа хамгийн багадаа хэдэн тэмдэгт байх вэ. 3–5 мөрт яриа нь үргэлж
@@ -283,7 +285,8 @@ const QUESTION_FIELDS: Record<string, unknown> = {
     },
   },
   prompt: { type: 'STRING', maxLength: 400 },
-  modelAnswer: { type: 'STRING', maxLength: 1200 },
+  // IELTS-ийн жишиг хариулт 250–400 үг — 1200 тэмдэгт хүрэлцэхгүй.
+  modelAnswer: { type: 'STRING', maxLength: 3000 },
   bandNote: { type: 'STRING', maxLength: 300 },
 };
 
@@ -293,6 +296,17 @@ const REQUIRED_BY_TYPE: Record<GenQuestionType, string[]> = {
   fill_blank: ['type', 'question', 'answer', 'choices'],
   word_match: ['type', 'pairs'],
   open_response: ['type', 'prompt', 'modelAnswer'],
+};
+
+/**
+ * Заавал биш ч schema-д БАЙХ талбарууд.
+ *
+ * ⚠️ `buildSchema` нь `properties`-ээ `REQUIRED_BY_TYPE`-аас барьдаг тул тэнд
+ * байхгүй талбарыг загвар буцаах ч аргагүй байв — `bandNote` (IELTS-ийн band
+ * тайлбар) яг ийм шалтгаанаар **үргэлж хоосон** ирдэг байлаа.
+ */
+const OPTIONAL_BY_TYPE: Partial<Record<GenQuestionType, string[]>> = {
+  open_response: ['bandNote'],
 };
 
 /**
@@ -312,8 +326,9 @@ export function buildSchema(
   type: GenQuestionType,
 ): unknown {
   const count = o.count ?? DEFAULT_COUNT;
+  const fields = [...REQUIRED_BY_TYPE[type], ...(OPTIONAL_BY_TYPE[type] ?? [])];
   const properties = Object.fromEntries(
-    REQUIRED_BY_TYPE[type].map((f) => [f, QUESTION_FIELDS[f]]),
+    fields.map((f) => [f, QUESTION_FIELDS[f]]),
   );
 
   // Сонсголд яриа нь заавал — schema түвшинд шаардвал загвар түүнийг орхиж
@@ -618,6 +633,10 @@ export function clampCount(count?: number): number {
  * бичвэрт зориулж 1500 нөөцөлнө. Энэ нь загварыг хэт чалчихаас хамгаална —
  * бодит хэрэгцээнээс 3 дахин илүү тул хэвийн хариу таслагдахгүй.
  */
-export function maxTokensFor(count: number): number {
+export function maxTokensFor(count: number, type?: GenQuestionType): number {
+  // ⚠️ `open_response` нь огт өөр хэмжээтэй: IELTS-ийн жишиг хариулт дангаараа
+  // 250–400 үг (~500 токен), дээр нь даалгавар + band тайлбар. 360 токеноор
+  // тооцоход гаралт таслагдаж, **Speaking огт үүсдэггүй** байв.
+  if (type === 'open_response') return 1500 + count * 1400;
   return 1500 + count * 360;
 }

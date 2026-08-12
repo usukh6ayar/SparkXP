@@ -8,6 +8,7 @@ import {
   stepName,
   type BulkStep,
 } from './bulk-generate';
+import { isListeningCategory } from './ai-generate';
 
 /**
  * "Бүх төрлөөр үүсгэх"-ийн цөм. Энэ давхарга нь AI дуудахаас ӨМНӨ юу үүсгэхийг
@@ -184,8 +185,46 @@ describe('recipeFor', () => {
   });
 
   it('танихгүй ангилалд null (админаас ирсэн төрөл хүчинтэй хэвээр)', () => {
+    // Сорилын тоглоом нь өөрийн `quizType`-аар явдаг тул жоргүй.
     expect(recipeFor('soril')).toBeNull();
-    expect(recipeFor('ielts_reading')).toBeNull();
+  });
+});
+
+/**
+ * IELTS-ийн 4 модуль. Урьд нь жор ОГТ байгаагүй тул ерөнхий prompt рүү унаж,
+ * жинхэнэ шалгалтын бүтэцтэй огт төстэй биш контент гардаг байв.
+ */
+describe('recipeFor — IELTS', () => {
+  it('Reading → эх бичвэр шаардана, асуулт түүнээс гарна', () => {
+    const r = recipeFor('ielts_reading');
+    expect(r?.questionType).toBe('multiple_choice');
+    const rules = r!.rules.join(' ');
+    expect(rules).toContain('passageText');
+    expect(rules).toContain('250–350');
+  });
+
+  it('Listening → сонсох бичвэр + нэрээр эхлэх дүрэм', () => {
+    const r = recipeFor('ielts_listening');
+    expect(r?.questionType).toBe('multiple_choice');
+    const rules = r!.rules.join(' ');
+    expect(rules).toContain('passageText');
+    // Апп бичвэрийг дуугаар уншдаг тул "A:/B:" биш, нэр хэрэгтэй.
+    expect(rules).toContain('НЭРЭЭР эхлүүл');
+  });
+
+  it('Writing · Speaking → open_response, жишиг хариулт + band тайлбартай', () => {
+    for (const cat of ['ielts_writing', 'ielts_speaking']) {
+      const r = recipeFor(cat);
+      expect(r?.questionType).toBe('open_response');
+      expect(r!.rules.join(' ')).toContain('band 7–8');
+    }
+  });
+
+  it('IELTS Listening нь сонсголын ангилалд тооцогдоно', () => {
+    // Үүнгүйгээр апп бичвэрийг уншихгүй, шалгагч ч бичвэр шаардахгүй тул
+    // AI-гаар үүсгэсэн IELTS сонсгол хариулах боломжгүй болно.
+    expect(isListeningCategory('ielts_listening')).toBe(true);
+    expect(isListeningCategory('ielts_reading')).toBe(false);
   });
 });
 

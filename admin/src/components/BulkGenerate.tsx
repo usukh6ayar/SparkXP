@@ -66,10 +66,18 @@ interface ModalProps {
   onClose: () => void;
   /** Ажил эхэлмэгц — эцэг хуудас явцыг харуулна. */
   onStarted: (jobId: string) => void;
+  /**
+   * CEFR түвшний сонголтыг нуух (IELTS).
+   *
+   * IELTS-д контент нь **зорилтот band**-аар ангилагддаг ба `Quiz.level` нь
+   * band-аас автоматаар гардаг (backend `bandToLevel`). Тиймээс энд CEFR
+   * асуух нь илүүц бөгөөс төөрөгдүүлнэ — админ хоёр өөр хэмжүүр бөглөх болно.
+   */
+  hideLevel?: boolean;
 }
 
 export function BulkGenerateModal({
-  kind, title, targets, defaultXp, onClose, onStarted,
+  kind, title, targets, defaultXp, onClose, onStarted, hideLevel = false,
 }: ModalProps) {
   const [level, setLevel] = useState('a1');
   const [perTarget, setPerTarget] = useState('10');
@@ -128,18 +136,25 @@ export function BulkGenerateModal({
     <Modal title={`Бүх төрлөөр үүсгэх — ${title}`} onClose={onClose} size="lg">
       <div className="space-y-4">
         <p className="rounded-lg bg-primarySoft px-3 py-2 text-sm text-gray-600">
-          Агуулга бичих шаардлагагүй — түвшингээ сонгоход AI төрөл бүрийн онцлогт
-          тохирсон дасгал бэлдэнэ. Аль хэдийн байгаа контенттой{' '}
-          <strong>давхцуулахгүй</strong>.
+          Агуулга бичих шаардлагагүй — AI төрөл бүрийн онцлогт тохирсон дасгал
+          бэлдэнэ. Аль хэдийн байгаа контенттой <strong>давхцуулахгүй</strong>.
+          {hideLevel && (
+            <>
+              {' '}Дасгалууд <strong>band тус бүрд</strong> тэнцүү тарна;
+              CEFR түвшин нь band-аас автоматаар тодорхойлогдоно.
+            </>
+          )}
         </p>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <Select
-            label="Түвшин"
-            options={levelFormOptions}
-            value={level}
-            onChange={(e) => setLevel(e.target.value)}
-          />
+        <div className={`grid grid-cols-1 gap-4 ${hideLevel ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
+          {!hideLevel && (
+            <Select
+              label="Түвшин"
+              options={levelFormOptions}
+              value={level}
+              onChange={(e) => setLevel(e.target.value)}
+            />
+          )}
           <Select
             label="Төрөл бүрт хэдэн дасгал"
             options={COUNT_OPTIONS(10)}
