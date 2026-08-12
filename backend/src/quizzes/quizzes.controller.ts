@@ -129,7 +129,8 @@ export class QuizzesController {
   /** Get a single quiz by id. */
   @Get(':id')
   findOne(@Param('id', ParseUUIDPipe) id: string) {
-    return this.quizzesService.findOne(id);
+    // Аппын хувилбар: `fill_blank` бүрд яг 4 сонголт бэлдэнэ.
+    return this.quizzesService.findOneForStudent(id);
   }
 
   /** Admin: update a quiz. */

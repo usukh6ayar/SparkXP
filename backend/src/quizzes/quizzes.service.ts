@@ -28,6 +28,7 @@ import {
 import {
   buildStepBrief,
   buildWordBank,
+  withFillChoices,
   normalizeChoices,
   dedupKey,
   planSteps,
@@ -664,11 +665,35 @@ export class QuizzesService {
     };
   }
 
-  async findOne(id: string): Promise<Quiz & { wordBank?: string[] }> {
+  /**
+   * ⚠️ **Бүтэн entity буцаана — зөв хариулттайгаа.**
+   *
+   * Дүгнэлт (`/check`, `/submit`) ба `update` энэ метод дээр тулгуурладаг тул
+   * эндээс `answer`/`correct`-ыг хасаж БОЛОХГҮЙ: `update` нь буцаасан объект
+   * дээр нь шууд хадгалдаг учир хасвал DB-гээс хариултууд устана.
+   *
+   * Сурагч руу явуулах хувилбар нь `findOneForStudent`.
+   */
+  async findOne(id: string): Promise<Quiz> {
     const quiz = await this.quizzes.findOne({ where: { id } });
     if (!quiz) throw new NotFoundException('Quiz олдсонгүй');
-    const wordBank = buildWordBank(quiz.questions);
-    return wordBank ? Object.assign(quiz, { wordBank }) : quiz;
+    return quiz;
+  }
+
+  /**
+   * Аппын дасгал ажиллуулагчид өгөх хэлбэр.
+   *
+   * `fill_blank` асуулт бүрд **яг 4 сонголт** баталгаажуулна — урьд нь
+   * сонголтгүй хуучин контент дээр апп бүх дасгалын хариултыг агуулсан
+   * «үгийн сан» руу буцдаг байсан тул 10 асуулттай дасгалд **10 чипс** гарч,
+   * дэлгэц эмх замбараагүй болдог байв.
+   */
+  async findOneForStudent(id: string): Promise<Quiz & { wordBank?: string[] }> {
+    const quiz = await this.findOne(id);
+    const questions = withFillChoices(quiz.questions) as Quiz['questions'];
+    const wordBank = buildWordBank(questions);
+    // Шинэ объект — entity-г мутацлавал дараагийн хадгалалтад нөлөөлж болзошгүй.
+    return { ...quiz, questions, ...(wordBank ? { wordBank } : {}) };
   }
 
   async update(id: string, dto: UpdateQuizDto): Promise<Quiz> {
@@ -703,8 +728,34 @@ export class QuizzesService {
 
     const questions = quiz.questions as StoredQuestion[];
     const totalPoints = questions.reduce((s, q) => s + q.points, 0);
+
+    /*
+     * ⚠️ Бүхэлдээ **задгай бичих** дасгал (`open_response`) — оноо нь 0 тул
+     * нийт оноо ч 0 болж, урьд нь «Quiz-д оноогүй асуулт байна» гэсэн 400
+     * алдаа өгдөг байв: сурагч бичээд дуусгачихаад ИЛГЭЭЖ ЧАДДАГГҮЙ байсан.
+     *
+     * Эдгээр нь автомат үнэлгээгүй (жишиг хариулттай нь өөрөө харьцуулна) тул
+     * дүн биш, **дуусгасан** эсэхээр нь тооцно: бүтэн XP, алдааны тойм гарахгүй.
+     */
     if (totalPoints === 0) {
-      throw new BadRequestException('Quiz-д оноогүй асуулт байна');
+      const allOpen =
+        questions.length > 0 && questions.every((q) => q.type === 'open_response');
+      if (!allOpen) {
+        throw new BadRequestException('Quiz-д оноогүй асуулт байна');
+      }
+      return {
+        score: 0,
+        total: 0,
+        percentage: 100,
+        passed: true,
+        xpEarned: quiz.xpReward,
+        // Үнэлгээгүй тул алдаа гэж тэмдэглэхгүй — эс бөгөөс «бүгд буруу» болно.
+        breakdown: questions.map((_, i) => ({
+          questionIndex: i,
+          correct: true,
+          points: 0,
+        })),
+      };
     }
 
     // Build answer lookup by questionIndex

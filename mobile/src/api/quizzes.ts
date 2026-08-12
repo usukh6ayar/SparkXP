@@ -33,6 +33,16 @@ export interface Quiz {
   category: string | null;
   /** Sub-category (сэдэв) within the skill — used to group exercises on mobile. */
   topic: string | null;
+  /**
+   * Сорилын тоглоомын төрөл — `word_guess` · `listening` · `grammar` ·
+   * `speed` · `matching` · `fill` (админы Сорил хуудасны сонголт).
+   *
+   * Сорилын таб үүгээр бүлэглэдэг: тэр хуудас «Сэдэв» талбаргүй тул `topic`
+   * үргэлж хоосон байдаг ба энэ л мөр бүрд бөглөгддөг цорын ганц ангилал.
+   */
+  quizType: string | null;
+  /** Хэзээ нэмэгдсэн — «Шинэ» тэмдэг ба эрэмбэлэлтэд ашиглана. */
+  createdAt: string;
   /** IELTS Reading: passage shown above the questions (null for other quizzes). */
   passageText: string | null;
   /** IELTS Listening: the section's recording (null for other quizzes). */
