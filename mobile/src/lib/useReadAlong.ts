@@ -35,7 +35,15 @@ export interface ReadAlongSentence {
  *   <Pressable onPress={read.toggle} />
  *   <Text highlight={read.active === i} />
  */
-export function useReadAlong(sentences: ReadAlongSentence[]) {
+export function useReadAlong(
+  sentences: ReadAlongSentence[],
+  options?: {
+    /** Device-voice speed. 0.9 = normal; the listening exercise drops to 0.55
+     *  for its "Удаан" toggle. Recorded audio ignores it. */
+    rate?: number;
+  },
+) {
+  const rate = options?.rate ?? 0.9;
   const player = useAudioPlayer();
   // Index of the sentence being spoken, or null when nothing is playing.
   const [active, setActive] = useState<number | null>(null);
@@ -67,6 +75,12 @@ export function useReadAlong(sentences: ReadAlongSentence[]) {
   const startedRef = useRef(false);
   /** Mirror of `filePlaying` readable inside callbacks (state would be stale). */
   const filePlayingRef = useRef(false);
+  /** Speed, in a ref so changing it never rebuilds the playback chain — that
+   *  rebuild would cut the sentence being spoken in half. */
+  const rateRef = useRef(rate);
+  useEffect(() => {
+    rateRef.current = rate;
+  }, [rate]);
 
   /**
    * Put the audio session into plain, audible playback before the first
@@ -131,7 +145,7 @@ export function useReadAlong(sentences: ReadAlongSentence[]) {
     speakingRef.current = true;
     Speech.speak(text, {
       language: 'en-US',
-      rate: 0.9,
+      rate: rateRef.current,
       onDone: () => {
         if (run !== runRef.current) return; // superseded by a newer run
         speakingRef.current = false;
@@ -287,17 +301,28 @@ export function useReadAlong(sentences: ReadAlongSentence[]) {
     else player.play();
   }, [playing, player, silence, startFromIdle]);
 
-  /** Skip buttons. From idle they begin a run, so they prime the session too. */
-  const jump = useCallback(
-    (i: number) => {
-      if (activeRef.current == null) startFromIdle(Math.max(0, i));
-      else playRef.current(i);
-    },
-    [startFromIdle],
-  );
+  /**
+   * Jump to a sentence (scrub bar, skip, resume).
+   *
+   * The session is re-primed EVERY time, not just from idle: a sound effect or
+   * another screen can leave the app in a mode where the device voice comes out
+   * silent, and the symptom is a player that looks like it is running while
+   * nothing is heard. Re-asserting costs a millisecond and removes the class.
+   */
+  const jump = useCallback((i: number) => startFromIdle(Math.max(0, i)), [startFromIdle]);
 
   const next = useCallback(() => jump((activeRef.current ?? -1) + 1), [jump]);
   const prev = useCallback(() => jump(Math.max(0, (activeRef.current ?? 0) - 1)), [jump]);
+
+  /** Stop the sound but keep the place (`toggle` resumes it). */
+  const pause = useCallback(() => {
+    if (playing) toggle();
+  }, [playing, toggle]);
+
+  /** Carry on from the sentence we stopped in. No-op if nothing was started. */
+  const resume = useCallback(() => {
+    if (!playing && activeRef.current != null) toggle();
+  }, [playing, toggle]);
 
   // Leaving the screen (or loading another passage) must not keep talking.
   // Empty deps on purpose: this cleanup must run on UNMOUNT only. Depending on
@@ -316,9 +341,15 @@ export function useReadAlong(sentences: ReadAlongSentence[]) {
     playing,
     /** True when the admin generated real audio; false = device voice only. */
     hasRecordedAudio: sentences.some((s) => s.audioUrl),
+    /** How many sentences there are — the scrub bar's segment count. */
+    count: sentences.length,
     toggle,
+    pause,
+    resume,
     stop,
     next,
     prev,
+    /** Jump straight to a sentence and play from there (scrubbing). */
+    seek: jump,
   };
 }

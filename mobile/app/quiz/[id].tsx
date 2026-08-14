@@ -9,7 +9,6 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
-import * as Speech from 'expo-speech';
 import { useAuth } from '../../src/auth/AuthContext';
 import * as quizzesApi from '../../src/api/quizzes';
 import type { Quiz, QuizQuestion, AnswerItem, QuizResult } from '../../src/api/quizzes';
@@ -21,6 +20,9 @@ import { Button } from '../../src/components/Button';
 import { Skeleton } from '../../src/components/Skeleton';
 import { EmptyState } from '../../src/components/EmptyState';
 import { PressableScale } from '../../src/components/PressableScale';
+import { SeekBar, formatTime } from '../../src/components/audio/SeekBar';
+import { quizSkill } from '../../src/constants/quizSkill';
+import { useReadAlong } from '../../src/lib/useReadAlong';
 import { AppImage } from '../../src/components/AppImage';
 import { WordMatchBoard } from '../../src/components/WordMatchBoard';
 import { ProgressBar } from '../../src/components/ProgressBar';
@@ -135,18 +137,52 @@ const words = (s: string): string[] =>
  * Ярианы мөрүүдээс асуултын үгстэй хамгийн их давхцаж буйг нь сонгоно;
  * итгэлтэй таарахгүй бол `null` (тэгвэл бүтэн яриаг уншина).
  */
-function findScriptSentence(script: string, question: string): string | null {
+function findScriptSentence(lines: string[], question: string): number | null {
   const need = words(question.replace(/_{2,}/g, ' '));
   if (need.length < 2) return null;
 
-  let best: { line: string; hits: number } | null = null;
-  for (const line of script.split(/(?<=[.!?])\s+|\n+/)) {
+  let best: { index: number; hits: number } | null = null;
+  lines.forEach((line, index) => {
     const have = new Set(words(line));
     const hits = need.filter((w) => have.has(w)).length;
-    if (!best || hits > best.hits) best = { line: line.trim(), hits };
-  }
+    if (!best || hits > best.hits) best = { index, hits };
+  });
   // Талаас илүү үг нь таарсан үед л итгэнэ — эс бөгөөс огт өөр өгүүлбэр уншина.
-  return best && best.hits * 2 > need.length ? best.line : null;
+  const found = best as { index: number; hits: number } | null;
+  return found && found.hits * 2 > need.length ? found.index : null;
+}
+
+/**
+ * Ярианы бичвэрийг сонсох НЭГЖ болгон хуваана.
+ *
+ * ⚠️ Яагаад өгүүлбэр вэ: төхөөрөмжийн хоолойд (`expo-speech`) цагийн шугам
+ * БАЙХГҮЙ — секунд рүү үсрэх боломжгүй. Тиймээс өгүүлбэр бол бидний үнэнчээр
+ * очиж чадах хамгийн жижиг байрлал бөгөөд сонсголын дасгалд ч тэр нь яг
+ * хэрэгтэй нэгж («нөгөө мөрийг нь дахиад сонсъё»).
+ */
+/** Зурвас дээрх байрлал (0..1) → өгүүлбэрийн дугаар. */
+const seekIndex = (ratio: number, count: number): number =>
+  Math.max(0, Math.min(count - 1, Math.floor(ratio * count)));
+
+/**
+ * Өгүүлбэр хэр удаан уншигдахыг ойролцоогоор тооцно (мс).
+ *
+ * ⚠️ Зөвхөн **зурвасыг жигд гүйлгэхэд** хэрэглэнэ, өөр юунд ч биш.
+ * `expo-speech` нь «хэр явсан» гэдгээ хэлдэггүй тул зурвас нь өгүүлбэр бүрд
+ * үсэрч, дунд нь хөшиж зогсдог байв. Ойролцоо ~2.6 үг/сек (хэвийн хурд);
+ * хэтэрвэл зурвас өгүүлбэрийнхээ төгсгөлд хүрээд хүлээнэ — хэзээ ч
+ * дараагийн өгүүлбэр рүү давж орохгүй.
+ */
+const speakMs = (text: string, rate: number): number => {
+  const words = text.trim().split(/\s+/).filter(Boolean).length || 1;
+  return Math.max(700, (words / (2.6 * (rate / 0.9))) * 1000);
+};
+
+function splitScript(script: string): string[] {
+  return script
+    .split(/(?<=[.!?])\s+|\n+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
 }
 
 /**
@@ -361,7 +397,11 @@ export default function QuizScreen() {
   // IELTS Reading passage panel + Listening playback.
   const [passageOpen, setPassageOpen] = useState(true);
   const audio = useAudioPlayer();
-  const playing = useAudioPlayerStatus(audio).playing;
+  const audioStatus = useAudioPlayerStatus(audio);
+  const playing = audioStatus.playing;
+  /** Бодит бичлэгийн байрлал — гүйлгэх зурвасны утга (секундээр). */
+  const audioAt = audioStatus.currentTime ?? 0;
+  const audioLen = audioStatus.duration ?? 0;
 
   /** Play / pause the IELTS Listening recording (pause keeps the position, so a
    *  student can stop mid-section and resume instead of restarting). */
@@ -369,6 +409,14 @@ export default function QuizScreen() {
     if (playing) audio.pause();
     else audio.play();
   }
+
+  /** Гүйлгэх зурвас → секунд рүү. Дууссаны дараа ч ухрааж болно. */
+  const seekAudio = useCallback(
+    (ratio: number) => {
+      if (audioLen > 0) void audio.seekTo(ratio * audioLen);
+    },
+    [audio, audioLen],
+  );
 
   const load = useCallback(() => {
     setPhase('loading');
@@ -455,14 +503,26 @@ export default function QuizScreen() {
    * IELTS Listening (`audioUrl`) нь бодит бичлэгтэй тул хөндөгдөхгүй.
    */
   /**
-   * ⚠️ `ielts_listening` ч ОРНО: AI-гаар үүсгэсэн IELTS сонсголд бодит бичлэг
-   * байдаггүй тул апп бичвэрийг нь дуугаар уншина. Үүнгүйгээр тэдгээр дасгал
-   * дуугүй үлдэж, асуулт нь эх мэдээлэлгүй болно. Админ бодит бичлэг
-   * (`audioUrl`) хийсэн бол доорх нөхцөл түүнийг чөлөөлж, тоглуулагч гарна.
+   * ⚠️ Ур чадварыг **`quizSkill()`-ээр** таана, `category`-г шууд харьцуулахгүй
+   * (`src/constants/skills.ts`). Гурван эх сурвалж бүгд сонсгол байж болно:
+   * Дасгал (`listening`) · IELTS (`ielts_listening`) · **Сорил** (`soril` +
+   * `quizType: 'listening'`). Сүүлийнхийг тоолдоггүй байсан тул Сорил хуудсаар
+   * үүсгэсэн сонсголын дасгал бүр **уншлага мэт** нээгдэж, яриа нь «Уншлагын
+   * эх» болж ил гарч, тоглуулагч огт гардаггүй байв (Choi, B2 дээр илэрсэн).
+   *
+   * Бодит бичлэгтэй (`audioUrl`) дасгал энд ОРОХГҮЙ — тэнд дуугаар уншуулах
+   * шаардлагагүй, өөрийн тоглуулагчтай.
    */
-  const isListening =
-    (quiz?.category === 'listening' || quiz?.category === 'ielts_listening') &&
-    !quiz?.audioUrl;
+  /** Дасгалын ур чадвар — бүх ялгаварлалт эндээс эхэлнэ. */
+  const skill = quiz ? quizSkill(quiz) : null;
+  const isListening = skill === 'listening' && !quiz?.audioUrl;
+  /**
+   * Уншлагын дасгал. Урьд нь тусад нь танигддаггүй, зүгээр л «сонсгол биш бол
+   * уншлага» гэж дүгнэгддэг байсан — тиймээс Сорилоос үүссэн уншлагын дасгал
+   * ч, дүрмийн дасгал ч ялгаагүй «Уншлагын эх» гэсэн гарчигтай гарч, зааврыг
+   * нь хэн ч уншиж мэдэхгүй байв.
+   */
+  const isReading = skill === 'reading';
   /**
    * Сонсох зүйл. Шинэ дасгалд энэ нь `passageText` дэх БОГИНО ЯРИА (нэг
    * өгүүлбэр сонсох нь дасгал болохооргүй богино байсан); хуучин дасгалд
@@ -485,14 +545,17 @@ export default function QuizScreen() {
     : quiz?.passageText
       || (currentQ?.type === 'fill_blank' ? '' : currentQ?.question || '');
   const hasScript = isListening && !!quiz?.passageText;
+  /** Сонсох нэгжүүд — тоглуулагчийн байрлал бүхэлдээ эдгээрээр хэмжигдэнэ. */
+  const scriptLines = useMemo(() => splitScript(listenScript), [listenScript]);
   /**
    * Сонсоод НӨХӨХ дасгалд бүтэн яриа нь хэтэрхий урт — нөхөх үг нь хаана
    * сонсогдохыг олох гэж сурагч бүтнээр нь дахин дахин сонсдог. Тухайн
-   * өгүүлбэрийг нь тусад нь уншвал дутуу үг тод сонсогдоно.
+   * өгүүлбэр рүү нь ҮСЭРВЭЛ дутуу үг тод сонсогдоно (бүтнээр нь эхнээс дахин
+   * эхлүүлэхгүй — тэр нь дараагийн асуулт бүрд удаан хүлээлт болдог байв).
    */
-  const focusSentence =
+  const focusIndex =
     hasScript && currentQ?.type === 'fill_blank' && currentQ.question
-      ? findScriptSentence(quiz!.passageText!, currentQ.question)
+      ? findScriptSentence(scriptLines, currentQ.question)
       : null;
   /**
    * Юуг нуух вэ:
@@ -505,7 +568,15 @@ export default function QuizScreen() {
    * мэдэхгүй. Урьд нь яриагүй хуучин дасгал дээр өгүүлбэр нь бүхэлдээ нуугдаж,
    * зөвхөн хариултаа илгээсний ДАРАА гарч ирдэг байв.
    */
-  const hidePassage = isListening && !feedback;
+  /**
+   * ⚠️ Сонссон бичвэр нь **өөрөө хэзээ ч цухуйж гарахгүй** (Choi, 2026-08-14:
+   * «Check дарах болгонд гарч ирэхээ болиё — хамгийн сүүлд, эсвэл товч дарахад
+   * гарг»). Хариулсны дараа «Бичвэр харах» товч л гарна; дарвал нээгдэнэ,
+   * дараагийн асуулт дээр өөрөө дахин хаагдана. Бүтнээрээ дүнгийн дэлгэцэд
+   * (хамгийн сүүлд) гарна.
+   */
+  const [transcriptOpen, setTranscriptOpen] = useState(false);
+  const showTranscript = isListening && transcriptOpen;
   const hideQuestionText =
     isListening && !hasScript && !feedback && currentQ?.type !== 'fill_blank';
 
@@ -527,59 +598,127 @@ export default function QuizScreen() {
   const [playCount, setPlayCount] = useState(0);
 
   /**
-   * Нэг дуудлагаар хоёуланг нь: өгүүлбэр эсвэл бүтэн яриа.
+   * Ярианы тоглуулагч — унших дэлгэцтэй ЯГ ижил хөдөлгүүр (`useReadAlong`):
+   * өгүүлбэр дуусмагц дараагийнх нь эхэлнэ, тиймээс хаана явж байгаа нь үргэлж
+   * мэдэгдэнэ. Энэ мэдэгдэх байрлал нь доорх гүйлгэх зурвасны утга.
    *
-   * ⚠️ `Speech.stop()` нь **асинхрон**. Шууд араас нь `speak()` дуудвал шинэ
-   * өгүүлбэрийг зогсоолт нь залгиж, дуу ОГТ гардаггүй — «Үргэлжлүүлэх» дарахад
-   * дараагийн үг уншигдахгүй, товчийг дахин дарах шаардлагатай болдог байв.
-   * Богино хүлээлт нь зогсоолт бүрэн болсны дараа эхлүүлнэ.
+   * ⚠️ Хурдыг сольсон ч тоглуулагч дахин баригдахгүй (`useReadAlong` доторх
+   * `rateRef`) — эс бөгөөс «Удаан» дарах бүрд яриа тасарна.
    */
-  const speakTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const speak = useCallback((text: string) => {
-    if (!text) return;
-    if (speakTimer.current) clearTimeout(speakTimer.current);
-    void Speech.stop();
-    speakTimer.current = setTimeout(() => {
-      Speech.speak(speakable(text), {
-        language: 'en-US',
-        rate: slowSpeech ? 0.55 : 0.9,
-      });
-    }, 160);
-  }, [slowSpeech]);
+  const listenSentences = useMemo(
+    () => scriptLines.map((text) => ({ text: speakable(text), audioUrl: null })),
+    [scriptLines],
+  );
+  const listen = useReadAlong(listenSentences, { rate: slowSpeech ? 0.55 : 0.9 });
 
   /**
-   * Үндсэн товч. Нөхөх дасгалд **тухайн өгүүлбэрийг**, бусад үед бүтэн яриаг —
-   * сурагчид хэрэгтэй зүйл нь өөр учраас.
+   * Аль өгүүлбэр дээр байгаа. `listen.active` нь дуусахад `null` болдог тул
+   * шууд ашиглавал зурвас эхэн рүүгээ үсэрнэ — сүүлчийн байрлалыг барина.
    */
-  const speakScript = useCallback(() => {
-    speak(focusSentence ?? listenScript);
-    setPlayCount((n) => n + 1);
-  }, [speak, focusSentence, listenScript]);
-
-  /**
-   * Шинэ асуулт гармагц өөрөө уншина — сурагч товч хайх шаардлагагүй.
-   *
-   * Түлхүүр нь **унших текст өөрөө**: өгүүлбэр солигдвол (нөхөх дасгал) шинэ
-   * асуулт бүрд уншина, харин бүтэн яриа өөрчлөгдөөгүй бол (сонгох дасгал)
-   * дахин давтахгүй. `attempt` нь буруу хариулаад **эргэж ирсэн** асуултыг ч
-   * дахин уншуулна — өмнө нь тэр тохиолдолд чимээгүй үлддэг байв.
-   */
-  const spokenFor = useRef<string | null>(null);
+  const [listenAt, setListenAt] = useState(0);
   useEffect(() => {
-    const target = focusSentence ?? listenScript;
-    // Өгүүлбэр бүрийн хувьд оролдлогыг ялгана; бүтэн яриаг нэг л удаа.
-    const key = focusSentence ? `${target}#${attempt}` : target;
-    if (!isListening || !target || spokenFor.current === key) return;
-    spokenFor.current = key;
-    setPlayCount(0);
-    speakScript();
-  }, [isListening, listenScript, focusSentence, attempt, speakScript]);
+    if (listen.active != null) setListenAt(listen.active);
+  }, [listen.active]);
 
-  // Дэлгэцээс гарахад дуу үргэлжлэхгүй (хүлээж буй уншилт ч цуцлагдана).
-  useEffect(() => () => {
-    if (speakTimer.current) clearTimeout(speakTimer.current);
-    void Speech.stop();
-  }, []);
+  /**
+   * Тоглуулах/зогсоох үндсэн товч. Сонссон тоо нь «дахин сонсож болно» гэдгийг
+   * хэлдэг тул зөвхөн ЭХЛҮҮЛЭХ үед нэмэгдэнэ.
+   */
+  const toggleListen = useCallback(() => {
+    if (!listen.playing) setPlayCount((n) => n + 1);
+    listen.toggle();
+  }, [listen]);
+
+  /** Зурвасаар үсрэх. */
+  const seekListen = useCallback((index: number) => listen.seek(index), [listen]);
+
+  /**
+   * **Шалгах = түр зогсоох, дараагийн асуулт = үргэлжлүүлэх.**
+   *
+   * Урьд нь хариултаа шалгуулахад уншилт **өөрөө** тасарч, сурагч дахин товч
+   * дарж байж үргэлжлүүлдэг байв (дуу эффект/аудио сессийн хөндлөнгийн
+   * оролцоо — аль нь болохыг апп мэдэх ч аргагүй). Тэрийг таамаглаж «сэргээх»
+   * оролдлогыг больж, зогсоолтыг нь **өөрсдөө удирдав**: шалгамагц зориудаар
+   * зогсооно (сурагч тэр агшинд сонсохоо больж, хариултаа хардаг), дараагийн
+   * асуулт руу орохоор зогссон өгүүлбэрээсээ **өөрөө** үргэлжилнэ.
+   *
+   * ⚠️ Нөхөх дасгалыг ЭНД үргэлжлүүлэхгүй — доорх `focusIndex` нөлөө нь тухайн
+   * асуултын өгүүлбэр рүү үсэргэдэг тул хоёулаа ажиллавал хоёр өөр өгүүлбэр
+   * зэрэг эхэлнэ.
+   */
+  const pausedByCheck = useRef(false);
+  useEffect(() => {
+    if (!isListening) return;
+    if (feedback) {
+      if (listen.playing) {
+        pausedByCheck.current = true;
+        listen.pause();
+      }
+      return;
+    }
+    if (!pausedByCheck.current) return;
+    pausedByCheck.current = false;
+    if (focusIndex == null) listen.resume();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isListening, feedback]);
+
+  /**
+   * Шинэ дасгал нээгдмэгц өөрөө эхэлнэ — сурагч товч хайх шаардлагагүй.
+   *
+   * ⚠️ **Асуулт солигдоход дахин эхлүүлэхгүй.** Урьд нь «Үргэлжлүүлэх» дарах
+   * бүрд яриа эхнээсээ уншигдаж, урт ярианд сурагч дахин хүлээдэг байв. Одоо
+   * тоглуулагч байрандаа үлдэнэ; нөхөх дасгалд л ХЭРЭГТЭЙ өгүүлбэр рүү нь
+   * үсэрнэ (эхнээс нь биш).
+   */
+  const startedFor = useRef<string | null>(null);
+  /** Аль өгүүлбэр рүү аль асуултын улмаас үсэрсэн (доорх нөлөөтэй хуваалцана). */
+  const focusedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!isListening || scriptLines.length === 0) return;
+    const key = scriptLines.join('|');
+    if (startedFor.current === key) return;
+    startedFor.current = key;
+    setPlayCount(1);
+    // Нөхөх дасгал шууд хэрэгтэй өгүүлбэрээсээ эхэлнэ. Доорх нөлөө мөн үүнийг
+    // хийх гэж оролдохгүйн тулд түлхүүрийг нь урьдчилж тэмдэглэнэ — эс бөгөөс
+    // хоёулаа эхлүүлж, эхний өгүүлбэрийн үзүүр тасарч сонсогдоно.
+    const start = focusIndex ?? 0;
+    if (focusIndex != null) focusedFor.current = `${focusIndex}#${attempt}`;
+    seekListen(start);
+    // Тоглуулагч бүр рендерт шинэчлэгддэг тул `listen`-ийг хамааралд оруулбал
+    // энэ нөлөө дахин ажиллаж, яриаг эхнээс нь тасалдуулна.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isListening, scriptLines]);
+
+  /**
+   * Нөхөх дасгал: асуулт солигдоход тухайн үг сонсогдох өгүүлбэр рүү үсэрнэ.
+   * Буруу хариулаад эргэж ирсэн асуултад ч дахин үсэрнэ (`attempt`).
+   */
+  useEffect(() => {
+    if (!isListening || focusIndex == null) return;
+    const key = `${focusIndex}#${attempt}`;
+    if (focusedFor.current === key) return;
+    focusedFor.current = key;
+    seekListen(focusIndex);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isListening, focusIndex, attempt]);
+
+  // Шинэ асуулт — бичвэр өөрөө хаагдана. Эс бөгөөс нэг удаа нээсэн нь цаашдын
+  // асуулт бүрд ил үлдэж, яг л хуучин «өөрөө гарч ирдэг» зан төлөв рүү буцна.
+  useEffect(() => {
+    setTranscriptOpen(false);
+  }, [currentIndex]);
+
+  /**
+   * Дасгал дуусмагц яриа зогсоно. Урьд нь нэг өгүүлбэр уншаад өөрөө дуусдаг
+   * байсан бол одоо гинжин тоглуулалт үргэлжилдэг тул баяр хүргэх дэлгэцийн
+   * доогуур яриа сонсогдох эрсдэлтэй.
+   */
+  useEffect(() => {
+    if (phase !== 'result') return;
+    listen.stop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
 
   /**
    * `fill_blank`-ийн үгийн сан. Гараар бичих нь хэт хэцүү байсан (зөв санааг
@@ -611,13 +750,18 @@ export default function QuizScreen() {
       ? t('howToWrite')
       : isListening
         ? t(currentQ.type === 'fill_blank' ? 'howToListenFill' : 'howToListen')
-        : currentQ.type === 'multiple_choice'
-          ? t('howToChoose')
-          : currentQ.type === 'word_match'
-            ? t('howToMatch')
-            : currentQ.type === 'fill_blank'
-              ? t(useWordBank ? 'howToFillBank' : 'howToFillType')
-              : '';
+        : // Уншлага нь сонсголтой ижил зарчмаар өөрийн зааврыг авна: эх
+          // бичвэрээ уншаад хариул (өмнө нь энгийн «Зөв хариултыг сонго» гэж
+          // гардаг тул дээрх бичвэр яагаад байгаа нь тодорхойгүй байв).
+          isReading && quiz?.passageText && currentQ.type === 'multiple_choice'
+          ? t('howToRead')
+          : currentQ.type === 'multiple_choice'
+            ? t('howToChoose')
+            : currentQ.type === 'word_match'
+              ? t('howToMatch')
+              : currentQ.type === 'fill_blank'
+                ? t(useWordBank ? 'howToFillBank' : 'howToFillType')
+                : '';
 
   // "Last" only if this answer is right — a wrong one re-queues, so the run
   // isn't over. Computed from the feedback we already have.
@@ -986,6 +1130,15 @@ export default function QuizScreen() {
               };
             })}
           />
+
+          {/* Сонссон бичвэр — ХАМГИЙН СҮҮЛД. Дасгалын явцад өөрөө гарч ирдэг
+              байсныг больсон тул юу сонссоноо бүтнээр нь энд шалгана. */}
+          {isListening && quiz?.passageText ? (
+            <View style={styles.passageBox}>
+              <AppText variant="bodyStrong">{t('listenTranscript')}</AppText>
+              <AppText variant="body" style={styles.passageText}>{quiz.passageText}</AppText>
+            </View>
+          ) : null}
         </ScrollView>
 
         {/* Pinned, not parked at the end of the scroll: the way out shouldn't
@@ -1081,27 +1234,50 @@ export default function QuizScreen() {
 
         {/* IELTS Listening — the section recording, replayable at any time. */}
         {quiz!.audioUrl ? (
-          <PressableScale haptic={false} onPress={toggleAudio} style={styles.audioBar}>
-            <Ionicons name={playing ? 'pause' : 'play'} size={22} color={c.primary} />
-            <AppText variant="bodyStrong" color={c.primary}>
-              {playing ? t('ieltsAudioPause') : t('ieltsAudioPlay')}
-            </AppText>
-          </PressableScale>
+          <View style={styles.audioBar}>
+            <View style={styles.listenRow}>
+              <PressableScale haptic={false} onPress={toggleAudio} style={styles.listenIcon}>
+                <Ionicons name={playing ? 'pause' : 'play'} size={24} color={c.white} />
+              </PressableScale>
+              <AppText variant="bodyStrong" color={c.white} style={styles.listenLabel}>
+                {playing ? t('ieltsAudioPause') : t('ieltsAudioPlay')}
+              </AppText>
+            </View>
+            {/* Бодит бичлэгт цаг нь мэдэгддэг тул нэгж нь секунд — гэхдээ
+                удирдлага нь ижил: зөвхөн чирнэ, ухраах товчгүй. */}
+            <SeekBar
+              value={audioLen > 0 ? audioAt / audioLen : 0}
+              onSeek={seekAudio}
+              left={(r) => formatTime(r * audioLen)}
+              right={formatTime(audioLen)}
+              disabled={audioLen <= 0}
+            />
+          </View>
         ) : null}
 
         {/* IELTS Reading — the passage, open by default and collapsible so the
-            questions stay reachable on a phone screen. */}
-        {quiz!.passageText && !hidePassage ? (
+            questions stay reachable on a phone screen. Сонсголд энэ хайрцаг
+            зөвхөн ГАРААР нээгдэнэ (`showTranscript`) — өмнө нь хариулт бүрийн
+            дараа өөрөө цухуйж гарч ирдэг байв. */}
+        {quiz!.passageText && (isListening ? showTranscript : true) ? (
           <View style={styles.passageBox}>
-            <Pressable onPress={() => setPassageOpen((v) => !v)} hitSlop={6} style={styles.passageHead}>
+            <Pressable
+              onPress={() => (isListening ? setTranscriptOpen(false) : setPassageOpen((v) => !v))}
+              hitSlop={6}
+              style={styles.passageHead}
+            >
               <AppText variant="bodyStrong">
                 {/* Сонсголд энэ нь "уншлагын эх" биш, сонссон зүйлийн БИЧВЭР —
                     хариулсны дараа өөрийгөө шалгах зорилготой. */}
                 {isListening ? t('listenTranscript') : t('ieltsPassage')}
               </AppText>
-              <Ionicons name={passageOpen ? 'chevron-up' : 'chevron-down'} size={18} color={c.textMuted} />
+              <Ionicons
+                name={isListening || passageOpen ? 'chevron-up' : 'chevron-down'}
+                size={18}
+                color={c.textMuted}
+              />
             </Pressable>
-            {passageOpen ? (
+            {isListening || passageOpen ? (
               <AppText variant="body" style={styles.passageText}>{quiz!.passageText}</AppText>
             ) : null}
           </View>
@@ -1119,27 +1295,56 @@ export default function QuizScreen() {
             Хариулсны дараа бичвэр ил болж, юу сонссоноо шалгаж болно.
             Сонсох зүйлгүй бол товчийг ОГТ гаргахгүй — дардаг мөртлөө чимээгүй
             товч бол байхгүйгээс дор. */}
-        {isListening && listenScript ? (
+        {isListening && scriptLines.length > 0 ? (
           <View style={styles.listenBox}>
-            {/* Дугуй товч + тайлбар — сонсох нь энэ дасгалын ГОЛ үйлдэл тул
-                хамгийн том, хамгийн тод элемент байх ёстой. */}
-            <PressableScale onPress={speakScript} style={styles.listenBtn}>
-              <View style={styles.listenIcon}>
-                <Ionicons name="volume-high" size={26} color={c.primary} />
+            {/* Тоглуулагч — сонсох нь энэ дасгалын ГОЛ үйлдэл тул хамгийн тод
+                элемент. Товч дарах бүрд эхнээс эхлүүлдэг байсныг больж, одоо
+                ЖИНХЭНЭ тоглуулагч: тоглуулах/зогсоох + чирдэг зурвас (ухраах
+                товч зориудаар алга — доорх тайлбарыг үз). */}
+            <View style={styles.listenBtn}>
+              <View style={styles.listenRow}>
+                <PressableScale onPress={toggleListen} style={styles.listenIcon}>
+                  <Ionicons name={listen.playing ? 'pause' : 'play'} size={26} color={c.white} />
+                </PressableScale>
+                <View style={styles.listenLabel}>
+                  <AppText variant="bodyStrong" color={c.white}>
+                    {listen.playing
+                      ? t('listenPlaying')
+                      : playCount > 0
+                        ? t('listenReplay')
+                        : t('listenPlay')}
+                  </AppText>
+                  <AppText variant="caption" color={c.white} style={styles.listenSub}>
+                    {playCount > 0 ? tf('listenCount', { n: playCount }) : t('listenTapHint')}
+                  </AppText>
+                </View>
               </View>
-              <View style={styles.listenLabel}>
-                <AppText variant="bodyStrong" color={c.white}>
-                  {playCount > 0 ? t('listenReplay') : t('listenPlay')}
-                </AppText>
-                <AppText variant="caption" color={c.white} style={styles.listenSub}>
-                  {playCount > 0 ? tf('listenCount', { n: playCount }) : t('listenTapHint')}
-                </AppText>
-              </View>
-              <Ionicons name="play-circle" size={30} color={c.white} />
-            </PressableScale>
+
+              {/* Гүйлгэх зурвас — ухраах товч БАЙХГҮЙ, хуруугаараа чирнэ.
+                  Хуваалтын зураасууд ч алга: YouTube шиг тасралтгүй зурвас
+                  байх ёстой (Choi). Дотооддоо өгүүлбэр рүү буудаг ч гадна
+                  талдаа энэ нь мэдэгдэхгүй. Бичвэрийг ил гаргахгүй тул
+                  хариултаа энэ зурваснаас уншиж чадахгүй. */}
+              {listen.count > 1 ? (
+                <SeekBar
+                  value={(listenAt + 1) / listen.count}
+                  onSeek={(r) => seekListen(seekIndex(r, listen.count))}
+                  left={(r) => tf('listenPosition', {
+                    at: seekIndex(r, listen.count) + 1,
+                    total: listen.count,
+                  })}
+                  // Тухайн өгүүлбэрийн үргэлжлэх хугацаагаар гүйнэ — зогссон
+                  // үед үсрэлт хийхгүй (0 = шууд суух).
+                  smoothMs={
+                    listen.playing ? speakMs(scriptLines[listenAt] ?? '', slowSpeech ? 0.55 : 0.9) : 0
+                  }
+                />
+              ) : null}
+            </View>
+
             <View style={styles.listenTools}>
               {/* Удаан хурд — сонсоод амжихгүй байгаа хүнд хамгийн том тусламж.
-                  Дарангуут дахин уншина, тэгэхгүй бол сонгосон нь мэдрэгдэхгүй. */}
+                  Дараагийн өгүүлбэрээс эхлэн шинэ хурдаар уншина. */}
               <PressableScale
                 haptic={false}
                 onPress={() => { setSlowSpeech((v) => !v); }}
@@ -1154,21 +1359,28 @@ export default function QuizScreen() {
                   {t('listenSlow')}
                 </AppText>
               </PressableScale>
-              {/* Нөхөх дасгалд үндсэн товч нь ӨГҮҮЛБЭРийг уншина. Хэрэв
-                  контекст дутвал бүтэн яриаг сонсох гарц энд байна. */}
-              {focusSentence ? (
+              {/* Ухраах/эхнээс нь товчнууд ЗОРИУДААР алга — зурвасаараа чирнэ
+                  (Choi, 2026-08-14). Хоёр арга зэрэг байвал аль нь ч бүрэн
+                  мэдрэгддэггүй; чирэх нь хаана явж байгааг ч хамт хэлдэг. */}
+
+              {/* Бичвэр — зөвхөн хариулсны ДАРАА, зөвхөн ТОВЧ. Хариулахаас өмнө
+                  байвал уншчихаад хариулах тул огт гарахгүй. */}
+              {feedback && hasScript ? (
                 <PressableScale
                   haptic={false}
-                  onPress={() => speak(listenScript)}
-                  style={styles.speedPill}
+                  onPress={() => setTranscriptOpen((v) => !v)}
+                  style={[styles.speedPill, transcriptOpen && styles.speedPillOn]}
                 >
-                  <Ionicons name="chatbubbles-outline" size={14} color={c.textSecondary} />
-                  <AppText variant="caption" color={c.textSecondary}>
-                    {t('listenWhole')}
+                  <Ionicons
+                    name="document-text-outline"
+                    size={14}
+                    color={transcriptOpen ? c.white : c.textSecondary}
+                  />
+                  <AppText variant="caption" color={transcriptOpen ? c.white : c.textSecondary}>
+                    {t('listenTranscript')}
                   </AppText>
                 </PressableScale>
               ) : null}
-              {/* Сонссон тоо нь дээрх картад аль хэдийн байгаа — энд давтахгүй. */}
             </View>
           </View>
         ) : null}
@@ -1488,15 +1700,13 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   container: { padding: spacing.lg, paddingTop: spacing.md },
 
   // IELTS: Listening player bar, Reading passage panel, result band.
+  /** Бодит бичлэгийн тоглуулагч — TTS-ийн картын яг адил төрхтэй (нэг л
+   *  зүйлийн хоёр хувилбар байхаас илүү, нэг тоглуулагч мэт харагдана). */
   audioBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
     gap: spacing.sm,
-    borderWidth: 2,
-    borderColor: c.primary,
-    borderRadius: radius.md,
-    paddingVertical: spacing.md,
+    backgroundColor: c.primary,
+    borderRadius: radius.xl,
+    padding: spacing.md,
     marginBottom: spacing.md,
   },
   passageBox: {
@@ -1613,9 +1823,7 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   speedPillOn: { backgroundColor: c.primary, borderColor: c.primary },
   /** Сонсох карт — дасгалын гол үйлдэл тул хамгийн тод элемент. */
   listenBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
+    gap: spacing.sm,
     alignSelf: 'stretch',
     backgroundColor: c.primary,
     borderRadius: radius.xl,
@@ -1636,6 +1844,7 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.5)',
     alignItems: 'center', justifyContent: 'center',
   },
+  listenRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   listenLabel: { flex: 1, gap: 1 },
   listenSub: { opacity: 0.85 },
 

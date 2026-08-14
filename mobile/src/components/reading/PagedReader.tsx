@@ -40,6 +40,7 @@ export function PagedReader({
   textStyle,
   highlightRange,
   height,
+  initialChar,
   onPageChange,
 }: {
   text: string;
@@ -48,8 +49,14 @@ export function PagedReader({
   highlightRange?: { from: number; to: number } | null;
   /** Height of the page window. */
   height: number;
-  /** Reports position so the screen can drive its progress bar. */
-  onPageChange?: (page: number, total: number) => void;
+  /** Character to open on — the saved bookmark. Applied once, after the first
+   *  pagination; later re-measures (font size, rotation) must not yank the
+   *  reader back to it. */
+  initialChar?: number | null;
+  /** Reports position so the screen can drive its progress bar and bookmark.
+   *  `startChar` is the first character of the page — exact when the platform
+   *  gave us per-line text, estimated from the page ratio otherwise. */
+  onPageChange?: (page: number, total: number, startChar: number) => void;
 }) {
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -103,10 +110,42 @@ export function PagedReader({
     setPage((p) => Math.min(p, offsets.length - 1));
   }, [offsets]);
 
+  /** Which page holds character `at`. */
+  const pageForChar = useCallback(
+    (at: number) => {
+      if (startChars) {
+        // The last page that begins at or before this character.
+        let target = 0;
+        for (let i = 0; i < startChars.length; i++) if (startChars[i] <= at) target = i;
+        return target;
+      }
+      // The platform withheld per-line text — estimate from how far into the
+      // passage this character sits.
+      return Math.min(total - 1, Math.floor((at / Math.max(1, text.length)) * total));
+    },
+    [startChars, total, text.length],
+  );
+
+  /** First character of page `p` — exact if we have it, estimated if not. */
+  const charForPage = useCallback(
+    (p: number) => startChars?.[p] ?? Math.round((p / Math.max(1, total)) * text.length),
+    [startChars, total, text.length],
+  );
+
   useEffect(() => {
     offsetSv.value = offsets[page] ?? 0;
-    onPageChange?.(page, total);
-  }, [offsets, page, total, offsetSv, onPageChange]);
+    onPageChange?.(page, total, charForPage(page));
+  }, [offsets, page, total, offsetSv, onPageChange, charForPage]);
+
+  // Resume at the saved bookmark — once, and without the page-turn animation:
+  // arriving mid-passage is where the reader already was, not a turn they made.
+  const resumed = useRef(false);
+  useEffect(() => {
+    if (resumed.current || !initialChar || total < 2) return;
+    resumed.current = true;
+    const target = pageForChar(initialChar);
+    if (target > 0) setPage(target);
+  }, [initialChar, total, pageForChar]);
 
   const go = useCallback(
     (next: number) => {
@@ -140,19 +179,9 @@ export function PagedReader({
   // Read-along: when the spoken sentence sits on another page, follow it.
   useEffect(() => {
     if (!highlightRange || total < 2) return;
-    const at = highlightRange.from;
-    let target: number;
-    if (startChars) {
-      // The last page that begins at or before this character.
-      target = 0;
-      for (let i = 0; i < startChars.length; i++) if (startChars[i] <= at) target = i;
-    } else {
-      // The platform withheld per-line text — estimate from how far into the
-      // passage this sentence starts.
-      target = Math.min(total - 1, Math.floor((at / Math.max(1, text.length)) * total));
-    }
+    const target = pageForChar(highlightRange.from);
     if (target !== page) go(target);
-  }, [highlightRange, startChars, total, text.length, page, go]);
+  }, [highlightRange, total, page, go, pageForChar]);
 
   const contentStyle = useAnimatedStyle(() => ({
     opacity: turn.value,

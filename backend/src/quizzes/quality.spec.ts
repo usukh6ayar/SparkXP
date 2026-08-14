@@ -131,6 +131,84 @@ describe('checkQuiz — сонсгол', () => {
     expect(blocked(quiz)).toBe(false);
     expect(messages(quiz)).toContain('шууд сонсогдохгүй');
   });
+
+  /*
+   * Сонголтот асуултын хариулт өөр үгээр илэрхийлэгдэх нь ХЭВИЙН (жинхэнэ
+   * сонсголын шалгалт яг үүн дээр тогтдог) — тиймээс блоклохгүй. Харин
+   * асуулт нь ч, хариулт нь ч яриатай холбоогүй бол таамаглахаас өөр арга
+   * үлдэхгүй тул блоклоно.
+   */
+  it('хариулт өөр үгээр илэрхийлэгдсэн ч, асуулт нь яриатай холбоотой бол дамжина', () => {
+    const quiz = {
+      category: 'listening',
+      passageText: SCRIPT,
+      questions: [
+        mc({
+          question: 'What does Tom drink after he wakes up?',
+          options: ['A hot drink', 'Nothing', 'Two eggs', 'A sandwich'],
+          correct: 0,
+        }),
+      ],
+    };
+    expect(blocked(quiz)).toBe(false);
+  });
+
+  it('асуулт ч, хариулт ч яриан дотор огт байхгүй бол БЛОКЛОНО', () => {
+    const quiz = {
+      category: 'listening',
+      passageText: SCRIPT,
+      questions: [
+        mc({
+          question: 'Which football stadium hosted the final match?',
+          options: ['Wembley', 'Anfield', 'Emirates', 'Etihad'],
+          correct: 0,
+        }),
+      ],
+    };
+    expect(blocked(quiz)).toBe(true);
+    expect(messages(quiz)).toContain('таамаглахаас өөр аргагүй');
+  });
+});
+
+/**
+ * ⭐ Сорил хуудсаар үүсгэсэн сонсголын дасгал (`category: 'soril'`, ур чадвар
+ * нь `quizType`-д). Урьд нь шалгагч зөвхөн `category`-г хардаг байсан тул
+ * эдгээр дасгал сонсгол гэж танигдахгүй, бүх сонсголын шалгалт алгасагдаж,
+ * сонсох зүйлгүй «сонсголын» дасгал үүсэх боломжтой байв.
+ */
+describe('checkQuiz — Сорил хуудасны сонсгол (quizType)', () => {
+  it('яриагүй бол блоклоно', () => {
+    expect(
+      blocked({
+        category: 'soril',
+        quizType: 'listening',
+        questions: [mc()],
+      }),
+    ).toBe(true);
+  });
+
+  it('нөхөх үг яриан дотор байхгүй бол блоклоно', () => {
+    expect(
+      blocked({
+        category: 'soril',
+        quizType: 'listening',
+        passageText: SCRIPT,
+        questions: [
+          { type: 'fill_blank', question: 'Tom eats ___ for breakfast.', answer: 'porridge' },
+        ],
+      }),
+    ).toBe(true);
+  });
+
+  it('сонсголын бус сорил (үг таах) яриа шаардахгүй', () => {
+    expect(
+      blocked({
+        category: 'soril',
+        quizType: 'word_guess',
+        questions: [mc({ question: 'Which word means "хурдан"?', options: ['fast', 'slow', 'big', 'red'], correct: 0 })],
+      }),
+    ).toBe(false);
+  });
 });
 
 /**

@@ -31,7 +31,9 @@ import { haptics } from '../../src/lib/haptics';
 import { DURATION } from '../../src/lib/motion';
 import { useReadAlong } from '../../src/lib/useReadAlong';
 import { markReadingCompleted } from '../../src/lib/readingProgress';
-import { t } from '../../src/i18n';
+import { useReadingBookmark } from '../../src/lib/useReadingBookmark';
+import { loadSavedWords, newWordCount } from '../../src/lib/newWords';
+import { t, tf } from '../../src/i18n';
 import { spacing, radius, levelColor, type AppColors } from '../../src/theme/theme';
 import { useColors } from '../../src/settings/SettingsContext';
 import { bounded } from '../../src/theme/responsive';
@@ -80,6 +82,11 @@ export default function ReadingDetailScreen() {
   const [celebrating, setCelebrating] = useState(false);
   const [earnedXp, setEarnedXp] = useState(0);
   const [fontIndex, setFontIndex] = useState(DEFAULT_FONT_INDEX);
+  /** ⭐-saved words → how many of this passage's key words are still new. */
+  const [savedWords, setSavedWords] = useState<Set<string>>(new Set());
+
+  /** Where this passage was left off, and where to record it going forward. */
+  const { resumeIndex, mark } = useReadingBookmark(id, token);
 
   // Reading progress (0..1) → thin bar under the top bar. It tracks PAGES, not
   // scroll: the passage is paginated, so the outer scroll barely moves and
@@ -90,15 +97,6 @@ export default function ReadingDetailScreen() {
   // no progress to show, and a bar pinned at 100% just reads as a stray divider
   // between the back button and the cover.
   const [pageCount, setPageCount] = useState(1);
-  const onPageChange = useCallback(
-    (page: number, total: number) => {
-      setPageCount(total);
-      progress.value = withTiming(total > 1 ? page / (total - 1) : 0, {
-        duration: DURATION.fast,
-      });
-    },
-    [progress],
-  );
 
   // The page window: tall enough to read in, short enough that the cover and
   // the "Уншсан" button stay one small scroll away.
@@ -155,7 +153,14 @@ export default function ReadingDetailScreen() {
   const load = useCallback(async () => {
     if (!token || !id) return;
     try {
-      setPassage(await getReadingPassage(id, token));
+      // Both in flight at once — the word list is a stat, never a gate on the
+      // passage showing up.
+      const [p, saved] = await Promise.all([
+        getReadingPassage(id, token),
+        loadSavedWords(token),
+      ]);
+      setPassage(p);
+      setSavedWords(saved);
       setError(false);
       setNotFound(false);
     } catch (e) {
@@ -198,6 +203,49 @@ export default function ReadingDetailScreen() {
       ranges: bounds,
     };
   }, [passage]);
+
+  /**
+   * Page turns drive two things: the progress bar, and the bookmark. The reader
+   * reports the first character of the page, which maps back to the sentence
+   * that character belongs to — the unit the server stores.
+   */
+  const onPageChange = useCallback(
+    (page: number, total: number, startChar: number) => {
+      setPageCount(total);
+      progress.value = withTiming(total > 1 ? page / (total - 1) : 0, {
+        duration: DURATION.fast,
+      });
+      // Until the saved bookmark is in, page one is not news — writing it would
+      // overwrite the very position we are about to resume to.
+      if (resumeIndex == null) return;
+      let sentence = 0;
+      for (let i = 0; i < ranges.length; i++) if (ranges[i].from <= startChar) sentence = i;
+      mark(sentence);
+      // Moving off the resumed spot retires its note — a page start can land
+      // one sentence either side of the bookmark, so allow that much slack.
+      if (Math.abs(sentence - resumeIndex) > 1) setResumeNote(false);
+    },
+    [progress, ranges, mark, resumeIndex],
+  );
+
+  /** Character to open at — the saved bookmark, once both it and the text are in. */
+  const resumeChar = resumeIndex ? ranges[resumeIndex]?.from ?? null : null;
+  // Opening mid-passage is a jump the reader did not ask for, so say so — once.
+  // The ref matters: repagination (font size, rotation) must not bring a note
+  // the reader has already read and moved past back on screen.
+  const noteShown = useRef(false);
+  const [resumeNote, setResumeNote] = useState(false);
+  useEffect(() => {
+    if (noteShown.current || resumeChar == null || pageCount < 2) return;
+    noteShown.current = true;
+    setResumeNote(true);
+  }, [resumeChar, pageCount]);
+
+  // How many of the admin's key words this reader has not collected yet.
+  const newWords = useMemo(
+    () => newWordCount(passage?.keyVocab, savedWords),
+    [passage, savedWords],
+  );
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -288,11 +336,18 @@ export default function ReadingDetailScreen() {
                   text={`${passage.wordCount} ${t('unitWords')}`}
                   onCover
                 />
-                <Meta
-                  icon="list-outline"
-                  text={`${passage.sentences.length} ${t('unitSentences')}`}
-                  onCover
-                />
+                {/* "Шинэ үг" — key words this reader has not collected yet. It
+                    replaces the sentence count on the cover: how much this
+                    passage can teach you is the more useful of the two. */}
+                {newWords > 0 ? (
+                  <Meta icon="sparkles-outline" text={tf('newWordsCount', { n: newWords })} onCover />
+                ) : (
+                  <Meta
+                    icon="list-outline"
+                    text={`${passage.sentences.length} ${t('unitSentences')}`}
+                    onCover
+                  />
+                )}
               </View>
               <AppText variant="h1" color={colors.white} numberOfLines={3}>
                 {passage.title}
@@ -406,12 +461,23 @@ export default function ReadingDetailScreen() {
                 scroll. Double-tap a word → meaning popover (Word DB →
                 translation cache → Gemini). The spoken sentence is tinted while
                 read-along runs, and the reader follows it across pages. */}
+            {/* Says why the passage opened on page four instead of page one. */}
+            {resumeNote ? (
+              <View style={styles.resumeNote}>
+                <Ionicons name="bookmark" size={13} color={colors.primary} />
+                <AppText variant="caption" color={colors.textSecondary}>
+                  {t('readingResumed')}
+                </AppText>
+              </View>
+            ) : null}
+
             <View style={styles.sheetBody}>
               <PagedReader
                 text={passageText}
                 textStyle={bodyTextStyle}
                 height={pageHeight}
                 highlightRange={read.active != null ? ranges[read.active] : null}
+                initialChar={resumeChar}
                 onPageChange={onPageChange}
               />
             </View>
@@ -488,12 +554,21 @@ export default function ReadingDetailScreen() {
             value: String(passage?.wordCount ?? 0),
             color: colors.sparks,
           },
-          {
-            icon: 'list-outline',
-            label: t('celebrationStatSentences'),
-            value: String(passage?.sentences.length ?? 0),
-            color: colors.success,
-          },
+          // New words earned the slot over the sentence count: it is the part
+          // of the read the student takes with them.
+          newWords > 0
+            ? {
+                icon: 'sparkles' as const,
+                label: t('celebrationStatNewWords'),
+                value: String(newWords),
+                color: colors.success,
+              }
+            : {
+                icon: 'list-outline' as const,
+                label: t('celebrationStatSentences'),
+                value: String(passage?.sentences.length ?? 0),
+                color: colors.success,
+              },
           {
             icon: 'flash',
             label: t('celebrationStatXp'),
@@ -592,6 +667,13 @@ const makeStyles = (colors: AppColors) => StyleSheet.create({
     borderBottomColor: colors.border,
   },
   sheetBarSpacer: { flex: 1 },
+  resumeNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+  },
   // Generous margins: at B1/B2 this box holds several screens of text, so it
   // has to read like a page, not a card.
   sheetBody: { paddingHorizontal: spacing.lg, paddingVertical: spacing.lg },
