@@ -10,13 +10,11 @@ import * as classesApi from '../../../../src/api/classes';
 import type { ClassStudent } from '../../../../src/api/classes';
 import { getLessons } from '../../../../src/api/lessons';
 import { getQuizzes } from '../../../../src/api/quizzes';
-import { ApiError } from '../../../../src/api/client';
-import { haptics } from '../../../../src/lib/haptics';
 import { t, type TranslationKey } from '../../../../src/i18n';
 import { AppText } from '../../../../src/components/Text';
 import { SelectField } from '../../../../src/components/SelectField';
 import { TextField } from '../../../../src/components/TextField';
-import { Button } from '../../../../src/components/Button';
+import { ActionButton } from '../../../../src/components/ActionButton';
 import { spacing, radius, type AppColors } from '../../../../src/theme/theme';
 import { bounded } from '../../../../src/theme/responsive';
 import { useColors } from '../../../../src/settings/SettingsContext';
@@ -50,7 +48,6 @@ export default function AssignScreen() {
   const [targetMode, setTargetMode] = useState<'all' | 'select'>('all');
   const [students, setStudents] = useState<ClassStudent[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -95,29 +92,19 @@ export default function AssignScreen() {
     return d.toISOString();
   }
 
-  async function onAssign() {
-    if (!token || !id || !selected) return;
+  function onAssign() {
     setError(null);
-    setBusy(true);
-    try {
-      await assignmentsApi.createAssignment(
-        {
-          classId: id,
-          type,
-          targetId: selected.id,
-          dueAt: computeDueAt(),
-          note: note.trim() || undefined,
-          studentIds: targetMode === 'select' ? selectedIds : undefined,
-        },
-        token,
-      );
-      haptics.success();
-      router.back(); // class detail refetches on focus
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : t('errorGeneric'));
-    } finally {
-      setBusy(false);
-    }
+    return assignmentsApi.createAssignment(
+      {
+        classId: id!,
+        type,
+        targetId: selected!.id,
+        dueAt: computeDueAt(),
+        note: note.trim() || undefined,
+        studentIds: targetMode === 'select' ? selectedIds : undefined,
+      },
+      token!,
+    );
   }
 
   return (
@@ -228,12 +215,15 @@ export default function AssignScreen() {
                 {error}
               </AppText>
             ) : null}
-            <Button
+            <ActionButton
               label={t('assign')}
               iconRight="arrow-forward"
-              onPress={onAssign}
-              loading={busy}
-              disabled={!selected || (targetMode === 'select' && selectedIds.length === 0)}
+              action={onAssign}
+              onSuccess={() => router.back()} // class detail refetches on focus
+              onError={setError}
+              disabled={
+                !selected || !token || !id || (targetMode === 'select' && selectedIds.length === 0)
+              }
             />
           </>
         )}

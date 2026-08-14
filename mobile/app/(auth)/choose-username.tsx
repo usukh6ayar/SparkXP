@@ -11,7 +11,7 @@ import { useAuth } from '../../src/auth/AuthContext';
 import { Screen } from '../../src/components/Screen';
 import { AppText } from '../../src/components/Text';
 import { TextField } from '../../src/components/TextField';
-import { Button } from '../../src/components/Button';
+import { ActionButton } from '../../src/components/ActionButton';
 import { FormError } from '../../src/components/FormError';
 
 /**
@@ -38,28 +38,16 @@ export default function ChooseUsernameScreen() {
 
   const [username, setUsername] = useState(suggested ?? '');
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
   const valid = isValidUsername(username);
 
   async function submit() {
     setError(null);
-    setBusy(true);
-    try {
-      const res = await authApi.socialComplete(
-        ticket,
-        username.trim(),
-        fullName?.trim() || undefined,
-      );
-      await applySession(res); // the auth gate redirects from here
-    } catch (e) {
-      // 409 is the useful one: the handle was taken between the suggestion and
-      // the tap. Say so plainly instead of the generic backend wording.
-      if (e instanceof ApiError && e.status === 409) setError(t('usernameTaken'));
-      else setError(e instanceof ApiError ? e.message : t('errorGeneric'));
-    } finally {
-      setBusy(false);
-    }
+    const res = await authApi.socialComplete(
+      ticket,
+      username.trim(),
+      fullName?.trim() || undefined,
+    );
+    await applySession(res); // the auth gate redirects from here
   }
 
   return (
@@ -92,11 +80,15 @@ export default function ChooseUsernameScreen() {
 
       <FormError message={error} />
 
-      <Button
+      <ActionButton
         label={t('chooseUsernameCta')}
         iconRight="arrow-forward"
-        onPress={submit}
-        loading={busy}
+        action={submit}
+        // 409 is the useful one: the handle was taken between the suggestion
+        // and the tap. Say so plainly instead of the generic backend wording.
+        onError={(message, e) =>
+          setError(e instanceof ApiError && e.status === 409 ? t('usernameTaken') : message)
+        }
         disabled={!valid}
         style={styles.button}
       />

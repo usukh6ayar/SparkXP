@@ -3,14 +3,13 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AppText } from './Text';
 import { Button } from './Button';
+import { ActionButton } from './ActionButton';
 import { TextField } from './TextField';
 import { FormError } from './FormError';
 import { SheetModal } from './SheetModal';
 import { useColors } from '../settings/SettingsContext';
 import { useAuth } from '../auth/AuthContext';
-import { haptics } from '../lib/haptics';
 import { deleteAccount } from '../api/users';
-import { ApiError } from '../api/client';
 import { t } from '../i18n';
 import { spacing, radius } from '../theme/theme';
 
@@ -37,7 +36,6 @@ export function DeleteAccountSheet({
   const c = useColors();
   const { token, logout } = useAuth();
   const [password, setPassword] = useState('');
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   function close() {
@@ -47,22 +45,12 @@ export function DeleteAccountSheet({
     onClose();
   }
 
-  async function confirm() {
-    if (!token || busy || !password) return;
-    setBusy(true);
+  async function confirmDelete() {
     setError(null);
-    try {
-      await deleteAccount(password, token);
-      haptics.success();
-      setPassword('');
-      // The account is gone; this only clears the device's copy of the session.
-      await logout();
-    } catch (e) {
-      haptics.error();
-      setError(e instanceof ApiError ? e.message : t('errorFallback'));
-    } finally {
-      setBusy(false);
-    }
+    await deleteAccount(password, token!);
+    setPassword('');
+    // The account is gone; this only clears the device's copy of the session.
+    await logout();
   }
 
   return (
@@ -114,12 +102,12 @@ export function DeleteAccountSheet({
       <FormError message={error} />
 
       <View style={styles.actions}>
-        <Button
+        <ActionButton
           label={t('deleteAccountConfirm')}
           variant="danger"
-          onPress={confirm}
-          loading={busy}
-          disabled={!password}
+          action={confirmDelete}
+          onError={setError}
+          disabled={!password || !token}
         />
         <Button label={t('cancel')} variant="ghost" onPress={close} />
       </View>
