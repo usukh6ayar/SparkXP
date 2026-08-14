@@ -71,6 +71,7 @@ export const colors = {
   danger: '#F87171',
   dangerSoft: 'rgba(248,113,113,0.16)',
   warning: '#FF8A3D', // orange — doubles as `streak` on dark
+  warningSoft: 'rgba(255,138,61,0.16)', // notice backgrounds (see components/Notice)
 
   // Gamification — GRAPHIC ONLY (glyphs, rings, bar fills). Identical in both
   // themes to protect brand recognition; for LABELS use the *Text pair below.
@@ -146,6 +147,7 @@ const lightOverrides: Partial<AppColors> = {
   danger: '#C42B2B',
   dangerSoft: 'rgba(196,43,43,0.10)',
   warning: '#9E4A0D',
+  warningSoft: 'rgba(158,74,13,0.10)',
   // xp / sparks / streak stay identical (graphic only) — but their TEXT forms
   // must flip, or every reward label on light fails AA at ~1.7:1.
   xpText: '#8A5A00',

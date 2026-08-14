@@ -46,7 +46,7 @@ import {
   type QualityIssue,
   type QuizLike,
 } from './quality';
-import { bandToLevel, parseBandTopic } from './ielts';
+import { MAX_SECTIONS } from './ielts';
 import { AiGenerateQuizDto } from './dto/ai-generate-quiz.dto';
 import { BulkGenerateQuizDto } from './dto/bulk-generate-quiz.dto';
 import { CreateQuizDto, QuestionDto } from './dto/create-quiz.dto';
@@ -54,8 +54,16 @@ import { UpdateQuizDto } from './dto/update-quiz.dto';
 import { QueryQuizzesDto } from './dto/query-quizzes.dto';
 import { SubmitQuizDto } from './dto/submit-quiz.dto';
 
+/**
+ * IELTS exam part a question belongs to (1–4). Absent on every quiz authored
+ * before sections existed, which the app reads as "one part".
+ */
+interface SectionedQuestion {
+  section?: number;
+}
+
 /** Shape we accept and store for a multiple-choice question. */
-interface McQuestion {
+interface McQuestion extends SectionedQuestion {
   type: 'multiple_choice';
   question: string;
   options: string[];
@@ -65,7 +73,7 @@ interface McQuestion {
 }
 
 /** Shape we accept and store for a fill-in-the-blank question. */
-interface FbQuestion {
+interface FbQuestion extends SectionedQuestion {
   type: 'fill_blank';
   question: string;
   answer: string;
@@ -75,14 +83,14 @@ interface FbQuestion {
 }
 
 /** Shape we accept and store for a word-matching question. */
-interface WmQuestion {
+interface WmQuestion extends SectionedQuestion {
   type: 'word_match';
   pairs: { left: string; right: string }[];
   points: number;
 }
 
 /** Open written/spoken response (IELTS Writing/Speaking) — self-study, not graded. */
-interface OrQuestion {
+interface OrQuestion extends SectionedQuestion {
   type: 'open_response';
   prompt: string;
   modelAnswer: string;
@@ -92,6 +100,19 @@ interface OrQuestion {
 }
 
 type StoredQuestion = McQuestion | FbQuestion | WmQuestion | OrQuestion;
+
+/**
+ * `{ section }` when the question declares a valid exam part, `{}` otherwise —
+ * spread into the stored question so an absent/garbage value stores nothing
+ * rather than `section: undefined`.
+ */
+function sectionOf(q: { section?: unknown }): { section?: number } {
+  const n = q.section;
+  if (typeof n !== 'number' || !Number.isInteger(n) || n < 1 || n > MAX_SECTIONS) {
+    return {};
+  }
+  return { section: n };
+}
 
 export interface QuizResult {
   score: number; // correct points earned
@@ -329,14 +350,10 @@ export class QuizzesService {
   ): Promise<void> {
     report.current = stepName(step);
     try {
-      /*
-       * IELTS-д `topic` нь **зорилтот band**. `Quiz.level` нь CEFR enum тул
-       * band-ыг тэнд хадгалж болохгүй — band-аасаа түвшинг автоматаар гаргана.
-       * Ингэснээр админ зөвхөн band-аа сонгоно (хоёр талбар бөглөхгүй) бөгөөд
-       * band бүр өөрийн зөв түвшинтэй хадгалагдана.
-       */
-      const band = parseBandTopic(step.topic);
-      const level = band !== null ? bandToLevel(band) : dto.level;
+      // Хүндрэлийг админы сонгосон CEFR түвшин илэрхийлнэ. (Урьд нь `topic`
+      // дахь «Band 6.5»-аас гаргадаг байсныг больсон — band бол ДҮН, сервер
+      // зөв хариултын тооноос гаргадаг: `ieltsBand()`.)
+      const level = dto.level;
 
       const draft = await this.aiGenerate({
         brief: buildStepBrief(step, bank.titles),
@@ -448,6 +465,11 @@ export class QuizzesService {
   /** Validate that every question has a supported type and required fields. */
   private validateQuestions(raw: QuestionDto[]): StoredQuestion[] {
     return raw.map((q, i) => {
+      // Every branch below rebuilds the question from known fields (that is how
+      // stray input is dropped), so anything shared has to be re-attached
+      // explicitly — `section` included, or IELTS parts would vanish on save.
+      const part = sectionOf(q);
+
       if (q.type === 'multiple_choice') {
         const mc = q as Partial<McQuestion>;
         if (
@@ -471,6 +493,7 @@ export class QuizzesService {
           correct: mc.correct,
           points: mc.points,
           ...(typeof mc.imageUrl === 'string' ? { imageUrl: mc.imageUrl } : {}),
+          ...part,
         };
       }
 
@@ -496,6 +519,7 @@ export class QuizzesService {
           answer: fb.answer,
           ...(choices ? { choices } : {}),
           points: fb.points,
+          ...part,
         };
       }
 
@@ -515,6 +539,7 @@ export class QuizzesService {
           type: 'word_match' as const,
           pairs: wm.pairs as { left: string; right: string }[],
           points: wm.points,
+          ...part,
         };
       }
 
@@ -537,6 +562,7 @@ export class QuizzesService {
           points: 0 as const,
           ...(typeof or.imageUrl === 'string' ? { imageUrl: or.imageUrl } : {}),
           ...(typeof or.bandNote === 'string' ? { bandNote: or.bandNote } : {}),
+          ...part,
         };
       }
 

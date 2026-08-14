@@ -9,7 +9,13 @@ import { loadCompletedExercises } from '../../src/lib/exerciseProgress';
 import { TopBar } from '../../src/components/TopBar';
 import { ProgressHero } from '../../src/components/ProgressHero';
 import { CategoryBrowser, type BrowserItem } from '../../src/components/CategoryBrowser';
-import { IELTS_MODULES } from '../../src/constants/ielts';
+import {
+  IELTS_MODULES,
+  displayTopic,
+  groupSections,
+  ieltsModuleOf,
+  isIeltsCategory,
+} from '../../src/constants/ielts';
 import { SORIL_CATEGORY } from '../../src/constants/soril';
 import { quizSkill } from '../../src/constants/quizSkill';
 import { t, tf, type TranslationKey } from '../../src/i18n';
@@ -47,6 +53,11 @@ const SKILLS: Record<
   ),
 };
 
+/** How many exam parts a practice set is split into. */
+function countParts(quiz: Quiz): number {
+  return groupSections(quiz.questions ?? []).length;
+}
+
 export default function SkillScreen() {
   const { key } = useLocalSearchParams<{ key: string }>();
   const skillKey = key ?? 'listening';
@@ -61,7 +72,6 @@ export default function SkillScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(false);
-  const [selectedCat, setSelectedCat] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!token) { setItems([]); return; }
@@ -123,24 +133,45 @@ export default function SkillScreen() {
     setRefreshing(false);
   }, [load]);
 
+  const isIelts = isIeltsCategory(skillKey);
+
   // Map exercises → browser rows, bucketed by сэдэв (topic).
   const rows: BrowserItem[] = useMemo(
     () =>
-      items.map((q) => ({
-        id: q.id,
-        title: q.title,
-        subtitle: `${tf('questionCount', { n: q.questions?.length ?? 0 })} · ${q.xpReward} XP · ${q.level.toUpperCase()}`,
+      items.map((q) => {
+        const questionCount = q.questions?.length ?? 0;
         /*
-         * Бүлгийн нэр: админы бичсэн **сэдэв**, байхгүй бол **түвшин** (A1, B2…).
-         *
-         * ⚠️ Сорил хуудсаар үүсгэсэн контентод `topic` байдаггүй тул урьд нь
-         * бүгд «Бусад» (эсвэл «Сорил») гэсэн ганц овоонд унаж, 10+ дасгал
-         * ялгаагүй нэг бүлэг болдог байв. Түвшин нь мөр бүрд байдаг ба
-         * сурагчид шууд утга учиртай — өөрийн түвшнээ сонгоод ороход хангалттай.
+         * ⚠️ **IELTS-д CEFR түвшин байхгүй.** Жинхэнэ шалгалт бүх шалгуулагчид
+         * ижил — «B1-ийн Listening» гэж үгүй, ялгаа нь зөвхөн хэдийг зөв
+         * бөглөснөөс гарах band. Тиймээс IELTS мөрөнд түвшин огт харуулахгүй,
+         * оронд нь **бүтцийг** нь хэлнэ (4 Section г.м.) — тэр нь сурагчид
+         * юу хийхээ ойлгоход хэрэгтэй цорын ганц мэдээлэл.
          */
-        category: q.topic || q.level.toUpperCase(),
-      })),
-    [items],
+        const parts = isIelts ? countParts(q) : 0;
+        const meta = [
+          tf('questionCount', { n: questionCount }),
+          parts > 1 ? `${parts} ${ieltsModuleOf(q.category)?.partLabel ?? 'Section'}` : null,
+          `${q.xpReward} XP`,
+          isIelts ? null : q.level.toUpperCase(),
+        ].filter(Boolean);
+
+        return {
+          id: q.id,
+          title: q.title,
+          subtitle: meta.join(' · '),
+          /*
+           * Бүлгийн нэр: админы бичсэн **сэдэв**, байхгүй бол **түвшин** (A1,
+           * B2…) — IELTS-д түвшин утгагүй тул тэнд зөвхөн сэдэв.
+           *
+           * ⚠️ Сорил хуудсаар үүсгэсэн контентод `topic` байдаггүй тул урьд нь
+           * бүгд «Бусад» гэсэн ганц овоонд унаж, 10+ дасгал ялгаагүй нэг бүлэг
+           * болдог байв. Түвшин нь мөр бүрд байдаг ба сурагчид шууд утга
+           * учиртай — өөрийн түвшнээ сонгоод ороход хангалттай.
+           */
+          category: displayTopic(q.topic) || (isIelts ? null : q.level.toUpperCase()),
+        };
+      }),
+    [items, isIelts],
   );
 
   // Real progress: how many of this skill's exercises the user has passed.
@@ -159,11 +190,9 @@ export default function SkillScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <TopBar
-        title={selectedCat ?? t(skill.catKey)}
+        title={t(skill.catKey)}
         back
         showBadges={false}
-        // Inside a сэдэв, Back returns to the сэдэв list, not off-screen.
-        onBack={selectedCat ? () => setSelectedCat(null) : undefined}
       />
       <CategoryBrowser
         items={rows}
@@ -172,11 +201,10 @@ export default function SkillScreen() {
         onRefresh={onRefresh}
         error={error}
         onRetry={load}
-        selectedCat={selectedCat}
-        onSelectCat={setSelectedCat}
-        onOpen={(id) => router.push(`/quiz/${id}`)}
-        // Hero only on the сэдэв list (level 1), so level 2 is a clean list.
-        hero={selectedCat === null ? hero : undefined}
+        // IELTS sets open in the exam player (parts, answer sheet, band), not
+        // the one-question-at-a-time drill runner every other skill uses.
+        onOpen={(id) => router.push(isIelts ? `/ielts/test/${id}` : `/quiz/${id}`)}
+        hero={hero}
         emptyText={t('noSkillExercises')}
         completedIds={completed}
       />

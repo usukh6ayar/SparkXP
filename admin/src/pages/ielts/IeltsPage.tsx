@@ -15,7 +15,7 @@ import { Select } from '../../components/Select';
 import { FormActions } from '../../components/FormActions';
 import { RowActions } from '../../components/RowActions';
 import { Pagination } from '../../components/Pagination';
-import { levelFormOptions as LEVEL_OPTIONS, IELTS_MODULES, ieltsSubTopicOptions } from '../../lib/options';
+import { IELTS_MODULES, ieltsSubTopicOptions } from '../../lib/options';
 
 import {
   QuizQuestionsEditor,
@@ -51,7 +51,8 @@ const BULK_TARGETS = IELTS_MODULES.map((m) => ({
 interface Exercise {
   id: string;
   title: string;
-  level: string;
+  // ⚠️ `level` (CEFR) байхгүй: IELTS шалгалт бүх шалгуулагчид ижил — «B1-ийн
+  // Listening» гэж үгүй. Ялгаа нь зөвхөн хэдийг зөв бөглөснөөс гарах band.
   category: string | null;
   topic: string | null;
   quizType: string | null;
@@ -64,7 +65,6 @@ interface Exercise {
 
 interface Form {
   title: string;
-  level: string;
   topic: string;
   questionType: QuestionType;
   questions: Question[];
@@ -74,7 +74,7 @@ interface Form {
 }
 // "Ноорог" төлөв формд байхгүй: Хадгалах = шууд нийтлэх (`components/Publish.tsx`).
 const emptyForm: Form = {
-  title: '', level: 'a1', topic: '', questionType: 'multiple_choice', questions: [],
+  title: '', topic: '', questionType: 'multiple_choice', questions: [],
   xpReward: 50, passageText: '', audioUrl: '',
 };
 
@@ -120,7 +120,7 @@ export default function IeltsPage() {
   function openEdit(ex: Exercise) {
     const qt = (ex.quizType as QuestionType) || (ex.questions[0]?.type ?? defaultType());
     setForm({
-      title: ex.title, level: ex.level, topic: ex.topic ?? '', questionType: qt,
+      title: ex.title, topic: ex.topic ?? '', questionType: qt,
       questions: ex.questions ?? [], xpReward: ex.xpReward,
       passageText: ex.passageText ?? '', audioUrl: ex.audioUrl ?? '',
     });
@@ -138,7 +138,7 @@ export default function IeltsPage() {
     setSaving(true); setError('');
     try {
       const payload = {
-        title: form.title.trim(), level: form.level,
+        title: form.title.trim(),
         category: current.category, topic: form.topic,
         quizType: form.questionType, questions: form.questions,
         xpReward: form.xpReward, isPublished: true, // хадгалсан контент шууд аппад гарна
@@ -217,7 +217,6 @@ export default function IeltsPage() {
       render: (e: Exercise) =>
         e.topic ? <Badge color="yellow">{e.topic}</Badge> : <span className="text-gray-300">—</span>,
     },
-    { key: 'level', header: 'Түвшин', render: (e: Exercise) => <Badge color="gray">{e.level.toUpperCase()}</Badge> },
     { key: 'qs', header: 'Асуулт', render: (e: Exercise) => <span className="text-gray-600">{e.questions?.length ?? 0}</span> },
     { key: 'xp', header: 'XP', render: (e: Exercise) => <span className="text-primary font-medium">⚡ {e.xpReward}</span> },
     {
@@ -329,8 +328,7 @@ export default function IeltsPage() {
               <Input label="Аудио URL" value={form.audioUrl} onChange={(e) => setForm({ ...form, audioUrl: e.target.value })} placeholder="https://.../section.mp3" />
             )}
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <Select label="Түвшин" options={LEVEL_OPTIONS} value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value })} />
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {current.objective ? (
                 <Select label="Асуултын төрөл" options={QTYPE_OPTIONS} value={form.questionType} onChange={(e) => changeType(e.target.value as QuestionType)} />
               ) : (
@@ -347,6 +345,10 @@ export default function IeltsPage() {
                 questionType={form.questionType}
                 questions={form.questions}
                 onChange={(questions) => setForm({ ...form, questions })}
+                // Every module has a real structure: 4 sections, 3 passages,
+                // 2 tasks, 3 parts. The editor lays those out.
+                parts={current.parts}
+                partLabel={current.partLabel}
               />
             </div>
 

@@ -45,7 +45,6 @@ export default function ReadingListScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(false);
-  const [selectedCat, setSelectedCat] = useState<string | null>(null);
   /** CEFR filter, null = бүх түвшин. */
   const [level, setLevel] = useState<string | null>(null);
 
@@ -146,11 +145,9 @@ export default function ReadingListScreen() {
     return best;
   }, [passages, states]);
 
-  // Everything above the сэдэв list: continue card, progress banner, level
-  // filter. Level 2 (inside a сэдэв) shows none of it — there the passages are
-  // the subject, not the library.
+  // Everything above the list: continue card, progress banner, level filter.
   const hero =
-    !selectedCat && passages.length > 0 ? (
+    passages.length > 0 ? (
       <>
         {continuePassage ? (
           <ContinueReading
@@ -196,10 +193,9 @@ export default function ReadingListScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <TopBar
-        title={selectedCat ?? t('readingMaterials')}
+        title={t('readingMaterials')}
         back
         showBadges={false}
-        onBack={selectedCat ? () => setSelectedCat(null) : undefined}
       />
       <CategoryBrowser
         items={rows}
@@ -208,8 +204,6 @@ export default function ReadingListScreen() {
         onRefresh={onRefresh}
         error={error}
         onRetry={load}
-        selectedCat={selectedCat}
-        onSelectCat={setSelectedCat}
         onOpen={(id) => router.push(`/reading/${id}`)}
         emptyText={t('noReadingMaterials')}
         completedIds={completed}
