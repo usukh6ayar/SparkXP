@@ -18,7 +18,7 @@
  * Энд зөвхөн цэвэр функцууд (сүлжээ/DB хөндөхгүй) — үүсгэх үед ч, хадгалах
  * үед ч, байгаа контентыг тайлагнах үед ч ижил дүрэм ажиллана (DRY).
  */
-import { isListeningCategory, MIN_LISTENING_SCRIPT } from './ai-generate';
+import { isListeningQuiz, MIN_LISTENING_SCRIPT } from './ai-generate';
 
 /**
  * `block` = хэзээ ч зөвшөөрөхгүй (объектив эвдрэл — хадгалалт татгалзана).
@@ -36,6 +36,8 @@ export interface QualityIssue {
 /** Шалгахад хангалттай хэмжээний дасгал (entity ч, DTO ч, AI ноорог ч болно). */
 export interface QuizLike {
   category?: string | null;
+  /** Сорил хуудасны ур чадвар — `category: 'soril'` үед ЭНЭ нь шийднэ. */
+  quizType?: string | null;
   passageText?: string | null;
   audioUrl?: string | null;
   questions?: unknown;
@@ -302,14 +304,42 @@ function checkQuestion(
     const key = strList(raw.options)[
       typeof raw.correct === 'number' ? raw.correct : -1
     ];
+    const answerHeard = !!key && containsWord(heard, key);
     if (key && /^[\p{L}\s']+$/u.test(key) && norm(key).length > 2) {
-      if (!containsWord(heard, key)) {
+      if (!answerHeard) {
         add(
           'warn',
           `Зөв хариулт «${key}» сонсох яриан дотор шууд сонсогдохгүй байна — ` +
             'сурагч түүнийг хаанаас ч олж чадахгүй байж магадгүй.',
         );
       }
+    }
+
+    /*
+     * ⚠️ Сонголтот асуулт нь яриатай ОГТ холбоогүй бол → БЛОКЛОНО.
+     *
+     * Яагаад «зөв хариулт яриан дотор байх ёстой» гэдгийг блок болгож
+     * БОЛОХГҮЙ вэ (Choi асуусан, 2026-08-14): жинхэнэ сонсголын шалгалтын
+     * хариулт ихэвчлэн **өөр үгээр илэрхийлэгддэг** — «I'll take the 8:15»
+     * гэж сонсоод «Which train?» → «The earlier one». Тийм асуултыг хаавал
+     * зөвхөн үг тааруулах гүехэн дасгал үлдэнэ, сонсоод ОЙЛГОХ чадвар
+     * шалгагдахаа болино.
+     *
+     * Тиймээс блоклох шугамыг **бодит эвдрэл** дээр татав: асуулт нь ч,
+     * хариулт нь ч яриатай холбоогүй = яриан дотор огт дурдагдаагүй зүйлийг
+     * асуусан хэрэг. Аль нэг нь сонсогдож байвал (өөр үгээр илэрхийлсэн ч)
+     * дасгал хүчинтэй хэвээр — зөвхөн анхааруулга.
+     */
+    const askWords = norm(question)
+      .split(' ')
+      .filter((w) => w.length > 2);
+    const askHeard = askWords.filter((w) => containsWord(heard, w)).length;
+    if (askWords.length >= 3 && askHeard * 2 < askWords.length && !answerHeard) {
+      add(
+        'block',
+        'Асуулт ч, зөв хариулт ч сонсох яриан дотор гардаггүй — сурагч ' +
+          'сонсоогүй зүйлээ таамаглахаас өөр аргагүй болно.',
+      );
     }
   }
 
@@ -324,7 +354,10 @@ function checkQuestion(
  */
 export function checkQuiz(quiz: QuizLike): QualityIssue[] {
   const issues: QualityIssue[] = [];
-  const isListening = isListeningCategory(quiz.category);
+  // ⚠️ `category` дангаар нь БИШ: Сорил хуудасны сонсголын дасгалд ур чадвар нь
+  // `quizType`-д байдаг тул урьд нь бүх сонсголын шалгалт алгасагдаж, сонсох
+  // зүйлгүй «сонсголын» дасгал үүсэх боломжтой байв.
+  const isListening = isListeningQuiz(quiz);
   const script = (quiz.passageText ?? '').trim();
 
   // Сонсголд сонсох зүйл заавал (бодит бичлэгтэй бол бичвэр шаардахгүй).

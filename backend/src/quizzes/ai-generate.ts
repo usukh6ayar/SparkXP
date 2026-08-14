@@ -53,6 +53,11 @@ export interface GenerateOptions {
   kind: TargetKind;
   /** Quiz.category — ж: 'listening' · 'Дүрэм' · 'ielts_reading'. */
   category?: string;
+  /**
+   * Сорилын тоглоомын төрөл. **Сорил** хуудсаар үүсгэхэд ур чадвар нь энд
+   * байдаг (`category: 'soril'`) — `quizSkill()` үүнийг заавал харна.
+   */
+  quizType?: string;
   /** Quiz.topic (сэдэв) — хоосон бол AI өөрөө санал болгоно. */
   topic?: string;
   /** Хоосон бол AI өөрөө таамаглана. */
@@ -103,6 +108,38 @@ export const LISTENING_CATEGORIES = ['listening', 'ielts_listening'] as const;
 
 export const isListeningCategory = (category?: string | null): boolean =>
   LISTENING_CATEGORIES.includes(category as (typeof LISTENING_CATEGORIES)[number]);
+
+/** Админы **Сорил** хуудасны `Quiz.category` (ур чадвар нь `quizType`-д). */
+export const SORIL_CATEGORY = 'soril';
+
+/**
+ * Дасгалын УР ЧАДВАР — `category` ба `quizType` хоёрын аль нэгэнд байдаг.
+ *
+ * ⚠️ Яагаад хэрэгтэй вэ: админ ур чадварыг **хоёр өөр талбарт** бичдэг —
+ * Дасгал/IELTS хуудас `category`-д (`listening` · `ielts_listening`), харин
+ * **Сорил** хуудас `category: 'soril'` гээд ур чадварыг `quizType`-д. Урьд нь
+ * зөвхөн `category`-г хардаг байсан тул **Сорил хуудсаар үүсгэсэн сонсголын
+ * дасгалд AI-гаас яриа шаардагддаггүй, чанарын сонсголын шалгалтууд ч
+ * алгасагддаг** байв — өөрөөр хэлбэл сонсох зүйлгүй «сонсголын» дасгал
+ * үүсэх боломжтой байсан (Choi илрүүлсэн, 2026-08-14).
+ *
+ * Апп талд яг ижил дүрэм: `mobile/src/constants/quizSkill.ts`. Хоёулаа
+ * зэрэг өөрчлөгдөх ёстой.
+ */
+export const quizSkill = (o: {
+  category?: string | null;
+  quizType?: string | null;
+}): string | null => {
+  const raw = o.category === SORIL_CATEGORY ? o.quizType : o.category ?? o.quizType;
+  if (!raw) return null;
+  return raw.startsWith('ielts_') ? raw.slice('ielts_'.length) : raw;
+};
+
+/** Сонсголын дасгал уу (эх сурвалж нь ямар ч байсан). */
+export const isListeningQuiz = (o: {
+  category?: string | null;
+  quizType?: string | null;
+}): boolean => quizSkill(o) === 'listening';
 
 /**
  * Сонсох яриа хамгийн багадаа хэдэн тэмдэгт байх вэ. 3–5 мөрт яриа нь үргэлж
@@ -233,7 +270,7 @@ export function buildPrompt(o: GenerateOptions): string {
   // Сонсголд эх яриа нь дасгалын ЦӨМ — түүнгүйгээр асуулт хариулах боломжгүй.
   // Тиймээс "заавал" гэдгийг prompt-д дахин, шууд хэлж өгнө (schema дээр ч
   // `required` — хоёр давхар хамгаалалт).
-  if (isListeningCategory(o.category)) {
+  if (isListeningQuiz(o)) {
     lines.push(
       o.passageText
         ? `- Асуултуудыг ЗӨВХӨН дараах яриан дээр үндэслэ:\n"""\n${o.passageText.trim()}\n"""`
@@ -333,7 +370,7 @@ export function buildSchema(
 
   // Сонсголд яриа нь заавал — schema түвшинд шаардвал загвар түүнийг орхиж
   // чадахгүй (prompt-ийн зааврыг үл тоомсорлох магадлал үлддэг).
-  const needsPassage = isListeningCategory(o.category);
+  const needsPassage = isListeningQuiz(o);
 
   return {
     type: 'OBJECT',
@@ -597,7 +634,7 @@ export function parseDraft(text: string, o: GenerateOptions): GeneratedDraft {
   // алдаа болгож буцаана: bulk зам түүнийг алгасаад дараагийнхийг үүсгэнэ,
   // ганцаарчилсан зам админд "дахин оролдоно уу" гэж хэлнэ.
   if (
-    isListeningCategory(o.category) &&
+    isListeningQuiz(o) &&
     (passageText ?? '').length < MIN_LISTENING_SCRIPT
   ) {
     throw new Error(

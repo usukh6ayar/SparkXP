@@ -11,6 +11,7 @@ import { ProgressHero } from '../../src/components/ProgressHero';
 import { CategoryBrowser, type BrowserItem } from '../../src/components/CategoryBrowser';
 import { IELTS_MODULES } from '../../src/constants/ielts';
 import { SORIL_CATEGORY } from '../../src/constants/soril';
+import { quizSkill } from '../../src/constants/quizSkill';
 import { t, tf, type TranslationKey } from '../../src/i18n';
 import { useColors } from '../../src/settings/SettingsContext';
 import { haptics } from '../../src/lib/haptics';
@@ -80,7 +81,10 @@ export default function SkillScreen() {
         getExercises(token, SORIL_CATEGORY).catch(() => ({ items: [] as Quiz[] })),
         loadCompletedExercises(),
       ]);
-      const extra = soril.items.filter((q) => q.quizType === skillKey);
+      // Ур чадварыг `quizSkill()` шийднэ — `category` ба `quizType` хоёрын аль
+      // нэгэнд байж болно (`src/constants/quizSkill.ts`). Гүйцэтгэгч дэлгэц ч
+      // яг үүнийг ашигладаг тул жагсаалт ба нээгдэх зан төлөв **үргэлж нийцнэ**.
+      const extra = soril.items.filter((q) => quizSkill(q) === skillKey);
       setItems([...own.items, ...extra]);
       setCompleted(done);
       setError(false);

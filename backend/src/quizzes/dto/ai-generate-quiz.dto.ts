@@ -39,6 +39,15 @@ export class AiGenerateQuizDto {
   @IsString()
   category?: string;
 
+  /**
+   * Сорилын тоглоомын төрөл. **Сорил** хуудсаар үүсгэхэд `category: 'soril'`
+   * тул ур чадвар нь ЭНД байдаг — чанарын сонсголын шалгалт ба «яриа заавал»
+   * дүрэм үүнийг харна (`quizSkill()`).
+   */
+  @IsOptional()
+  @IsString()
+  quizType?: string;
+
   /** Quiz.topic (сэдэв). Хоосон бол AI санал болгоно. */
   @IsOptional()
   @IsString()

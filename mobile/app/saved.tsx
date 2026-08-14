@@ -17,6 +17,7 @@ import {
   toggleDictionarySave,
   type SavedDictionaryWord,
 } from '../src/api/dictionary';
+import { forgetSavedWords } from '../src/lib/newWords';
 import { useDictionary } from '../src/components/DictionaryProvider';
 import { TopBar } from '../src/components/TopBar';
 import { AppText } from '../src/components/Text';
@@ -120,6 +121,7 @@ export default function SavedScreen() {
   const unsaveDictWord = useCallback(
     (word: string) => {
       setDictWords((list) => list.filter((r) => r.word !== word)); // optimistic
+      forgetSavedWords(); // the reading list's "шинэ үг" counts just changed
       if (token) toggleDictionarySave(token, word).catch(() => {});
     },
     [token],

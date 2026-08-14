@@ -342,6 +342,9 @@ export class QuizzesService {
         brief: buildStepBrief(step, bank.titles),
         kind: dto.kind,
         category: step.category,
+        // ⚠️ Сорилын алхамд ур чадвар нь ЭНД байна (`category: 'soril'`) —
+        // дамжуулахгүй бол сонсголын дасгал яриагүй үүснэ (`quizSkill()`).
+        quizType: step.quizType,
         topic: step.topic ?? undefined,
         level,
         questionType: step.questionType as AiGenerateQuizDto['questionType'],
