@@ -28,6 +28,7 @@ import { StarsService } from '../xp/stars.service';
 import { XpSource } from '../common/enums';
 import { AiGenerateQuizDto } from './dto/ai-generate-quiz.dto';
 import { BulkGenerateQuizDto } from './dto/bulk-generate-quiz.dto';
+import { IeltsPaperDto } from './dto/ielts-paper.dto';
 import { CreateQuizDto } from './dto/create-quiz.dto';
 import { IELTS_OBJECTIVE_CATEGORIES, ieltsBand } from './ielts';
 import { canSeeAnswers, stripAnswers } from './sanitize';
@@ -86,6 +87,21 @@ export class QuizzesController {
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
   bulkGenerate(@Body() dto: BulkGenerateQuizDto) {
     const { jobId, total } = this.quizzesService.startBulkGenerate(dto);
+    return { started: true, background: true, jobId, total };
+  }
+
+  /**
+   * **Бүтэн IELTS шалгалт үүсгэх** — Listening 4 Section × 10 асуулт, эсвэл
+   * Reading 3 Passage (13+13+14) = нийт 40, НЭГ дасгал болгож.
+   *
+   * Хэсгийн тоог админ сонгохгүй: тэр нь шалгалтын албан ёсны бүтэц.
+   * Background-д явна — `GET /quizzes/bulk-generate/:jobId`-ээр явцыг харна.
+   */
+  @Post('ielts-paper')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  ieltsPaper(@Body() dto: IeltsPaperDto) {
+    const { jobId, total } = this.quizzesService.startIeltsPaper(dto);
     return { started: true, background: true, jobId, total };
   }
 
@@ -148,6 +164,17 @@ export class QuizzesController {
     return canSeeAnswers(user?.role) ? quiz : stripAnswers(quiz);
   }
 
+  /**
+   * Админ: **сонсох яриа үүсгэх** — асуулт нь байгаа мөртлөө сонсох зүйлгүй
+   * үлдсэн сонсголын дасгалыг амилуулна (ийм мөр аппад огт харагддаггүй).
+   */
+  @Post(':id/generate-script')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  generateScript(@Param('id', ParseUUIDPipe) id: string) {
+    return this.quizzesService.generateListeningScript(id);
+  }
+
   /** Admin: update a quiz. */
   @Patch(':id')
   @UseGuards(RolesGuard)
@@ -186,7 +213,13 @@ export class QuizzesController {
     // computed from the number of correct QUESTIONS (not points).
     if (quiz.category && IELTS_OBJECTIVE_CATEGORIES.includes(quiz.category)) {
       const correctCount = result.breakdown.filter((b) => b.correct).length;
-      result.band = ieltsBand(correctCount, result.breakdown.length);
+      // Ангиллыг дамжуулна: Listening ба Academic Reading хоёр өөр
+      // албан ёсны хүснэгттэй.
+      result.band = ieltsBand(
+        correctCount,
+        result.breakdown.length,
+        quiz.category,
+      );
     }
 
     // Teacher-set homework earns no XP — it's schoolwork, not the game loop

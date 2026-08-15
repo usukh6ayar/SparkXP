@@ -84,7 +84,9 @@ describe('stripAnswers', () => {
   });
 
   it('асуултгүй дасгалыг унагахгүй', () => {
-    expect(stripAnswers({ id: 'x' } as { id: string; questions?: unknown[] })).toEqual({ id: 'x' });
+    expect(
+      stripAnswers({ id: 'x' } as { id: string; questions?: unknown[] }),
+    ).toEqual({ id: 'x' });
   });
 });
 

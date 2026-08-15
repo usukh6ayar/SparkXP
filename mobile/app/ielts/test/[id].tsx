@@ -20,6 +20,7 @@ import {
   groupSections,
   ieltsModuleOf,
   recommendedSeconds,
+  sectionText,
 } from '../../../src/constants/ielts';
 import { markExerciseCompleted } from '../../../src/lib/exerciseProgress';
 import { markDailyTask } from '../../../src/lib/dailyTasks';
@@ -259,8 +260,14 @@ export default function IeltsTestScreen() {
         {/* Source material. Listening pins the recording; Reading keeps the
             passage one tap away instead of above every question, because a
             phone cannot show both at once the way the desktop site does. */}
+        {/* Зөвхөн ЭНЭ хэсгийн эх материал. Бүтэн шалгалтад 4 яриа нэг талбарт
+            цугладаг тул бүтнээр нь өгвөл 2-р хэсэг дээр 4-ийнхөө хариултыг
+            сонсох болно. */}
         {isListening ? (
-          <ExamAudioBar audioUrl={quiz.audioUrl} script={quiz.passageText} />
+          <ExamAudioBar
+            audioUrl={quiz.audioUrl}
+            script={sectionText(quiz.passageText, current.number)}
+          />
         ) : null}
 
         {isReading && quiz.passageText ? (
@@ -278,7 +285,9 @@ export default function IeltsTestScreen() {
 
         {showPassage && quiz.passageText ? (
           <View style={styles.passage}>
-            <AppText variant="body" style={styles.passageText}>{quiz.passageText}</AppText>
+            <AppText variant="body" style={styles.passageText}>
+              {sectionText(quiz.passageText, current.number)}
+            </AppText>
           </View>
         ) : (
           <>

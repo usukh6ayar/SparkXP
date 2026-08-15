@@ -15,6 +15,7 @@ import {
   buildSchema,
   buildTypePrompt,
   clampCount,
+  isListeningQuiz,
   LISTENING_CATEGORIES,
   maxTokensFor,
   MIN_LISTENING_SCRIPT,
@@ -46,9 +47,17 @@ import {
   type QualityIssue,
   type QuizLike,
 } from './quality';
-import { MAX_SECTIONS } from './ielts';
+import {
+  IELTS_CATEGORIES,
+  MAX_SECTIONS,
+  PART_LABEL,
+  paperPlan,
+  SECTION_MARK,
+  type PaperSectionPlan,
+} from './ielts';
 import { AiGenerateQuizDto } from './dto/ai-generate-quiz.dto';
 import { BulkGenerateQuizDto } from './dto/bulk-generate-quiz.dto';
+import { IeltsPaperDto } from './dto/ielts-paper.dto';
 import { CreateQuizDto, QuestionDto } from './dto/create-quiz.dto';
 import { UpdateQuizDto } from './dto/update-quiz.dto';
 import { QueryQuizzesDto } from './dto/query-quizzes.dto';
@@ -108,7 +117,12 @@ type StoredQuestion = McQuestion | FbQuestion | WmQuestion | OrQuestion;
  */
 function sectionOf(q: { section?: unknown }): { section?: number } {
   const n = q.section;
-  if (typeof n !== 'number' || !Number.isInteger(n) || n < 1 || n > MAX_SECTIONS) {
+  if (
+    typeof n !== 'number' ||
+    !Number.isInteger(n) ||
+    n < 1 ||
+    n > MAX_SECTIONS
+  ) {
     return {};
   }
   return { section: n };
@@ -298,6 +312,180 @@ export class QuizzesService {
       });
 
     return { jobId, total: steps.length };
+  }
+
+  /**
+   * **Бүтэн IELTS шалгалт үүсгэх** — Listening 4 Section × 10, эсвэл Reading
+   * 3 Passage × 13/13/14 (нийт 40 асуулт), НЭГ дасгал болгож.
+   *
+   * Яагаад хэсэг бүрийг тусад нь дуудаж байна вэ: (1) нэг дуудлагад 20 асуулт
+   * гэсэн хязгаартай (`MAX_QUESTION_COUNT`), (2) хэсэг бүр өөрийн нөхцөлтэй —
+   * Section 1 нь захиалгын яриа, Section 4 нь лекц — тул тусад нь бичүүлэх нь
+   * жинхэнэ шалгалттай илүү төстэй болгодог. Хэсгүүдийн яриа/эх нь
+   * `SECTION_MARK` тэмдэглэгээгээр нэг `passageText`-д цуглана; апп тухайн
+   * хэсгийнхийг л харуулна.
+   *
+   * Урт ажил (3–4 AI дуудлага) тул background-д явж `jobId` буцаана —
+   * `GET /quizzes/bulk-generate/:jobId`-ээр явцыг харна.
+   */
+  startIeltsPaper(dto: IeltsPaperDto): { jobId: string; total: number } {
+    const plan = paperPlan(dto.module);
+    const jobId = randomUUID();
+    const report: BulkGenerateReport = {
+      total: plan.length,
+      processed: 0,
+      created: 0,
+      skipped: 0,
+      failed: [],
+      done: false,
+    };
+    this.bulkJobs.set(jobId, report);
+
+    void this.runIeltsPaper(dto, plan, report)
+      .catch((e: unknown) =>
+        this.logger.error(
+          `[ielts-paper] job ${jobId} crashed: ${e instanceof Error ? e.message : String(e)}`,
+        ),
+      )
+      .finally(() => {
+        report.done = true;
+        report.current = undefined;
+        setTimeout(() => this.bulkJobs.delete(jobId), 5 * 60_000);
+      });
+
+    return { jobId, total: plan.length };
+  }
+
+  /** Хэсэг бүрийг дараалан үүсгээд нэг дасгал болгож хадгална. */
+  private async runIeltsPaper(
+    dto: IeltsPaperDto,
+    plan: PaperSectionPlan[],
+    report: BulkGenerateReport,
+  ): Promise<void> {
+    const category = IELTS_CATEGORIES[dto.module];
+    const label = PART_LABEL[dto.module];
+
+    const questions: unknown[] = [];
+    const texts: string[] = [];
+
+    for (const part of plan) {
+      if (report.canceled) break;
+      report.current = `${label} ${part.section}`;
+      try {
+        const draft = await this.aiGenerate({
+          brief: `${part.brief}\n\nЯг ${part.count} асуулт бич.`,
+          kind: 'ielts',
+          category,
+          topic: dto.topic,
+          count: part.count,
+          // Writing/Speaking нь задгай хариулт — формат нь тогтмол тул AI-д
+          // сонгуулахгүй (эс бөгөөс эссэний даалгаврыг сонголтот асуулт болгоно).
+          ...(part.openResponse
+            ? { questionType: 'open_response' as const }
+            : {}),
+        });
+        // Хэсгийн дугаарыг ЭНД тавина — AI-д даалгавал алгасдаг.
+        for (const q of draft.questions) {
+          questions.push({ ...q, section: part.section });
+        }
+        if (draft.passageText?.trim()) {
+          texts.push(
+            `${SECTION_MARK(part.section, label)}\n${draft.passageText.trim()}`,
+          );
+        }
+        report.created += 1;
+      } catch (e) {
+        report.failed.push({
+          key: `${label} ${part.section}`,
+          message: e instanceof Error ? e.message : String(e),
+        });
+      } finally {
+        report.processed += 1;
+      }
+    }
+
+    // Нэг ч хэсэг бүтээгүй бол хадгалах зүйл алга.
+    if (!questions.length) return;
+
+    const quiz = await this.create({
+      title:
+        dto.title?.trim() ||
+        `IELTS ${dto.module[0].toUpperCase()}${dto.module.slice(1)} Practice Test`,
+      category,
+      topic: dto.topic,
+      questions: questions as CreateQuizDto['questions'],
+      passageText: texts.join('\n\n') || undefined,
+      xpReward: dto.xpReward ?? 50,
+      isPublished: true,
+    });
+    report.current = quiz.title;
+  }
+
+  /**
+   * **Байгаа сонсголын дасгалд сонсох яриа үүсгэх.**
+   *
+   * Яагаад хэрэгтэй вэ: сонсох зүйлгүй сонсголын дасгал бол хариулах
+   * боломжгүй дасгал — сервер түүнийг хадгалахыг ч, аппад өгөхийг ч
+   * татгалздаг (`quality.ts`). Гэвч ийм мөрүүд DB-д аль хэдийн үлдсэн бөгөөд
+   * тэднийг засах цорын ганц арга нь ярианы бичвэрийг **гараар** бичих байв.
+   * Энэ нь асуултууд болон тэдний зөв хариултаас нь эхлээд AI-гаар яриа
+   * бичүүлж, мөрийг амилуулна.
+   *
+   * ⚠️ Үүсгэсэн ярианы дараа чанарын шалгуурыг ДАХИН ажиллуулна — AI хариултыг
+   * нь оруулаагүй бол хадгалахгүй, худал «зассан» гэж хэлэхгүй.
+   */
+  async generateListeningScript(id: string): Promise<Quiz> {
+    const quiz = await this.findOne(id);
+    if (!isListeningQuiz(quiz)) {
+      throw new BadRequestException('Зөвхөн сонсголын дасгалд яриа үүсгэнэ.');
+    }
+    const questions = (quiz.questions ?? []) as StoredQuestion[];
+    if (!questions.length) {
+      throw new BadRequestException('Асуултгүй дасгалд яриа үүсгэх боломжгүй.');
+    }
+
+    // Асуулт + зөв хариултыг нь AI-д харуулна — яриа нь тэднийг БҮГДИЙГ
+    // агуулсан байх ёстой, эс бөгөөс дасгал дахин хариулах боломжгүй болно.
+    const lines = questions.map((q, i) => {
+      if (q.type === 'multiple_choice') {
+        return `${i + 1}. ${q.question} → зөв хариулт: "${q.options[q.correct]}"`;
+      }
+      if (q.type === 'fill_blank')
+        return `${i + 1}. ${q.question} → нөхөх үг: "${q.answer}"`;
+      return `${i + 1}. (${q.type})`;
+    });
+
+    const { text } = await runGeminiText(
+      this.config,
+      [
+        'Чи IELTS маягийн сонсголын дасгалын СКРИПТ бичиж байна.',
+        `Дасгалын гарчиг: "${quiz.title}".`,
+        '',
+        'Доорх асуулт бүрийн зөв хариулт нь ярианаас СОНСОГДОЖ байхаар,',
+        'байгалийн англи хэлээр харилцан яриа эсвэл монолог бич:',
+        ...lines,
+        '',
+        'Дүрэм:',
+        '- Зөвхөн скриптийг буцаа (тайлбар, гарчиг, markdown бүү бич).',
+        '- Ярианы хүн бүрийг "Name:" гэж эхэл (монолог бол "Speaker:").',
+        '- 150–300 үг. Хариултууд яриан дотор ЖИНХЭНЭ сонсогдох ёстой.',
+        '- Асуултын дугаарыг скрипт дотор бүү дурд.',
+      ].join('\n'),
+      'listening-script',
+      { temperature: 0.6, thinkingBudget: 0, maxOutputTokens: 1200 },
+    );
+
+    const script = text.trim();
+    if (script.length < MIN_LISTENING_SCRIPT) {
+      throw new BadRequestException(
+        'AI хангалттай урт яриа буцаасангүй. Дахин оролдоно уу.',
+      );
+    }
+
+    quiz.passageText = script;
+    // Яриа нь хариултуудыг үнэхээр агуулж байна уу — хадгалахын өмнө шалгана.
+    this.assertAnswerable(quiz);
+    return this.quizzes.save(quiz);
   }
 
   /** Явцыг татах (админ 2.5 секунд тутам дуудна). */
@@ -781,7 +969,8 @@ export class QuizzesService {
      */
     if (totalPoints === 0) {
       const allOpen =
-        questions.length > 0 && questions.every((q) => q.type === 'open_response');
+        questions.length > 0 &&
+        questions.every((q) => q.type === 'open_response');
       if (!allOpen) {
         throw new BadRequestException('Quiz-д оноогүй асуулт байна');
       }
