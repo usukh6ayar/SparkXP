@@ -30,6 +30,7 @@ import { AiGenerateQuizDto } from './dto/ai-generate-quiz.dto';
 import { BulkGenerateQuizDto } from './dto/bulk-generate-quiz.dto';
 import { CreateQuizDto } from './dto/create-quiz.dto';
 import { IELTS_OBJECTIVE_CATEGORIES, ieltsBand } from './ielts';
+import { canSeeAnswers, stripAnswers } from './sanitize';
 import { UpdateQuizDto } from './dto/update-quiz.dto';
 import { QueryQuizzesDto } from './dto/query-quizzes.dto';
 import { SubmitQuizDto, AnswerItemDto } from './dto/submit-quiz.dto';
@@ -106,10 +107,18 @@ export class QuizzesController {
     return { canceled: this.quizzesService.cancelBulkJob(jobId) };
   }
 
-  /** List quizzes with optional filters. */
+  /**
+   * List quizzes with optional filters.
+   *
+   * ⚠️ Хариултын түлхүүр зөвхөн контент засдаг дүрд очно — сурагчид
+   * `correct`/`answer` явуулбал дасгал бүрийг сүлжээний хариунаас уншиж
+   * болно (`sanitize.ts`).
+   */
   @Get()
-  findAll(@Query() query: QueryQuizzesDto) {
-    return this.quizzesService.findAll(query);
+  async findAll(@Query() query: QueryQuizzesDto, @CurrentUser() user: User) {
+    const page = await this.quizzesService.findAll(query);
+    if (canSeeAnswers(user?.role)) return page;
+    return { ...page, items: page.items.map(stripAnswers) };
   }
 
   /**
@@ -128,9 +137,15 @@ export class QuizzesController {
 
   /** Get a single quiz by id. */
   @Get(':id')
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
+  async findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: User,
+  ) {
     // Аппын хувилбар: `fill_blank` бүрд яг 4 сонголт бэлдэнэ.
-    return this.quizzesService.findOneForStudent(id);
+    const quiz = await this.quizzesService.findOneForStudent(id);
+    // ⚠️ Сонголт/үгийн санг бэлдсэний ДАРАА хасна — тэдгээр нь хариултаас
+    // тооцоологддог (аль хэдийн холигдсон тул түлхүүрээ задлахгүй).
+    return canSeeAnswers(user?.role) ? quiz : stripAnswers(quiz);
   }
 
   /** Admin: update a quiz. */

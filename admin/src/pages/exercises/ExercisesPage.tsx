@@ -94,6 +94,7 @@ interface Exercise {
   isPublished: boolean;
   questions: Question[];
   passageText: string | null;
+  audioUrl: string | null;
 }
 
 interface Form {
@@ -105,11 +106,13 @@ interface Form {
   xpReward: number;
   /** Сонсголын дасгал: аппын дуугаар уншуулах яриа. Бусад ангилалд хоосон. */
   passageText: string;
+  audioUrl: string;
 }
 // "Ноорог" төлөв формд байхгүй: Хадгалах = шууд нийтлэх (`components/Publish.tsx`).
 const emptyForm: Form = {
   title: '', level: 'a1', topic: '', questionType: 'multiple_choice', questions: [], xpReward: 50,
   passageText: '',
+  audioUrl: '',
 };
 
 export default function ExercisesPage() {
@@ -172,6 +175,7 @@ export default function ExercisesPage() {
       title: ex.title, level: ex.level, topic: ex.topic ?? '', questionType: qt,
       questions: ex.questions ?? [], xpReward: ex.xpReward,
       passageText: ex.passageText ?? '',
+      audioUrl: ex.audioUrl ?? '',
     });
     setEditing(ex); setError(''); setModal('edit');
   }
@@ -187,10 +191,16 @@ export default function ExercisesPage() {
     // Сонсох яриагүй сонсголын дасгал = хариулах боломжгүй дасгал. Сурагч
     // асуултын хариултыг хаанаас ч олохгүй тул таамаглана. Сервер ч үүнийг
     // татгалзана — энд шалгаснаар админ шалтгааныг нь шууд, ойлгомжтой харна.
-    if (cat === 'listening' && form.passageText.trim().length < MIN_SCRIPT) {
+    // Сонсох зүйлгүй сонсголын дасгал = хариулах боломжгүй. Хоёр замын аль нэг
+    // хангалттай: бодит бичлэг (audioUrl) ЭСВЭЛ апп дуугаар уншдаг яриа.
+    if (
+      cat === 'listening' &&
+      !form.audioUrl.trim() &&
+      form.passageText.trim().length < MIN_SCRIPT
+    ) {
       setError(
-        'Сонсох яриаг бөглөнө үү. Яриагүй бол сурагч асуултын хариултыг ' +
-        'хаанаас ч олж чадахгүй — зөвхөн таамаглана.',
+        'Сонсох зүйл алга. Бичлэгийн холбоос тавих эсвэл ярианы бичвэрийг ' +
+        'бөглөнө үү — эс бөгөөс сурагч асуултын хариултыг хаанаас ч олохгүй.',
       );
       return;
     }
@@ -206,6 +216,7 @@ export default function ExercisesPage() {
         xpReward: form.xpReward,
         // Зөвхөн сонсголд утгатай — бусад ангилалд хоосон явуулж цэвэрлэнэ.
         passageText: cat === 'listening' ? form.passageText.trim() || undefined : undefined,
+        audioUrl: cat === 'listening' ? form.audioUrl.trim() || undefined : undefined,
         isPublished: true, // хадгалсан контент шууд аппад гарна
       };
       if (modal === 'create') await api.post('/quizzes', payload);
@@ -333,9 +344,12 @@ export default function ExercisesPage() {
         <span className="flex items-center gap-2">
           <span className="font-medium">{e.title}</span>
           <HiddenBadge published={e.isPublished} />
+          {/* Үр дагаврыг нь хэлнэ, оноштой нь биш: «хариулах боломжгүй» гэдэг
+              нь юу болсныг хэлэх боловч тэр мөр аппад ОГТ харагдахгүй байгааг
+              хэлдэггүй — админ нийтэлсэн мөрөө хараад бүх юм хэвийн гэж боддог. */}
           {quality.has(e.id) && (
             <Badge color={quality.get(e.id)!.blocked ? 'red' : 'yellow'}>
-              {quality.get(e.id)!.blocked ? 'Хариулах боломжгүй' : 'Шалгах'}
+              {quality.get(e.id)!.blocked ? 'Аппад харагдахгүй' : 'Шалгах'}
             </Badge>
           )}
         </span>
@@ -485,10 +499,25 @@ export default function ExercisesPage() {
                 хариулах хүртэл нуудаг. ЗААВАЛ бөглөнө — хоосон бол асуултууд
                 эх мэдээлэлгүй үлдэж, сурагч таамаглахаас өөр аргагүй болно. */}
             {cat === 'listening' && (
+              <Input
+                label="Аудио URL (сонголтоор)"
+                value={form.audioUrl}
+                onChange={(e) => setForm({ ...form, audioUrl: e.target.value })}
+                placeholder="https://.../listening.mp3"
+              />
+            )}
+            {cat === 'listening' && (
               <div className="flex flex-col gap-1">
                 <label className="text-sm font-medium text-gray-700">
-                  Сонсох яриа <span className="text-red-500">*</span>{' '}
-                  <span className="text-gray-400">(апп үүнийг дуугаар уншина)</span>
+                  Сонсох яриа{' '}
+                  {form.audioUrl.trim() ? (
+                    <span className="text-gray-400">(бичлэгтэй тул сонголтоор)</span>
+                  ) : (
+                    <>
+                      <span className="text-red-500">*</span>{' '}
+                      <span className="text-gray-400">(апп үүнийг дуугаар уншина)</span>
+                    </>
+                  )}
                 </label>
                 <textarea
                   className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"

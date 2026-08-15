@@ -5,9 +5,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useAuth } from '../auth/AuthContext';
 import { requestJoinClass } from '../api/classes';
-import { ApiError } from '../api/client';
 import { parseJoinCode } from '../lib/joinLink';
-import { haptics } from '../lib/haptics';
+import { useAsyncAction } from '../lib/useAsyncAction';
 import { t } from '../i18n';
 import { AppText } from './Text';
 import { TextField } from './TextField';
@@ -28,27 +27,25 @@ export function JoinClass({ initialCode }: { initialCode?: string }) {
   const router = useRouter();
   const [code, setCode] = useState(initialCode ?? '');
   const [scanning, setScanning] = useState(false);
-  const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState<string | null>(null); // class name once requested
   const [error, setError] = useState<string | null>(null);
   const [permission, requestPermission] = useCameraPermissions();
   const lock = useRef(false); // stop a QR firing onBarcodeScanned repeatedly
 
-  async function submit(raw: string) {
-    const c = raw.trim().toUpperCase();
-    if (!token || !c || busy) return;
+  // Not an <ActionButton>: the same call is fired by the button, the QR scanner
+  // and the deep link, so the code arrives as an argument.
+  const { busy, run } = useAsyncAction(
+    (raw: string) => requestJoinClass(raw.trim().toUpperCase(), token!),
+    {
+      onSuccess: (res) => setPending(res.className),
+      onError: setError,
+    },
+  );
+
+  function submit(raw: string): Promise<void> {
+    if (!token || !raw.trim()) return Promise.resolve();
     setError(null);
-    setBusy(true);
-    try {
-      const res = await requestJoinClass(c, token);
-      haptics.success();
-      setPending(res.className);
-    } catch (e) {
-      haptics.error();
-      setError(e instanceof ApiError ? e.message : t('errorGeneric'));
-    } finally {
-      setBusy(false);
-    }
+    return run(raw);
   }
 
   // Deep-link entry: auto-submit the code from the URL.

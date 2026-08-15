@@ -13,13 +13,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../src/auth/AuthContext';
 import * as classesApi from '../../../src/api/classes';
 import { getOrganizations, type Organization } from '../../../src/api/organizations';
-import { ApiError } from '../../../src/api/client';
-import { haptics } from '../../../src/lib/haptics';
 import { t } from '../../../src/i18n';
 import { AppText } from '../../../src/components/Text';
 import { TextField } from '../../../src/components/TextField';
 import { SelectField } from '../../../src/components/SelectField';
-import { Button } from '../../../src/components/Button';
+import { ActionButton } from '../../../src/components/ActionButton';
 import { spacing, type AppColors } from '../../../src/theme/theme';
 import { useColors } from '../../../src/settings/SettingsContext';
 import { bounded } from '../../../src/theme/responsive';
@@ -37,7 +35,6 @@ export default function NewClassScreen() {
   const [name, setName] = useState('');
   const [orgs, setOrgs] = useState<Organization[]>([]);
   const [schoolName, setSchoolName] = useState<string | undefined>();
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadOrgs = useCallback(() => {
@@ -48,20 +45,9 @@ export default function NewClassScreen() {
   }, [loadOrgs]);
 
   async function onCreate() {
-    const org = orgs.find((o) => o.name === schoolName);
-    if (!token || !name.trim() || !org) return;
     setError(null);
-    setBusy(true);
-    try {
-      const created = await classesApi.createClass(name.trim(), org.id, token);
-      haptics.success();
-      // Replace so Back from the detail returns to the class list, not here.
-      router.replace(`/(teacher)/class/${created.id}`);
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : t('errorGeneric'));
-    } finally {
-      setBusy(false);
-    }
+    const org = orgs.find((o) => o.name === schoolName)!;
+    return classesApi.createClass(name.trim(), org.id, token!);
   }
 
   return (
@@ -106,12 +92,14 @@ export default function NewClassScreen() {
               {error}
             </AppText>
           ) : null}
-          <Button
+          <ActionButton
             label={t('createClass')}
             iconRight="arrow-forward"
-            onPress={onCreate}
-            loading={busy}
-            disabled={!name.trim() || !schoolName}
+            action={onCreate}
+            // Replace so Back from the detail returns to the class list, not here.
+            onSuccess={(created) => router.replace(`/(teacher)/class/${created.id}`)}
+            onError={setError}
+            disabled={!name.trim() || !schoolName || !token || !orgs.some((o) => o.name === schoolName)}
           />
         </ScrollView>
       </KeyboardAvoidingView>

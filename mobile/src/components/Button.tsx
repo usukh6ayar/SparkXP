@@ -8,7 +8,7 @@ import { useColors } from '../settings/SettingsContext';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
-interface Props {
+export interface ButtonProps {
   label: string;
   onPress: () => void;
   /**
@@ -44,7 +44,7 @@ export function Button({
   disabled,
   fullWidth = true,
   style,
-}: Props) {
+}: ButtonProps) {
   const c = useColors();
   const isPrimary = variant === 'primary';
   const isSecondary = variant === 'secondary';

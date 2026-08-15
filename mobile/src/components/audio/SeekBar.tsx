@@ -11,7 +11,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { AppText } from '../Text';
 import { haptics } from '../../lib/haptics';
-import { spacing, radius, type AppColors } from '../../theme/theme';
+import { spacing, radius } from '../../theme/theme';
 import { useColors } from '../../settings/SettingsContext';
 
 /**
@@ -37,6 +37,8 @@ export function SeekBar({
   right,
   smoothMs,
   disabled,
+  marks,
+  tone = 'onGradient',
 }: {
   /** Current position, 0..1. */
   value: number;
@@ -57,9 +59,22 @@ export function SeekBar({
    *  still and then snapping. */
   smoothMs?: number;
   disabled?: boolean;
+  /**
+   * Segment boundaries as 0..1 ratios, drawn as ticks. They show the shape of
+   * what is playing — with spoken script these are the sentences, so you can
+   * see how long the next one is before deciding to skip it.
+   */
+  marks?: number[];
+  /**
+   * Where the bar sits. `onGradient` (default) is white-on-colour for a bar
+   * laid over the brand gradient; `onSurface` is the themed version for a card.
+   */
+  tone?: 'onGradient' | 'onSurface';
 }) {
   const c = useColors();
-  const styles = useMemo(() => makeStyles(c), [c]);
+  const onSurface = tone === 'onSurface';
+  const trackColor = onSurface ? c.surfaceAlt : 'rgba(255,255,255,0.28)';
+  const fillColor = onSurface ? c.primary : c.white;
 
   const width = useSharedValue(0);
   /** Position the player reports (smoothed — status updates are chunky). */
@@ -164,17 +179,32 @@ export function SeekBar({
             width.value = e.nativeEvent.layout.width;
           }}
         >
-          <View style={styles.track}>
-            <Animated.View style={[styles.fill, fillStyle]} />
+          <View style={[styles.track, { backgroundColor: trackColor }]}>
+            <Animated.View style={[styles.fill, { backgroundColor: fillColor }, fillStyle]} />
+            {/* Ticks sit above the fill so a played segment still shows its
+                boundary — otherwise the bar loses its shape as it fills. */}
+            {marks?.map((m) =>
+              m > 0 && m < 1 ? (
+                <View
+                  key={m}
+                  style={[
+                    styles.tick,
+                    { left: `${m * 100}%`, backgroundColor: onSurface ? c.border : 'rgba(255,255,255,0.5)' },
+                  ]}
+                />
+              ) : null,
+            )}
           </View>
-          <Animated.View style={[styles.thumb, thumbStyle]} />
+          <Animated.View style={[styles.thumb, { backgroundColor: fillColor }, thumbStyle]} />
         </View>
       </GestureDetector>
 
       {left || right ? (
         <View style={styles.labels}>
-          <AppText variant="caption" color={c.white}>{label}</AppText>
-          <AppText variant="caption" color={c.textOnDarkMuted}>{right ?? ''}</AppText>
+          <AppText variant="caption" color={onSurface ? c.text : c.white}>{label}</AppText>
+          <AppText variant="caption" color={onSurface ? c.textMuted : c.textOnDarkMuted}>
+            {right ?? ''}
+          </AppText>
         </View>
       ) : null}
     </View>
@@ -189,29 +219,24 @@ export function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-// Deliberately chunky: this bar IS the control (there are no skip buttons), so
-// it has to look grabbable and survive a thumb landing roughly on it.
-const TRACK_H = 7;
-const THUMB = 18;
+// Deliberately chunky — a thumb has to be able to land on this roughly and
+// still grab it. The tall invisible hit area matters more than the visible bar.
+const TRACK_H = 8;
+const THUMB = 22;
 
-const makeStyles = (c: AppColors) =>
-  StyleSheet.create({
-    wrap: { gap: 2 },
-    hit: { justifyContent: 'center', height: 36 },
-    track: {
-      height: TRACK_H,
-      borderRadius: radius.full,
-      backgroundColor: 'rgba(255,255,255,0.28)',
-      overflow: 'hidden',
-    },
-    fill: { height: TRACK_H, borderRadius: radius.full, backgroundColor: c.white },
-    thumb: {
-      position: 'absolute',
-      width: THUMB,
-      height: THUMB,
-      borderRadius: radius.full,
-      backgroundColor: c.white,
-      marginLeft: -THUMB / 2,
-    },
-    labels: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: spacing.xs },
-  });
+// Colours come in per-render from `tone`, so the layout itself is static.
+const styles = StyleSheet.create({
+  wrap: { gap: 2 },
+  hit: { justifyContent: 'center', height: 44 },
+  track: { height: TRACK_H, borderRadius: radius.full, overflow: 'hidden' },
+  fill: { height: TRACK_H, borderRadius: radius.full },
+  tick: { position: 'absolute', top: 0, width: 2, height: TRACK_H },
+  thumb: {
+    position: 'absolute',
+    width: THUMB,
+    height: THUMB,
+    borderRadius: radius.full,
+    marginLeft: -THUMB / 2,
+  },
+  labels: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: spacing.xs },
+});

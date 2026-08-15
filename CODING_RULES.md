@@ -40,6 +40,11 @@
   шинэ кодод i18n-ийг баримтал.)
 - **Raw `fetch` хориотой.** Бүх API дуудлага `mobile/src/api/` дундуур
   (`client.ts` → `apiRequest`/`apiUpload`). Screen дотор `fetch` бичихгүй.
+- **Backend дууддаг товч = `<ActionButton>`.** `<Button>` + гараар бичсэн
+  `busy` state + `try/catch/finally` **хориотой** — spinner, давхар товшилтын
+  хамгаалалт, haptic, алдааны мессеж бүгд `ActionButton`-д бий (`action` +
+  сонголтоор `onSuccess`/`onError`/`confirm`). Товч биш зүйл (QR скан, зураг
+  сонгогч, мөр) бол `src/lib/useAsyncAction.ts`-ыг шууд ашигла.
 - **2 түвшний сэдэв → item жагсаалт** хэрэгтэй бол `CategoryBrowser`-ийг дахин ашигла.
 - **StyleSheet** нэг л удаа (`makeStyles` эсвэл module-level `StyleSheet.create`);
   inline style-ийг зөвхөн жижиг динамик утганд.

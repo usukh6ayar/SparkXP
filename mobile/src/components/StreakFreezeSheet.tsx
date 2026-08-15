@@ -1,20 +1,17 @@
-import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AppText } from './Text';
 import { Button } from './Button';
+import { ActionButton } from './ActionButton';
 import { AppIcon } from './AppIcon';
 import { SheetModal } from './SheetModal';
 import { useColors } from '../settings/SettingsContext';
 import { useAuth } from '../auth/AuthContext';
-import { haptics } from '../lib/haptics';
-import { alertError } from '../lib/alerts';
 import {
   buyStreakFreeze,
   STREAK_FREEZE_FALLBACK,
   type Gamification,
 } from '../api/gamification';
-import { ApiError } from '../api/client';
 import { t, tf } from '../i18n';
 import { spacing, radius } from '../theme/theme';
 
@@ -41,7 +38,6 @@ export function StreakFreezeSheet({
 }) {
   const c = useColors();
   const { token } = useAuth();
-  const [busy, setBusy] = useState(false);
 
   const held = gam?.streakFreezes ?? 0;
   /** Missed days this streak has already survived. 0 when the API omits it. */
@@ -50,20 +46,6 @@ export function StreakFreezeSheet({
   const max = gam?.maxStreakFreezes ?? STREAK_FREEZE_FALLBACK.max;
   const atCap = held >= max;
   const canAfford = sparksBalance >= cost;
-
-  async function buy() {
-    if (!token || busy) return;
-    setBusy(true);
-    try {
-      const next = await buyStreakFreeze(token);
-      haptics.success();
-      onBought(next);
-    } catch (e) {
-      alertError(e instanceof ApiError ? e.message : t('errorFallback'));
-    } finally {
-      setBusy(false);
-    }
-  }
 
   return (
     <SheetModal visible={visible} onClose={onClose}>
@@ -112,11 +94,11 @@ export function StreakFreezeSheet({
         </AppText>
       </View>
 
-      <Button
+      <ActionButton
         label={atCap ? t('streakFreezeAtCap') : tf('streakFreezeBuyCta', { n: cost })}
-        onPress={buy}
-        disabled={atCap || !canAfford || busy || !token}
-        loading={busy}
+        action={() => buyStreakFreeze(token!)}
+        onSuccess={onBought}
+        disabled={atCap || !canAfford || !token}
         style={styles.buyBtn}
       />
       <Button

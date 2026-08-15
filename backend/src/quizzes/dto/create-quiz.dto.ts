@@ -8,6 +8,7 @@ import {
   ValidateNested,
   IsIn,
   Min,
+  Max,
   ArrayNotEmpty,
   ArrayMinSize,
   ArrayMaxSize,
@@ -15,9 +16,28 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ContentLevel } from '../../common/enums';
+import { MAX_SECTIONS } from '../ielts';
+
+/**
+ * Fields any question type may carry, whatever its format.
+ *
+ * `section` is what lets an IELTS set be a real exam part rather than one flat
+ * list: a Listening test has 4 sections, Academic Reading has 3 passages, and
+ * the app needs to say "Part 2 of 4 · Questions 11–20". Storing it per question
+ * (rather than as a new table) keeps it inside the existing `questions` jsonb —
+ * no migration, and every quiz authored before sections existed simply has no
+ * `section` and renders as a single part.
+ */
+export class BaseQuestionDto {
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(MAX_SECTIONS)
+  section?: number;
+}
 
 /** Multiple-choice question — one correct option from a list. */
-export class MultipleChoiceQuestionDto {
+export class MultipleChoiceQuestionDto extends BaseQuestionDto {
   @IsIn(['multiple_choice'])
   type: 'multiple_choice';
 
@@ -44,7 +64,7 @@ export class MultipleChoiceQuestionDto {
 }
 
 /** Fill-in-the-blank question — user types the expected answer. */
-export class FillBlankQuestionDto {
+export class FillBlankQuestionDto extends BaseQuestionDto {
   @IsIn(['fill_blank'])
   type: 'fill_blank';
 
@@ -83,7 +103,7 @@ export class WordMatchPairDto {
 }
 
 /** Word-matching question — student matches left-column words to right-column. */
-export class WordMatchQuestionDto {
+export class WordMatchQuestionDto extends BaseQuestionDto {
   @IsIn(['word_match'])
   type: 'word_match';
 
@@ -99,7 +119,7 @@ export class WordMatchQuestionDto {
 }
 
 /** Open written/spoken response (IELTS Writing/Speaking) — self-study, points 0. */
-export class OpenResponseQuestionDto {
+export class OpenResponseQuestionDto extends BaseQuestionDto {
   @IsIn(['open_response'])
   type: 'open_response';
 

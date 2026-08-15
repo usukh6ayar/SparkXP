@@ -5,6 +5,7 @@ import { enter } from '../lib/motion';
 import { useAuth } from '../auth/AuthContext';
 import { ApiError } from '../api/client';
 import { haptics } from '../lib/haptics';
+import { useAsyncAction } from '../lib/useAsyncAction';
 import { isValidUsername } from '../lib/username';
 import { useSettings } from '../settings/SettingsContext';
 import * as usersApi from '../api/users';
@@ -30,7 +31,6 @@ export function EditProfileModal({ visible, onClose }: { visible: boolean; onClo
   const [username, setUsername] = useState('');
   const [province, setProvince] = useState('');
   const [district, setDistrict] = useState('');
-  const [saving, setSaving] = useState(false);
   const isUB = province === 'Улаанбаатар';
 
   // Only send the username when it actually changed — re-sending your own name
@@ -49,12 +49,9 @@ export function EditProfileModal({ visible, onClose }: { visible: boolean; onClo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
-  async function save() {
-    if (!fullName.trim()) { alertError(t('enterName')); return; }
-    // The username is the login handle, so it must stay well-formed and unique.
-    if (usernameChanged && !isValidUsername(username)) { alertError(t('usernameInvalid')); return; }
-    setSaving(true);
-    try {
+  // `haptic: false` — this flow confirms with an Alert instead of a buzz.
+  const { busy: saving, run: submit } = useAsyncAction(
+    async () => {
       const updated = await usersApi.updateProfile(
         {
           fullName: fullName.trim(),
@@ -66,22 +63,34 @@ export function EditProfileModal({ visible, onClose }: { visible: boolean; onClo
       );
       // Apply the returned user so the profile header reflects changes at once.
       await updateUser(updated);
-      // The server strips fields its DTO doesn't know (global ValidationPipe
-      // runs with `whitelist: true`), so a username change can come back
-      // silently unapplied. Say so instead of claiming a save that didn't
-      // happen — see the note on UpdateProfilePayload.username.
-      if (usernameChanged && updated.username !== username.trim()) {
-        alertError(t('usernameUnavailable'));
-        return;
-      }
-      Alert.alert(t('success'), t('profileUpdated'));
-      onClose();
-    } catch (e) {
+      return updated;
+    },
+    {
+      haptic: false,
+      onSuccess: (updated) => {
+        // The server strips fields its DTO doesn't know (global ValidationPipe
+        // runs with `whitelist: true`), so a username change can come back
+        // silently unapplied. Say so instead of claiming a save that didn't
+        // happen — see the note on UpdateProfilePayload.username.
+        if (usernameChanged && updated.username !== username.trim()) {
+          alertError(t('usernameUnavailable'));
+          return;
+        }
+        Alert.alert(t('success'), t('profileUpdated'));
+        onClose();
+      },
       // 409 = the handle is already someone else's.
-      alertError(e instanceof ApiError && e.status === 409 ? t('usernameTaken') : t('saveError'));
-    } finally {
-      setSaving(false);
-    }
+      onError: (_message, e) =>
+        alertError(e instanceof ApiError && e.status === 409 ? t('usernameTaken') : t('saveError')),
+    },
+  );
+
+  /** Validation runs before the call, so a bad field never spins the button. */
+  function save() {
+    if (!fullName.trim()) { alertError(t('enterName')); return; }
+    // The username is the login handle, so it must stay well-formed and unique.
+    if (usernameChanged && !isValidUsername(username)) { alertError(t('usernameInvalid')); return; }
+    submit();
   }
 
   return (

@@ -106,40 +106,102 @@ export function exerciseCategoryOptions(skill: string) {
  * are auto-scored to a band; writing/speaking are self-study (open_response).
  */
 export const IELTS_MODULES = [
-  { key: 'listening', label: 'Listening', category: 'ielts_listening', objective: true },
-  { key: 'reading', label: 'Reading', category: 'ielts_reading', objective: true },
-  { key: 'writing', label: 'Writing', category: 'ielts_writing', objective: false },
-  { key: 'speaking', label: 'Speaking', category: 'ielts_speaking', objective: false },
+  {
+    key: 'listening',
+    label: 'Listening',
+    category: 'ielts_listening',
+    objective: true,
+    // A Listening paper is four recorded sections, 10 questions each.
+    parts: 4,
+    partLabel: 'Section',
+  },
+  {
+    key: 'reading',
+    label: 'Reading',
+    category: 'ielts_reading',
+    objective: true,
+    /**
+     * ⚠️ **Three**, not four. Both Academic and General Training Reading are
+     * three passages / 40 questions — General's Section 1 just happens to hold
+     * two or three short texts, which is where the "four" impression comes from.
+     * Change this number if we ever decide otherwise; nothing else needs editing.
+     */
+    parts: 3,
+    partLabel: 'Passage',
+  },
+  {
+    key: 'writing',
+    label: 'Writing',
+    category: 'ielts_writing',
+    objective: false,
+    // Task 1 (150 words) + Task 2 (250 words).
+    parts: 2,
+    partLabel: 'Task',
+  },
+  {
+    key: 'speaking',
+    label: 'Speaking',
+    category: 'ielts_speaking',
+    objective: false,
+    // Part 1 intro · Part 2 long turn · Part 3 discussion.
+    parts: 3,
+    partLabel: 'Part',
+  },
 ] as const;
 
 /**
- * IELTS-ийн **зорилтот band** — модулиудын ангилах тэнхлэг.
+ * IELTS-ийн **сэдэв** — жинхэнэ шалгалтын материал ямар сэдвээр байдаг вэ.
  *
- * ⚠️ Яагаад `topic` талбарт вэ: апп IELTS-ийг `topic`-оор нь бүлэглэдэг
- * (`mobile/app/skill/[key].tsx` → `CategoryBrowser`). Band-ыг тэнд хадгалснаар
- * сурагч «Band 6.0» гэсэн бүлгүүдээр шүүж, өөрийн зорилтот оноогоо сонгоно —
- * аппын код өөрчлөх ч, шинэ багана нэмэх ч шаардлагагүй.
+ * ⚠️ Энэ талбар өмнө нь «Band 4.5 … Band 8.0» гэсэн **зорилтот band** байсныг
+ * 2026-08-14-нд зассан. Band бол **дүн** — зөв хариултын тооноос сервер дээр
+ * `ieltsBand(correct, total)`-оор гарна. Түүнийг контент үүсгэхдээ гараар
+ * сонгож, сурагчид ангилал болгож харуулах нь буруу байв: «Band 6.5» гэсэн
+ * бүлгээс дасгал сонгосон хүн юу ч хийсэн 6.5 авахгүй, харин ямар оноо авахаа
+ * урьдчилж мэдсэн мэт ойлголт төрүүлдэг.
  *
- * `Quiz.level` (CEFR) нь band-аас **автоматаар** гарна (backend `bandToLevel`)
- * тул админ зөвхөн band-аа сонгоно.
- *
- * Хүрээ нь backend-ийн `IELTS_BAND_TOPICS`-той ЯГ таарах ёстой.
+ * ⚠️ IELTS-д **CEFR түвшин ч байхгүй** (2026-08-14). Жинхэнэ шалгалт бүх
+ * шалгуулагчид ижил байдаг — «B1-ийн Listening» гэж үгүй. Ялгаа нь зөвхөн
+ * хэдийг зөв бөглөснөөс гарах band. Сэдэв нь жинхэнэ шалгалтын адил агуулгын
+ * салбар, түүнээс өөр ангилах тэнхлэг байхгүй.
  */
-export const IELTS_BANDS = [
-  'Band 4.5',
-  'Band 5.0',
-  'Band 5.5',
-  'Band 6.0',
-  'Band 6.5',
-  'Band 7.0',
-  'Band 7.5',
-  'Band 8.0',
-];
+const IELTS_TOPICS: Record<string, string[]> = {
+  // Listening: Section 1–2 нь өдөр тутмын нөхцөл, 3–4 нь боловсрол/лекц.
+  listening: [
+    'Housing & accommodation',
+    'Travel & transport',
+    'Education & campus life',
+    'Work & employment',
+    'Health & lifestyle',
+    'Services & bookings',
+    'Academic lecture',
+  ],
+  reading: [
+    'Science & research',
+    'History & archaeology',
+    'Environment & climate',
+    'Technology & innovation',
+    'Society & culture',
+    'Business & economics',
+    'Health & medicine',
+  ],
+  writing: [
+    'Task 1 — chart / graph',
+    'Task 1 — process / map',
+    'Task 2 — opinion',
+    'Task 2 — discussion',
+    'Task 2 — problem & solution',
+  ],
+  speaking: [
+    'Part 1 — familiar topics',
+    'Part 2 — long turn (cue card)',
+    'Part 3 — discussion',
+  ],
+};
 
-/** Band <select> options for one IELTS module's form (incl. empty option). */
-export function ieltsSubTopicOptions(_moduleKey: string) {
+/** Сэдвийн <select> сонголтууд (хоосон сонголттой хамт). */
+export function ieltsSubTopicOptions(moduleKey: string) {
   return [
-    { value: '', label: 'Band сонгоогүй' },
-    ...IELTS_BANDS.map((v) => ({ value: v, label: v })),
+    { value: '', label: 'Сэдэв сонгоогүй' },
+    ...(IELTS_TOPICS[moduleKey] ?? []).map((v) => ({ value: v, label: v })),
   ];
 }
