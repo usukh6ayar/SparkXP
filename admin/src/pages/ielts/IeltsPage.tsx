@@ -15,7 +15,7 @@ import { Select } from '../../components/Select';
 import { FormActions } from '../../components/FormActions';
 import { RowActions } from '../../components/RowActions';
 import { Pagination } from '../../components/Pagination';
-import { IELTS_MODULES, ieltsSubTopicOptions } from '../../lib/options';
+import { IELTS_MODULES, ieltsSubTopicOptions, PAPER_QUESTION_COUNT } from '../../lib/options';
 
 import {
   QuizQuestionsEditor,
@@ -96,6 +96,10 @@ export default function IeltsPage() {
   // Бүх төрлөөр үүсгэх (background job)
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkJobId, setBulkJobId] = useState<string | null>(null);
+  // Бүтэн шалгалт (40 асуулт, хэсгүүдтэйгээ) үүсгэх
+  const [paperOpen, setPaperOpen] = useState(false);
+  const [paperTopic, setPaperTopic] = useState('');
+  const [paperBusy, setPaperBusy] = useState(false);
 
   const current = IELTS_MODULES.find((m) => m.key === mod)!;
 
@@ -151,6 +155,29 @@ export default function IeltsPage() {
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Алдаа гарлаа');
     } finally { setSaving(false); }
+  }
+
+  /**
+   * Бүтэн шалгалт үүсгэх — Listening 4 Section × 10, Reading 3 Passage
+   * (13+13+14). Хэсгийн тоог админ сонгохгүй: тэр нь шалгалтын албан ёсны
+   * бүтэц бөгөөд backend-ийн `paperPlan()`-д тогтоогдсон.
+   */
+  async function startPaper() {
+    setPaperBusy(true);
+    setError('');
+    try {
+      const res = await api.post<{ jobId: string }>('/quizzes/ielts-paper', {
+        module: mod,
+        topic: paperTopic || undefined,
+      });
+      setPaperOpen(false);
+      setPaperTopic('');
+      setBulkJobId(res.jobId);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Алдаа гарлаа');
+    } finally {
+      setPaperBusy(false);
+    }
   }
 
   async function togglePublish(ex: Exercise) {
@@ -238,6 +265,9 @@ export default function IeltsPage() {
         description="IELTS бэлтгэл — Listening / Reading (band) · Writing / Speaking (жишиг хариулт)"
         action={
           <div className="flex gap-2">
+            <Button onClick={() => setPaperOpen(true)}>
+              <Sparkles className="h-4 w-4" /> Бүтэн шалгалт үүсгэх
+            </Button>
             <Button variant="secondary" onClick={() => setAiOpen(true)}><Sparkles className="h-4 w-4" /> AI-аар үүсгэх</Button>
             <BulkGenerateButton onClick={() => setBulkOpen(true)} />
             <Button onClick={openCreate}><Plus className="h-4 w-4" /> IELTS контент нэмэх</Button>
@@ -260,6 +290,36 @@ export default function IeltsPage() {
           onClose={() => setAiOpen(false)}
           onSaved={load}
         />
+      )}
+
+      {paperOpen && (
+        <Modal title={`Бүтэн IELTS ${current.label} шалгалт үүсгэх`} onClose={() => setPaperOpen(false)}>
+          <div className="space-y-4">
+            <div className="rounded-lg bg-primary/5 px-3 py-2 text-sm text-gray-700">
+              <b>{current.parts} {current.partLabel}</b> ·{' '}
+              <b>{PAPER_QUESTION_COUNT[mod] ?? 0} даалгавар</b>{' '}
+              — жинхэнэ шалгалтын бүтцээр. Хэсэг бүр өөрийн{' '}
+              {mod === 'reading'
+                ? 'эх бичвэртэй'
+                : mod === 'listening'
+                  ? 'сонсох яриатай'
+                  : 'жишиг хариулттай'}{' '}
+              үүснэ.
+            </div>
+            <Select
+              label="Сэдэв (сонголтоор)"
+              options={ieltsSubTopicOptions(mod)}
+              value={paperTopic}
+              onChange={(e) => setPaperTopic(e.target.value)}
+            />
+            <p className="text-xs text-gray-500">
+              {current.parts} удаагийн AI дуудлага тул 1–2 минут үргэлжилнэ. Дууссаны
+              дараа шууд нийтлэгдэнэ.
+            </p>
+            <ErrorBox message={error} />
+            <FormActions onCancel={() => setPaperOpen(false)} onSave={startPaper} saving={paperBusy} saveLabel="Үүсгэх" />
+          </div>
+        </Modal>
       )}
 
       {bulkOpen && (

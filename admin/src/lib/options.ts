@@ -121,10 +121,9 @@ export const IELTS_MODULES = [
     category: 'ielts_reading',
     objective: true,
     /**
-     * ⚠️ **Three**, not four. Both Academic and General Training Reading are
-     * three passages / 40 questions — General's Section 1 just happens to hold
-     * two or three short texts, which is where the "four" impression comes from.
-     * Change this number if we ever decide otherwise; nothing else needs editing.
+     * **3 Passage** — ielts.org-оос баталсан (2026-08-15): Academic Reading нь
+     * 3 эх, нийт 40 асуулт, 60 минут. (Хэрэв 4 гэж санагдаж байвал General
+     * Training-ийн Section 1 дотроо 2–3 богино эх агуулдагтай холбоотой.)
      */
     parts: 3,
     partLabel: 'Passage',
@@ -205,3 +204,15 @@ export function ieltsSubTopicOptions(moduleKey: string) {
     ...(IELTS_TOPICS[moduleKey] ?? []).map((v) => ({ value: v, label: v })),
   ];
 }
+
+/**
+ * Бүтэн шалгалтад хэдэн асуулт үүсэх вэ — backend-ийн `paperPlan()`-тай ЯГ
+ * таарна. Listening/Reading нь 4 хэсэг × 10 = 40; Writing/Speaking нь задгай
+ * хариулттай тул цөөн даалгавартай.
+ */
+export const PAPER_QUESTION_COUNT: Record<string, number> = {
+  listening: 40,
+  reading: 40,
+  writing: 2,
+  speaking: 9,
+};

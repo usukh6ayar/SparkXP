@@ -48,9 +48,8 @@ export const IELTS_MODULES: IeltsModule[] = [
     grad: skillGradients.reading,
     auto: true,
     /**
-     * ⚠️ **Three**, not four — Academic and General Reading are both three
-     * passages / 40 questions. (General's Section 1 holding two short texts is
-     * where the "four" impression comes from.)
+     * **3 Passage** — ielts.org (2026-08-15): Academic Reading нь 3 эх, нийт
+     * 40 асуулт, 60 минут.
      */
     parts: 3,
     partLabel: 'Passage',
@@ -194,4 +193,35 @@ export function groupSections<Q extends { section?: number }>(
       from: Math.min(...items.map((i) => i.index)) + 1,
       to: Math.max(...items.map((i) => i.index)) + 1,
     }));
+}
+
+/**
+ * Бүтэн шалгалтын нэг хэсгийн бичвэрийг салгаж авах.
+ *
+ * `Quiz.passageText` нь ганц талбар тул бүтэн шалгалтын 4 сонсох яриа (эсвэл
+ * 3 уншлагын эх) `--- Section 2 ---` маягийн тэмдэглэгээгээр нэг мөрөнд
+ * цуглардаг (backend `SECTION_MARK`). Апп тухайн хэсгийнхийг л харуулна —
+ * жинхэнэ шалгалтын адил, 2-р хэсэг дээр 4-ийн ярианы бичвэр гарч ирэхгүй.
+ *
+ * Тэмдэглэгээгүй (нэг хэсэгтэй, эсвэл гараар бичсэн) бичвэрийг хөндөхгүй
+ * бүтнээр нь буцаана.
+ */
+const SECTION_MARK_RE = /^\s*-{3}\s*(?:Section|Passage)\s*(\d+)\s*-{3}\s*$/gim;
+
+export function sectionText(
+  passageText: string | null | undefined,
+  section: number,
+): string {
+  const text = passageText ?? '';
+  if (!text.trim()) return '';
+
+  const marks = [...text.matchAll(SECTION_MARK_RE)];
+  if (!marks.length) return text; // тэмдэглэгээгүй — бүтнээрээ
+
+  const at = marks.findIndex((m) => Number(m[1]) === section);
+  if (at === -1) return text; // энэ хэсгийнх тэмдэглэгдээгүй бол бүтнээрээ
+
+  const start = (marks[at].index ?? 0) + marks[at][0].length;
+  const end = marks[at + 1]?.index ?? text.length;
+  return text.slice(start, end).trim();
 }
