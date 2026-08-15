@@ -48,8 +48,12 @@ function RecordedBar({ uri }: { uri: string }) {
     player.replace({ uri });
   }, [uri]);
 
-  // The recording must not keep playing over the result screen or the next test.
-  useEffect(() => () => player.pause(), []);
+  /*
+   * ⚠️ Энд unmount дээр `player.pause()` дуудахгүй: `useAudioPlayer` нь
+   * component салахад player-ээ өөрөө release хийдэг тул cleanup доторх
+   * дуудлага «Calling the 'pause' function has failed» гэж унана.
+   * Release хийгдэх нь тоглуулалтыг мөн зогсооно.
+   */
 
   const seek = useCallback(
     (second: number) => {

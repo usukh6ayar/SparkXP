@@ -1,0 +1,34 @@
+import { sttErrorMessage } from './stt.adapter';
+
+/**
+ * Дуу таних бүтэлгүйтэл бүрийг «Дуу хоолойг таньж чадсангүй» гэж хэлдэг байсан
+ * тул сурагч өөрийгөө буруу хэлсэн гэж боддог, админ юу эвдэрснийг мэдэхгүй
+ * байв (Choi, 2026-08-16). Мессеж бүр **хийж болох зүйл** заана.
+ */
+describe('sttErrorMessage', () => {
+  it('эрхийн асуудлыг сурагчийн буруу гэж хэлэхгүй — админд чиглүүлнэ', () => {
+    for (const status of [401, 403]) {
+      expect(sttErrorMessage(status)).toContain('Админд');
+    }
+  });
+
+  it('хязгаар дүүрсэн бол хүлээхийг хэлнэ', () => {
+    expect(sttErrorMessage(429)).toContain('хязгаар');
+  });
+
+  it('бичлэг уншигдаагүй бол ДАХИН хэлэхийг зөвлөнө', () => {
+    for (const status of [400, 422]) {
+      expect(sttErrorMessage(status).toLowerCase()).toContain('дахин');
+    }
+  });
+
+  it('серверийн түр саатлыг түр саатал гэж хэлнэ', () => {
+    expect(sttErrorMessage(500)).toContain('түр');
+    expect(sttErrorMessage(503)).toContain('түр');
+  });
+
+  it('танихгүй статус ч ойлгомжтой үлдэнэ', () => {
+    expect(sttErrorMessage(0)).toBeTruthy();
+    expect(sttErrorMessage(418)).toBeTruthy();
+  });
+});

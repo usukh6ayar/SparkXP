@@ -42,11 +42,12 @@ const SKILLS: Record<
   writing: { catKey: 'catWriting', icon: 'create', grad: skillGradients.writing },
   grammar: { catKey: 'catGrammar', icon: 'book', grad: skillGradients.grammar },
   fill: { catKey: 'catFill', icon: 'extension-puzzle', grad: skillGradients.fill },
-  // IELTS Listening/Reading practice sets are quizzes too (category
-  // `ielts_<module>`), so they browse through this very screen — the runner then
-  // adds the passage/audio and reports a band.
+  // IELTS-ийн 4 модуль бүгд quiz (category `ielts_<module>`) тул яг энэ
+  // дэлгэцээр жагсаана; нээхэд шалгалтын тоглуулагч эх материал/Part/band-ыг
+  // нэмнэ. (Writing/Speaking-ийг ч оруулсан — тэд урьд нь Part бүтэцгүй
+  // тусдаа дэлгэцтэй байв.)
   ...Object.fromEntries(
-    IELTS_MODULES.filter((m) => m.auto).map((m) => [
+    IELTS_MODULES.map((m) => [
       m.category,
       { catKey: m.labelKey, icon: m.icon, grad: m.grad },
     ]),

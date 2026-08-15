@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../src/auth/AuthContext';
 import * as quizzesApi from '../../../src/api/quizzes';
 import type { AnswerItem, Quiz, QuizResult } from '../../../src/api/quizzes';
@@ -16,6 +15,7 @@ import { ExamNav } from '../../../src/components/ielts/ExamNav';
 import { ExamQuestion, type ExamAnswer } from '../../../src/components/ielts/ExamQuestion';
 import { ExamAudioBar } from '../../../src/components/ielts/ExamAudioBar';
 import { ExamResult } from '../../../src/components/ielts/ExamResult';
+import { ReadingPane } from '../../../src/components/ielts/ReadingPane';
 import {
   groupSections,
   ieltsModuleOf,
@@ -31,7 +31,7 @@ import { sound } from '../../../src/lib/sound';
 import { confirm } from '../../../src/lib/alerts';
 import { t, tf } from '../../../src/i18n';
 import { useColors } from '../../../src/settings/SettingsContext';
-import { spacing, radius, type AppColors } from '../../../src/theme/theme';
+import { spacing, type AppColors } from '../../../src/theme/theme';
 import { bounded } from '../../../src/theme/responsive';
 
 /**
@@ -47,6 +47,9 @@ import { bounded } from '../../../src/theme/responsive';
  * So: the whole part on one page, an answer sheet you can jump around in
  * (`ExamNav`), the source material pinned above it, and marking only on submit.
  */
+/** Тогтмол хоосон олонлог — хэсэг тус бүрд шинэ Set үүсгэхээс сэргийлнэ. */
+const EMPTY_MARKS: Set<number> = new Set();
+
 export default function IeltsTestScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { token } = useAuth();
@@ -59,7 +62,8 @@ export default function IeltsTestScreen() {
   const [answers, setAnswers] = useState<Record<number, ExamAnswer>>({});
   const [activeSection, setActiveSection] = useState(1);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [showPassage, setShowPassage] = useState(false);
+  /** Тэмдэглэсэн үгс, хэсэг тус бүрээр — хэсэг сольж буцаад ирэхэд алдагдахгүй. */
+  const [marks, setMarks] = useState<Record<number, Set<number>>>({});
   const [result, setResult] = useState<QuizResult | null>(null);
 
   const scroller = useRef<ScrollView>(null);
@@ -86,6 +90,8 @@ export default function IeltsTestScreen() {
   /** Section · Passage · Task · Part — the module's own word for a part. */
   const partLabel = module?.partLabel ?? 'Section';
   const isListening = module?.key === 'listening';
+  /** Ярих шалгалт — задгай даалгавар нь бичих биш, БИЧЛЭГ хийж хариулна. */
+  const isSpeaking = module?.key === 'speaking';
   const total = quiz?.questions.length ?? 0;
 
   /** Blank-but-touched counts as unanswered — typing into a gap and clearing it
@@ -132,7 +138,6 @@ export default function IeltsTestScreen() {
     const owner = sections.find((s) => s.items.some((i) => i.index === index));
     if (owner && owner.number !== activeSection) {
       setActiveSection(owner.number);
-      setShowPassage(false);
       setCurrentIndex(index);
       // The card is not laid out yet, so its offset is unknown — the part opens
       // at the top and the ring marks the question.
@@ -144,7 +149,6 @@ export default function IeltsTestScreen() {
 
   function goToSection(sectionNumber: number) {
     setActiveSection(sectionNumber);
-    setShowPassage(false);
     scroller.current?.scrollTo({ y: 0, animated: true });
   }
 
@@ -163,7 +167,15 @@ export default function IeltsTestScreen() {
   function submit(): Promise<QuizResult> {
     const items: AnswerItem[] = Object.entries(answers)
       .filter(([index]) => isAnswered(Number(index)))
-      .map(([index, value]) => ({ questionIndex: Number(index), answer: value }));
+      .map(([index, value]) => ({
+        questionIndex: Number(index),
+        /*
+         * Ярих даалгаврын «хариулт» нь төхөөрөмж дээрх бичлэгийн зам —
+         * серверт утгагүй бөгөөд илгээх ч ёсгүй (сервер задгай хариултыг
+         * хэзээ ч оноодоггүй). Хариулсан гэдгийг л мэдэгдэнэ.
+         */
+        answer: isSpeaking ? 'spoken' : value,
+      }));
     return quizzesApi.submitQuiz(id!, items, token!);
   }
 
@@ -270,27 +282,21 @@ export default function IeltsTestScreen() {
           />
         ) : null}
 
-        {isReading && quiz.passageText ? (
-          <Pressable style={styles.toggle} onPress={() => setShowPassage((v) => !v)}>
-            <Ionicons
-              name={showPassage ? 'list-outline' : 'document-text-outline'}
-              size={18}
-              color={c.primary}
-            />
-            <AppText variant="bodyStrong" color={c.primary}>
-              {showPassage ? t('ieltsShowQuestions') : t('ieltsShowPassage')}
-            </AppText>
-          </Pressable>
+        {/* Уншлагын эх — товчны ард биш, ҮРГЭЛЖ энд. Асуулттайгаа зэрэг
+            харагдана; хэрэггүй үедээ хураана, шаардвал томсгоно. */}
+        {isReading ? (
+          <ReadingPane
+            text={sectionText(quiz.passageText, current.number)}
+            label={partLabel}
+            section={current.number}
+            marks={marks[current.number] ?? EMPTY_MARKS}
+            onMarksChange={(next) =>
+              setMarks((prev) => ({ ...prev, [current.number]: next }))
+            }
+          />
         ) : null}
 
-        {showPassage && quiz.passageText ? (
-          <View style={styles.passage}>
-            <AppText variant="body" style={styles.passageText}>
-              {sectionText(quiz.passageText, current.number)}
-            </AppText>
-          </View>
-        ) : (
-          <>
+        <>
             {/* Which part you are answering, restated in the page. The nav
                 above scrolls away; this does not, and after a minute of
                 reading questions "which section was this?" is the first thing
@@ -316,6 +322,7 @@ export default function IeltsTestScreen() {
                   number={index + 1}
                   value={answers[index]}
                   onChange={(value) => answer(index, value)}
+                  openMode={isSpeaking ? 'speak' : 'write'}
                 />
               </View>
             ))}
@@ -362,8 +369,7 @@ export default function IeltsTestScreen() {
                 />
               </>
             )}
-          </>
-        )}
+        </>
       </ScrollView>
     </SafeAreaView>
   );
@@ -380,23 +386,8 @@ const makeStyles = (c: AppColors) =>
     safe: { flex: 1, backgroundColor: c.background },
     body: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxl },
     pad: { padding: spacing.lg, gap: spacing.sm },
-    toggle: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: spacing.xs,
-      paddingVertical: spacing.sm,
-      borderRadius: radius.md,
-      backgroundColor: c.primarySoft,
-    },
     partHead: {
       gap: 1,
       paddingHorizontal: spacing.xs,
     },
-    passage: {
-      backgroundColor: c.surface,
-      borderRadius: radius.lg,
-      padding: spacing.lg,
-    },
-    passageText: { lineHeight: 26 },
   });
