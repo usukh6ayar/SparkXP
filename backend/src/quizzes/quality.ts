@@ -134,11 +134,56 @@ const dropPossessive = (s: string): string => s.replace(/['’]s\b/gi, '');
  * нь дотор нь байхгүй. Утга нь `library` дээр байгаа, тэр л чухал.
  */
 const STOP_WORDS = new Set([
-  'the', 'a', 'an', 'and', 'or', 'but', 'of', 'to', 'in', 'on', 'at', 'by',
-  'for', 'from', 'with', 'as', 'is', 'are', 'was', 'were', 'be', 'been',
-  'he', 'she', 'it', 'they', 'we', 'you', 'his', 'her', 'its', 'their',
-  'this', 'that', 'these', 'those', 'there', 'has', 'have', 'had', 'will',
-  'would', 'can', 'could', 'not', 'no', 'yes', 'do', 'does', 'did',
+  'the',
+  'a',
+  'an',
+  'and',
+  'or',
+  'but',
+  'of',
+  'to',
+  'in',
+  'on',
+  'at',
+  'by',
+  'for',
+  'from',
+  'with',
+  'as',
+  'is',
+  'are',
+  'was',
+  'were',
+  'be',
+  'been',
+  'he',
+  'she',
+  'it',
+  'they',
+  'we',
+  'you',
+  'his',
+  'her',
+  'its',
+  'their',
+  'this',
+  'that',
+  'these',
+  'those',
+  'there',
+  'has',
+  'have',
+  'had',
+  'will',
+  'would',
+  'can',
+  'could',
+  'not',
+  'no',
+  'yes',
+  'do',
+  'does',
+  'did',
 ]);
 
 /** Хариултын утга агуулсан үгс (үйлчилгээний үг ба богино үгийг хасна). */
@@ -162,7 +207,10 @@ function heardLike(heardWords: Set<string>, word: string): boolean {
   if (word.length < STEM_MIN) return false;
   const stem = word.slice(0, STEM_MIN);
   for (const h of heardWords) {
-    if (h.length >= STEM_MIN && (h.startsWith(stem) || word.startsWith(h.slice(0, STEM_MIN)))) {
+    if (
+      h.length >= STEM_MIN &&
+      (h.startsWith(stem) || word.startsWith(h.slice(0, STEM_MIN)))
+    ) {
       return true;
     }
   }
@@ -178,6 +226,60 @@ function containsWord(haystack: string, needle: string): boolean {
 }
 
 /** Текстээс том үсгээр эхэлсэн нэрсийг түүнэ (өгүүлбэрийн эхнийхийг алгасна). */
+/**
+ * Том үсгээр бичигддэг ч **хүний нэр биш** үгс.
+ *
+ * ⚠️ Бодит алдаа (Choi, 2026-08-15): «Friday» гэдгийг нэр гэж үзээд
+ * «сурагч тэр хүн хэн болохыг мэдэх аргагүй» гэж бүтэн Section-ыг БЛОКЛОСОН
+ * тул 40 асуулттай шалгалт 30 болж дутуу үүссэн. Гараг, сар, хэл/улсын нэр
+ * зэрэг нь асуултад байгаад ярианд байхгүй байх нь бүрэн хэвийн — тэдгээр нь
+ * заавал сонсогдох ёстой ЭТГЭЭД биш, зүгээр л нэр томьёо.
+ */
+const NOT_PERSON_NAMES = new Set(
+  [
+    // Гараг · сар
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+    'Sunday',
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+    // Хэл · үндэстэн · нийтлэг том үсэгт нэр томьёо
+    'English',
+    'Mongolian',
+    'Chinese',
+    'Japanese',
+    'Korean',
+    'Spanish',
+    'French',
+    'German',
+    'Russian',
+    'Internet',
+    'University',
+    'College',
+    'Library',
+    'Reception',
+    'Student',
+    'Teacher',
+    'Professor',
+    'Doctor',
+    'Manager',
+  ].map((w) => w.toLowerCase()),
+);
+
 function properNouns(text: string): string[] {
   const words = text.split(/(?<=[.!?])\s+|\n+/).flatMap((sentence) =>
     dropPossessive(sentence)
@@ -187,7 +289,9 @@ function properNouns(text: string): string[] {
       .slice(1)
       .filter((w) => /^[A-Z][a-z]{2,}$/.test(w.replace(/[^A-Za-z]/g, ''))),
   );
-  return [...new Set(words.map((w) => w.replace(/[^A-Za-z]/g, '')))];
+  return [...new Set(words.map((w) => w.replace(/[^A-Za-z]/g, '')))].filter(
+    (w) => !NOT_PERSON_NAMES.has(w.toLowerCase()),
+  );
 }
 
 /** Нэг асуултыг шалгана. `script` = сонсголын яриа (байвал). */
@@ -363,8 +467,14 @@ function checkQuestion(
     const keyWords = contentWords(key ?? '');
     const heardWords = new Set(norm(dropPossessive(heard)).split(' '));
     const answerHeard =
-      !!key && (keyWords.length === 0 || keyWords.some((w) => heardLike(heardWords, w)));
-    if (key && /^[\p{L}\s']+$/u.test(key) && keyWords.length > 0 && !answerHeard) {
+      !!key &&
+      (keyWords.length === 0 || keyWords.some((w) => heardLike(heardWords, w)));
+    if (
+      key &&
+      /^[\p{L}\s']+$/u.test(key) &&
+      keyWords.length > 0 &&
+      !answerHeard
+    ) {
       add(
         'warn',
         `Зөв хариулт «${key}»-тай холбоотой үг сонсох яриан дотор олдсонгүй. ` +

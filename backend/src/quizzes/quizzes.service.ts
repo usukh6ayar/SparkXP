@@ -372,18 +372,20 @@ export class QuizzesService {
       if (report.canceled) break;
       report.current = `${label} ${part.section}`;
       try {
-        const draft = await this.aiGenerate({
-          brief: `${part.brief}\n\nЯг ${part.count} асуулт бич.`,
-          kind: 'ielts',
-          category,
-          topic: dto.topic,
-          count: part.count,
-          // Writing/Speaking нь задгай хариулт — формат нь тогтмол тул AI-д
-          // сонгуулахгүй (эс бөгөөс эссэний даалгаврыг сонголтот асуулт болгоно).
-          ...(part.openResponse
-            ? { questionType: 'open_response' as const }
-            : {}),
-        });
+        const draft = await this.withRetry(() =>
+          this.aiGenerate({
+            brief: `${part.brief}\n\nЯг ${part.count} асуулт бич.`,
+            kind: 'ielts',
+            category,
+            topic: dto.topic,
+            count: part.count,
+            // Writing/Speaking нь задгай хариулт — формат нь тогтмол тул AI-д
+            // сонгуулахгүй (эс бөгөөс эссэний даалгаврыг сонголтот болгоно).
+            ...(part.openResponse
+              ? { questionType: 'open_response' as const }
+              : {}),
+          }),
+        );
         // Хэсгийн дугаарыг ЭНД тавина — AI-д даалгавал алгасдаг.
         for (const q of draft.questions) {
           questions.push({ ...q, section: part.section });
@@ -404,8 +406,16 @@ export class QuizzesService {
       }
     }
 
-    // Нэг ч хэсэг бүтээгүй бол хадгалах зүйл алга.
-    if (!questions.length) return;
+    /*
+     * ⚠️ **Дутуу шалгалт хадгалахгүй.**
+     *
+     * Урьд нь унасан хэсгийг алгасаад үлдсэнийг нь хадгалдаг байсан тул
+     * «IELTS Listening Practice Test» гэсэн нэртэй мөртлөө 40 биш **30**
+     * асуулттай тест үүсдэг байв (Choi, 2026-08-15). Сурагч түүнийг бүтэн
+     * шалгалт гэж бодоод band-аа буруу хэмжинэ. Бүтэн биш бол огт үүсгэхгүй —
+     * админ шалтгааныг нь хараад дахин ажиллуулна.
+     */
+    if (report.failed.length || !questions.length) return;
 
     const quiz = await this.create({
       title:
@@ -486,6 +496,31 @@ export class QuizzesService {
     // Яриа нь хариултуудыг үнэхээр агуулж байна уу — хадгалахын өмнө шалгана.
     this.assertAnswerable(quiz);
     return this.quizzes.save(quiz);
+  }
+
+  /**
+   * AI дуудлагыг хэдэн удаа оролдох.
+   *
+   * Хэсэг бүтэн унах нь ихэвчлэн **нэг муу асуултаас** болдог (чанарын
+   * шалгуур дасгалыг бүтнээр нь татгалздаг) бөгөөд дахин үүсгэхэд өөр асуулт
+   * гарч ирдэг. Тиймээс шууд бууж өгөхийн оронд дахин оролдоно — 40 асуулттай
+   * шалгалт нэг азгүй асуултын улмаас 30 болох ёсгүй.
+   */
+  private async withRetry<T>(run: () => Promise<T>, attempts = 3): Promise<T> {
+    let last: unknown;
+    for (let i = 1; i <= attempts; i += 1) {
+      try {
+        return await run();
+      } catch (e) {
+        last = e;
+        this.logger.warn(
+          `[ielts-paper] оролдлого ${i}/${attempts} амжилтгүй: ${
+            e instanceof Error ? e.message : String(e)
+          }`,
+        );
+      }
+    }
+    throw last;
   }
 
   /** Явцыг татах (админ 2.5 секунд тутам дуудна). */

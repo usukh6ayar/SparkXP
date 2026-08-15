@@ -41,6 +41,7 @@ export class ElevenLabsSttAdapter implements SttAdapter {
 
     // Retry once on 5xx (mirrors the Gemini retry style in words.service.ts).
     let lastStatus = 0;
+    let lastBody = '';
     for (let attempt = 0; attempt < 2; attempt++) {
       const form = new FormData();
       form.append('model_id', SCRIBE_MODEL);
@@ -72,11 +73,42 @@ export class ElevenLabsSttAdapter implements SttAdapter {
       }
 
       lastStatus = response.status;
+      // Шалтгааныг УНШИНА. Урьд нь зөвхөн статусыг логддог байсан тул
+      // «Дуу хоолойг таньж чадсангүй» гэсэн мессежийн ард эрхийн асуудал
+      // байна уу, эрх зүйн хязгаар уу, формат буруу юу гэдгийг хэн ч мэдэх
+      // аргагүй байв (Choi, 2026-08-16).
+      lastBody = await response.text().catch(() => '');
       if (response.status < 500) break; // client error → don't retry
       await sleep(1000);
     }
 
-    this.logger.error(`ElevenLabs STT failed (${lastStatus})`);
-    throw new InternalServerErrorException('Дуу хоолойг таньж чадсангүй');
+    this.logger.error(
+      `ElevenLabs STT failed (${lastStatus}) mime=${mime} bytes=${audio.length}: ` +
+        lastBody.slice(0, 300),
+    );
+    throw new InternalServerErrorException(sttErrorMessage(lastStatus));
   }
+}
+
+/**
+ * Статусыг **хийж болох зүйл** рүү хөрвүүлнэ.
+ *
+ * Бүх бүтэлгүйтэлд «Дуу хоолойг таньж чадсангүй» гэж хэлэх нь сурагчид «чи
+ * буруу хэлсэн» гэсэн мэдрэмж төрүүлдэг — гэтэл ихэнхдээ микрофонтой ч,
+ * дуудлагатай ч огт хамаагүй (түлхүүр буруу, эрх дууссан г.м.).
+ */
+export function sttErrorMessage(status: number): string {
+  if (status === 401 || status === 403) {
+    return 'Дуу таних үйлчилгээний тохиргоо буруу байна. Админд мэдэгдэнэ үү.';
+  }
+  if (status === 429) {
+    return 'Дуу таних үйлчилгээний хязгаар дүүрсэн байна. Түр хүлээгээд дахин оролдоно уу.';
+  }
+  if (status === 422 || status === 400) {
+    return 'Бичлэгийг уншиж чадсангүй. Дахин, арай удаан бөгөөд тод хэлээд үзнэ үү.';
+  }
+  if (status >= 500) {
+    return 'Дуу таних үйлчилгээ түр ажиллахгүй байна. Хэсэг хүлээгээд дахин оролдоно уу.';
+  }
+  return 'Дуу хоолойг таньж чадсангүй. Дахин оролдоно уу.';
 }

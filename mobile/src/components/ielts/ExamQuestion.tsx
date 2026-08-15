@@ -1,7 +1,9 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { AppText } from '../Text';
 import { AppImage } from '../AppImage';
+import { SpeakingAnswer } from './SpeakingAnswer';
 import { useColors } from '../../settings/SettingsContext';
 import { haptics } from '../../lib/haptics';
 import type { QuizQuestion } from '../../api/quizzes';
@@ -29,12 +31,19 @@ export function ExamQuestion({
   number,
   value,
   onChange,
+  openMode = 'write',
 }: {
   question: QuizQuestion;
   /** 1-based number shown to the student. */
   number: number;
   value: ExamAnswer | undefined;
   onChange: (value: ExamAnswer) => void;
+  /**
+   * Задгай даалгаврыг хэрхэн хариулах вэ. Writing бол бичнэ, Speaking бол
+   * **ярина** — ярих шалгалтад бичих талбар тавих нь огт өөр чадвар дасгалжуулж
+   * байгаа хэрэг (хэн ч IELTS Speaking-ийг бичиж өгдөггүй).
+   */
+  openMode?: 'write' | 'speak';
 }) {
   const c = useColors();
   const styles = useMemo(() => makeStyles(c), [c]);
@@ -90,15 +99,31 @@ export function ExamQuestion({
 
       {question.type === 'open_response' ? (
         <View style={styles.openWrap}>
-          <TextInput
-            style={styles.input}
-            multiline
-            placeholder={t('ieltsTypeAnswer')}
-            placeholderTextColor={c.textMuted}
-            value={typeof value === 'string' ? value : ''}
-            onChangeText={onChange}
-          />
-          <AppText variant="caption" color={c.textMuted}>{t('ieltsSelfStudyNote')}</AppText>
+          {openMode === 'speak' ? (
+            <SpeakingAnswer
+              recordedUri={typeof value === 'string' && value ? value : undefined}
+              onRecorded={onChange}
+            />
+          ) : (
+            <TextInput
+              style={styles.input}
+              multiline
+              placeholder={t('ieltsTypeAnswer')}
+              placeholderTextColor={c.textMuted}
+              value={typeof value === 'string' ? value : ''}
+              onChangeText={onChange}
+            />
+          )}
+
+          {/* Жишиг хариулт — өөрийгөө харьцуулах цорын ганц хэмжүүр тул
+              заавал байх ёстой, гэхдээ оролдохоос ӨМНӨ харвал утгагүй. */}
+          {question.modelAnswer ? (
+            <ModelAnswer text={question.modelAnswer} styles={styles} c={c} />
+          ) : null}
+
+          <AppText variant="caption" color={c.textMuted}>
+            {openMode === 'speak' ? t('ieltsSpeakNote') : t('ieltsSelfStudyNote')}
+          </AppText>
         </View>
       ) : null}
     </View>
@@ -247,6 +272,33 @@ function Matching({
   );
 }
 
+/** Жишиг хариулт — дарж нээнэ (өмнө нь харвал өөрийгөө сорих утга алдагдана). */
+function ModelAnswer({ text, styles, c }: { text: string; styles: Styles; c: AppColors }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <View style={styles.modelWrap}>
+      <Pressable
+        onPress={() => { haptics.tap(); setOpen((v) => !v); }}
+        style={styles.modelHead}
+      >
+        <Ionicons
+          name={open ? 'eye-off-outline' : 'eye-outline'}
+          size={16}
+          color={c.primary}
+        />
+        <AppText variant="caption" color={c.primary} style={styles.modelLabel}>
+          {t(open ? 'ieltsHideModel' : 'ieltsRevealModel')}
+        </AppText>
+      </Pressable>
+      {open ? (
+        <AppText variant="body" color={c.textSecondary} style={styles.modelText}>
+          {text}
+        </AppText>
+      ) : null}
+    </View>
+  );
+}
+
 type Styles = ReturnType<typeof makeStyles>;
 
 const makeStyles = (c: AppColors) =>
@@ -314,6 +366,10 @@ const makeStyles = (c: AppColors) =>
       fontSize: 16,
     },
     openWrap: { gap: spacing.sm },
+    modelWrap: { gap: spacing.xs },
+    modelHead: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+    modelLabel: { fontWeight: '700' },
+    modelText: { lineHeight: 23 },
     matchWrap: { gap: spacing.md },
     matchRow: { gap: spacing.xs },
     matchLeft: { color: c.text },
