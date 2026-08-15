@@ -112,10 +112,25 @@ export class QuizzesController {
     return this.quizzesService.findAll(query);
   }
 
+  /**
+   * Админ: **чанарын тайлан** — хариулах боломжгүй / эргэлзээтэй дасгалуудыг
+   * бүхэлд нь олж жагсаана.
+   *
+   * ⚠️ `:id` route-аас ӨМНӨ байрлана, эс бөгөөс "quality-report" нь id гэж
+   * ойлгогдоод `ParseUUIDPipe` уначихна.
+   */
+  @Get('quality-report')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  qualityReport(@Query('category') category?: string) {
+    return this.quizzesService.qualityReport(category);
+  }
+
   /** Get a single quiz by id. */
   @Get(':id')
   findOne(@Param('id', ParseUUIDPipe) id: string) {
-    return this.quizzesService.findOne(id);
+    // Аппын хувилбар: `fill_blank` бүрд яг 4 сонголт бэлдэнэ.
+    return this.quizzesService.findOneForStudent(id);
   }
 
   /** Admin: update a quiz. */

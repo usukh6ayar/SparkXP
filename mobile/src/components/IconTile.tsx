@@ -18,6 +18,7 @@ export function IconTile({
   fg,
   size = 48,
   iconSize,
+  borderColor,
 }: {
   icon?: IconName;
   image?: ImageSourcePropType;
@@ -25,6 +26,8 @@ export function IconTile({
   fg: string;
   size?: number;
   iconSize?: number;
+  /** Optional thin accent edge (used by the glowing dark challenge cards). */
+  borderColor?: string;
 }) {
   const inner = iconSize ?? size * 0.5;
   return (
@@ -32,6 +35,7 @@ export function IconTile({
       style={[
         styles.tile,
         { width: size, height: size, borderRadius: radius.md, backgroundColor: bg },
+        borderColor ? { borderWidth: 1, borderColor } : null,
       ]}
     >
       {image ? (

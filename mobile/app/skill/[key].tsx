@@ -10,6 +10,8 @@ import { TopBar } from '../../src/components/TopBar';
 import { ProgressHero } from '../../src/components/ProgressHero';
 import { CategoryBrowser, type BrowserItem } from '../../src/components/CategoryBrowser';
 import { IELTS_MODULES } from '../../src/constants/ielts';
+import { SORIL_CATEGORY } from '../../src/constants/soril';
+import { quizSkill } from '../../src/constants/quizSkill';
 import { t, tf, type TranslationKey } from '../../src/i18n';
 import { useColors } from '../../src/settings/SettingsContext';
 import { haptics } from '../../src/lib/haptics';
@@ -64,8 +66,26 @@ export default function SkillScreen() {
   const load = useCallback(async () => {
     if (!token) { setItems([]); return; }
     try {
-      const [r, done] = await Promise.all([getExercises(token, skillKey), loadCompletedExercises()]);
-      setItems(r.items);
+      /*
+       * Админы **Сорил** хуудсаар үүсгэсэн контент нь `category: 'soril'`,
+       * ур чадвар нь `quizType`-д (listening · grammar · fill) байдаг.
+       *
+       * ⚠️ Тэдгээрийг ЭНД нийлүүлнэ — өөрөөр хэлбэл «Сонсгол» дэлгэц нь
+       * Дасгал хуудасны сонсголын дасгал ба Сорил хуудасны сонсголын сорил
+       * хоёуланг нэг жагсаалтад харуулна. Урьд нь Сорилын контент өөрийн
+       * тусдаа дэлгэцтэй байсан нь сурагчид нэмэлт алхам, нэмэлт ойлголт
+       * үүсгэдэг байв — нэг ур чадвар = нэг жагсаалт байх нь ойлгомжтой.
+       */
+      const [own, soril, done] = await Promise.all([
+        getExercises(token, skillKey),
+        getExercises(token, SORIL_CATEGORY).catch(() => ({ items: [] as Quiz[] })),
+        loadCompletedExercises(),
+      ]);
+      // Ур чадварыг `quizSkill()` шийднэ — `category` ба `quizType` хоёрын аль
+      // нэгэнд байж болно (`src/constants/quizSkill.ts`). Гүйцэтгэгч дэлгэц ч
+      // яг үүнийг ашигладаг тул жагсаалт ба нээгдэх зан төлөв **үргэлж нийцнэ**.
+      const extra = soril.items.filter((q) => quizSkill(q) === skillKey);
+      setItems([...own.items, ...extra]);
       setCompleted(done);
       setError(false);
     } catch (e) {
@@ -110,7 +130,15 @@ export default function SkillScreen() {
         id: q.id,
         title: q.title,
         subtitle: `${tf('questionCount', { n: q.questions?.length ?? 0 })} · ${q.xpReward} XP · ${q.level.toUpperCase()}`,
-        category: q.topic,
+        /*
+         * Бүлгийн нэр: админы бичсэн **сэдэв**, байхгүй бол **түвшин** (A1, B2…).
+         *
+         * ⚠️ Сорил хуудсаар үүсгэсэн контентод `topic` байдаггүй тул урьд нь
+         * бүгд «Бусад» (эсвэл «Сорил») гэсэн ганц овоонд унаж, 10+ дасгал
+         * ялгаагүй нэг бүлэг болдог байв. Түвшин нь мөр бүрд байдаг ба
+         * сурагчид шууд утга учиртай — өөрийн түвшнээ сонгоод ороход хангалттай.
+         */
+        category: q.topic || q.level.toUpperCase(),
       })),
     [items],
   );

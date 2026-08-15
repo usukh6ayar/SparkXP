@@ -1,3 +1,5 @@
+import { ContentLevel } from '../common/enums';
+
 /**
  * IELTS shared constants + band scoring.
  *
@@ -48,4 +50,48 @@ export function ieltsBand(correct: number, total: number): number {
     if (pct >= threshold) return band;
   }
   return 0;
+}
+
+/**
+ * IELTS контентыг **зорилтот band**-аар нь ангилна.
+ *
+ * Яагаад `topic` талбарт вэ: апп IELTS модулиудыг `topic`-оор нь бүлэглэдэг
+ * (`mobile/app/skill/[key].tsx` → `CategoryBrowser`). Band-ыг тэнд хадгалснаар
+ * аппын код өөрчлөхгүйгээр «Band 6.0» гэсэн бүлгүүд гарч ирнэ. Шинэ багана
+ * нэмэх шаардлагагүй тул migration ч хэрэггүй.
+ *
+ * Хүрээ нь 4.5–8.0: үүнээс доош бол IELTS бэлтгэл эхлэх түвшин биш, дээш нь
+ * бэлтгэлийн материалаар сурах хэсэг биш болно.
+ */
+export const IELTS_BAND_TOPICS = [
+  'Band 4.5',
+  'Band 5.0',
+  'Band 5.5',
+  'Band 6.0',
+  'Band 6.5',
+  'Band 7.0',
+  'Band 7.5',
+  'Band 8.0',
+] as const;
+
+/** `"Band 6.5"` → `6.5`. Band биш сэдэв бол `null` (хуучин контент). */
+export function parseBandTopic(topic?: string | null): number | null {
+  const m = /^band\s+([0-9](?:\.[05])?)$/i.exec((topic ?? '').trim());
+  if (!m) return null;
+  const band = Number(m[1]);
+  return Number.isFinite(band) ? band : null;
+}
+
+/**
+ * Зорилтот band → CEFR түвшин.
+ *
+ * `Quiz.level` нь CEFR enum тул band-ыг тэнд хадгалж болохгүй. Админ band-аа
+ * л сонгоод, түвшинг нь эндээс автоматаар гаргана — «хоёр талбар бөглөх»
+ * шаардлагагүй болно.
+ * Харьцуулалт нь IELTS-ийн нийтэлсэн CEFR-тэй дүйцүүлэх хүснэгтээс.
+ */
+export function bandToLevel(band: number): ContentLevel {
+  if (band >= 7.5) return ContentLevel.C1;
+  if (band >= 5.5) return ContentLevel.B2;
+  return ContentLevel.B1;
 }

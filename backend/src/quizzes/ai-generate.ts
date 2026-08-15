@@ -9,8 +9,7 @@
  * Энд зөвхөн цэвэр функцууд байна (сүлжээ/DB хөндөхгүй) — үүнийг тусад нь
  * уншиж, тестлэж болно. Gemini рүү бодит дуудлагыг `QuizzesService` хийнэ.
  */
-import { normalizeChoices } from './bulk-generate';
-
+import { normalizeChoices, recipeFor } from './bulk-generate';
 
 /** Асуултын формат — `QuizQuestionsEditor` (admin) -тэй яг ижил 4 төрөл. */
 export type GenQuestionType =
@@ -54,6 +53,11 @@ export interface GenerateOptions {
   kind: TargetKind;
   /** Quiz.category — ж: 'listening' · 'Дүрэм' · 'ielts_reading'. */
   category?: string;
+  /**
+   * Сорилын тоглоомын төрөл. **Сорил** хуудсаар үүсгэхэд ур чадвар нь энд
+   * байдаг (`category: 'soril'`) — `quizSkill()` үүнийг заавал харна.
+   */
+  quizType?: string;
   /** Quiz.topic (сэдэв) — хоосон бол AI өөрөө санал болгоно. */
   topic?: string;
   /** Хоосон бол AI өөрөө таамаглана. */
@@ -102,6 +106,58 @@ const VALID_TYPES: GenQuestionType[] = [
   'open_response',
 ];
 const VALID_LEVELS = ['a1', 'a2', 'b1', 'b2', 'c1', 'c2'];
+
+/**
+ * Сонсох замаар хийгддэг ангиллууд.
+ *
+ * ⚠️ `ielts_listening` энд **ОРНО**: AI-гаар үүсгэсэн IELTS сонсголд бодит
+ * бичлэг байдаггүй тул апп бичвэрийг нь дуугаар уншина. Бичвэргүй бол
+ * асуулт нь эх мэдээлэлгүй үлдэж хариулах боломжгүй болно — яг ердийн
+ * сонсголын дасгалтай ижил дүрэм. Админ бодит бичлэг (`audioUrl`) хийсэн бол
+ * бичвэр шаардахгүй (шалгагч түүнийг чөлөөлдөг).
+ */
+export const LISTENING_CATEGORIES = ['listening', 'ielts_listening'] as const;
+
+export const isListeningCategory = (category?: string | null): boolean =>
+  LISTENING_CATEGORIES.includes(category as (typeof LISTENING_CATEGORIES)[number]);
+
+/** Админы **Сорил** хуудасны `Quiz.category` (ур чадвар нь `quizType`-д). */
+export const SORIL_CATEGORY = 'soril';
+
+/**
+ * Дасгалын УР ЧАДВАР — `category` ба `quizType` хоёрын аль нэгэнд байдаг.
+ *
+ * ⚠️ Яагаад хэрэгтэй вэ: админ ур чадварыг **хоёр өөр талбарт** бичдэг —
+ * Дасгал/IELTS хуудас `category`-д (`listening` · `ielts_listening`), харин
+ * **Сорил** хуудас `category: 'soril'` гээд ур чадварыг `quizType`-д. Урьд нь
+ * зөвхөн `category`-г хардаг байсан тул **Сорил хуудсаар үүсгэсэн сонсголын
+ * дасгалд AI-гаас яриа шаардагддаггүй, чанарын сонсголын шалгалтууд ч
+ * алгасагддаг** байв — өөрөөр хэлбэл сонсох зүйлгүй «сонсголын» дасгал
+ * үүсэх боломжтой байсан (Choi илрүүлсэн, 2026-08-14).
+ *
+ * Апп талд яг ижил дүрэм: `mobile/src/constants/quizSkill.ts`. Хоёулаа
+ * зэрэг өөрчлөгдөх ёстой.
+ */
+export const quizSkill = (o: {
+  category?: string | null;
+  quizType?: string | null;
+}): string | null => {
+  const raw = o.category === SORIL_CATEGORY ? o.quizType : o.category ?? o.quizType;
+  if (!raw) return null;
+  return raw.startsWith('ielts_') ? raw.slice('ielts_'.length) : raw;
+};
+
+/** Сонсголын дасгал уу (эх сурвалж нь ямар ч байсан). */
+export const isListeningQuiz = (o: {
+  category?: string | null;
+  quizType?: string | null;
+}): boolean => quizSkill(o) === 'listening';
+
+/**
+ * Сонсох яриа хамгийн багадаа хэдэн тэмдэгт байх вэ. 3–5 мөрт яриа нь үргэлж
+ * үүнээс урт; харин загвар нэг хагас өгүүлбэр бичээд орхивол энд баригдана.
+ */
+export const MIN_LISTENING_SCRIPT = 40;
 
 // ─────────────────────────── Prompt ───────────────────────────
 
@@ -173,11 +229,21 @@ export function buildPrompt(o: GenerateOptions): string {
     ? TYPE_RULES[type]
     : VALID_TYPES.map((t) => TYPE_RULES[t]).join('\n  - ');
 
+  // ⚠️ Ангиллын жор. Үүнгүйгээр загвар "listening" гэдгийг зүгээр л шошго гэж
+  // үзээд сонсох ЯРИАГ огт зохиодоггүй байсан — тэгээд "What time does Sarah
+  // usually wake up?" гэх мэт, хариулт нь хаанаас ч гарахгүй асуулт үүсдэг байв.
+  // Bulk зам үүнийг аль хэдийн хэрэглэдэг байсан; энэ (ганцаарчилсан) зам
+  // орхигдсоны улмаас админ нэг дасгал үүсгэх бүрд алдаа давтагдаж байлаа.
+  const recipe = o.category ? recipeFor(o.category, 1, o.questionType) : null;
+
   const lines = [
     'Чи бол монгол сурагчдад англи хэл заадаг туршлагатай багш, шалгалтын материал зохиогч.',
     '',
     kindContext(o),
     ...(o.contextNote ? [`Нэмэлт контекст: ${o.contextNote.trim()}`] : []),
+    ...(recipe
+      ? ['', 'АНГИЛЛЫН ДҮРЭМ:', ...recipe.rules.map((r) => `- ${r}`)]
+      : []),
     '',
     ...(o.lessonSource?.trim()
       ? [
@@ -230,6 +296,20 @@ export function buildPrompt(o: GenerateOptions): string {
     );
   }
 
+  // Сонсголд эх яриа нь дасгалын ЦӨМ — түүнгүйгээр асуулт хариулах боломжгүй.
+  // Тиймээс "заавал" гэдгийг prompt-д дахин, шууд хэлж өгнө (schema дээр ч
+  // `required` — хоёр давхар хамгаалалт).
+  if (isListeningQuiz(o)) {
+    lines.push(
+      o.passageText
+        ? `- Асуултуудыг ЗӨВХӨН дараах яриан дээр үндэслэ:\n"""\n${o.passageText.trim()}\n"""`
+        : '- `passageText` талбарт сонсох ЯРИАГ ЗААВАЛ бич. Энэ талбар хоосон бол дасгал хүчингүй.',
+      '- Асуулт бүрийн хариулт нь тэр яриан дотор ШУУД сонсогдож байх ёстой. ' +
+        'Сурагч яриаг сонсоод хариултыг нь олох боломжгүй асуулт бичиж БОЛОХГҮЙ ' +
+        '(ж: яриан дотор цаг дурдаагүй байж "What time …?" гэж асуувал таамаглахаас өөр аргагүй).',
+    );
+  }
+
   lines.push('', 'Хариултаа зөвхөн JSON хэлбэрээр буцаа.');
   return lines.join('\n');
 }
@@ -271,7 +351,8 @@ const QUESTION_FIELDS: Record<string, unknown> = {
     },
   },
   prompt: { type: 'STRING', maxLength: 400 },
-  modelAnswer: { type: 'STRING', maxLength: 1200 },
+  // IELTS-ийн жишиг хариулт 250–400 үг — 1200 тэмдэгт хүрэлцэхгүй.
+  modelAnswer: { type: 'STRING', maxLength: 3000 },
   bandNote: { type: 'STRING', maxLength: 300 },
 };
 
@@ -281,6 +362,17 @@ const REQUIRED_BY_TYPE: Record<GenQuestionType, string[]> = {
   fill_blank: ['type', 'question', 'answer', 'choices'],
   word_match: ['type', 'pairs'],
   open_response: ['type', 'prompt', 'modelAnswer'],
+};
+
+/**
+ * Заавал биш ч schema-д БАЙХ талбарууд.
+ *
+ * ⚠️ `buildSchema` нь `properties`-ээ `REQUIRED_BY_TYPE`-аас барьдаг тул тэнд
+ * байхгүй талбарыг загвар буцаах ч аргагүй байв — `bandNote` (IELTS-ийн band
+ * тайлбар) яг ийм шалтгаанаар **үргэлж хоосон** ирдэг байлаа.
+ */
+const OPTIONAL_BY_TYPE: Partial<Record<GenQuestionType, string[]>> = {
+  open_response: ['bandNote'],
 };
 
 /**
@@ -300,9 +392,14 @@ export function buildSchema(
   type: GenQuestionType,
 ): unknown {
   const count = o.count ?? DEFAULT_COUNT;
+  const fields = [...REQUIRED_BY_TYPE[type], ...(OPTIONAL_BY_TYPE[type] ?? [])];
   const properties = Object.fromEntries(
-    REQUIRED_BY_TYPE[type].map((f) => [f, QUESTION_FIELDS[f]]),
+    fields.map((f) => [f, QUESTION_FIELDS[f]]),
   );
+
+  // Сонсголд яриа нь заавал — schema түвшинд шаардвал загвар түүнийг орхиж
+  // чадахгүй (prompt-ийн зааврыг үл тоомсорлох магадлал үлддэг).
+  const needsPassage = isListeningQuiz(o);
 
   return {
     type: 'OBJECT',
@@ -311,7 +408,11 @@ export function buildSchema(
       level: { type: 'STRING', enum: VALID_LEVELS },
       questionType: { type: 'STRING', enum: VALID_TYPES },
       topic: { type: 'STRING', maxLength: 60 },
-      passageText: { type: 'STRING', maxLength: 3000 },
+      passageText: {
+        type: 'STRING',
+        maxLength: 3000,
+        ...(needsPassage ? { minLength: MIN_LISTENING_SCRIPT } : {}),
+      },
       questions: {
         type: 'ARRAY',
         minItems: count,
@@ -323,7 +424,13 @@ export function buildSchema(
         },
       },
     },
-    required: ['title', 'level', 'questionType', 'questions'],
+    required: [
+      'title',
+      'level',
+      'questionType',
+      'questions',
+      ...(needsPassage ? ['passageText'] : []),
+    ],
   };
 }
 
@@ -443,7 +550,13 @@ function normalizeQuestion(
     // Сонголтгүй бол апп бичүүлэх горим руугаа буцна — асуулт хаягдахгүй.
     const choices = normalizeChoices(raw.choices, answer);
     if (!choices) warn('сонголт ирсэнгүй — гараар бичих хэлбэрээр үлдлээ');
-    return { type, question, answer, ...(choices ? { choices } : {}), points: 10 };
+    return {
+      type,
+      question,
+      answer,
+      ...(choices ? { choices } : {}),
+      points: 10,
+    };
   }
 
   if (type === 'word_match') {
@@ -543,6 +656,22 @@ export function parseDraft(text: string, o: GenerateOptions): GeneratedDraft {
     warnings.push(`${wanted} асуулт хүссэнээс ${questions.length} нь үлдлээ`);
   }
 
+  const passageText = str(root.passageText) || o.passageText || null;
+
+  // ⚠️ Сонсголын дасгал яриагүй бол ХАРИУЛАХ БОЛОМЖГҮЙ — сурагчид эх мэдээлэл
+  // өгөлгүй асуулт асуусан болно. Ийм ноорогийг админд харуулахын оронд
+  // алдаа болгож буцаана: bulk зам түүнийг алгасаад дараагийнхийг үүсгэнэ,
+  // ганцаарчилсан зам админд "дахин оролдоно уу" гэж хэлнэ.
+  if (
+    isListeningQuiz(o) &&
+    (passageText ?? '').length < MIN_LISTENING_SCRIPT
+  ) {
+    throw new Error(
+      'Сонсголын дасгал үүсгэхэд сонсох яриа (эх бичвэр) дутуу гарлаа — ' +
+        'яриагүй бол асуулт хариулах боломжгүй болно. Дахин оролдоно уу.',
+    );
+  }
+
   const level = str(root.level).toLowerCase();
   const aiType = str(root.questionType) as GenQuestionType;
   return {
@@ -551,7 +680,7 @@ export function parseDraft(text: string, o: GenerateOptions): GeneratedDraft {
     // Бодит асуултууд нь эцсийн үнэн — AI-гийн хэлсэн төрөл зөрвөл эхнийхийг авна.
     questionType: VALID_TYPES.includes(aiType) ? aiType : questions[0].type,
     topic: str(root.topic) || o.topic || null,
-    passageText: str(root.passageText) || o.passageText || null,
+    passageText,
     questions,
     warnings,
   };
@@ -570,6 +699,10 @@ export function clampCount(count?: number): number {
  * бичвэрт зориулж 1500 нөөцөлнө. Энэ нь загварыг хэт чалчихаас хамгаална —
  * бодит хэрэгцээнээс 3 дахин илүү тул хэвийн хариу таслагдахгүй.
  */
-export function maxTokensFor(count: number): number {
+export function maxTokensFor(count: number, type?: GenQuestionType): number {
+  // ⚠️ `open_response` нь огт өөр хэмжээтэй: IELTS-ийн жишиг хариулт дангаараа
+  // 250–400 үг (~500 токен), дээр нь даалгавар + band тайлбар. 360 токеноор
+  // тооцоход гаралт таслагдаж, **Speaking огт үүсдэггүй** байв.
+  if (type === 'open_response') return 1500 + count * 1400;
   return 1500 + count * 360;
 }

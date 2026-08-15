@@ -112,18 +112,34 @@ export const IELTS_MODULES = [
   { key: 'speaking', label: 'Speaking', category: 'ielts_speaking', objective: false },
 ] as const;
 
-/** Free-text сэдэв suggestions per IELTS module (stored value = label). */
-const IELTS_SUBTOPICS: Record<string, string[]> = {
-  listening: ['Section 1', 'Section 2', 'Section 3', 'Section 4', 'Сорил'],
-  reading: ['Academic', 'General Training', 'True/False/NG', 'Matching headings', 'Сорил'],
-  writing: ['Task 1 (Academic)', 'Task 1 (General)', 'Task 2 (Essay)'],
-  speaking: ['Part 1', 'Part 2 (Cue card)', 'Part 3'],
-};
+/**
+ * IELTS-ийн **зорилтот band** — модулиудын ангилах тэнхлэг.
+ *
+ * ⚠️ Яагаад `topic` талбарт вэ: апп IELTS-ийг `topic`-оор нь бүлэглэдэг
+ * (`mobile/app/skill/[key].tsx` → `CategoryBrowser`). Band-ыг тэнд хадгалснаар
+ * сурагч «Band 6.0» гэсэн бүлгүүдээр шүүж, өөрийн зорилтот оноогоо сонгоно —
+ * аппын код өөрчлөх ч, шинэ багана нэмэх ч шаардлагагүй.
+ *
+ * `Quiz.level` (CEFR) нь band-аас **автоматаар** гарна (backend `bandToLevel`)
+ * тул админ зөвхөн band-аа сонгоно.
+ *
+ * Хүрээ нь backend-ийн `IELTS_BAND_TOPICS`-той ЯГ таарах ёстой.
+ */
+export const IELTS_BANDS = [
+  'Band 4.5',
+  'Band 5.0',
+  'Band 5.5',
+  'Band 6.0',
+  'Band 6.5',
+  'Band 7.0',
+  'Band 7.5',
+  'Band 8.0',
+];
 
-/** Сэдэв <select> options for one IELTS module's form (incl. empty option). */
-export function ieltsSubTopicOptions(moduleKey: string) {
+/** Band <select> options for one IELTS module's form (incl. empty option). */
+export function ieltsSubTopicOptions(_moduleKey: string) {
   return [
-    { value: '', label: 'Сэдэвгүй' },
-    ...(IELTS_SUBTOPICS[moduleKey] ?? []).map((v) => ({ value: v, label: v })),
+    { value: '', label: 'Band сонгоогүй' },
+    ...IELTS_BANDS.map((v) => ({ value: v, label: v })),
   ];
 }

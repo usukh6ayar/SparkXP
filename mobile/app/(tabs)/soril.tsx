@@ -15,7 +15,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { haptics } from "../../src/lib/haptics";
 import { useAuth } from "../../src/auth/AuthContext";
 import { getGamification, type Gamification } from "../../src/api/gamification";
-import { getExercises, type Quiz } from "../../src/api/quizzes";
 import { loadDailyTasks, DAILY_TASK_GOAL } from "../../src/lib/dailyTasks";
 import { AppText } from "../../src/components/Text";
 import { AppIcon } from "../../src/components/AppIcon";
@@ -25,7 +24,7 @@ import { IconTile } from "../../src/components/IconTile";
 import { Pill } from "../../src/components/Pill";
 import { ProgressBar } from "../../src/components/ProgressBar";
 import { t, tf } from "../../src/i18n";
-import { useColors } from "../../src/settings/SettingsContext";
+import { useColors, useSettings } from "../../src/settings/SettingsContext";
 import {
   spacing,
   radius,
@@ -69,7 +68,7 @@ function games(t: (key: import("../../src/i18n").TranslationKey) => string): Gam
       img: appIcons.reading,
       title: t("gameVocabQuizTitle"),
       desc: t("gameVocabQuizDesc"),
-      tint: tints.purple,
+      tint: tints.green,
       route: "/game/classic",
     },
     {
@@ -77,7 +76,7 @@ function games(t: (key: import("../../src/i18n").TranslationKey) => string): Gam
       img: appIcons.listening,
       title: t("gameListenTitle"),
       desc: t("gameListenDesc"),
-      tint: tints.blue,
+      tint: tints.purple,
       route: "/game/listen",
     },
     {
@@ -93,7 +92,7 @@ function games(t: (key: import("../../src/i18n").TranslationKey) => string): Gam
       img: appIcons.water,
       title: t("gameMatchTitle"),
       desc: t("gameMatchDesc"),
-      tint: tints.teal,
+      tint: tints.blue,
       route: "/game/match",
     },
     {
@@ -101,7 +100,7 @@ function games(t: (key: import("../../src/i18n").TranslationKey) => string): Gam
       img: appIcons.fill,
       title: t("gameFillTitle"),
       desc: t("gameFillDesc"),
-      tint: tints.pink,
+      tint: tints.orange,
       route: "/skill/fill",
     },
     {
@@ -109,7 +108,7 @@ function games(t: (key: import("../../src/i18n").TranslationKey) => string): Gam
       img: appIcons.grammar,
       title: t("gameGrammarTitle"),
       desc: t("gameGrammarDesc"),
-      tint: tints.green,
+      tint: tints.pink,
       route: "/skill/grammar",
     },
   ];
@@ -118,33 +117,19 @@ function games(t: (key: import("../../src/i18n").TranslationKey) => string): Gam
 /** Daily-goal fallback while `/gamification` is still loading (backend: 50 XP). */
 const DAILY_GOAL_FALLBACK = 50;
 
-/**
- * Админаас нэмсэн сорилын `Quiz.category` (admin → Сорил хуудас).
- *
- * Дээрх 6 карт бол үгийн сангаас автоматаар үүсдэг тоглоомууд — админы бичсэн
- * сорилыг харуулдаггүй. Тэр контентыг гаргах цорын ганц зам нь энэ хэсэг тул
- * утга нь `admin/src/pages/quizzes/QuizzesPage.tsx`-ийн `SORIL_CATEGORY`-тэй
- * ЯГ таарах ёстой.
- */
-const SORIL_CATEGORY = "soril";
+
 export default function SorilScreen() {
   const { user, token } = useAuth();
   const c = useColors();
-  const styles = useMemo(() => makeStyles(c), [c]);
+  const { theme } = useSettings();
+  const isDark = theme === "dark";
+  const styles = useMemo(() => makeStyles(c, isDark), [c, isDark]);
   const [gam, setGam] = useState<Gamification | null>(null);
   useEffect(() => {
     if (token) getGamification(token).then(setGam).catch(() => {});
   }, [token]);
 
-  // Админаас нэмсэн сорилууд. Хоосон бол хэсэг нь бүрэн нуугдана — "тун
-  // удахгүй" маягийн хуурамч мөр үзүүлэхгүй.
-  const [customQuizzes, setCustomQuizzes] = useState<Quiz[]>([]);
-  useEffect(() => {
-    if (!token) return;
-    getExercises(token, SORIL_CATEGORY)
-      .then((r) => setCustomQuizzes(r.items))
-      .catch(() => setCustomQuizzes([]));
-  }, [token]);
+
   const level = gam?.level ?? 1;
   const dailyExerciseGoal = gam?.dailyExerciseGoal ?? DAILY_TASK_GOAL;
   const path = useMemo(
@@ -174,6 +159,7 @@ export default function SorilScreen() {
   const router = useRouter();
   const open = () =>
     Alert.alert(t("comingSoon"), t("gameComingSoon"));
+  /** Карт дарахад шууд өөрийн газар руу — дунд нь нэмэлт дэлгэц гаргахгүй. */
   const openGame = (g: Game) => {
     haptics.tap();
     return g.route ? router.push(g.route as never) : open();
@@ -278,7 +264,18 @@ export default function SorilScreen() {
           {GAMES.map((g, i) => (
             <Animated.View key={g.title} entering={enter(i * 60)} style={styles.cardWrap}>
             <Pressable
-              style={({ pressed }) => [styles.card, pressed && styles.pressed]}
+              style={({ pressed }) => [
+                styles.card,
+                // Dark: a luminous accent FRAME — 1.5px bright border + a soft
+                // same-colour outer glow (iOS shadow). The interior stays dark;
+                // only the frame emits light. Press brightens the bloom.
+                isDark && {
+                  borderColor: g.tint.fg,
+                  shadowColor: g.tint.fg,
+                  shadowOpacity: pressed ? 0.75 : 0.5,
+                },
+                pressed && styles.pressed,
+              ]}
               onPress={() => openGame(g)}
             >
               <IconTile
@@ -288,6 +285,7 @@ export default function SorilScreen() {
                 fg={g.tint.fg}
                 size={56}
                 iconSize={28}
+                borderColor={isDark ? g.tint.fg : undefined}
               />
               <View style={styles.cardBody}>
                 <AppText variant="h3" numberOfLines={1}>
@@ -295,17 +293,21 @@ export default function SorilScreen() {
                 </AppText>
                 <AppText
                   variant="caption"
+                  color={c.textMuted}
                   numberOfLines={2}
                   style={styles.cardDesc}
                 >
                   {g.desc}
                 </AppText>
                 <View style={styles.cardPill}>
+                  {/* Dark: the XP badge takes the CARD's own accent (not one
+                      global purple), so icon + badge read as one accent and stop
+                      competing across the grid. Light stays as it was. */}
                   <Pill
                     label="+10 XP"
                     icon="flash"
-                    bg={tints.purple.bg}
-                    fg={c.primary}
+                    bg={isDark ? g.tint.bg : tints.purple.bg}
+                    fg={isDark ? g.tint.fg : c.primary}
                   />
                 </View>
               </View>
@@ -313,42 +315,6 @@ export default function SorilScreen() {
             </Animated.View>
           ))}
         </View>
-
-        {/* Админаас нэмсэн сорилууд — байгаа үед л харагдана */}
-        {customQuizzes.length > 0 && (
-          <>
-            <View style={styles.sectionRow}>
-              <AppText variant="h2">{t("sorilCustomSection")}</AppText>
-            </View>
-            <View style={styles.quizList}>
-              {customQuizzes.map((q) => (
-                <Pressable
-                  key={q.id}
-                  style={({ pressed }) => [styles.quizRow, pressed && styles.pressed]}
-                  onPress={() => { haptics.tap(); router.push(`/quiz/${q.id}`); }}
-                  accessibilityRole="button"
-                  accessibilityLabel={q.title}
-                >
-                  <IconTile
-                    icon="help-circle"
-                    bg={tints.purple.bg}
-                    fg={tints.purple.fg}
-                    size={44}
-                    iconSize={24}
-                  />
-                  <View style={styles.quizBody}>
-                    <AppText variant="bodyStrong" numberOfLines={2}>{q.title}</AppText>
-                    <AppText variant="caption" color={c.textSecondary}>
-                      {tf("questionCount", { n: q.questions?.length ?? 0 })} · {q.xpReward} XP ·{" "}
-                      {q.level.toUpperCase()}
-                    </AppText>
-                  </View>
-                  <Ionicons name="chevron-forward" size={20} color={c.textMuted} />
-                </Pressable>
-              ))}
-            </View>
-          </>
-        )}
 
         {/* Progress path */}
         <View style={styles.pathCard}>
@@ -426,7 +392,7 @@ export default function SorilScreen() {
   );
 }
 
-const makeStyles = (c: AppColors) => StyleSheet.create({
+const makeStyles = (c: AppColors, isDark: boolean) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: c.background },
   container: { paddingHorizontal: spacing.lg, paddingTop: spacing.xs },
 
@@ -444,7 +410,7 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: 8,
     borderRadius: radius.full,
-    ...(elevation.sm as object),
+    ...(isDark ? { borderWidth: 1, borderColor: c.border } : (elevation.sm as object)),
   },
   subtitle: { marginTop: 2, marginBottom: spacing.lg },
 
@@ -510,13 +476,25 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   },
   cardWrap: { width: "48.5%" },
   card: {
+    flex: 1, // fill the (stretched) wrapper → both cards in a row share a height
     width: "100%",
     flexDirection: "row",
     backgroundColor: c.surface,
     borderRadius: radius.lg,
     padding: spacing.md,
     gap: spacing.sm,
-    ...(elevation.sm as object),
+    // Dark: a glowing accent FRAME. The border WIDTH + the glow's shape live
+    // here; the accent COLOUR (borderColor / shadowColor) is applied inline per
+    // card. Centred shadow (offset 0) = an even bloom around the frame. Light
+    // keeps the original soft lift, untouched.
+    ...(isDark
+      ? {
+          borderWidth: 1.5,
+          shadowOffset: { width: 0, height: 0 },
+          shadowRadius: 11,
+          shadowOpacity: 0.5,
+        }
+      : (elevation.sm as object)),
   },
   cardBody: { flex: 1, gap: 2 },
   cardDesc: { marginBottom: spacing.sm },
@@ -524,6 +502,16 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
 
   // Админаас нэмсэн сорилын жагсаалт
   quizList: { gap: spacing.sm },
+  /** Хийсэн сорил — бүдэгхэн, гэхдээ дахин хийж болохоор идэвхтэй хэвээр. */
+  quizRowDone: { opacity: 0.62 },
+  quizTitleRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
+  quizTitle: { flexShrink: 1 },
+  newTag: {
+    backgroundColor: c.primary,
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+  },
   quizRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -531,7 +519,7 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
     backgroundColor: c.surface,
     borderRadius: radius.lg,
     padding: spacing.md,
-    ...(elevation.sm as object),
+    ...(isDark ? { borderWidth: 1, borderColor: c.border } : (elevation.sm as object)),
   },
   quizBody: { flex: 1, gap: 2 },
 
@@ -541,7 +529,7 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
     borderRadius: radius.xl,
     padding: spacing.lg,
     marginTop: spacing.xl,
-    ...(elevation.sm as object),
+    ...(isDark ? { borderWidth: 1, borderColor: c.border } : (elevation.sm as object)),
   },
   pathHead: {
     flexDirection: "row",

@@ -268,6 +268,7 @@ export default function IeltsPage() {
           kind="ielts"
           title="IELTS"
           targets={BULK_TARGETS}
+          hideLevel
           defaultXp={50}
           onClose={() => setBulkOpen(false)}
           onStarted={setBulkJobId}

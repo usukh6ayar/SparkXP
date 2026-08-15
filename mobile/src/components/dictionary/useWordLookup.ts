@@ -19,6 +19,7 @@ import {
   type WordLookup,
 } from '../../api/dictionary';
 import { ApiError } from '../../api/client';
+import { forgetSavedWords } from '../../lib/newWords';
 import { t } from '../../i18n';
 
 /** Read English aloud with the device voice (audio fallback + examples). */
@@ -202,6 +203,7 @@ export function useWordLookup({ detailed = false } = {}): WordLookupState {
     try {
       const { saved: isSaved } = await toggleDictionarySave(token, word);
       setSaved(isSaved);
+      forgetSavedWords(); // the reading list's "шинэ үг" counts just changed
       if (isSaved) haptics.success();
     } catch {
       // ignore — leave the icon as it was so the user can retry
