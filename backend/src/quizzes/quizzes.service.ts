@@ -15,6 +15,7 @@ import {
   buildSchema,
   buildTypePrompt,
   clampCount,
+  isListeningQuiz,
   LISTENING_CATEGORIES,
   maxTokensFor,
   MIN_LISTENING_SCRIPT,
@@ -46,16 +47,32 @@ import {
   type QualityIssue,
   type QuizLike,
 } from './quality';
-import { bandToLevel, parseBandTopic } from './ielts';
+import {
+  IELTS_CATEGORIES,
+  MAX_SECTIONS,
+  PART_LABEL,
+  paperPlan,
+  SECTION_MARK,
+  type PaperSectionPlan,
+} from './ielts';
 import { AiGenerateQuizDto } from './dto/ai-generate-quiz.dto';
 import { BulkGenerateQuizDto } from './dto/bulk-generate-quiz.dto';
+import { IeltsPaperDto } from './dto/ielts-paper.dto';
 import { CreateQuizDto, QuestionDto } from './dto/create-quiz.dto';
 import { UpdateQuizDto } from './dto/update-quiz.dto';
 import { QueryQuizzesDto } from './dto/query-quizzes.dto';
 import { SubmitQuizDto } from './dto/submit-quiz.dto';
 
+/**
+ * IELTS exam part a question belongs to (1–4). Absent on every quiz authored
+ * before sections existed, which the app reads as "one part".
+ */
+interface SectionedQuestion {
+  section?: number;
+}
+
 /** Shape we accept and store for a multiple-choice question. */
-interface McQuestion {
+interface McQuestion extends SectionedQuestion {
   type: 'multiple_choice';
   question: string;
   options: string[];
@@ -65,7 +82,7 @@ interface McQuestion {
 }
 
 /** Shape we accept and store for a fill-in-the-blank question. */
-interface FbQuestion {
+interface FbQuestion extends SectionedQuestion {
   type: 'fill_blank';
   question: string;
   answer: string;
@@ -75,14 +92,14 @@ interface FbQuestion {
 }
 
 /** Shape we accept and store for a word-matching question. */
-interface WmQuestion {
+interface WmQuestion extends SectionedQuestion {
   type: 'word_match';
   pairs: { left: string; right: string }[];
   points: number;
 }
 
 /** Open written/spoken response (IELTS Writing/Speaking) — self-study, not graded. */
-interface OrQuestion {
+interface OrQuestion extends SectionedQuestion {
   type: 'open_response';
   prompt: string;
   modelAnswer: string;
@@ -92,6 +109,24 @@ interface OrQuestion {
 }
 
 type StoredQuestion = McQuestion | FbQuestion | WmQuestion | OrQuestion;
+
+/**
+ * `{ section }` when the question declares a valid exam part, `{}` otherwise —
+ * spread into the stored question so an absent/garbage value stores nothing
+ * rather than `section: undefined`.
+ */
+function sectionOf(q: { section?: unknown }): { section?: number } {
+  const n = q.section;
+  if (
+    typeof n !== 'number' ||
+    !Number.isInteger(n) ||
+    n < 1 ||
+    n > MAX_SECTIONS
+  ) {
+    return {};
+  }
+  return { section: n };
+}
 
 export interface QuizResult {
   score: number; // correct points earned
@@ -279,6 +314,215 @@ export class QuizzesService {
     return { jobId, total: steps.length };
   }
 
+  /**
+   * **Бүтэн IELTS шалгалт үүсгэх** — Listening 4 Section × 10, эсвэл Reading
+   * 3 Passage × 13/13/14 (нийт 40 асуулт), НЭГ дасгал болгож.
+   *
+   * Яагаад хэсэг бүрийг тусад нь дуудаж байна вэ: (1) нэг дуудлагад 20 асуулт
+   * гэсэн хязгаартай (`MAX_QUESTION_COUNT`), (2) хэсэг бүр өөрийн нөхцөлтэй —
+   * Section 1 нь захиалгын яриа, Section 4 нь лекц — тул тусад нь бичүүлэх нь
+   * жинхэнэ шалгалттай илүү төстэй болгодог. Хэсгүүдийн яриа/эх нь
+   * `SECTION_MARK` тэмдэглэгээгээр нэг `passageText`-д цуглана; апп тухайн
+   * хэсгийнхийг л харуулна.
+   *
+   * Урт ажил (3–4 AI дуудлага) тул background-д явж `jobId` буцаана —
+   * `GET /quizzes/bulk-generate/:jobId`-ээр явцыг харна.
+   */
+  startIeltsPaper(dto: IeltsPaperDto): { jobId: string; total: number } {
+    const plan = paperPlan(dto.module);
+    const jobId = randomUUID();
+    const report: BulkGenerateReport = {
+      total: plan.length,
+      processed: 0,
+      created: 0,
+      skipped: 0,
+      failed: [],
+      done: false,
+    };
+    this.bulkJobs.set(jobId, report);
+
+    void this.runIeltsPaper(dto, plan, report)
+      .catch((e: unknown) =>
+        this.logger.error(
+          `[ielts-paper] job ${jobId} crashed: ${e instanceof Error ? e.message : String(e)}`,
+        ),
+      )
+      .finally(() => {
+        report.done = true;
+        report.current = undefined;
+        setTimeout(() => this.bulkJobs.delete(jobId), 5 * 60_000);
+      });
+
+    return { jobId, total: plan.length };
+  }
+
+  /** Хэсэг бүрийг дараалан үүсгээд нэг дасгал болгож хадгална. */
+  private async runIeltsPaper(
+    dto: IeltsPaperDto,
+    plan: PaperSectionPlan[],
+    report: BulkGenerateReport,
+  ): Promise<void> {
+    const category = IELTS_CATEGORIES[dto.module];
+    const label = PART_LABEL[dto.module];
+
+    const questions: unknown[] = [];
+    const texts: string[] = [];
+
+    for (const part of plan) {
+      if (report.canceled) break;
+      report.current = `${label} ${part.section}`;
+      try {
+        const draft = await this.withRetry(() =>
+          this.aiGenerate({
+            brief: `${part.brief}\n\nЯг ${part.count} асуулт бич.`,
+            kind: 'ielts',
+            category,
+            topic: dto.topic,
+            count: part.count,
+            // Writing/Speaking нь задгай хариулт — формат нь тогтмол тул AI-д
+            // сонгуулахгүй (эс бөгөөс эссэний даалгаврыг сонголтот болгоно).
+            ...(part.openResponse
+              ? { questionType: 'open_response' as const }
+              : {}),
+          }),
+        );
+        // Хэсгийн дугаарыг ЭНД тавина — AI-д даалгавал алгасдаг.
+        for (const q of draft.questions) {
+          questions.push({ ...q, section: part.section });
+        }
+        if (draft.passageText?.trim()) {
+          texts.push(
+            `${SECTION_MARK(part.section, label)}\n${draft.passageText.trim()}`,
+          );
+        }
+        report.created += 1;
+      } catch (e) {
+        report.failed.push({
+          key: `${label} ${part.section}`,
+          message: e instanceof Error ? e.message : String(e),
+        });
+      } finally {
+        report.processed += 1;
+      }
+    }
+
+    /*
+     * ⚠️ **Дутуу шалгалт хадгалахгүй.**
+     *
+     * Урьд нь унасан хэсгийг алгасаад үлдсэнийг нь хадгалдаг байсан тул
+     * «IELTS Listening Practice Test» гэсэн нэртэй мөртлөө 40 биш **30**
+     * асуулттай тест үүсдэг байв (Choi, 2026-08-15). Сурагч түүнийг бүтэн
+     * шалгалт гэж бодоод band-аа буруу хэмжинэ. Бүтэн биш бол огт үүсгэхгүй —
+     * админ шалтгааныг нь хараад дахин ажиллуулна.
+     */
+    if (report.failed.length || !questions.length) return;
+
+    const quiz = await this.create({
+      title:
+        dto.title?.trim() ||
+        `IELTS ${dto.module[0].toUpperCase()}${dto.module.slice(1)} Practice Test`,
+      category,
+      topic: dto.topic,
+      questions: questions as CreateQuizDto['questions'],
+      passageText: texts.join('\n\n') || undefined,
+      xpReward: dto.xpReward ?? 50,
+      isPublished: true,
+    });
+    report.current = quiz.title;
+  }
+
+  /**
+   * **Байгаа сонсголын дасгалд сонсох яриа үүсгэх.**
+   *
+   * Яагаад хэрэгтэй вэ: сонсох зүйлгүй сонсголын дасгал бол хариулах
+   * боломжгүй дасгал — сервер түүнийг хадгалахыг ч, аппад өгөхийг ч
+   * татгалздаг (`quality.ts`). Гэвч ийм мөрүүд DB-д аль хэдийн үлдсэн бөгөөд
+   * тэднийг засах цорын ганц арга нь ярианы бичвэрийг **гараар** бичих байв.
+   * Энэ нь асуултууд болон тэдний зөв хариултаас нь эхлээд AI-гаар яриа
+   * бичүүлж, мөрийг амилуулна.
+   *
+   * ⚠️ Үүсгэсэн ярианы дараа чанарын шалгуурыг ДАХИН ажиллуулна — AI хариултыг
+   * нь оруулаагүй бол хадгалахгүй, худал «зассан» гэж хэлэхгүй.
+   */
+  async generateListeningScript(id: string): Promise<Quiz> {
+    const quiz = await this.findOne(id);
+    if (!isListeningQuiz(quiz)) {
+      throw new BadRequestException('Зөвхөн сонсголын дасгалд яриа үүсгэнэ.');
+    }
+    const questions = (quiz.questions ?? []) as StoredQuestion[];
+    if (!questions.length) {
+      throw new BadRequestException('Асуултгүй дасгалд яриа үүсгэх боломжгүй.');
+    }
+
+    // Асуулт + зөв хариултыг нь AI-д харуулна — яриа нь тэднийг БҮГДИЙГ
+    // агуулсан байх ёстой, эс бөгөөс дасгал дахин хариулах боломжгүй болно.
+    const lines = questions.map((q, i) => {
+      if (q.type === 'multiple_choice') {
+        return `${i + 1}. ${q.question} → зөв хариулт: "${q.options[q.correct]}"`;
+      }
+      if (q.type === 'fill_blank')
+        return `${i + 1}. ${q.question} → нөхөх үг: "${q.answer}"`;
+      return `${i + 1}. (${q.type})`;
+    });
+
+    const { text } = await runGeminiText(
+      this.config,
+      [
+        'Чи IELTS маягийн сонсголын дасгалын СКРИПТ бичиж байна.',
+        `Дасгалын гарчиг: "${quiz.title}".`,
+        '',
+        'Доорх асуулт бүрийн зөв хариулт нь ярианаас СОНСОГДОЖ байхаар,',
+        'байгалийн англи хэлээр харилцан яриа эсвэл монолог бич:',
+        ...lines,
+        '',
+        'Дүрэм:',
+        '- Зөвхөн скриптийг буцаа (тайлбар, гарчиг, markdown бүү бич).',
+        '- Ярианы хүн бүрийг "Name:" гэж эхэл (монолог бол "Speaker:").',
+        '- 150–300 үг. Хариултууд яриан дотор ЖИНХЭНЭ сонсогдох ёстой.',
+        '- Асуултын дугаарыг скрипт дотор бүү дурд.',
+      ].join('\n'),
+      'listening-script',
+      { temperature: 0.6, thinkingBudget: 0, maxOutputTokens: 1200 },
+    );
+
+    const script = text.trim();
+    if (script.length < MIN_LISTENING_SCRIPT) {
+      throw new BadRequestException(
+        'AI хангалттай урт яриа буцаасангүй. Дахин оролдоно уу.',
+      );
+    }
+
+    quiz.passageText = script;
+    // Яриа нь хариултуудыг үнэхээр агуулж байна уу — хадгалахын өмнө шалгана.
+    this.assertAnswerable(quiz);
+    return this.quizzes.save(quiz);
+  }
+
+  /**
+   * AI дуудлагыг хэдэн удаа оролдох.
+   *
+   * Хэсэг бүтэн унах нь ихэвчлэн **нэг муу асуултаас** болдог (чанарын
+   * шалгуур дасгалыг бүтнээр нь татгалздаг) бөгөөд дахин үүсгэхэд өөр асуулт
+   * гарч ирдэг. Тиймээс шууд бууж өгөхийн оронд дахин оролдоно — 40 асуулттай
+   * шалгалт нэг азгүй асуултын улмаас 30 болох ёсгүй.
+   */
+  private async withRetry<T>(run: () => Promise<T>, attempts = 3): Promise<T> {
+    let last: unknown;
+    for (let i = 1; i <= attempts; i += 1) {
+      try {
+        return await run();
+      } catch (e) {
+        last = e;
+        this.logger.warn(
+          `[ielts-paper] оролдлого ${i}/${attempts} амжилтгүй: ${
+            e instanceof Error ? e.message : String(e)
+          }`,
+        );
+      }
+    }
+    throw last;
+  }
+
   /** Явцыг татах (админ 2.5 секунд тутам дуудна). */
   getBulkJob(jobId: string): BulkGenerateReport | undefined {
     return this.bulkJobs.get(jobId);
@@ -329,14 +573,10 @@ export class QuizzesService {
   ): Promise<void> {
     report.current = stepName(step);
     try {
-      /*
-       * IELTS-д `topic` нь **зорилтот band**. `Quiz.level` нь CEFR enum тул
-       * band-ыг тэнд хадгалж болохгүй — band-аасаа түвшинг автоматаар гаргана.
-       * Ингэснээр админ зөвхөн band-аа сонгоно (хоёр талбар бөглөхгүй) бөгөөд
-       * band бүр өөрийн зөв түвшинтэй хадгалагдана.
-       */
-      const band = parseBandTopic(step.topic);
-      const level = band !== null ? bandToLevel(band) : dto.level;
+      // Хүндрэлийг админы сонгосон CEFR түвшин илэрхийлнэ. (Урьд нь `topic`
+      // дахь «Band 6.5»-аас гаргадаг байсныг больсон — band бол ДҮН, сервер
+      // зөв хариултын тооноос гаргадаг: `ieltsBand()`.)
+      const level = dto.level;
 
       const draft = await this.aiGenerate({
         brief: buildStepBrief(step, bank.titles),
@@ -448,6 +688,11 @@ export class QuizzesService {
   /** Validate that every question has a supported type and required fields. */
   private validateQuestions(raw: QuestionDto[]): StoredQuestion[] {
     return raw.map((q, i) => {
+      // Every branch below rebuilds the question from known fields (that is how
+      // stray input is dropped), so anything shared has to be re-attached
+      // explicitly — `section` included, or IELTS parts would vanish on save.
+      const part = sectionOf(q);
+
       if (q.type === 'multiple_choice') {
         const mc = q as Partial<McQuestion>;
         if (
@@ -471,6 +716,7 @@ export class QuizzesService {
           correct: mc.correct,
           points: mc.points,
           ...(typeof mc.imageUrl === 'string' ? { imageUrl: mc.imageUrl } : {}),
+          ...part,
         };
       }
 
@@ -496,6 +742,7 @@ export class QuizzesService {
           answer: fb.answer,
           ...(choices ? { choices } : {}),
           points: fb.points,
+          ...part,
         };
       }
 
@@ -515,6 +762,7 @@ export class QuizzesService {
           type: 'word_match' as const,
           pairs: wm.pairs as { left: string; right: string }[],
           points: wm.points,
+          ...part,
         };
       }
 
@@ -537,6 +785,7 @@ export class QuizzesService {
           points: 0 as const,
           ...(typeof or.imageUrl === 'string' ? { imageUrl: or.imageUrl } : {}),
           ...(typeof or.bandNote === 'string' ? { bandNote: or.bandNote } : {}),
+          ...part,
         };
       }
 
@@ -755,7 +1004,8 @@ export class QuizzesService {
      */
     if (totalPoints === 0) {
       const allOpen =
-        questions.length > 0 && questions.every((q) => q.type === 'open_response');
+        questions.length > 0 &&
+        questions.every((q) => q.type === 'open_response');
       if (!allOpen) {
         throw new BadRequestException('Quiz-д оноогүй асуулт байна');
       }

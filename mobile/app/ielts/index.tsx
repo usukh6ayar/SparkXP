@@ -56,9 +56,16 @@ export default function IeltsHubScreen() {
         {IELTS_MODULES.map((m) => {
           const count = counts?.[m.key] ?? 0;
           // Open only what exists: an empty module stays inert ("coming soon").
-          // Listening/Reading (auto) → quiz runner; Writing/Speaking → self-study.
+          /*
+           * ⚠️ Дөрвүүлээ НЭГ замаар: жагсаалт → шалгалтын тоглуулагч.
+           *
+           * Writing/Speaking урьд нь `/ielts/practice/...` гэсэн тусдаа
+           * дэлгэц рүү ордог байсан — тэнд Part бүтэц ч, ярих боломж ч
+           * байгаагүй (Speaking даалгаварт **бичих талбар** гарч ирдэг байв).
+           * Одоо шалгалтын тоглуулагч бүх модулийг зөв хэлбэрээр нь хариулна.
+           */
           const ready = count > 0;
-          const target = m.auto ? `/skill/${m.category}` : `/ielts/practice/${m.category}`;
+          const target = `/skill/${m.category}`;
           return (
             <PressableScale
               key={m.key}

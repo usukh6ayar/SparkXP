@@ -129,7 +129,7 @@ describe('checkQuiz — сонсгол', () => {
       ],
     };
     expect(blocked(quiz)).toBe(false);
-    expect(messages(quiz)).toContain('шууд сонсогдохгүй');
+    expect(messages(quiz)).toContain('олдсонгүй');
   });
 
   /*
@@ -194,7 +194,11 @@ describe('checkQuiz — Сорил хуудасны сонсгол (quizType)', 
         quizType: 'listening',
         passageText: SCRIPT,
         questions: [
-          { type: 'fill_blank', question: 'Tom eats ___ for breakfast.', answer: 'porridge' },
+          {
+            type: 'fill_blank',
+            question: 'Tom eats ___ for breakfast.',
+            answer: 'porridge',
+          },
         ],
       }),
     ).toBe(true);
@@ -205,7 +209,13 @@ describe('checkQuiz — Сорил хуудасны сонсгол (quizType)', 
       blocked({
         category: 'soril',
         quizType: 'word_guess',
-        questions: [mc({ question: 'Which word means "хурдан"?', options: ['fast', 'slow', 'big', 'red'], correct: 0 })],
+        questions: [
+          mc({
+            question: 'Which word means "хурдан"?',
+            options: ['fast', 'slow', 'big', 'red'],
+            correct: 0,
+          }),
+        ],
       }),
     ).toBe(false);
   });
@@ -399,5 +409,99 @@ describe('checkQuiz — word_match ба ерөнхий', () => {
       questions: [mc()],
     };
     expect(checkQuiz(quiz)).toHaveLength(0);
+  });
+});
+
+/**
+ * Choi-гийн мэдээлсэн худал дохио (2026-08-14): «Мэдээний сонсгол» дасгалын
+ * 8 асуултын 4 нь анхааруулга авч, админ өөрийгөө буруу хийсэн гэж бодсон.
+ * Шалтгаан нь хариултыг **бүтэн хэллэгээр** тулгадаг байсан явдал.
+ */
+describe('checkQuiz — сонсголын хариултыг утгын үгээр тулгана', () => {
+  const NEWS =
+    'Reporter: I am standing beside the library this morning.\n' +
+    'A man who lives locally told us the news.\n' +
+    'The mayor said he could not wait for the opening.';
+
+  const ask = (
+    options: string[],
+    correct: number,
+    question = 'Where is the reporter?',
+  ) => ({
+    category: 'listening',
+    passageText: NEWS,
+    questions: [{ type: 'multiple_choice', question, options, correct }],
+  });
+
+  it('өөр угтвартай хариултыг анхааруулахаа больсон («By the library» ↔ «beside the library»)', () => {
+    expect(messages(ask(['By the school', 'By the library'], 1))).not.toContain(
+      'олдсонгүй',
+    );
+  });
+
+  it('өөр үгээр илэрхийлсэн хариулт («A local resident» ↔ «lives locally»)', () => {
+    expect(
+      messages(ask(['A tourist', 'A local resident'], 1, 'Who told the news?')),
+    ).not.toContain('олдсонгүй');
+  });
+
+  it('яриатай огт холбоогүй хариултыг анхааруулсаар байна', () => {
+    expect(
+      messages(
+        ask(
+          ['On television', 'In the newspaper'],
+          0,
+          'Where did the mayor speak?',
+        ),
+      ),
+    ).toContain('олдсонгүй');
+  });
+
+  it('зөвхөн үйлчилгээний үгтэй хариултыг («He is») огт шалгахгүй', () => {
+    expect(messages(ask(['He is', 'She is'], 0, 'Who is it?'))).not.toContain(
+      'олдсонгүй',
+    );
+  });
+
+  it('анхааруулга хэвээр — дасгалыг хэзээ ч блоклохгүй', () => {
+    expect(
+      blocked(
+        ask(
+          ['On television', 'In the newspaper'],
+          0,
+          'Where did the mayor speak?',
+        ),
+      ),
+    ).toBe(false);
+  });
+});
+
+/**
+ * Choi, 2026-08-15: «Friday» гэдгийг ХҮНИЙ НЭР гэж үзээд бүтэн Section-ыг
+ * блоклосон тул 40 асуулттай шалгалт 30 болж дутуу үүссэн.
+ */
+describe('checkQuiz — том үсэгтэй ч хүний нэр биш үгс', () => {
+  const script =
+    'Reception: Good morning, how can I help?\n' +
+    'Caller: I would like to book a room for the weekend.';
+
+  const ask = (question: string) => ({
+    category: 'listening',
+    passageText: script,
+    questions: [
+      { type: 'multiple_choice', question, options: ['Yes', 'No'], correct: 0 },
+    ],
+  });
+
+  it.each(['Friday', 'Monday', 'March', 'English', 'University'])(
+    '«%s» нь ярианд байхгүй ч БЛОКЛОХГҮЙ',
+    (word) => {
+      expect(blocked(ask(`Is the room free on ${word}?`))).toBe(false);
+    },
+  );
+
+  it('жинхэнэ хүний нэр ярианд байхгүй бол блоклосон хэвээр', () => {
+    expect(blocked(ask('What time does Sarah arrive?'))).toBe(true);
+    expect(messages(ask('What time does Sarah arrive?'))).toContain('Sarah');
   });
 });

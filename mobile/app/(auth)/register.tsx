@@ -5,7 +5,6 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { AppIcon } from '../../src/components/AppIcon';
 import { useAuth } from '../../src/auth/AuthContext';
-import { ApiError } from '../../src/api/client';
 import { haptics } from '../../src/lib/haptics';
 import { isValidUsername } from '../../src/lib/username';
 import { shake, useReduceMotion } from '../../src/lib/motion';
@@ -32,6 +31,7 @@ import { AppText } from '../../src/components/Text';
 import { TextField } from '../../src/components/TextField';
 import { SelectField } from '../../src/components/SelectField';
 import { Button } from '../../src/components/Button';
+import { ActionButton } from '../../src/components/ActionButton';
 import { FormError } from '../../src/components/FormError';
 import { AuthFooter } from '../../src/components/AuthFooter';
 
@@ -114,7 +114,6 @@ export default function RegisterScreen() {
   const [answers, setAnswers] = useState<OnboardingAnswers | null>(null);
   const [result, setResult] = useState<AuthResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
   const reduce = useReduceMotion();
 
   // Shake the form + error haptic on any validation / submit failure.
@@ -160,29 +159,21 @@ export default function RegisterScreen() {
   // Placement → create the (unverified) account; backend emails an OTP.
   async function submit() {
     setError(null);
-    setBusy(true);
-    try {
-      await authApi.register({
-        username: username.trim(),
-        email: email.trim(),
-        password,
-        fullName: fullName.trim(),
-        level,
-        province,
-        district: isUB ? district : undefined,
-        referralCode: referral ?? undefined,
-        tasteCompleted: tasteDone || undefined,
-      });
-      // Account created — the referral code has been handed to the backend, so
-      // clear the stash to avoid re-applying it to a later sign-up on this device.
-      if (referral) clearPendingReferral();
-      if (tasteDone) clearTasteCompleted();
-      setStep('otp');
-    } catch (e) {
-      fail(e instanceof ApiError ? e.message : t('errorGeneric'));
-    } finally {
-      setBusy(false);
-    }
+    await authApi.register({
+      username: username.trim(),
+      email: email.trim(),
+      password,
+      fullName: fullName.trim(),
+      level,
+      province,
+      district: isUB ? district : undefined,
+      referralCode: referral ?? undefined,
+      tasteCompleted: tasteDone || undefined,
+    });
+    // Account created — the referral code has been handed to the backend, so
+    // clear the stash to avoid re-applying it to a later sign-up on this device.
+    if (referral) clearPendingReferral();
+    if (tasteDone) clearTasteCompleted();
   }
 
   /**
@@ -206,17 +197,9 @@ export default function RegisterScreen() {
   // OTP → verify the email, get a session, then show success.
   async function verify() {
     setError(null);
-    setBusy(true);
-    try {
-      const res = await authApi.verifyOtp(email.trim(), code.trim());
-      await applyOnboardingGoal(res.accessToken);
-      setResult(res);
-      setStep('success');
-    } catch (e) {
-      fail(e instanceof ApiError ? e.message : t('errorGeneric'));
-    } finally {
-      setBusy(false);
-    }
+    const res = await authApi.verifyOtp(email.trim(), code.trim());
+    await applyOnboardingGoal(res.accessToken);
+    setResult(res);
   }
 
   async function resend() {
@@ -423,11 +406,15 @@ export default function RegisterScreen() {
           })}
 
           <FormError message={error} />
-          <Button
+          {/* `haptic={false}`: `fail()` already buzzes, and it also shakes the
+              form — a second buzz on top would read as a stutter. */}
+          <ActionButton
             label={t('register')}
             iconRight="arrow-forward"
-            onPress={submit}
-            loading={busy}
+            action={submit}
+            onSuccess={() => setStep('otp')}
+            onError={fail}
+            haptic={false}
             disabled={!level}
             style={styles.button}
           />
@@ -451,11 +438,13 @@ export default function RegisterScreen() {
           />
 
           <FormError message={error} />
-          <Button
+          <ActionButton
             label={t('verify')}
             iconRight="checkmark"
-            onPress={verify}
-            loading={busy}
+            action={verify}
+            onSuccess={() => setStep('success')}
+            onError={fail}
+            haptic={false}
             disabled={code.trim().length !== 6}
             style={styles.button}
           />

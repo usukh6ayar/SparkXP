@@ -20,7 +20,7 @@ import { Button } from '../../src/components/Button';
 import { Skeleton } from '../../src/components/Skeleton';
 import { EmptyState } from '../../src/components/EmptyState';
 import { PressableScale } from '../../src/components/PressableScale';
-import { SeekBar, formatTime } from '../../src/components/audio/SeekBar';
+import { AudioPlayer, PlayerPill, type PlayerState } from '../../src/components/audio/AudioPlayer';
 import { quizSkill } from '../../src/constants/quizSkill';
 import { useReadAlong } from '../../src/lib/useReadAlong';
 import { AppImage } from '../../src/components/AppImage';
@@ -42,6 +42,13 @@ import { celebrationCopy } from '../../src/components/celebration/copy';
 import { alertError } from '../../src/lib/alerts';
 import { t, tf, type TranslationKey } from '../../src/i18n';
 import { formatBand } from '../../src/constants/ielts';
+import { splitScript } from '../../src/lib/script';
+import {
+  buildTimeline,
+  sentenceAt,
+  sentenceRange,
+  useScriptPosition,
+} from '../../src/lib/scriptTimeline';
 import { useColors } from '../../src/settings/SettingsContext';
 import { spacing, radius, fontSize, type AppColors } from '../../src/theme/theme';
 import { bounded } from '../../src/theme/responsive';
@@ -161,8 +168,8 @@ function findScriptSentence(lines: string[], question: string): number | null {
  * хэрэгтэй нэгж («нөгөө мөрийг нь дахиад сонсъё»).
  */
 /** Зурвас дээрх байрлал (0..1) → өгүүлбэрийн дугаар. */
-const seekIndex = (ratio: number, count: number): number =>
-  Math.max(0, Math.min(count - 1, Math.floor(ratio * count)));
+/** Ухраах/урагшлуулах товчны алхам (бодит бичлэгт), секундээр. */
+const AUDIO_STEP = 10;
 
 /**
  * Өгүүлбэр хэр удаан уншигдахыг ойролцоогоор тооцно (мс).
@@ -173,18 +180,6 @@ const seekIndex = (ratio: number, count: number): number =>
  * хэтэрвэл зурвас өгүүлбэрийнхээ төгсгөлд хүрээд хүлээнэ — хэзээ ч
  * дараагийн өгүүлбэр рүү давж орохгүй.
  */
-const speakMs = (text: string, rate: number): number => {
-  const words = text.trim().split(/\s+/).filter(Boolean).length || 1;
-  return Math.max(700, (words / (2.6 * (rate / 0.9))) * 1000);
-};
-
-function splitScript(script: string): string[] {
-  return script
-    .split(/(?<=[.!?])\s+|\n+/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
-
 /**
  * Цоорхойтой өгүүлбэр — `___` нь **харагдах нүх** болж, сонгосон үг нь тэр
  * нүхэн дотор суудаг.
@@ -403,20 +398,27 @@ export default function QuizScreen() {
   const audioAt = audioStatus.currentTime ?? 0;
   const audioLen = audioStatus.duration ?? 0;
 
-  /** Play / pause the IELTS Listening recording (pause keeps the position, so a
-   *  student can stop mid-section and resume instead of restarting). */
-  function toggleAudio() {
-    if (playing) audio.pause();
-    else audio.play();
-  }
-
-  /** Гүйлгэх зурвас → секунд рүү. Дууссаны дараа ч ухрааж болно. */
+  /** Секунд рүү үсрэх (дууссаны дараа ч ухрааж болно). */
   const seekAudio = useCallback(
-    (ratio: number) => {
-      if (audioLen > 0) void audio.seekTo(ratio * audioLen);
+    (second: number) => {
+      if (audioLen > 0) void audio.seekTo(Math.max(0, Math.min(audioLen, second)));
     },
     [audio, audioLen],
   );
+
+  /**
+   * Бодит бичлэгийн тоглуулагчийн төлөв. Зогсоолт нь байрлалаа хадгална —
+   * сурагч дунд нь зогсоод үргэлжлүүлж чадна, эхнээс нь эхэлдэггүй.
+   */
+  const recordedState: PlayerState = {
+    playing,
+    position: audioAt,
+    duration: audioLen,
+    toggle: () => (playing ? audio.pause() : audio.play()),
+    seek: seekAudio,
+    stepBack: () => seekAudio(audioAt - AUDIO_STEP),
+    stepForward: () => seekAudio(audioAt + AUDIO_STEP),
+  };
 
   const load = useCallback(() => {
     setPhase('loading');
@@ -631,6 +633,38 @@ export default function QuizScreen() {
 
   /** Зурвасаар үсрэх. */
   const seekListen = useCallback((index: number) => listen.seek(index), [listen]);
+
+  /**
+   * Ярианы тоглуулагчийн төлөв — **секундээр**.
+   *
+   * Speech engine нь зөвхөн «хэддэх өгүүлбэр эхэллээ» гэж хэлдэг тул цагийг
+   * бичвэрээс нь тооцоолж гаргана (`scriptTimeline`). Ингэснээр «1:04 / 3:12»
+   * гэсэн заалт, өгүүлбэр бүрийн хуваалт, тодорхой секунд рүү үсрэх боломж
+   * гарч ирнэ — өмнө нь зөвхөн «Өгүүлбэр 4/12» байсан.
+   */
+  const listenRate = slowSpeech ? 0.55 : 0.9;
+  const listenTimeline = useMemo(
+    () => buildTimeline(scriptLines, listenRate),
+    [scriptLines, listenRate],
+  );
+  const listenPosition = useScriptPosition(listenTimeline, listenAt, listen.playing);
+  const listenState: PlayerState = {
+    playing: listen.playing,
+    position: listenPosition,
+    duration: listenTimeline.total,
+    segment: {
+      index: listenAt,
+      count: listen.count,
+      ...(sentenceRange(listenTimeline, listenAt) ?? { from: 0, to: 0 }),
+    },
+    marks: listenTimeline.starts,
+    toggle: toggleListen,
+    // Чирэхэд секунд ирнэ; тоглуулалт нь өгүүлбэрийн нарийвчлалтай тул
+    // хамгийн ойрын өгүүлбэр рүү буулгана.
+    seek: (second) => seekListen(sentenceAt(listenTimeline, second)),
+    stepBack: () => seekListen(Math.max(0, listenAt - 1)),
+    stepForward: () => seekListen(Math.min(listen.count - 1, listenAt + 1)),
+  };
 
   /**
    * **Шалгах = түр зогсоох, дараагийн асуулт = үргэлжлүүлэх.**
@@ -1232,28 +1266,9 @@ export default function QuizScreen() {
 
       <ScrollView contentContainerStyle={[styles.container, bounded]}>
 
-        {/* IELTS Listening — the section recording, replayable at any time. */}
-        {quiz!.audioUrl ? (
-          <View style={styles.audioBar}>
-            <View style={styles.listenRow}>
-              <PressableScale haptic={false} onPress={toggleAudio} style={styles.listenIcon}>
-                <Ionicons name={playing ? 'pause' : 'play'} size={24} color={c.white} />
-              </PressableScale>
-              <AppText variant="bodyStrong" color={c.white} style={styles.listenLabel}>
-                {playing ? t('ieltsAudioPause') : t('ieltsAudioPlay')}
-              </AppText>
-            </View>
-            {/* Бодит бичлэгт цаг нь мэдэгддэг тул нэгж нь секунд — гэхдээ
-                удирдлага нь ижил: зөвхөн чирнэ, ухраах товчгүй. */}
-            <SeekBar
-              value={audioLen > 0 ? audioAt / audioLen : 0}
-              onSeek={seekAudio}
-              left={(r) => formatTime(r * audioLen)}
-              right={formatTime(audioLen)}
-              disabled={audioLen <= 0}
-            />
-          </View>
-        ) : null}
+        {/* Бодит бичлэгтэй дасгал — ярианы дасгалтай ЯГ ижил тоглуулагч
+            (алхах товч + секундын заалт). */}
+        {quiz!.audioUrl ? <AudioPlayer state={recordedState} /> : null}
 
         {/* IELTS Reading — the passage, open by default and collapsible so the
             questions stay reachable on a phone screen. Сонсголд энэ хайрцаг
@@ -1301,87 +1316,40 @@ export default function QuizScreen() {
                 элемент. Товч дарах бүрд эхнээс эхлүүлдэг байсныг больж, одоо
                 ЖИНХЭНЭ тоглуулагч: тоглуулах/зогсоох + чирдэг зурвас (ухраах
                 товч зориудаар алга — доорх тайлбарыг үз). */}
-            <View style={styles.listenBtn}>
-              <View style={styles.listenRow}>
-                <PressableScale onPress={toggleListen} style={styles.listenIcon}>
-                  <Ionicons name={listen.playing ? 'pause' : 'play'} size={26} color={c.white} />
-                </PressableScale>
-                <View style={styles.listenLabel}>
-                  <AppText variant="bodyStrong" color={c.white}>
-                    {listen.playing
-                      ? t('listenPlaying')
-                      : playCount > 0
-                        ? t('listenReplay')
-                        : t('listenPlay')}
-                  </AppText>
-                  <AppText variant="caption" color={c.white} style={styles.listenSub}>
-                    {playCount > 0 ? tf('listenCount', { n: playCount }) : t('listenTapHint')}
-                  </AppText>
-                </View>
-              </View>
-
-              {/* Гүйлгэх зурвас — ухраах товч БАЙХГҮЙ, хуруугаараа чирнэ.
-                  Хуваалтын зураасууд ч алга: YouTube шиг тасралтгүй зурвас
-                  байх ёстой (Choi). Дотооддоо өгүүлбэр рүү буудаг ч гадна
-                  талдаа энэ нь мэдэгдэхгүй. Бичвэрийг ил гаргахгүй тул
-                  хариултаа энэ зурваснаас уншиж чадахгүй. */}
-              {listen.count > 1 ? (
-                <SeekBar
-                  value={(listenAt + 1) / listen.count}
-                  onSeek={(r) => seekListen(seekIndex(r, listen.count))}
-                  left={(r) => tf('listenPosition', {
-                    at: seekIndex(r, listen.count) + 1,
-                    total: listen.count,
-                  })}
-                  // Тухайн өгүүлбэрийн үргэлжлэх хугацаагаар гүйнэ — зогссон
-                  // үед үсрэлт хийхгүй (0 = шууд суух).
-                  smoothMs={
-                    listen.playing ? speakMs(scriptLines[listenAt] ?? '', slowSpeech ? 0.55 : 0.9) : 0
-                  }
-                />
-              ) : null}
-            </View>
-
-            <View style={styles.listenTools}>
+            {/* Тоглуулагч бүхэлдээ дундын `AudioPlayer` — IELTS шалгалттай яг
+                ижил. Урьд нь энд зөвхөн товч + нүцгэн зурвас байсан бөгөөд
+                байрлалыг «Өгүүлбэр 4/12» гэж хэлдэг байв: утсан дээр чирж
+                тааруулах хэцүү, «6 секунд ухраая» гэж шийдэх ч боломжгүй.
+                Одоо алхах товч, секундын заалт, өгүүлбэрийн хуваалт гурвуулаа
+                байна. */}
+            <AudioPlayer state={listenState}>
               {/* Удаан хурд — сонсоод амжихгүй байгаа хүнд хамгийн том тусламж.
                   Дараагийн өгүүлбэрээс эхлэн шинэ хурдаар уншина. */}
-              <PressableScale
-                haptic={false}
-                onPress={() => { setSlowSpeech((v) => !v); }}
-                style={[styles.speedPill, slowSpeech && styles.speedPillOn]}
-              >
-                <Ionicons
-                  name="hourglass-outline"
-                  size={14}
-                  color={slowSpeech ? c.white : c.textSecondary}
+              <PlayerPill
+                icon="hourglass-outline"
+                label={t('listenSlow')}
+                on={slowSpeech}
+                onPress={() => setSlowSpeech((v) => !v)}
+              />
+              {playCount > 0 ? (
+                <PlayerPill
+                  icon="repeat-outline"
+                  label={tf('listenCount', { n: playCount })}
+                  onPress={toggleListen}
                 />
-                <AppText variant="caption" color={slowSpeech ? c.white : c.textSecondary}>
-                  {t('listenSlow')}
-                </AppText>
-              </PressableScale>
-              {/* Ухраах/эхнээс нь товчнууд ЗОРИУДААР алга — зурвасаараа чирнэ
-                  (Choi, 2026-08-14). Хоёр арга зэрэг байвал аль нь ч бүрэн
-                  мэдрэгддэггүй; чирэх нь хаана явж байгааг ч хамт хэлдэг. */}
+              ) : null}
 
               {/* Бичвэр — зөвхөн хариулсны ДАРАА, зөвхөн ТОВЧ. Хариулахаас өмнө
                   байвал уншчихаад хариулах тул огт гарахгүй. */}
               {feedback && hasScript ? (
-                <PressableScale
-                  haptic={false}
+                <PlayerPill
+                  icon="document-text-outline"
+                  label={t('listenTranscript')}
+                  on={transcriptOpen}
                   onPress={() => setTranscriptOpen((v) => !v)}
-                  style={[styles.speedPill, transcriptOpen && styles.speedPillOn]}
-                >
-                  <Ionicons
-                    name="document-text-outline"
-                    size={14}
-                    color={transcriptOpen ? c.white : c.textSecondary}
-                  />
-                  <AppText variant="caption" color={transcriptOpen ? c.white : c.textSecondary}>
-                    {t('listenTranscript')}
-                  </AppText>
-                </PressableScale>
+                />
               ) : null}
-            </View>
+            </AudioPlayer>
           </View>
         ) : null}
 
@@ -1699,16 +1667,6 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   progressBarWrap: { flex: 1 },
   container: { padding: spacing.lg, paddingTop: spacing.md },
 
-  // IELTS: Listening player bar, Reading passage panel, result band.
-  /** Бодит бичлэгийн тоглуулагч — TTS-ийн картын яг адил төрхтэй (нэг л
-   *  зүйлийн хоёр хувилбар байхаас илүү, нэг тоглуулагч мэт харагдана). */
-  audioBar: {
-    gap: spacing.sm,
-    backgroundColor: c.primary,
-    borderRadius: radius.xl,
-    padding: spacing.md,
-    marginBottom: spacing.md,
-  },
   passageBox: {
     backgroundColor: c.surfaceAlt,
     borderRadius: radius.lg,
@@ -1810,43 +1768,8 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
     marginBottom: spacing.md,
     overflow: 'hidden',
   },
+  // Тоглуулагчийн бүх төрх одоо `components/audio/AudioPlayer` дотор.
   listenBox: { marginBottom: spacing.lg },
-  listenTools: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: spacing.md, marginTop: spacing.sm,
-  },
-  speedPill: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    borderWidth: 1, borderColor: c.border, borderRadius: radius.full,
-    paddingVertical: 5, paddingHorizontal: spacing.md,
-  },
-  speedPillOn: { backgroundColor: c.primary, borderColor: c.primary },
-  /** Сонсох карт — дасгалын гол үйлдэл тул хамгийн тод элемент. */
-  listenBtn: {
-    gap: spacing.sm,
-    alignSelf: 'stretch',
-    backgroundColor: c.primary,
-    borderRadius: radius.xl,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.md,
-    // Зөөлөн өргөлт — карт нь дэвсгэрээс салж, дарахуйц мэдрэгдэнэ.
-    shadowColor: c.primary,
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 4,
-  },
-  listenIcon: {
-    width: 48, height: 48, borderRadius: 24,
-    // Цайвар тунгалаг дугуй — цагаан дэвсгэрээс зөөлөн, картад уусна.
-    backgroundColor: 'rgba(255,255,255,0.22)',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.5)',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  listenRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  listenLabel: { flex: 1, gap: 1 },
-  listenSub: { opacity: 0.85 },
 
   /**
    * Цоорхойн НҮХ — өгүүлбэр дотор харагдах байрлал.

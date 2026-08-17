@@ -3,7 +3,6 @@ import { View, Pressable, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as authApi from '../../src/api/auth';
-import { ApiError } from '../../src/api/client';
 import { t } from '../../src/i18n';
 import { spacing } from '../../src/theme/theme';
 import { useColors } from '../../src/settings/SettingsContext';
@@ -11,6 +10,7 @@ import { Screen } from '../../src/components/Screen';
 import { AppText } from '../../src/components/Text';
 import { TextField } from '../../src/components/TextField';
 import { Button } from '../../src/components/Button';
+import { ActionButton } from '../../src/components/ActionButton';
 import { FormError } from '../../src/components/FormError';
 
 export default function ForgotPasswordScreen() {
@@ -21,32 +21,15 @@ export default function ForgotPasswordScreen() {
   const [code, setCode] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
 
-  async function requestCode() {
+  function requestCode() {
     setError(null);
-    setBusy(true);
-    try {
-      await authApi.forgotPassword(email.trim());
-      setStep('reset');
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : t('errorGeneric'));
-    } finally {
-      setBusy(false);
-    }
+    return authApi.forgotPassword(email.trim());
   }
 
-  async function reset() {
+  function reset() {
     setError(null);
-    setBusy(true);
-    try {
-      await authApi.resetPassword(email.trim(), code.trim(), password);
-      setStep('done');
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : t('errorGeneric'));
-    } finally {
-      setBusy(false);
-    }
+    return authApi.resetPassword(email.trim(), code.trim(), password);
   }
 
   return (
@@ -89,7 +72,14 @@ export default function ForgotPasswordScreen() {
                 onChangeText={setEmail}
               />
               <FormError message={error} />
-              <Button label={t('sendCode')} onPress={requestCode} loading={busy} disabled={!email.trim()} style={styles.button} />
+              <ActionButton
+                label={t('sendCode')}
+                action={requestCode}
+                onSuccess={() => setStep('reset')}
+                onError={setError}
+                disabled={!email.trim()}
+                style={styles.button}
+              />
             </>
           ) : (
             <>
@@ -109,10 +99,11 @@ export default function ForgotPasswordScreen() {
                 onChangeText={setPassword}
               />
               <FormError message={error} />
-              <Button
+              <ActionButton
                 label={t('resetPassword')}
-                onPress={reset}
-                loading={busy}
+                action={reset}
+                onSuccess={() => setStep('done')}
+                onError={setError}
                 disabled={code.trim().length !== 6 || password.length < 6}
                 style={styles.button}
               />

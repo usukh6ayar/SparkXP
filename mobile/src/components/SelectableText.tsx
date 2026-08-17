@@ -24,11 +24,17 @@ import { spacing, radius, type AppColors } from '../theme/theme';
  * Word + whitespace are kept as separate inline spans so a highlight background
  * can be drawn across the selected range (like a native text selection).
  */
+/** Inclusive index range as an array — used to mark a whole selection. */
+const range = (from: number, to: number): number[] =>
+  Array.from({ length: to - from + 1 }, (_, i) => from + i);
+
 export function SelectableText({
   text,
   variant = 'body',
   style,
   highlightRange,
+  marks,
+  onMarksChange,
   onTextLayout,
 }: {
   text: string;
@@ -39,6 +45,15 @@ export function SelectableText({
    * — used by read-along to mark the sentence being spoken. `to` is exclusive.
    */
   highlightRange?: { from: number; to: number } | null;
+  /**
+   * Persistent highlights, as token indices. Given, a **Highlight** action
+   * appears next to Translate and the marked words stay tinted after the
+   * selection is dropped — that is what a test taker does with a pen while
+   * reading a passage, and it has to survive scrolling between questions.
+   * Omitted (Reading screen) → the component behaves exactly as before.
+   */
+  marks?: Set<number>;
+  onMarksChange?: (marks: Set<number>) => void;
   /**
    * Line metrics of the laid-out passage. `PagedReader` uses these to work out
    * where each page should start.
@@ -70,6 +85,21 @@ export function SelectableText({
   const hi = sel ? Math.max(sel.a, sel.b) : -1;
 
   const isWord = (tok: string) => /\S/.test(tok);
+  const marked = (i: number) => !!marks?.has(i);
+
+  /** Commit the current selection as a persistent highlight (or clear it). */
+  const toggleMark = () => {
+    if (!sel || !onMarksChange) return;
+    const next = new Set(marks);
+    // Already fully highlighted → the action reads as "remove".
+    const all = range(lo, hi).every((i) => next.has(i));
+    for (const i of range(lo, hi)) {
+      if (all) next.delete(i);
+      else next.add(i);
+    }
+    setSel(null);
+    onMarksChange(next);
+  };
 
   const onWordPress = (i: number, tok: string, e: GestureResponderEvent) => {
     // In selection mode a tap extends the highlight to this word.
@@ -107,8 +137,13 @@ export function SelectableText({
           if (!isWord(tok)) {
             // Whitespace inside a range keeps that highlight continuous.
             const inSel = i > lo && i < hi;
-            return inSel || spoken(i) ? (
-              <AppText key={i} variant={variant} style={[style, inSel ? styles.hl : styles.spoken]}>
+            const inMark = marked(i);
+            return inSel || inMark || spoken(i) ? (
+              <AppText
+                key={i}
+                variant={variant}
+                style={[style, inSel ? styles.hl : inMark ? styles.mark : styles.spoken]}
+              >
                 {tok}
               </AppText>
             ) : (
@@ -120,8 +155,12 @@ export function SelectableText({
             <AppText
               key={i}
               variant={variant}
-              // The user's own selection wins over the read-along highlight.
-              style={[style, highlighted ? styles.hl : spoken(i) && styles.spoken]}
+              // Live selection wins over a saved highlight, which wins over
+              // the read-along tint.
+              style={[
+                style,
+                highlighted ? styles.hl : marked(i) ? styles.mark : spoken(i) && styles.spoken,
+              ]}
               onPress={(e: GestureResponderEvent) => onWordPress(i, tok, e)}
               onLongPress={() => setSel({ a: i, b: i })}
               suppressHighlighting
@@ -134,6 +173,15 @@ export function SelectableText({
 
       {selecting ? (
         <View style={styles.actions}>
+          {onMarksChange ? (
+            <Pressable
+              onPress={toggleMark}
+              style={({ pressed }) => [styles.markChip, pressed && styles.pressed]}
+            >
+              <Ionicons name="color-wand-outline" size={16} color={colors.text} />
+              <AppText variant="label" color={colors.text}>{t('highlightSelection')}</AppText>
+            </Pressable>
+          ) : null}
           <Pressable onPress={translate} style={({ pressed }) => [styles.translateChip, pressed && styles.pressed]}>
             <Ionicons name="language" size={16} color={colors.white} />
             <AppText variant="label" color={colors.white}>{t('translateSelection')}</AppText>
@@ -152,10 +200,17 @@ const makeStyles = (colors: AppColors) => StyleSheet.create({
   // Read-along: a different tint from `hl` so "being spoken" never reads as
   // "I selected this".
   spoken: { backgroundColor: colors.successSoft },
+  /** Хадгалагдсан тэмдэглэгээ — цаасан дээрх маркер шиг шар, сонголтоос ялгаатай. */
+  mark: { backgroundColor: colors.warningSoft },
   actions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.md },
   translateChip: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: colors.primary,
+    paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.full,
+  },
+  markChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: colors.warningSoft,
     paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.full,
   },
   cancelChip: {

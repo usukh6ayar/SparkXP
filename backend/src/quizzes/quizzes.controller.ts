@@ -28,8 +28,10 @@ import { StarsService } from '../xp/stars.service';
 import { XpSource } from '../common/enums';
 import { AiGenerateQuizDto } from './dto/ai-generate-quiz.dto';
 import { BulkGenerateQuizDto } from './dto/bulk-generate-quiz.dto';
+import { IeltsPaperDto } from './dto/ielts-paper.dto';
 import { CreateQuizDto } from './dto/create-quiz.dto';
 import { IELTS_OBJECTIVE_CATEGORIES, ieltsBand } from './ielts';
+import { canSeeAnswers, stripAnswers } from './sanitize';
 import { UpdateQuizDto } from './dto/update-quiz.dto';
 import { QueryQuizzesDto } from './dto/query-quizzes.dto';
 import { SubmitQuizDto, AnswerItemDto } from './dto/submit-quiz.dto';
@@ -88,6 +90,21 @@ export class QuizzesController {
     return { started: true, background: true, jobId, total };
   }
 
+  /**
+   * **Бүтэн IELTS шалгалт үүсгэх** — Listening 4 Section × 10 асуулт, эсвэл
+   * Reading 3 Passage (13+13+14) = нийт 40, НЭГ дасгал болгож.
+   *
+   * Хэсгийн тоог админ сонгохгүй: тэр нь шалгалтын албан ёсны бүтэц.
+   * Background-д явна — `GET /quizzes/bulk-generate/:jobId`-ээр явцыг харна.
+   */
+  @Post('ielts-paper')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  ieltsPaper(@Body() dto: IeltsPaperDto) {
+    const { jobId, total } = this.quizzesService.startIeltsPaper(dto);
+    return { started: true, background: true, jobId, total };
+  }
+
   /** Явц татах. `:id`-аас ӨМНӨ байх ёстой, эс бөгөөс route нь тэр рүү унана. */
   @Get('bulk-generate/:jobId')
   @UseGuards(RolesGuard)
@@ -106,10 +123,18 @@ export class QuizzesController {
     return { canceled: this.quizzesService.cancelBulkJob(jobId) };
   }
 
-  /** List quizzes with optional filters. */
+  /**
+   * List quizzes with optional filters.
+   *
+   * ⚠️ Хариултын түлхүүр зөвхөн контент засдаг дүрд очно — сурагчид
+   * `correct`/`answer` явуулбал дасгал бүрийг сүлжээний хариунаас уншиж
+   * болно (`sanitize.ts`).
+   */
   @Get()
-  findAll(@Query() query: QueryQuizzesDto) {
-    return this.quizzesService.findAll(query);
+  async findAll(@Query() query: QueryQuizzesDto, @CurrentUser() user: User) {
+    const page = await this.quizzesService.findAll(query);
+    if (canSeeAnswers(user?.role)) return page;
+    return { ...page, items: page.items.map(stripAnswers) };
   }
 
   /**
@@ -128,9 +153,26 @@ export class QuizzesController {
 
   /** Get a single quiz by id. */
   @Get(':id')
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
+  async findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: User,
+  ) {
     // Аппын хувилбар: `fill_blank` бүрд яг 4 сонголт бэлдэнэ.
-    return this.quizzesService.findOneForStudent(id);
+    const quiz = await this.quizzesService.findOneForStudent(id);
+    // ⚠️ Сонголт/үгийн санг бэлдсэний ДАРАА хасна — тэдгээр нь хариултаас
+    // тооцоологддог (аль хэдийн холигдсон тул түлхүүрээ задлахгүй).
+    return canSeeAnswers(user?.role) ? quiz : stripAnswers(quiz);
+  }
+
+  /**
+   * Админ: **сонсох яриа үүсгэх** — асуулт нь байгаа мөртлөө сонсох зүйлгүй
+   * үлдсэн сонсголын дасгалыг амилуулна (ийм мөр аппад огт харагддаггүй).
+   */
+  @Post(':id/generate-script')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)
+  generateScript(@Param('id', ParseUUIDPipe) id: string) {
+    return this.quizzesService.generateListeningScript(id);
   }
 
   /** Admin: update a quiz. */
@@ -171,7 +213,13 @@ export class QuizzesController {
     // computed from the number of correct QUESTIONS (not points).
     if (quiz.category && IELTS_OBJECTIVE_CATEGORIES.includes(quiz.category)) {
       const correctCount = result.breakdown.filter((b) => b.correct).length;
-      result.band = ieltsBand(correctCount, result.breakdown.length);
+      // Ангиллыг дамжуулна: Listening ба Academic Reading хоёр өөр
+      // албан ёсны хүснэгттэй.
+      result.band = ieltsBand(
+        correctCount,
+        result.breakdown.length,
+        quiz.category,
+      );
     }
 
     // Teacher-set homework earns no XP — it's schoolwork, not the game loop

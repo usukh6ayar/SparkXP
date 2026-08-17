@@ -22,6 +22,7 @@ import { useAuth } from '../auth/AuthContext';
 import { ApiError } from '../api/client';
 import { haptics } from '../lib/haptics';
 import { shake, useReduceMotion } from '../lib/motion';
+import { useAsyncAction } from '../lib/useAsyncAction';
 import { type SavedCredentials } from '../lib/savedCredentials';
 import { t } from '../i18n';
 import { spacing, radius, type AppColors } from '../theme/theme';
@@ -84,7 +85,6 @@ export function SignInSheet({
   const [password, setPassword] = useState(initial?.password ?? '');
   const [remember, setRemember] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
   const reduce = useReduceMotion();
 
   // Shake + error haptic when sign-in fails.
@@ -139,20 +139,18 @@ export function SignInSheet({
     fail(e instanceof ApiError ? e.message : t('errorGeneric'));
   }
 
-  async function onSubmit() {
-    setError(null);
-    setBusy(true);
-    try {
+  // The submit control is a custom gradient Pressable, not <Button>, so this
+  // uses the hook directly. `haptic: false` — `fail()` already buzzes and shakes.
+  const { busy, run: onSubmit } = useAsyncAction(
+    () => {
+      setError(null);
       // `login` also stores (or forgets) the credentials + the display fields
       // the welcome screen's "continue as…" card renders — it is the only place
       // the fresh user and the password exist together.
-      await login(username.trim(), password, remember); // auth gate redirects
-    } catch (e) {
-      handleLoginError(e);
-    } finally {
-      setBusy(false);
-    }
-  }
+      return login(username.trim(), password, remember); // auth gate redirects
+    },
+    { haptic: false, onError: (_message, e) => handleLoginError(e) },
+  );
 
 
   // Google/Apple — the hook hides buttons the server hasn't enabled.

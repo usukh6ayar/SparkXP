@@ -18,6 +18,12 @@ export interface QuizQuestion {
    * тэр үед бичих талбар руугаа буцна.
    */
   choices?: string[];
+  /**
+   * IELTS exam part this question belongs to (1–4). Absent on everything
+   * authored before parts existed — `groupSections()` reads that as "part 1",
+   * so an old set still runs, just undivided.
+   */
+  section?: number;
   points: number;
   // correct & answer are NOT returned to the client (server-side only)
 }

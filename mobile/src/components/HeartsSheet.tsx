@@ -1,18 +1,16 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AppText } from './Text';
 import { Button } from './Button';
+import { ActionButton } from './ActionButton';
 import { HeartsRow } from './HeartsRow';
 import { AppIcon } from './AppIcon';
 import { SheetModal } from './SheetModal';
 import { useColors } from '../settings/SettingsContext';
 import { useAuth } from '../auth/AuthContext';
 import { useCountdown } from '../lib/countdown';
-import { haptics } from '../lib/haptics';
-import { alertError } from '../lib/alerts';
 import { refillHearts, type HeartsState } from '../api/hearts';
-import { ApiError } from '../api/client';
 import { t, tf } from '../i18n';
 import { spacing, radius, type AppColors } from '../theme/theme';
 
@@ -56,7 +54,6 @@ export function HeartsSheet({
   const c = useColors();
   const { token } = useAuth();
   const styles = useMemo(() => makeStyles(c), [c]);
-  const [busy, setBusy] = useState(false);
   const timer = useCountdown(state?.nextHeartAt ?? null, onRegen);
 
   if (!state) return null;
@@ -66,22 +63,6 @@ export function HeartsSheet({
   const full = state.unlimited || state.hearts >= state.max;
   const cost = state.refillCost ?? 0;
   const canAfford = sparksBalance >= cost;
-
-  async function handleRefill() {
-    if (!token) return;
-    setBusy(true);
-    try {
-      const next = await refillHearts(token);
-      haptics.success();
-      onRefilled(next);
-    } catch (e) {
-      // The backend's 400s ("Sparks хүрэлцэхгүй байна") are already Mongolian
-      // and more specific than anything we could say here.
-      alertError(e instanceof ApiError ? e.message : t('errorFallback'));
-    } finally {
-      setBusy(false);
-    }
-  }
 
   return (
     <SheetModal visible={visible} onClose={onClose} dismissable={!blocking}>
@@ -132,11 +113,14 @@ export function HeartsSheet({
             </AppText>
           </View>
 
-          <Button
+          {/* The backend's 400s ("Sparks хүрэлцэхгүй байна") are already
+              Mongolian and more specific than anything we could say, so the
+              default alert (which shows exactly that) is right here. */}
+          <ActionButton
             label={tf('heartsRefillCta', { n: cost })}
-            onPress={handleRefill}
-            disabled={!canAfford || busy || !token}
-            loading={busy}
+            action={() => refillHearts(token!)}
+            onSuccess={onRefilled}
+            disabled={!canAfford || !token}
             style={styles.refillBtn}
           />
         </>

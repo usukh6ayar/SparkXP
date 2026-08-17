@@ -126,6 +126,97 @@ function hasGerundInfinitivePair(choices: string[]): boolean {
  */
 const dropPossessive = (s: string): string => s.replace(/['’]s\b/gi, '');
 
+/**
+ * Утга агуулаагүй үйлчилгээний үгс.
+ *
+ * Хариултыг яриатай тулгахад эдгээрийг тооцвол «By the library» гэсэн зөв
+ * хариулт «beside the library» гэсэн яриатай тохирохгүй болно — учир нь `by`
+ * нь дотор нь байхгүй. Утга нь `library` дээр байгаа, тэр л чухал.
+ */
+const STOP_WORDS = new Set([
+  'the',
+  'a',
+  'an',
+  'and',
+  'or',
+  'but',
+  'of',
+  'to',
+  'in',
+  'on',
+  'at',
+  'by',
+  'for',
+  'from',
+  'with',
+  'as',
+  'is',
+  'are',
+  'was',
+  'were',
+  'be',
+  'been',
+  'he',
+  'she',
+  'it',
+  'they',
+  'we',
+  'you',
+  'his',
+  'her',
+  'its',
+  'their',
+  'this',
+  'that',
+  'these',
+  'those',
+  'there',
+  'has',
+  'have',
+  'had',
+  'will',
+  'would',
+  'can',
+  'could',
+  'not',
+  'no',
+  'yes',
+  'do',
+  'does',
+  'did',
+]);
+
+/** Хариултын утга агуулсан үгс (үйлчилгээний үг ба богино үгийг хасна). */
+function contentWords(text: string): string[] {
+  return norm(dropPossessive(text))
+    .split(' ')
+    .filter((w) => w.length > 2 && !STOP_WORDS.has(w));
+}
+
+/**
+ * Утгын үг яриан дотор сонсогдсон уу — **үгийн хэлбэрийн өөрчлөлтийг тооцно.**
+ *
+ * `local` ↔ `locally`, `excite` ↔ `excited` зэрэг нь ижил утга боловч өөр үг
+ * тул яг тулгавал таарахгүй. Эхний 4 үсгээр нь харьцуулснаар ийм хосууд
+ * таарна. Энэ нь анхааруулгын түвшний эвристик — андуурвал зөвхөн нэг
+ * анхааруулга дутна, контент хаагдахгүй.
+ */
+const STEM_MIN = 4;
+function heardLike(heardWords: Set<string>, word: string): boolean {
+  if (heardWords.has(word)) return true;
+  if (word.length < STEM_MIN) return false;
+  const stem = word.slice(0, STEM_MIN);
+  for (const h of heardWords) {
+    if (
+      h.length >= STEM_MIN &&
+      (h.startsWith(stem) || word.startsWith(h.slice(0, STEM_MIN)))
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /** Үг бүтнээрээ (дэд-мөр биш) текстэд байна уу. */
 function containsWord(haystack: string, needle: string): boolean {
   const words = new Set(norm(dropPossessive(haystack)).split(' '));
@@ -135,6 +226,60 @@ function containsWord(haystack: string, needle: string): boolean {
 }
 
 /** Текстээс том үсгээр эхэлсэн нэрсийг түүнэ (өгүүлбэрийн эхнийхийг алгасна). */
+/**
+ * Том үсгээр бичигддэг ч **хүний нэр биш** үгс.
+ *
+ * ⚠️ Бодит алдаа (Choi, 2026-08-15): «Friday» гэдгийг нэр гэж үзээд
+ * «сурагч тэр хүн хэн болохыг мэдэх аргагүй» гэж бүтэн Section-ыг БЛОКЛОСОН
+ * тул 40 асуулттай шалгалт 30 болж дутуу үүссэн. Гараг, сар, хэл/улсын нэр
+ * зэрэг нь асуултад байгаад ярианд байхгүй байх нь бүрэн хэвийн — тэдгээр нь
+ * заавал сонсогдох ёстой ЭТГЭЭД биш, зүгээр л нэр томьёо.
+ */
+const NOT_PERSON_NAMES = new Set(
+  [
+    // Гараг · сар
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+    'Sunday',
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+    // Хэл · үндэстэн · нийтлэг том үсэгт нэр томьёо
+    'English',
+    'Mongolian',
+    'Chinese',
+    'Japanese',
+    'Korean',
+    'Spanish',
+    'French',
+    'German',
+    'Russian',
+    'Internet',
+    'University',
+    'College',
+    'Library',
+    'Reception',
+    'Student',
+    'Teacher',
+    'Professor',
+    'Doctor',
+    'Manager',
+  ].map((w) => w.toLowerCase()),
+);
+
 function properNouns(text: string): string[] {
   const words = text.split(/(?<=[.!?])\s+|\n+/).flatMap((sentence) =>
     dropPossessive(sentence)
@@ -144,7 +289,9 @@ function properNouns(text: string): string[] {
       .slice(1)
       .filter((w) => /^[A-Z][a-z]{2,}$/.test(w.replace(/[^A-Za-z]/g, ''))),
   );
-  return [...new Set(words.map((w) => w.replace(/[^A-Za-z]/g, '')))];
+  return [...new Set(words.map((w) => w.replace(/[^A-Za-z]/g, '')))].filter(
+    (w) => !NOT_PERSON_NAMES.has(w.toLowerCase()),
+  );
 }
 
 /** Нэг асуултыг шалгана. `script` = сонсголын яриа (байвал). */
@@ -304,15 +451,36 @@ function checkQuestion(
     const key = strList(raw.options)[
       typeof raw.correct === 'number' ? raw.correct : -1
     ];
-    const answerHeard = !!key && containsWord(heard, key);
-    if (key && /^[\p{L}\s']+$/u.test(key) && norm(key).length > 2) {
-      if (!answerHeard) {
-        add(
-          'warn',
-          `Зөв хариулт «${key}» сонсох яриан дотор шууд сонсогдохгүй байна — ` +
-            'сурагч түүнийг хаанаас ч олж чадахгүй байж магадгүй.',
-        );
-      }
+    /*
+     * ⚠️ Хариултыг **бүтэн хэллэгээр нь** тулгаж БОЛОХГҮЙ.
+     *
+     * Урьд нь `containsWord(heard, key)` нь хариултын үг БҮРИЙГ шаарддаг
+     * байсан тул «By the library» гэсэн зөв хариулт «It's beside the library»
+     * гэсэн яриатай тохирохгүй (`by` дотор нь алга) — 8 асуулттай эрүүл
+     * дасгалын 4 нь анхааруулга авч, админ өөрийгөө буруу хийсэн гэж боддог
+     * байв. Хагас нь дохио өгдөг анхааруулга бол дохио биш, шуугиан.
+     *
+     * Одоо **утгын үг**-ээр шалгана: ядаж нэг нь сонсогдож байвал хариулт нь
+     * яриатай холбоотой — өөр үгээр илэрхийлэгдсэн байж болно, тэр нь
+     * сонсголын шалгалтын хэвийн зүйл.
+     */
+    const keyWords = contentWords(key ?? '');
+    const heardWords = new Set(norm(dropPossessive(heard)).split(' '));
+    const answerHeard =
+      !!key &&
+      (keyWords.length === 0 || keyWords.some((w) => heardLike(heardWords, w)));
+    if (
+      key &&
+      /^[\p{L}\s']+$/u.test(key) &&
+      keyWords.length > 0 &&
+      !answerHeard
+    ) {
+      add(
+        'warn',
+        `Зөв хариулт «${key}»-тай холбоотой үг сонсох яриан дотор олдсонгүй. ` +
+          'Өөр үгээр илэрхийлсэн бол зүгээр — сурагч ярианаас дүгнэж чадаж ' +
+          'байгаа эсэхийг л шалгаарай.',
+      );
     }
 
     /*
@@ -330,11 +498,17 @@ function checkQuestion(
      * асуусан хэрэг. Аль нэг нь сонсогдож байвал (өөр үгээр илэрхийлсэн ч)
      * дасгал хүчинтэй хэвээр — зөвхөн анхааруулга.
      */
-    const askWords = norm(question)
-      .split(' ')
-      .filter((w) => w.length > 2);
-    const askHeard = askWords.filter((w) => containsWord(heard, w)).length;
-    if (askWords.length >= 3 && askHeard * 2 < askWords.length && !answerHeard) {
+    /*
+     * ⚠️ Энд ч мөн **утгын үг** — өмнө нь асуултын үгийн олонх нь яриан дотор
+     * байхыг шаарддаг байсан тул «Where did the mayor speak?» гэсэн бүрэн
+     * зөв асуулт ч блоклогдож, дасгал бүхэлдээ аппаас алга болох эрсдэлтэй
+     * байв (`where`/`did`/`speak` нь ярианд байхгүй, `mayor` л байсан).
+     * Одоо утгын үг НЭГ Ч сонсогдоогүй үед л блоклоно — тэр нь «яриан дотор
+     * огт дурдагдаагүй зүйлийг асуусан» гэсэн жинхэнэ эвдрэл.
+     */
+    const askWords = contentWords(question);
+    const askHeard = askWords.filter((w) => heardLike(heardWords, w)).length;
+    if (askWords.length >= 3 && askHeard === 0 && !answerHeard) {
       add(
         'block',
         'Асуулт ч, зөв хариулт ч сонсох яриан дотор гардаггүй — сурагч ' +

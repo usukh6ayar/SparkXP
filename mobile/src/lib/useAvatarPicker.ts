@@ -3,7 +3,7 @@ import { Alert, Linking } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../auth/AuthContext';
 import { uploadAvatar } from '../api/users';
-import { ApiError } from '../api/client';
+import { useAsyncAction } from './useAsyncAction';
 import { t } from '../i18n';
 
 /**
@@ -13,7 +13,6 @@ import { t } from '../i18n';
  */
 export function useAvatarPicker() {
   const { token, updateUser } = useAuth();
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // A photo chosen but not yet uploaded — drives the preview + Save flow.
   const [pending, setPending] = useState<string | null>(null);
@@ -40,20 +39,25 @@ export function useAvatarPicker() {
     return res.canceled ? null : res.assets[0].uri;
   }, []);
 
-  // Upload a chosen uri and refresh the user; shared by both flows.
-  const upload = useCallback(async (uri: string) => {
-    if (!token) return;
-    setBusy(true);
-    try {
-      const updated = await uploadAvatar(uri, token);
+  // Upload a chosen uri and refresh the user; shared by both flows. The upload
+  // has no button of its own (the picker closing IS the trigger), so this uses
+  // the shared action hook rather than <ActionButton>.
+  const { busy, run: runUpload } = useAsyncAction(
+    async (uri: string) => {
+      const updated = await uploadAvatar(uri, token!);
       await updateUser(updated);
       setPending(null);
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : t('errorGeneric'));
-    } finally {
-      setBusy(false);
-    }
-  }, [token, updateUser]);
+    },
+    { haptic: false, onError: setError },
+  );
+
+  const upload = useCallback(
+    async (uri: string) => {
+      if (!token) return;
+      await runUpload(uri);
+    },
+    [token, runUpload],
+  );
 
   // Instant flow (profile hero camera tap): pick → upload right away.
   const pickPhoto = useCallback(async () => {

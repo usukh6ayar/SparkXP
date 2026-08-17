@@ -2,25 +2,33 @@ import { Plus, GripVertical, X } from 'lucide-react';
 
 // ── Question types (shared by Quiz builder, lesson tests, Дасгал) ────────────
 
-export interface MCQuestion {
+/**
+ * IELTS exam part a question belongs to (1–4). Only the IELTS page sets it;
+ * everywhere else it stays undefined and the app renders one undivided part.
+ */
+export interface Sectioned {
+  section?: number;
+}
+
+export interface MCQuestion extends Sectioned {
   type: 'multiple_choice';
   question: string;
   options: string[];
   correct: number;
   points: number;
 }
-export interface FBQuestion {
+export interface FBQuestion extends Sectioned {
   type: 'fill_blank';
   question: string;
   answer: string;
   points: number;
 }
-export interface WMQuestion {
+export interface WMQuestion extends Sectioned {
   type: 'word_match';
   pairs: { left: string; right: string }[];
   points: number;
 }
-export interface ORQuestion {
+export interface ORQuestion extends Sectioned {
   type: 'open_response';
   prompt: string;
   modelAnswer: string;
@@ -216,39 +224,219 @@ interface Props {
   questionType: QuestionType;
   questions: Question[];
   onChange: (questions: Question[]) => void;
+  /**
+   * IELTS only: how many exam parts this module has (Listening 4 · Reading 3 ·
+   * Writing 2 · Speaking 3). Given, the editor lays out exactly that many
+   * blocks. Omitted everywhere else — a Дасгал or lesson test is one flat list.
+   */
+  parts?: number;
+  /** What a part is called in this module: Section · Passage · Task · Part. */
+  partLabel?: string;
 }
 
 /**
  * Reusable quiz/test question builder: renders each question in its type editor
  * and an "add question" button. Used by the Quiz page, lesson tests, and Дасгал.
+ *
+ * With `parts` given (IELTS) it switches to a part-by-part layout instead —
+ * see `SectionedEditor`.
  */
-export function QuizQuestionsEditor({ questionType, questions, onChange }: Props) {
+export function QuizQuestionsEditor({
+  questionType, questions, onChange, parts, partLabel,
+}: Props) {
+  if (parts && parts > 1) {
+    return (
+      <SectionedEditor
+        questionType={questionType}
+        questions={questions}
+        onChange={onChange}
+        parts={parts}
+        partLabel={partLabel ?? 'Section'}
+      />
+    );
+  }
+
   function update(i: number, q: Question) {
     onChange(questions.map((x, idx) => (idx === i ? q : x)));
   }
   function remove(i: number) {
     onChange(questions.filter((_, idx) => idx !== i));
   }
+
   return (
     <div className="space-y-3">
-      {questions.map((q, i) =>
-        q.type === 'multiple_choice' ? (
-          <MCEditor key={i} q={q} idx={i} onChange={(nq) => update(i, nq)} onRemove={() => remove(i)} />
-        ) : q.type === 'fill_blank' ? (
-          <FBEditor key={i} q={q} idx={i} onChange={(nq) => update(i, nq)} onRemove={() => remove(i)} />
-        ) : q.type === 'word_match' ? (
-          <WMEditor key={i} q={q} idx={i} onChange={(nq) => update(i, nq)} onRemove={() => remove(i)} />
-        ) : (
-          <OREditor key={i} q={q} idx={i} onChange={(nq) => update(i, nq)} onRemove={() => remove(i)} />
-        ),
+      {questions.map((q, i) => (
+        <QuestionEditor
+          key={i}
+          q={q}
+          idx={i}
+          onChange={(nq) => update(i, nq)}
+          onRemove={() => remove(i)}
+        />
+      ))}
+      <AddButton onClick={() => onChange([...questions, blankQuestion(questionType)])} />
+    </div>
+  );
+}
+
+/** Dispatch to the editor for this question's format. */
+function QuestionEditor({ q, idx, onChange, onRemove }: {
+  q: Question; idx: number; onChange: (q: Question) => void; onRemove: () => void;
+}) {
+  if (q.type === 'multiple_choice') {
+    return <MCEditor q={q} idx={idx} onChange={onChange} onRemove={onRemove} />;
+  }
+  if (q.type === 'fill_blank') {
+    return <FBEditor q={q} idx={idx} onChange={onChange} onRemove={onRemove} />;
+  }
+  if (q.type === 'word_match') {
+    return <WMEditor q={q} idx={idx} onChange={onChange} onRemove={onRemove} />;
+  }
+  return <OREditor q={q} idx={idx} onChange={onChange} onRemove={onRemove} />;
+}
+
+/** Questions in part order, so the numbering the student sees is contiguous. */
+function sortBySection(questions: Question[]): Question[] {
+  return [...questions].sort((a, b) => (a.section ?? 1) - (b.section ?? 1));
+}
+
+/**
+ * IELTS authoring: one block per exam part, laid out to match the real paper.
+ *
+ * The blocks are **not** something the author builds up — the module decides how
+ * many there are (Listening 4 sections, Reading 3 passages, Writing 2 tasks,
+ * Speaking 3 parts), so they are all on screen from the first click, empty and
+ * waiting. That is the difference between "here is the exam, fill it in" and
+ * "invent the structure yourself", which is what an add-a-part button asked for.
+ *
+ * Each block has its own "add question here". Picking a part number from a
+ * dropdown on every question (the first attempt at this) meant the structure
+ * existed only in the author's head, and one forgotten dropdown silently dumped
+ * a question into Part 1.
+ *
+ * The array is kept sorted by part, because the student's question numbers are
+ * positions in it — unsorted, Part 1 would read "Questions 1, 2 and 9".
+ */
+function SectionedEditor({ questionType, questions, onChange, parts, partLabel }: {
+  questionType: QuestionType;
+  questions: Question[];
+  onChange: (questions: Question[]) => void;
+  parts: number;
+  partLabel: string;
+}) {
+  const ordered = sortBySection(questions);
+  const blocks = Array.from({ length: parts }, (_, i) => i + 1);
+  /** Questions parked beyond this module's structure (older content). */
+  const strays = ordered.filter((q) => (q.section ?? 1) > parts).length;
+
+  function update(q: Question, at: number) {
+    onChange(ordered.map((x, i) => (i === at ? q : x)));
+  }
+  function remove(at: number) {
+    onChange(ordered.filter((_, i) => i !== at));
+  }
+  /** Append a blank question to the end of `part`'s run. */
+  function addTo(part: number) {
+    const q = { ...blankQuestion(questionType), section: part };
+    onChange(sortBySection([...ordered, q]));
+  }
+  function moveTo(at: number, part: number) {
+    onChange(sortBySection(ordered.map((x, i) => (i === at ? { ...x, section: part } : x))));
+  }
+  /** Pull questions authored under a part this module does not have. */
+  function rescueStrays() {
+    onChange(
+      sortBySection(
+        ordered.map((q) => ((q.section ?? 1) > parts ? { ...q, section: parts } : q)),
+      ),
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-gray-500">
+        Жинхэнэ {partLabel === 'Task' ? 'Writing' : ''} бүтэц: <strong>{parts} {partLabel}</strong>.
+        Асуултаа тохирох хэсэгт нь нэмнэ үү — сурагчид яг ийм хэсгүүдээр харагдана.
+      </p>
+
+      {strays > 0 && (
+        <div className="flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          <span>{strays} асуулт энэ модульд байхгүй хэсэгт хамаарч байна.</span>
+          <button onClick={rescueStrays} className="font-semibold underline">
+            {partLabel} {parts} рүү зөөх
+          </button>
+        </div>
       )}
-      <Button onClick={() => onChange([...questions, blankQuestion(questionType)])} />
+
+      {blocks.map((part) => {
+        const rows = ordered
+          .map((q, i) => ({ q, i }))
+          .filter(({ q }) => (q.section ?? 1) === part);
+        return (
+          <div key={part} className="rounded-xl border border-gray-200 bg-gray-50/60 p-3 space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="rounded-full bg-primary px-2.5 py-0.5 text-xs font-semibold text-white">
+                {partLabel} {part}
+              </span>
+              <span className="text-xs text-gray-500">
+                {rows.length > 0
+                  ? `${rows.length} асуулт · №${rows[0].i + 1}–${rows[rows.length - 1].i + 1}`
+                  : 'Хоосон'}
+              </span>
+            </div>
+
+            {rows.map(({ q, i }) => (
+              <div key={i} className="space-y-1">
+                <QuestionEditor
+                  q={q}
+                  idx={i}
+                  onChange={(nq) => update(nq, i)}
+                  onRemove={() => remove(i)}
+                />
+                <MoveToPart
+                  value={part}
+                  parts={parts}
+                  partLabel={partLabel}
+                  onChange={(next) => moveTo(i, next)}
+                />
+              </div>
+            ))}
+
+            <button
+              onClick={() => addTo(part)}
+              className="flex w-full items-center justify-center gap-1 rounded-lg border-2 border-dashed border-gray-200 py-2 text-xs font-medium text-gray-500 hover:border-primary hover:text-primary"
+            >
+              <Plus className="h-3.5 w-3.5" /> {partLabel} {part}-т асуулт нэмэх
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Move one question to another part. */
+function MoveToPart({ value, parts, partLabel, onChange }: {
+  value: number; parts: number; partLabel: string; onChange: (n: number) => void;
+}) {
+  return (
+    <div className="flex items-center justify-end gap-2 pr-1">
+      <label className="text-[11px] text-gray-400">Өөр хэсэг рүү:</label>
+      <select
+        className="rounded-lg border border-gray-200 bg-white px-2 py-0.5 text-[11px] focus:border-primary focus:outline-none"
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+      >
+        {Array.from({ length: parts }, (_, i) => i + 1).map((n) => (
+          <option key={n} value={n}>{partLabel} {n}</option>
+        ))}
+      </select>
     </div>
   );
 }
 
 /** "Add question" button kept tiny + local so the editor file is self-contained. */
-function Button({ onClick }: { onClick: () => void }) {
+function AddButton({ onClick }: { onClick: () => void }) {
   return (
     <button
       onClick={onClick}
