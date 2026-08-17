@@ -12,6 +12,7 @@ import {
 import { ContentLevel } from '../../common/enums';
 import {
   MAX_QUESTION_COUNT,
+  MAX_LESSON_SOURCE_CHARS,
   type GenQuestionType,
   type TargetKind,
 } from '../ai-generate';
@@ -82,4 +83,13 @@ export class AiGenerateQuizDto {
   @IsString()
   @MaxLength(4000)
   contextNote?: string;
+
+  /**
+   * Хичээлийн видеоны бичвэр — `kind: 'lesson'` үед админ дамжуулна.
+   * `contextNote`-оос урт тул тусдаа талбар (prompt-д ч тусдаа блок болно).
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(MAX_LESSON_SOURCE_CHARS)
+  lessonSource?: string;
 }

@@ -155,6 +155,14 @@ GET уншилт public. (Sparks endpoint-ууд мөн энэ base дээр —
 | PATCH `/lessons/:id` | admin-баг | Хичээл засах | `UpdateLessonDto` |
 | DELETE `/lessons/:id` | admin-баг | Хичээл устгах | path `id` |
 | POST `/lessons/:id/complete` | JWT | Хичээл дуусгаж XP олгох (нэг удаа, idempotent) | path `id` |
+| POST `/lessons/:id/transcribe` | admin-баг | Хичээлийн видеог ElevenLabs Scribe-аар бичвэр болгоно (`content.videoUrl` заавал). Синхрон, ~30–60 сек. Зардал `ai_usages`-д `purpose: lesson_transcript`-ээр бүртгэгдэнэ | path `id` |
+| GET `/lessons/:id/transcript` | admin-баг | Хадгалагдсан бичвэр. `GET /lessons` ба `GET /lessons/:id` дээрээс бичвэр **хасагддаг** тул тусдаа | path `id` |
+| PATCH `/lessons/:id/transcript` | admin-баг | Гараар засварласан бичвэр | `UpdateTranscriptDto` (`{ text }`) |
+
+⚠️ `content.transcript` нь **серверийн эзэмшилтэй**: `PATCH /lessons/:id` түүнийг
+бичиж ч, устгаж ч чадахгүй (хадгалагдсан утгыг сэргээж бичдэг). Шалтгаан: админы
+хичээл засах форм `content`-оо жагсаалтын хариунаас угсардаг бөгөөд тэнд бичвэр
+байхгүй тул хамгаалахгүй бол хадгалах бүрд устана.
 
 ## 5. Sparks — `/api/lessons` (SparksController)
 Controller-level: JWT.
@@ -184,7 +192,9 @@ Controller-level: JWT. Бичилт admin-баг. (Хичээлийн тест �
 **`POST /quizzes/ai-generate`** — `AiGenerateQuizDto`:
 `brief` (заавал, чөлөөт текст) · `kind` (`exercise`\|`lesson`\|`ielts`) ·
 `category?` · `topic?` · `level?` · `questionType?` · `count?` (1–20) ·
-`passageText?` (IELTS Reading) · `contextNote?` (prompt-д нэмэх контекст).
+`passageText?` (IELTS Reading) · `contextNote?` (prompt-д нэмэх контекст) ·
+`lessonSource?` (хичээлийн видеоны бичвэр, `kind: 'lesson'` үед; хамгийн ихдээ
+12,000 тэмдэгт хүртэл prompt-д тусдаа блокоор орно).
 `level` / `questionType` / `count` -г **орхивол AI өөрөө таамаглаж**, юу сонгосноо
 хариунд буцаана.
 
@@ -405,10 +415,13 @@ Controller-level: JWT. Realtime speaking companion (STT→LLM→TTS→avatar). �
 дуут яриа AI Gateway-ээр дамжина; сарын voice/STT limit-ийг `plans`-аас enforce
 хийнэ; TTS-г `buddy_voice_cache`-аар кэшлэнэ.
 
-> ⛔ **`AI_BUDDY_ENABLED` — анхдагчаар ХААЛТТАЙ (2026-08-08, эзний launch шийдвэр).**
-> Turn нь ElevenLabs (STT+TTS) ба Anthropic (LLM)-д дуудалт тутам төлдөг, гэтэл
-> `PAYMENTS_ENABLED` хаалттай тул хэн ч төлж чадахгүй → үнэгүй данс бүр бодит
-> мөнгө зарцуулна. **Хоёуланг хамт асаана, эсвэл хоёуланг хаалттай байлга.**
+> ✅ **`AI_BUDDY_ENABLED` — НЭЭЛТТЭЙ (2026-08-17, эзний шийдвэр).**
+> ⚠️ `PAYMENTS_ENABLED` **хаалттай хэвээр** байхад нээсэн — turn нь ElevenLabs
+> (STT+TTS) ба Anthropic (LLM)-д дуудалт тутам төлдөг тул зардлыг бүхэлд нь
+> эзэн өөрөө үүрнэ. Цорын ганц таг нь багцын limit (Redis `ai:limits:default`),
+> үнэгүй багцынх нь хамгийн сул. Provider-ийн dashboard-ыг ажигла; олон
+> хэрэглэгчид нээхийн өмнө үнэгүй багцын өдрийн turn хязгаарыг чангал.
+> Буцааж хаах = `AI_BUDDY_ENABLED=false` (шууд үйлчилнэ, апп шинэчлэхгүй).
 > Хаалттай үед доор ⛔ гэсэн route-ууд **503** + монгол мессеж буцаана
 > (`src/ai-gateway/guards/ai-buddy-enabled.guard.ts`).
 > Уншилтын route-ууд (`usage`, `statistics`, `memory`, `text-sessions`) **санаатай
