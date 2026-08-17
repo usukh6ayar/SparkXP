@@ -415,10 +415,13 @@ Controller-level: JWT. Realtime speaking companion (STT→LLM→TTS→avatar). �
 дуут яриа AI Gateway-ээр дамжина; сарын voice/STT limit-ийг `plans`-аас enforce
 хийнэ; TTS-г `buddy_voice_cache`-аар кэшлэнэ.
 
-> ⛔ **`AI_BUDDY_ENABLED` — анхдагчаар ХААЛТТАЙ (2026-08-08, эзний launch шийдвэр).**
-> Turn нь ElevenLabs (STT+TTS) ба Anthropic (LLM)-д дуудалт тутам төлдөг, гэтэл
-> `PAYMENTS_ENABLED` хаалттай тул хэн ч төлж чадахгүй → үнэгүй данс бүр бодит
-> мөнгө зарцуулна. **Хоёуланг хамт асаана, эсвэл хоёуланг хаалттай байлга.**
+> ✅ **`AI_BUDDY_ENABLED` — НЭЭЛТТЭЙ (2026-08-17, эзний шийдвэр).**
+> ⚠️ `PAYMENTS_ENABLED` **хаалттай хэвээр** байхад нээсэн — turn нь ElevenLabs
+> (STT+TTS) ба Anthropic (LLM)-д дуудалт тутам төлдөг тул зардлыг бүхэлд нь
+> эзэн өөрөө үүрнэ. Цорын ганц таг нь багцын limit (Redis `ai:limits:default`),
+> үнэгүй багцынх нь хамгийн сул. Provider-ийн dashboard-ыг ажигла; олон
+> хэрэглэгчид нээхийн өмнө үнэгүй багцын өдрийн turn хязгаарыг чангал.
+> Буцааж хаах = `AI_BUDDY_ENABLED=false` (шууд үйлчилнэ, апп шинэчлэхгүй).
 > Хаалттай үед доор ⛔ гэсэн route-ууд **503** + монгол мессеж буцаана
 > (`src/ai-gateway/guards/ai-buddy-enabled.guard.ts`).
 > Уншилтын route-ууд (`usage`, `statistics`, `memory`, `text-sessions`) **санаатай

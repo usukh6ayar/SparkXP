@@ -12,13 +12,17 @@ import { ConfigService } from '@nestjs/config';
  * **Why this exists.** A buddy turn fans out to paid providers — ElevenLabs
  * (STT + TTS) and Anthropic (LLM) — and bills per call. Those costs are meant
  * to be paid for by a subscription, but `PAYMENTS_ENABLED` is off (see
- * `PaymentsEnabledGuard`), so nobody can be charged. Shipping both states at
- * once means every free account draws real money with no ceiling but the
- * per-plan limits, and the free tier's limits are the loosest of all.
+ * `PaymentsEnabledGuard`), so nobody can be charged: every turn is spend the
+ * owner absorbs, capped only by the per-plan limits — and the free tier's
+ * limits are the loosest of all.
  *
- * **Default is OFF.** `AI_BUDDY_ENABLED` must be explicitly `'true'`, so a
- * fresh or misconfigured environment is closed rather than open — the same rule
- * the payments guard follows, and for the same reason.
+ * **The flag is now ON** by the owner's decision (2026-08-17), knowingly ahead
+ * of payments. This guard stays in the code as the kill switch: setting
+ * `AI_BUDDY_ENABLED=false` closes the paid routes again with no app update.
+ *
+ * **It still FAILS CLOSED.** The value must be exactly `'true'`, so a fresh or
+ * mistyped environment is closed rather than open — the same rule the payments
+ * guard follows, and for the same reason. Never relax that to a truthy check.
  *
  * **What is deliberately NOT guarded:**
  * - Read-only routes (`GET usage`, `statistics`, `memory`, `text-sessions`) and
@@ -31,9 +35,9 @@ import { ConfigService } from '@nestjs/config';
  *   every looked-up word is cached in `dictionary_entries` forever, so repeat
  *   lookups are free. It stays on by owner's decision (2026-08-08).
  *
- * **Turning it on:** set `AI_BUDDY_ENABLED=true` on Railway. No app update is
- * needed — the mobile app asks `GET /ai/buddy/availability` and swaps its
- * "Тун удахгүй" screen for the real buddy tab on the next launch.
+ * **Flipping it:** set `AI_BUDDY_ENABLED` on Railway. No app update is needed
+ * in either direction — the mobile app asks `GET /ai/buddy/availability` and
+ * swaps its "Тун удахгүй" screen for the real buddy tab on the next launch.
  */
 @Injectable()
 export class AiBuddyEnabledGuard implements CanActivate {
