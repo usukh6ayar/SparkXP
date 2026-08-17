@@ -5,6 +5,7 @@ import { useAuth } from './AuthContext';
 import {
   SocialCancelled,
   isAppleAvailable,
+  isGoogleAvailable,
   signInWithApple,
   signInWithGoogle,
 } from './socialProviders';
@@ -23,8 +24,10 @@ export function useSocialSignIn() {
 
   const [busy, setBusy] = useState<authApi.SocialProvider | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // Which buttons to show: the server decides (config), and Apple additionally
-  // needs iOS 13+. Both default to hidden — never offer a button that can't work.
+  // Which buttons to show. TWO things must agree: the server has the provider
+  // configured, AND this build can actually run its native SDK — Google needs a
+  // dev/store build (no native module in Expo Go), Apple needs iOS 13+. Both
+  // default to hidden: never offer a button that can't work.
   const [available, setAvailable] = useState({ google: false, apple: false });
 
   useEffect(() => {
@@ -35,7 +38,10 @@ export function useSocialSignIn() {
         isAppleAvailable(),
       ]);
       if (alive) {
-        setAvailable({ google: providers.google, apple: providers.apple && appleOk });
+        setAvailable({
+          google: providers.google && isGoogleAvailable(),
+          apple: providers.apple && appleOk,
+        });
       }
     })();
     return () => { alive = false; };
