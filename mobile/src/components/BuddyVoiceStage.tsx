@@ -9,6 +9,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { AppText } from './Text';
 import { AppImage } from './AppImage';
+import { BuddyAvatar } from './BuddyAvatar';
+import { SHOW_3D_AVATAR } from '../lib/buddyAvatarFlag';
 import { PressableScale } from './PressableScale';
 import { haptics } from '../lib/haptics';
 import { useColors, useSettings } from '../settings/SettingsContext';
@@ -25,8 +27,8 @@ type Phase = 'idle' | 'recording' | 'locked';
 
 /**
  * Voice-first buddy screen (the landing after "Apply"). A big buddy avatar
- * (thumbnail / name-initial placeholder until the 3D GLB pipeline is verified — see
- * buddyAvatarFlag.ts) floating over a soft glowing stage, a WhatsApp-style
+ * (the 3D GLB when the buddy has one, otherwise its thumbnail / name initial)
+ * floating over a soft glowing stage, a WhatsApp-style
  * hold-to-talk mic (slide ← to cancel, slide → to lock hands-free), and a
  * "type to chat" bar that hands off to the text conversation.
  *
@@ -68,6 +70,7 @@ export function BuddyVoiceStage({
 
   const tx = useSharedValue(0);     // horizontal finger drag: ← cancel · → lock
   const active = useSharedValue(0); // 0 idle → 1 recording (drives mic scale/tint)
+  const [ready3d, setReady3d] = useState(false);
   const pulse = useSharedValue(0);  // buddy breathing / speaking pulse (backdrop glow)
   const float = useSharedValue(0);  // slow vertical bob so the buddy feels alive
   const think = useSharedValue(0);  // gentle head-tilt wobble while thinking (-1…1)
@@ -250,10 +253,21 @@ export function BuddyVoiceStage({
 
         <View style={styles.buddyWrap}>
           <Animated.View style={buddyStyle}>
-            {buddy?.avatarThumbUrl ? (
+            {/* 2D art shows until the GLB is on screen, then gives way to it —
+                the 3D canvas is transparent, so leaving both would overlap. */}
+            {ready3d ? null : buddy?.avatarThumbUrl ? (
               <AppImage source={{ uri: buddy.avatarThumbUrl }} width={230} style={styles.buddyImg} contentFit="contain" />
             ) : (
               <AppText style={styles.buddyEmoji}>{buddy?.name?.charAt(0) ?? '?'}</AppText>
+            )}
+            {SHOW_3D_AVATAR && !!buddy?.avatarAssetUrl && (
+              <BuddyAvatar
+                assetUrl={buddy.avatarAssetUrl}
+                emotionMap={buddy.emotionMap}
+                isSpeaking={speaking}
+                onReady={setReady3d}
+                style={styles.buddyImg}
+              />
             )}
           </Animated.View>
         </View>
