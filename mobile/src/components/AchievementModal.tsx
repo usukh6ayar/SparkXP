@@ -132,9 +132,9 @@ export function AchievementModal({
         {/* `key` matters when two celebrations queue back to back (a streak and
             the trophy it just unlocked): the modal never closes between them,
             so without a remount the second one would inherit spent confetti. */}
-        {visible && <Confetti key={key} count={50} />}
+        {visible && <Confetti key={`confetti-${key}`} count={50} />}
         <Animated.View
-          key={key}
+          key={`card-${key}`}
           entering={FadeIn}
           style={[styles.card, { backgroundColor: c.surface }]}
         >

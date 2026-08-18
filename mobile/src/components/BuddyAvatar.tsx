@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { View, type ViewStyle } from 'react-native';
+import { View, Text, type ViewStyle } from 'react-native';
 import { Canvas, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { GLTFLoader } from 'three-stdlib';
+import { GLTFLoader, SkeletonUtils } from 'three-stdlib';
 import { toByteArray } from 'base64-js';
 import { decode as decodeJpeg } from 'jpeg-js';
 import UPNG from 'upng-js';
@@ -29,7 +29,39 @@ interface Props {
   emotionMap?: Record<string, string>;
   /** True while the reply audio is playing → animate the mouth. */
   isSpeaking?: boolean;
+  /** Fired once the GLB is parsed and on screen, so the parent can drop the 2D art. */
+  onReady?: (ready: boolean) => void;
   style?: ViewStyle;
+}
+
+/** Above this, loading the model is likely to OOM the phone (see loadGlb). */
+const MAX_GLB_MB = 20;
+
+/**
+ * Model height in world units after fitting. The camera below (fov 32 at z 2.6)
+ * sees 2 · 2.6 · tan(16°) ≈ 1.49 units of height, so anything above that gets
+ * cropped — 1.3 keeps the whole character on screen with a small margin.
+ */
+const FIT_HEIGHT = 1.3;
+
+/**
+ * url → parsed model, kept for the whole app session. Downloading, parsing and
+ * JS-decoding the textures costs seconds on a phone, and the same buddy is
+ * mounted again on every carousel swipe and when its chat screen opens — without
+ * this the user waits for that work every single time.
+ */
+const modelCache = new Map<string, Promise<Loaded>>();
+
+function loadGlbCached(url: string): Promise<Loaded> {
+  let entry = modelCache.get(url);
+  if (!entry) {
+    entry = loadGlb(url).catch((err) => {
+      modelCache.delete(url); // don't cache a failure — a retry should re-fetch
+      throw err;
+    });
+    modelCache.set(url, entry);
+  }
+  return entry;
 }
 
 interface Loaded {
@@ -37,25 +69,57 @@ interface Loaded {
   animations: THREE.AnimationClip[];
 }
 
-export function BuddyAvatar({ assetUrl, emotion, gesture, emotionMap, isSpeaking, style }: Props) {
+export function BuddyAvatar({ assetUrl, emotion, gesture, emotionMap, isSpeaking, onReady, style }: Props) {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
     setLoaded(null);
+    setError(null);
     if (!assetUrl) return;
-    loadGlb(assetUrl)
-      .then((res) => { if (alive) setLoaded(res); })
-      .catch(() => { if (alive) setLoaded(null); }); // parent shows 2D fallback
-    return () => { alive = false; };
+    loadGlbCached(assetUrl)
+      .then((res) => {
+        if (!alive) return;
+        // Clone per mount: an Object3D can only live in one scene, and the cache
+        // hands the same one to every mount. SkeletonUtils keeps skin/bone links
+        // intact (a plain .clone() would break skinning); geometry and textures
+        // stay shared, so the clone is cheap.
+        setLoaded({ scene: SkeletonUtils.clone(res.scene) as THREE.Group, animations: res.animations });
+        onReady?.(true);
+      })
+      .catch((err) => {
+        // Loud on purpose: a silent catch here looks identical to "no 3D asset",
+        // so the 2D fallback hid every real load/parse failure (Draco, CORS, 404).
+        const reason = String(err?.message ?? err);
+        console.warn('[BuddyAvatar] GLB load failed:', assetUrl, reason);
+        if (!alive) return;
+        setError(reason);
+        setLoaded(null);
+        onReady?.(false); // parent keeps the 2D fallback
+      });
+    return () => { alive = false; onReady?.(false); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assetUrl]);
 
-  if (!loaded) return null;
+  // In DEV, say WHY the 3D avatar is missing right on the card. Without this the
+  // 2D fallback looks identical whether the GLB 404'd, failed to parse, or was
+  // never set — which is exactly how this bug stayed invisible.
+  if (!loaded) {
+    if (__DEV__ && error) {
+      return (
+        <View style={[style, { justifyContent: 'flex-end', padding: 6 }]} pointerEvents="none">
+          <Text style={{ color: '#FF5A5A', fontSize: 10 }} numberOfLines={4}>3D: {error}</Text>
+        </View>
+      );
+    }
+    return null;
+  }
 
   return (
     <View style={style} pointerEvents="none">
       <Canvas
-        camera={{ position: [0, 0.2, 2.6], fov: 32 }}
+        camera={{ position: [0, 0, 2.6], fov: 32 }}
         gl={{ alpha: true, antialias: false, powerPreference: 'low-power' }}
         // Cap pixel ratio so hi-DPI phones don't render a huge buffer (FPS/heat).
         dpr={[1, 2]}
@@ -88,26 +152,34 @@ function BuddyModel({
 
   // One-time setup: center/scale the model, wire the mixer, find mouth targets.
   useEffect(() => {
-    // Fit: center the model at origin and normalize height to ~1.6 units.
+    // Fit: center the model at origin and normalize its height to FIT_HEIGHT.
     const box = new THREE.Box3().setFromObject(scene);
     const size = box.getSize(new THREE.Vector3());
     const center = box.getCenter(new THREE.Vector3());
-    const scale = size.y > 0 ? 1.6 / size.y : 1;
+    const scale = size.y > 0 ? FIT_HEIGHT / size.y : 1;
     scene.scale.setScalar(scale);
     scene.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
 
     const mx = new THREE.AnimationMixer(scene);
     mixer.current = mx;
-    mouths.current = [];
+    // Two buckets: the one blendshape that actually opens the mouth, and anything
+    // mouth-ish as a fallback. An ARKit rig has ~30 `mouth*` shapes — driving them
+    // all together (the old broad match) is a grimace, not speech, so prefer the
+    // exact one and only fall back when the rig doesn't have it.
+    const exact: { mesh: THREE.Mesh; index: number }[] = [];
+    const loose: { mesh: THREE.Mesh; index: number }[] = [];
     scene.traverse((obj: THREE.Object3D) => {
       const mesh = obj as THREE.Mesh;
       if (mesh.isMesh && mesh.morphTargetDictionary && mesh.morphTargetInfluences) {
         for (const [name, idx] of Object.entries(mesh.morphTargetDictionary)) {
-          if (/mouth|open|jaw|aa|viseme/i.test(name)) mouths.current.push({ mesh, index: idx as number });
+          const hit = { mesh, index: idx as number };
+          if (/^(jawopen|mouthopen|viseme_aa|aa)$/i.test(name)) exact.push(hit);
+          else if (/mouth|open|jaw|aa|viseme/i.test(name)) loose.push(hit);
         }
       }
       if ((obj as THREE.Bone).isBone && /jaw/i.test(obj.name)) jaw.current = obj as THREE.Bone;
     });
+    mouths.current = exact.length ? exact : loose;
 
     // When a one-shot emotion/gesture clip ends, settle back to the idle loop.
     const onFinished = () => playClip(pickClip(animations, 'idle'), true);
@@ -118,18 +190,9 @@ function BuddyModel({
     return () => {
       mx.removeEventListener('finished', onFinished);
       mx.stopAllAction();
-      // Free GPU memory so switching buddies doesn't leak (low-end Android).
-      scene.traverse((obj) => {
-        const mesh = obj as THREE.Mesh;
-        if (!mesh.isMesh) return;
-        mesh.geometry?.dispose();
-        const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-        mats.forEach((mm) => {
-          const std = mm as THREE.MeshStandardMaterial;
-          std.map?.dispose();
-          std.dispose?.();
-        });
-      });
+      // NOTE: geometry/materials/textures are NOT disposed here — they belong to
+      // the cached model and are shared with every other mount of this buddy.
+      // Disposing them would blank the avatar the next time it is shown.
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scene]);
@@ -191,19 +254,46 @@ function mouthCurve(t: number): number {
 
 /** Fetch + parse a remote GLB into a scene + clips, then decode its textures. */
 async function loadGlb(url: string): Promise<Loaded> {
-  const buffer = await (await fetch(url)).arrayBuffer();
+  const buffer = await fetchArrayBuffer(url);
+  // RN's fetch reads a response body through a base64 data URL, so a big GLB
+  // costs ~1.4× its size as a JS string before it is even parsed — a 100 MB
+  // model runs the phone out of memory. Keep avatars small (see docs below).
+  const mb = buffer.byteLength / 1048576;
+  if (mb > MAX_GLB_MB) console.warn(`[BuddyAvatar] GLB is ${mb.toFixed(1)} MB — too big for phones, optimize it (target < ${MAX_GLB_MB} MB)`);
   const gltf = await new Promise<GLTFResult>((resolve, reject) => {
-    new GLTFLoader().parse(buffer, '', resolve as (g: unknown) => void, reject);
+    new GLTFLoader().parse(buffer, '', resolve as (g: unknown) => void, (e) =>
+      reject(new Error(`GLTFLoader.parse: ${(e as unknown as Error)?.message ?? String(e)}`)),
+    );
   });
   // RN three.js can't decode embedded base64 textures (no DOM image decoder), so
   // GLTFLoader leaves the mesh untextured. Decode them ourselves — best-effort:
   // on any failure the avatar just stays untextured (never crashes).
   try {
-    applyEmbeddedTextures(gltf);
-  } catch {
-    /* keep untextured */
+    await applyEmbeddedTextures(gltf);
+  } catch (e) {
+    console.warn('[BuddyAvatar] texture decode failed (model stays untextured):', e);
   }
   return { scene: gltf.scene as unknown as THREE.Group, animations: gltf.animations };
+}
+
+/**
+ * Download binary data. Uses XHR, NOT fetch: React Native's fetch reads a
+ * response body by converting it to a base64 data URL first, so a 4 MB GLB
+ * becomes a ~5.5 MB JS string that then has to be decoded — seconds of jank.
+ * XHR with `responseType: 'arraybuffer'` takes the native binary path instead.
+ */
+function fetchArrayBuffer(url: string): Promise<ArrayBuffer> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', url);
+    xhr.responseType = 'arraybuffer';
+    xhr.onload = () =>
+      xhr.status >= 200 && xhr.status < 300
+        ? resolve(xhr.response as ArrayBuffer)
+        : reject(new Error(`HTTP ${xhr.status} fetching GLB`));
+    xhr.onerror = () => reject(new Error('network error fetching GLB'));
+    xhr.send();
+  });
 }
 
 /** Minimal shape of what we read off the parsed glTF (parser.json + associations). */
@@ -212,11 +302,12 @@ interface GLTFResult {
   animations: THREE.AnimationClip[];
   parser?: {
     json?: {
-      images?: { uri?: string }[];
+      images?: { uri?: string; bufferView?: number; mimeType?: string }[];
       textures?: { source?: number }[];
       materials?: { pbrMetallicRoughness?: { baseColorTexture?: { index?: number } } }[];
     };
     associations?: Map<object, { materials?: number }>;
+    getDependency?: (type: string, index: number) => Promise<unknown>;
   };
 }
 
@@ -225,15 +316,23 @@ function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
   return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
 }
 
-/** Decode a `data:image/(jpeg|png);base64,…` URI into a GPU-uploadable DataTexture.
- *  RN has no DOM image decoder, so we decode in pure JS: jpeg-js for JPEG, UPNG
- *  for PNG (Meshy commonly exports PNG base-colour maps). Other formats → null. */
+/** Decode a `data:image/(jpeg|png);base64,…` URI into a GPU-uploadable DataTexture. */
 function dataUriToTexture(uri: string): THREE.Texture | null {
   const m = /^data:(image\/[a-z0-9.+-]+);base64,(.*)$/i.exec(uri);
   if (!m) return null;
-  const mime = m[1].toLowerCase();
   try {
-    const bytes = toByteArray(m[2]);
+    return bytesToTexture(toByteArray(m[2]), m[1]);
+  } catch {
+    return null;
+  }
+}
+
+/** Decode raw PNG/JPEG bytes into a GPU-uploadable DataTexture.
+ *  RN has no DOM image decoder, so we decode in pure JS: jpeg-js for JPEG, UPNG
+ *  for PNG. Other formats (WebP, KTX2, …) → null, i.e. the mesh stays untextured. */
+function bytesToTexture(bytes: Uint8Array, mimeType: string): THREE.Texture | null {
+  const mime = mimeType.toLowerCase();
+  try {
     let width: number, height: number, data: Uint8Array<ArrayBuffer>;
     if (mime.includes('png')) {
       const img = UPNG.decode(toArrayBuffer(bytes));
@@ -248,6 +347,11 @@ function dataUriToTexture(uri: string): THREE.Texture | null {
     const tex = new THREE.DataTexture(data, width, height, THREE.RGBAFormat);
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.flipY = false; // glTF texture convention
+    // Mipmaps would be generated level by level on upload — pure cost for an
+    // avatar that never shrinks below ~200px, and the source of the
+    // "EXGL: gl.pixelStorei() doesn't support this parameter yet!" log flood.
+    tex.generateMipmaps = false;
+    tex.minFilter = THREE.LinearFilter;
     tex.needsUpdate = true;
     return tex;
   } catch {
@@ -256,14 +360,30 @@ function dataUriToTexture(uri: string): THREE.Texture | null {
 }
 
 /** Decode every embedded image and assign it back to the right material's map. */
-function applyEmbeddedTextures(gltf: GLTFResult): void {
+async function applyEmbeddedTextures(gltf: GLTFResult): Promise<void> {
   const json = gltf.parser?.json;
   const images = json?.images ?? [];
   if (!images.length) return;
 
-  // image index → decoded texture (null for non-data-URI / non-JPEG / failures).
-  const texByImage = images.map((img) => (img?.uri ? dataUriToTexture(img.uri) : null));
+  // image index → decoded texture (null for unsupported formats / failures).
+  // Two ways a glTF can carry an image, and a GLB uses the second one:
+  //   • `uri`        — a base64 data URI (embedded .gltf, e.g. Meshy exports)
+  //   • `bufferView` — bytes inside the GLB's binary chunk (any Blender export)
+  // Handling only `uri` left every real GLB untextured (a gray silhouette).
+  const texByImage = await Promise.all(
+    images.map(async (img) => {
+      if (img?.uri) return dataUriToTexture(img.uri);
+      if (img?.bufferView != null && gltf.parser?.getDependency) {
+        const view = (await gltf.parser.getDependency('bufferView', img.bufferView)) as ArrayBuffer;
+        return bytesToTexture(new Uint8Array(view), img.mimeType ?? '');
+      }
+      return null;
+    }),
+  );
   const decoded = texByImage.filter(Boolean) as THREE.Texture[];
+  if (decoded.length < images.length) {
+    console.warn(`[BuddyAvatar] decoded ${decoded.length}/${images.length} textures — unsupported format? (only PNG/JPEG)`);
+  }
   if (!decoded.length) return;
   // A single-texture avatar (the common Meshy case) → apply it everywhere.
   const single = decoded.length === 1 ? decoded[0] : null;
