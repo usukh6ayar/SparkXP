@@ -150,10 +150,18 @@ export default function ChatScreen() {
         const covered = new Set(real.map((r) => r.slug));
         setRealSlugs(covered);
         setFallbackSlug(real[0]?.slug ?? null);
-        const mocks = buildMockBuddies(t, lang).filter((m) => !covered.has(m.slug));
-        const fox = mocks.find((m) => m.slug === FOX_SLUG);
-        const rest = mocks.filter((m) => m.slug !== FOX_SLUG);
-        setBuddies(fox ? [fox, ...real, ...rest] : [...real, ...rest]);
+        // Real buddies exist → show ONLY them (no mock padding). The DEV mocks
+        // (mockBuddies.ts) are a fallback for an empty backend so the carousel
+        // design can still be reviewed; once real buddies are authored they'd
+        // just duplicate them (e.g. a second "Спарк" with no avatar).
+        if (real.length > 0) {
+          setBuddies(real);
+        } else {
+          const mocks = buildMockBuddies(t, lang);
+          const fox = mocks.find((m) => m.slug === FOX_SLUG);
+          const rest = mocks.filter((m) => m.slug !== FOX_SLUG);
+          setBuddies(fox ? [fox, ...rest] : rest);
+        }
       })
       .catch((err) => {
         setBuddiesError(true);
