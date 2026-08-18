@@ -534,6 +534,10 @@ function BuddyCard({
               assetUrl={buddy.avatarAssetUrl}
               emotionMap={buddy.emotionMap}
               isSpeaking={isSpeaking}
+              // The card reads the motto aloud (expo-speech), so the mouth
+              // shapes come from that text.
+              speechText={buddy.motto}
+              emotion="happy"
               onReady={setReady3d}
               style={styles.cardAvatarFill}
             />

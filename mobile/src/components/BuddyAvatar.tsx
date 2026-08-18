@@ -6,6 +6,10 @@ import { GLTFLoader, SkeletonUtils } from 'three-stdlib';
 import { toByteArray } from 'base64-js';
 import { decode as decodeJpeg } from 'jpeg-js';
 import UPNG from 'upng-js';
+import {
+  EMOTION_POSES, blinkPose, estimateSpeechMs, maxPose, textToVisemes, visemePoseAt,
+  type Pose, type Viseme,
+} from './buddyFace';
 
 /**
  * 3D AI Buddy avatar (Meshy-generated GLB rendered with three.js on expo-gl).
@@ -29,6 +33,13 @@ interface Props {
   emotionMap?: Record<string, string>;
   /** True while the reply audio is playing → animate the mouth. */
   isSpeaking?: boolean;
+  /** What the buddy is saying — the mouth shapes are derived from this text. */
+  speechText?: string | null;
+  /** Real length of the reply audio, so the mouth keeps pace with the voice. */
+  speechDurationMs?: number | null;
+  /** True while a turn is in flight → render at a trickle, leaving the JS
+   *  thread and GPU to the request, the audio and the UI. */
+  lowPower?: boolean;
   /** Fired once the GLB is parsed and on screen, so the parent can drop the 2D art. */
   onReady?: (ready: boolean) => void;
   style?: ViewStyle;
@@ -46,6 +57,15 @@ const FIT_HEIGHT = 1.3;
 
 /** Avatar render rate. Half of 60 fps is imperceptible here and frees JS time. */
 const AVATAR_FPS = 30;
+
+/** Frame rate while a turn is being processed — just enough to not look frozen. */
+const LOW_POWER_FPS = 8;
+
+/** How long one blink takes, eyes closing and opening again. */
+const BLINK_MS = 140;
+
+/** Blendshape easing speed — high enough to keep up with speech, low enough to glide. */
+const FACE_EASE = 14;
 
 /**
  * url → parsed model, kept for the whole app session. Downloading, parsing and
@@ -72,7 +92,10 @@ interface Loaded {
   animations: THREE.AnimationClip[];
 }
 
-export function BuddyAvatar({ assetUrl, emotion, gesture, emotionMap, isSpeaking, onReady, style }: Props) {
+export function BuddyAvatar({
+  assetUrl, emotion, gesture, emotionMap, isSpeaking, speechText, speechDurationMs,
+  lowPower, onReady, style,
+}: Props) {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -137,7 +160,7 @@ export function BuddyAvatar({ assetUrl, emotion, gesture, emotionMap, isSpeaking
             separates the character from the dark stage. The hemisphere light is
             the soft daylight ambient (sky above, stage colour bouncing up). */}
         <hemisphereLight args={['#FFF4E2', '#3A2A63', 0.75]} />
-        <FrameLimiter />
+        <FrameLimiter fps={lowPower ? LOW_POWER_FPS : AVATAR_FPS} />
         <ambientLight intensity={0.35} />
         <directionalLight position={[2.5, 3.5, 3]} intensity={1.7} color="#FFF1D8" />
         <directionalLight position={[-3, 1.5, 2]} intensity={0.55} color="#BFD4FF" />
@@ -149,6 +172,8 @@ export function BuddyAvatar({ assetUrl, emotion, gesture, emotionMap, isSpeaking
           gesture={gesture}
           emotionMap={emotionMap}
           isSpeaking={isSpeaking}
+          speechText={speechText}
+          speechDurationMs={speechDurationMs}
         />
       </Canvas>
     </View>
@@ -156,12 +181,12 @@ export function BuddyAvatar({ assetUrl, emotion, gesture, emotionMap, isSpeaking
 }
 
 /** Drives the `frameloop="demand"` canvas at a fixed, phone-friendly rate. */
-function FrameLimiter() {
+function FrameLimiter({ fps }: { fps: number }) {
   const invalidate = useThree((s) => s.invalidate);
   useEffect(() => {
-    const id = setInterval(invalidate, 1000 / AVATAR_FPS);
+    const id = setInterval(invalidate, 1000 / fps);
     return () => clearInterval(id);
-  }, [invalidate]);
+  }, [invalidate, fps]);
   return null;
 }
 
@@ -182,17 +207,25 @@ function muteUnsupportedPixelStore(gl: WebGLRenderingContext | null): void {
 }
 
 function BuddyModel({
-  scene, animations, emotion, gesture, emotionMap, isSpeaking,
-}: Loaded & Pick<Props, 'emotion' | 'gesture' | 'emotionMap' | 'isSpeaking'>) {
+  scene, animations, emotion, gesture, emotionMap, isSpeaking, speechText, speechDurationMs,
+}: Loaded &
+  Pick<Props, 'emotion' | 'gesture' | 'emotionMap' | 'isSpeaking' | 'speechText' | 'speechDurationMs'>) {
   const mixer = useRef<THREE.AnimationMixer | null>(null);
   const current = useRef<THREE.AnimationAction | null>(null);
-  const mouths = useRef<{ mesh: THREE.Mesh; index: number }[]>([]);
+  /** lowercased blendshape name → every (mesh, morph index) that carries it. */
+  const shapes = useRef(new Map<string, { mesh: THREE.Mesh; index: number }[]>());
   const jaw = useRef<THREE.Bone | null>(null);
-  const mouthValue = useRef(0);
-  const appliedMouth = useRef(-1);
-  const jabberT = useRef(0);
+  /** Current on-screen weights, eased towards the target pose each frame. */
+  const live = useRef<Pose>({});
   const idleT = useRef(0);
   const baseY = useRef(0);
+  // Lip-sync state: the shape sequence for the current reply and where we are in it.
+  const visemes = useRef<Viseme[]>([]);
+  const speechT = useRef(0);
+  const speechMs = useRef(0);
+  // Blink state: seconds until the next blink, then how far through it we are.
+  const nextBlink = useRef(2 + Math.random() * 3);
+  const blinkT = useRef(-1);
 
   // One-time setup: center/scale the model, wire the mixer, find mouth targets.
   useEffect(() => {
@@ -207,24 +240,24 @@ function BuddyModel({
 
     const mx = new THREE.AnimationMixer(scene);
     mixer.current = mx;
-    // Two buckets: the one blendshape that actually opens the mouth, and anything
-    // mouth-ish as a fallback. An ARKit rig has ~30 `mouth*` shapes — driving them
-    // all together (the old broad match) is a grimace, not speech, so prefer the
-    // exact one and only fall back when the rig doesn't have it.
-    const exact: { mesh: THREE.Mesh; index: number }[] = [];
-    const loose: { mesh: THREE.Mesh; index: number }[] = [];
+    // Index every blendshape by name so the face driver can address them
+    // individually (`jawOpen`, `browInnerUp`, …). A rig may split the face over
+    // several meshes, so one name can map to more than one target.
+    const byName = new Map<string, { mesh: THREE.Mesh; index: number }[]>();
     scene.traverse((obj: THREE.Object3D) => {
       const mesh = obj as THREE.Mesh;
       if (mesh.isMesh && mesh.morphTargetDictionary && mesh.morphTargetInfluences) {
         for (const [name, idx] of Object.entries(mesh.morphTargetDictionary)) {
-          const hit = { mesh, index: idx as number };
-          if (/^(jawopen|mouthopen|viseme_aa|aa)$/i.test(name)) exact.push(hit);
-          else if (/mouth|open|jaw|aa|viseme/i.test(name)) loose.push(hit);
+          const key = name.toLowerCase();
+          const list = byName.get(key) ?? [];
+          list.push({ mesh, index: idx as number });
+          byName.set(key, list);
         }
       }
       if ((obj as THREE.Bone).isBone && /jaw/i.test(obj.name)) jaw.current = obj as THREE.Bone;
     });
-    mouths.current = exact.length ? exact : loose;
+    shapes.current = byName;
+    live.current = {};
 
     // When a one-shot emotion/gesture clip ends, settle back to the idle loop.
     const onFinished = () => playClip(pickClip(animations, 'idle'), true);
@@ -241,6 +274,21 @@ function BuddyModel({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scene]);
+
+  // A new reply → build its mouth-shape sequence and restart the lip-sync clock.
+  // Rebuilt on text change (not on `isSpeaking`) so replaying the same audio
+  // reuses the same timeline.
+  useEffect(() => {
+    const text = speechText?.trim() ?? '';
+    visemes.current = text ? textToVisemes(text) : [];
+    speechMs.current = speechDurationMs && speechDurationMs > 0
+      ? speechDurationMs
+      : estimateSpeechMs(text);
+    speechT.current = 0;
+  }, [speechText, speechDurationMs]);
+
+  // Restart the clock whenever the audio starts, so shapes line up with the voice.
+  useEffect(() => { if (isSpeaking) speechT.current = 0; }, [isSpeaking]);
 
   // React to a new emotion/gesture: play that clip once, then settle to idle.
   useEffect(() => {
@@ -276,22 +324,51 @@ function BuddyModel({
       scene.rotation.z = Math.sin(t * 0.31) * 0.012;
     }
 
-    // Procedural lip-sync: open/close the mouth while audio plays.
-    jabberT.current += delta;
-    const target = isSpeaking ? mouthCurve(jabberT.current) : 0;
-    mouthValue.current += (target - mouthValue.current) * Math.min(1, delta * 18); // smooth
-    // Snap tiny residuals to a closed mouth, and only write when the value moved:
-    // every influence change makes three re-encode + re-upload its morph texture,
-    // so an ever-shrinking decimal would do that work on every single frame.
-    const v = mouthValue.current < 0.004 ? 0 : mouthValue.current;
-    if (Math.abs(v - appliedMouth.current) > 0.003) {
-      appliedMouth.current = v;
-      for (const m of mouths.current) {
-        if (m.mesh.morphTargetInfluences) m.mesh.morphTargetInfluences[m.index] = v;
-      }
-      if (jaw.current) jaw.current.rotation.x = v * 0.3; // fallback if no morph
+    // --- Face: expression + lip-sync + blink, merged into one target pose ---
+    // Blink on a random rhythm — the single cheapest cue that a face is alive.
+    if (blinkT.current >= 0) {
+      blinkT.current += delta;
+      if (blinkT.current > BLINK_MS / 1000) { blinkT.current = -1; nextBlink.current = 2 + Math.random() * 4; }
+    } else {
+      nextBlink.current -= delta;
+      if (nextBlink.current <= 0) blinkT.current = 0;
     }
+    // Triangle curve: eyes shut halfway through the blink, open again by the end.
+    const blinkProgress = blinkT.current < 0 ? 0 : 1 - Math.abs(blinkT.current / (BLINK_MS / 2000) - 1);
+
+    let mouth: Pose = {};
+    if (isSpeaking && visemes.current.length) {
+      speechT.current += delta * 1000;
+      mouth = visemePoseAt(visemes.current, speechT.current, speechMs.current);
+    }
+
+    const expression = EMOTION_POSES[emotion ?? 'calm'] ?? EMOTION_POSES.calm;
+    // Speech wins over expression on shared shapes (a smile must not hold the
+    // jaw shut mid-word), and the blink is always on top.
+    applyPose(maxPose(expression, mouth, blinkPose(blinkProgress)), delta);
   });
+
+  /** Ease the live weights towards `target` and push them into the meshes. */
+  function applyPose(target: Pose, delta: number) {
+    const rig = shapes.current;
+    if (!rig.size) return;
+    const ease = Math.min(1, delta * FACE_EASE);
+    const names = new Set([...Object.keys(live.current), ...Object.keys(target)]);
+
+    for (const name of names) {
+      const want = target[name] ?? 0;
+      let value = (live.current[name] ?? 0) + (want - (live.current[name] ?? 0)) * ease;
+      if (value < 0.002 && want === 0) value = 0; // settle instead of creeping
+      if (value === 0) delete live.current[name];
+      else live.current[name] = value;
+
+      for (const hit of rig.get(name.toLowerCase()) ?? []) {
+        if (hit.mesh.morphTargetInfluences) hit.mesh.morphTargetInfluences[hit.index] = value;
+      }
+    }
+    // Rigs without blendshapes (e.g. the police model) still get a moving jaw.
+    if (!rig.size && jaw.current) jaw.current.rotation.x = (target.jawOpen ?? 0) * 0.3;
+  }
 
   return <primitive object={scene} />;
 }
@@ -305,13 +382,6 @@ function pickClip(clips: THREE.AnimationClip[], tag: string): THREE.AnimationCli
     clips.find((c) => c.name.toLowerCase().includes(low)) ??
     (low === 'idle' ? clips[0] : null)
   );
-}
-
-/** Talking-mouth openness 0–1 from two out-of-phase sines (natural-ish jabber). */
-function mouthCurve(t: number): number {
-  const a = Math.sin(t * 11) * 0.5 + 0.5;
-  const b = Math.sin(t * 19 + 1.3) * 0.5 + 0.5;
-  return Math.min(1, a * 0.6 + b * 0.4) * 0.85;
 }
 
 /** Fetch + parse a remote GLB into a scene + clips, then decode its textures. */
