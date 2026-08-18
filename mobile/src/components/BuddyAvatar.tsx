@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { View, Text, type ViewStyle } from 'react-native';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { GLTFLoader, SkeletonUtils } from 'three-stdlib';
 import { toByteArray } from 'base64-js';
@@ -43,6 +43,9 @@ const MAX_GLB_MB = 20;
  * cropped — 1.3 keeps the whole character on screen with a small margin.
  */
 const FIT_HEIGHT = 1.3;
+
+/** Avatar render rate. Half of 60 fps is imperceptible here and frees JS time. */
+const AVATAR_FPS = 30;
 
 /**
  * url → parsed model, kept for the whole app session. Downloading, parsing and
@@ -120,13 +123,25 @@ export function BuddyAvatar({ assetUrl, emotion, gesture, emotionMap, isSpeaking
     <View style={style} pointerEvents="none">
       <Canvas
         camera={{ position: [0, 0, 2.6], fov: 32 }}
-        gl={{ alpha: true, antialias: false, powerPreference: 'low-power' }}
+        gl={{ alpha: true, antialias: true, powerPreference: 'low-power' }}
+        onCreated={({ gl }) => {
+          gl.toneMappingExposure = 1.15; // slightly brighter than default
+          muteUnsupportedPixelStore(gl.getContext());
+        }}
         // Cap pixel ratio so hi-DPI phones don't render a huge buffer (FPS/heat).
         dpr={[1, 2]}
         style={{ flex: 1, backgroundColor: 'transparent' }}
       >
-        <ambientLight intensity={0.9} />
-        <directionalLight position={[2, 4, 3]} intensity={1.1} />
+        {/* Three-point studio setup: a warm key from front-right shapes the face,
+            a cool fill lifts the shadow side, and a brand-purple rim from behind
+            separates the character from the dark stage. The hemisphere light is
+            the soft daylight ambient (sky above, stage colour bouncing up). */}
+        <hemisphereLight args={['#FFF4E2', '#3A2A63', 0.75]} />
+        <FrameLimiter />
+        <ambientLight intensity={0.35} />
+        <directionalLight position={[2.5, 3.5, 3]} intensity={1.7} color="#FFF1D8" />
+        <directionalLight position={[-3, 1.5, 2]} intensity={0.55} color="#BFD4FF" />
+        <directionalLight position={[0, 2.2, -3]} intensity={1.2} color="#B79BFF" />
         <BuddyModel
           scene={loaded.scene}
           animations={loaded.animations}
@@ -140,6 +155,32 @@ export function BuddyAvatar({ assetUrl, emotion, gesture, emotionMap, isSpeaking
   );
 }
 
+/** Drives the `frameloop="demand"` canvas at a fixed, phone-friendly rate. */
+function FrameLimiter() {
+  const invalidate = useThree((s) => s.invalidate);
+  useEffect(() => {
+    const id = setInterval(invalidate, 1000 / AVATAR_FPS);
+    return () => clearInterval(id);
+  }, [invalidate]);
+  return null;
+}
+
+/**
+ * expo-gl implements a subset of `pixelStorei`, and three sets four of them
+ * before every texture upload. The unsupported ones cost a JS→native call plus
+ * a console line each (thousands per minute — it visibly starves the JS thread),
+ * and they only affect DOM-image uploads anyway: our textures are raw RGBA
+ * typed arrays, which the flags do not apply to. So drop all but UNPACK_ALIGNMENT.
+ */
+function muteUnsupportedPixelStore(gl: WebGLRenderingContext | null): void {
+  if (!gl || (gl as { __sparkxpPatched?: boolean }).__sparkxpPatched) return;
+  const original = gl.pixelStorei.bind(gl);
+  gl.pixelStorei = (pname: number, param: number) => {
+    if (pname === gl.UNPACK_ALIGNMENT) original(pname, param);
+  };
+  (gl as { __sparkxpPatched?: boolean }).__sparkxpPatched = true;
+}
+
 function BuddyModel({
   scene, animations, emotion, gesture, emotionMap, isSpeaking,
 }: Loaded & Pick<Props, 'emotion' | 'gesture' | 'emotionMap' | 'isSpeaking'>) {
@@ -148,7 +189,10 @@ function BuddyModel({
   const mouths = useRef<{ mesh: THREE.Mesh; index: number }[]>([]);
   const jaw = useRef<THREE.Bone | null>(null);
   const mouthValue = useRef(0);
+  const appliedMouth = useRef(-1);
   const jabberT = useRef(0);
+  const idleT = useRef(0);
+  const baseY = useRef(0);
 
   // One-time setup: center/scale the model, wire the mixer, find mouth targets.
   useEffect(() => {
@@ -159,6 +203,7 @@ function BuddyModel({
     const scale = size.y > 0 ? FIT_HEIGHT / size.y : 1;
     scene.scale.setScalar(scale);
     scene.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
+    baseY.current = scene.position.y;
 
     const mx = new THREE.AnimationMixer(scene);
     mixer.current = mx;
@@ -220,15 +265,32 @@ function BuddyModel({
   useFrame((_, delta) => {
     mixer.current?.update(delta);
 
+    // These avatars ship with no animation clips, so without this they are a
+    // frozen statue. A slow breath + a small turn reads as "alive" and, unlike
+    // animating the native view around the canvas, it stays perfectly smooth.
+    if (!animations.length) {
+      idleT.current += delta;
+      const t = idleT.current;
+      scene.position.y = baseY.current + Math.sin(t * 1.1) * 0.018;
+      scene.rotation.y = Math.sin(t * 0.42) * 0.09;
+      scene.rotation.z = Math.sin(t * 0.31) * 0.012;
+    }
+
     // Procedural lip-sync: open/close the mouth while audio plays.
     jabberT.current += delta;
     const target = isSpeaking ? mouthCurve(jabberT.current) : 0;
     mouthValue.current += (target - mouthValue.current) * Math.min(1, delta * 18); // smooth
-    const v = mouthValue.current;
-    for (const m of mouths.current) {
-      if (m.mesh.morphTargetInfluences) m.mesh.morphTargetInfluences[m.index] = v;
+    // Snap tiny residuals to a closed mouth, and only write when the value moved:
+    // every influence change makes three re-encode + re-upload its morph texture,
+    // so an ever-shrinking decimal would do that work on every single frame.
+    const v = mouthValue.current < 0.004 ? 0 : mouthValue.current;
+    if (Math.abs(v - appliedMouth.current) > 0.003) {
+      appliedMouth.current = v;
+      for (const m of mouths.current) {
+        if (m.mesh.morphTargetInfluences) m.mesh.morphTargetInfluences[m.index] = v;
+      }
+      if (jaw.current) jaw.current.rotation.x = v * 0.3; // fallback if no morph
     }
-    if (jaw.current) jaw.current.rotation.x = v * 0.3; // fallback if no morph
   });
 
   return <primitive object={scene} />;
