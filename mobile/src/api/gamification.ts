@@ -107,13 +107,49 @@ export function postLessonResult(
 }
 
 /**
- * The only daily XP targets the backend accepts (`SetDailyGoalDto` rejects
- * anything else with a 400). Kept here so the picker UI and the request can
+ * The three daily XP targets the picker offers, one per learner profile:
+ *
+ *  -  30 — **Сэргээх.** Already knows English, just keeping it warm. Roughly
+ *          3 due SRS words (10 XP each) or 6 correct word-game answers.
+ *  -  80 — **Тогтмол.** The ordinary student putting in a real daily shift:
+ *          one lesson (15 XP) plus its test (~50 XP), or a review + game run.
+ *  - 200 — **Эрчтэй.** The beginner who caught fire and binges: 3–4 lessons
+ *          with their tests, or a full review queue.
+ *
+ * Why these are higher than the old 20 / 50 / 100: the old floor was ~30
+ * seconds of work (20 XP = two review words), so "I kept my streak" carried no
+ * information. Note that XP-per-minute is NOT constant — reading pays 15 XP for
+ * ~5 minutes while the word game pays 5 XP per answer — so the minute figures in
+ * the picker copy are a guide to intent, not a measurement.
+ *
+ * The backend validates against this list, so the picker UI and the request can
  * never drift apart.
  */
-export const DAILY_GOAL_CHOICES = [20, 50, 100] as const;
+export const DAILY_GOAL_CHOICES = [30, 80, 200] as const;
 
 export type DailyGoal = (typeof DAILY_GOAL_CHOICES)[number];
+
+/**
+ * Goals set by earlier builds (20 / 50 / 100) → the tier that replaced them.
+ *
+ * Existing users are deliberately NOT migrated: raising someone's bar mid-streak
+ * would break a streak they were meeting fine. They keep their old number until
+ * they open the picker themselves, so this map exists only to decide which row
+ * to show as selected. The backend still accepts the legacy values for the same
+ * reason (old app bundles are out there and would otherwise get a 400).
+ */
+const LEGACY_GOAL_TIERS: Record<number, DailyGoal> = { 20: 30, 50: 80, 100: 200 };
+
+/**
+ * Which picker row a user's current goal belongs to, or null when it matches no
+ * tier at all (an unrecognised value — show nothing selected rather than lie).
+ */
+export function goalTier(current: number): DailyGoal | null {
+  if ((DAILY_GOAL_CHOICES as readonly number[]).includes(current)) {
+    return current as DailyGoal;
+  }
+  return LEGACY_GOAL_TIERS[current] ?? null;
+}
 
 /**
  * Free-tier streak-freeze rules, mirroring the backend's `STREAK_FREEZE_SPARKS`
