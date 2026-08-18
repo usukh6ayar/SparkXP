@@ -27,7 +27,6 @@ interface Buddy {
   name: string;
   title: string;
   description: string;
-  emoji: string;
   systemPrompt: string;
   extraMessagesAmount: number;
   extraMessagesCost: number;
@@ -61,7 +60,7 @@ type BuddyForm = Omit<
 
 const emptyForm = (): BuddyForm => ({
   slug: '', name: '', title: '', description: '',
-  emoji: '🤖', systemPrompt: '',
+  systemPrompt: '',
   extraMessagesAmount: 50, extraMessagesCost: 5000,
   voiceMinuteCostStr: '200',
   voiceId: '', avatarAssetUrl: '', avatarThumbUrl: '',
@@ -109,7 +108,7 @@ export default function AiBuddyPage() {
   function openEdit(b: Buddy) {
     setForm({
       slug: b.slug, name: b.name, title: b.title,
-      description: b.description, emoji: b.emoji,
+      description: b.description,
       systemPrompt: b.systemPrompt,
       extraMessagesAmount: b.extraMessagesAmount,
       extraMessagesCost: b.extraMessagesCost,
@@ -123,8 +122,8 @@ export default function AiBuddyPage() {
   }
 
   async function save(keepOpen = false) {
-    if (!form.slug.trim() || !form.title.trim() || !form.emoji.trim()) {
-      setError('Slug, гарчиг, emoji заавал бөглөнө'); return;
+    if (!form.slug.trim() || !form.title.trim()) {
+      setError('Slug, гарчиг заавал бөглөнө'); return;
     }
     setSaving(true); setError('');
     try {
@@ -137,7 +136,6 @@ export default function AiBuddyPage() {
         name: form.name.trim(),
         title: form.title.trim(),
         description: form.description.trim(),
-        emoji: form.emoji.trim(),
         systemPrompt: form.systemPrompt.trim(),
         extraMessagesAmount: Number(form.extraMessagesAmount),
         extraMessagesCost: Number(form.extraMessagesCost),
@@ -250,7 +248,14 @@ export default function AiBuddyPage() {
             >
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-4 flex-1">
-                  <div className="text-5xl leading-none">{buddy.emoji}</div>
+                  {buddy.avatarThumbUrl ? (
+                    <img src={buddy.avatarThumbUrl} alt={buddy.name}
+                      className="h-14 w-14 rounded-xl object-cover" />
+                  ) : (
+                    <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-white/60 text-xl font-bold text-gray-400">
+                      {buddy.name.charAt(0) || '?'}
+                    </div>
+                  )}
                   <div className="flex-1">
                     <span className={`inline-block text-sm px-3 py-1 rounded-full font-semibold ${colors.badge}`}>
                       {buddy.title}
@@ -322,24 +327,11 @@ export default function AiBuddyPage() {
       {modal && (
         <Modal title={modal === 'create' ? 'AI Buddy нэмэх' : 'AI Buddy засах'} onClose={() => setModal(null)}>
           <div className="space-y-4">
-            <div className="grid grid-cols-4 gap-3">
-              <div className="col-span-1">
-                <label className="text-sm font-medium text-gray-700 block mb-1">Emoji</label>
-                <input
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-2xl text-center focus:border-primary focus:outline-none"
-                  value={form.emoji}
-                  onChange={(e) => f('emoji', e.target.value)}
-                  maxLength={4}
-                />
-              </div>
-              <div className="col-span-3">
-                <Input label="Slug (URL-д ашиглагдана)"
-                  value={form.slug} placeholder="cop, doctor, teacher..."
-                  onChange={(e) => f('slug', e.target.value)}
-                  disabled={modal === 'edit'}
-                />
-              </div>
-            </div>
+            <Input label="Slug (URL-д ашиглагдана)"
+              value={form.slug} placeholder="cop, doctor, teacher..."
+              onChange={(e) => f('slug', e.target.value)}
+              disabled={modal === 'edit'}
+            />
 
             <div className="grid grid-cols-2 gap-3">
               <Input label="Нэр" value={form.name} placeholder="Цагдаа Болд"

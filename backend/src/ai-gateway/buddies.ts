@@ -18,8 +18,6 @@ export interface BuddyDefinition {
   title: string;
   /** Short description — what kind of English they teach. */
   description: string;
-  /** Emoji avatar used before actual character images are ready. */
-  emoji: string;
   /** The system prompt to use when this buddy is active. */
   systemPrompt: string;
   /**
@@ -42,7 +40,6 @@ export const AI_BUDDIES: BuddyDefinition[] = [
     name: 'Цагдаа Батбаяр',
     title: 'Цагдаагийн ахлах байцаагч',
     description: 'Хууль сахиулах Англи хэл — мэдүүлэг авах, замын хөдөлгөөн, аюулгүй байдлын нэр томьёо',
-    emoji: '👮',
     systemPrompt:
       'Та SparkXP платформын "Цагдаа Батбаяр" гэдэг AI туслах. ' +
       'Та цагдаагийн ахлах байцаагч дүрд тоглон, хууль сахиулах салбарын Англи хэлийг заана. ' +

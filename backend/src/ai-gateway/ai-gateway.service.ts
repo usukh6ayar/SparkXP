@@ -883,7 +883,6 @@ export class AiGatewayService implements OnModuleInit {
           name: b.name,
           title: b.title,
           description: b.description,
-          emoji: b.emoji,
           systemPrompt: b.systemPrompt,
           extraMessagesAmount: b.pricing.extraMessagesAmount,
           extraMessagesCost: b.pricing.extraMessagesCost,
