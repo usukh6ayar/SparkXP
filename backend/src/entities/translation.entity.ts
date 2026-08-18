@@ -18,7 +18,7 @@ export class Translation extends BaseEntity {
   @Column({ type: 'text' })
   translation: string;
 
-  /** Pronunciation audio (ElevenLabs → Cloudinary), generated lazily on the
+  /** Pronunciation audio (Gemini → Cloudinary), generated lazily on the
    *  first speaker tap and reused forever after. */
   @Column({ name: 'audio_url', type: 'varchar', nullable: true })
   audioUrl: string | null;

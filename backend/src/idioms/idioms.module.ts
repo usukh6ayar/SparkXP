@@ -5,7 +5,7 @@ import { IdiomsService } from './idioms.service';
 import { IdiomsController } from './idioms.controller';
 import { AiGatewayModule } from '../ai-gateway/ai-gateway.module';
 
-/** Idioms (Хэлц үг): CRUD + AI fill (Gemini) + pronunciation audio (ElevenLabs). */
+/** Idioms (Хэлц үг): CRUD + AI fill (Gemini) + pronunciation audio (Gemini). */
 @Module({
   imports: [TypeOrmModule.forFeature([Idiom]), AiGatewayModule],
   controllers: [IdiomsController],

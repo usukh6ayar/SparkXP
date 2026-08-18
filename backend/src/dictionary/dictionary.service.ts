@@ -136,7 +136,7 @@ export class DictionaryService {
   }
 
   /**
-   * Pronunciation audio for a word (ElevenLabs via the AI gateway). Generated
+   * Pronunciation audio for a word (Gemini via the AI gateway). Generated
    * lazily on the first speaker tap, then cached forever: reuses the Word DB's
    * audio, else the translation cache's, else generates once and stores it.
    */
@@ -151,7 +151,7 @@ export class DictionaryService {
     const row = await this.translations.findOne({ where: { word: normalised } });
     if (row?.audioUrl) return { audioUrl: row.audioUrl };
 
-    // Generate once via ElevenLabs and cache the URL.
+    // Generate once via Gemini and cache the URL.
     const { audioUrl } = await this.aiGateway.generateVocabularyAudio({
       userId,
       wordId: 'dictionary',
@@ -168,7 +168,7 @@ export class DictionaryService {
           word: normalised,
           translation: '',
           audioUrl,
-          source: 'elevenlabs',
+          source: 'gemini',
         }),
       );
     }

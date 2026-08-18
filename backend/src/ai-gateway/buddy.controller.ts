@@ -84,7 +84,7 @@ export class BuddyController {
 
   /**
    * Voice turn: upload audio → transcript + reply + audio + avatar instruction.
-   * Spends ElevenLabs (STT + TTS) and Anthropic credit → gated.
+   * Spends Gemini (STT + TTS) and Anthropic credit → gated.
    */
   @Post('sessions/:id/turn/audio')
   @UseGuards(AiBuddyEnabledGuard)

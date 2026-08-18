@@ -490,17 +490,17 @@ export class AiGatewayService implements OnModuleInit {
   }
 
   /**
-   * Generate a pronunciation audio clip (mp3) for a word via ElevenLabs TTS and
-   * store it as a URL. Features call this gateway instead of ElevenLabs directly.
+   * Generate a pronunciation audio clip (mp3) for a word via Gemini TTS and
+   * store it as a URL. Features call this gateway instead of Gemini directly.
    */
   async generateVocabularyAudio(
     input: VocabularyAudioRequest,
   ): Promise<VocabularyAudioResponse> {
     const dev = this.config.get('NODE_ENV') !== 'production';
-    if (dev) this.logger.log(`[AI] ElevenLabs TTS for "${input.english}"`);
+    if (dev) this.logger.log(`[AI] Gemini TTS for "${input.english}"`);
 
     const { audio: buffer, model, voiceId } = await this.tts.synthesize(input.english);
-    if (dev) this.logger.log(`[AI] ElevenLabs TTS ok: ${buffer.length} bytes`);
+    if (dev) this.logger.log(`[AI] Gemini TTS ok: ${buffer.length} bytes`);
     const audioUrl = await this.imageStorage.storeMedia({
       buffer,
       filename: `${this.safeFilename(input.english)}-${Date.now()}.mp3`,
@@ -509,7 +509,7 @@ export class AiGatewayService implements OnModuleInit {
       folder: this.config.get<string>('CLOUDINARY_AUDIO_FOLDER', 'words/audio'),
       localSubdir: 'audio',
     });
-    if (dev) this.logger.log(`[AI] ElevenLabs audio stored → ${audioUrl}`);
+    if (dev) this.logger.log(`[AI] Gemini audio stored → ${audioUrl}`);
 
     await this.aiUsages.save(
       this.aiUsages.create({
@@ -523,7 +523,7 @@ export class AiGatewayService implements OnModuleInit {
         metadata: {
           wordId: input.wordId,
           english: input.english,
-          provider: 'elevenlabs',
+          provider: 'gemini',
           voiceId,
         },
       }),
@@ -533,7 +533,7 @@ export class AiGatewayService implements OnModuleInit {
   }
 
   /**
-   * Generate speech audio (mp3) for arbitrary text via ElevenLabs and store it
+   * Generate speech audio (mp3) for arbitrary text via Gemini and store it
    * at a STABLE public_id (overwrite=true) so regenerating replaces the same
    * file instead of orphaning clips. Used for reading-passage sentences —
    * `filenameBase` becomes the Cloudinary id (e.g. reading-<passageId>-<index>).
@@ -569,7 +569,7 @@ export class AiGatewayService implements OnModuleInit {
         metadata: {
           feature: 'reading',
           text: input.text.slice(0, 80),
-          provider: 'elevenlabs',
+          provider: 'gemini',
           voiceId,
         },
       }),

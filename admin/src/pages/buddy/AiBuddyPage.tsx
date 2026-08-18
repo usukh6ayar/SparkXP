@@ -4,8 +4,18 @@ import { api } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
+import { Select } from '../../components/Select';
 import { Modal } from '../../components/Modal';
 import { FormActions } from '../../components/FormActions';
+
+/** Gemini prebuilt TTS voices (voiceName). Stored in the buddy's `voiceId`. */
+const GEMINI_VOICES = [
+  'Zephyr', 'Puck', 'Charon', 'Kore', 'Fenrir', 'Leda', 'Orus', 'Aoede',
+  'Callirrhoe', 'Autonoe', 'Enceladus', 'Iapetus', 'Umbriel', 'Algieba',
+  'Despina', 'Erinome', 'Algenib', 'Rasalgethi', 'Laomedeia', 'Achernar',
+  'Alnilam', 'Schedar', 'Gacrux', 'Pulcherrima', 'Achird', 'Zubenelgenubi',
+  'Vindemiatrix', 'Sadachbia', 'Sadaltager', 'Sulafat',
+];
 
 /** Emotion + gesture tags the mobile avatar animates (kept in sync with backend). */
 const EMOTION_TAGS = ['happy', 'curious', 'thinking', 'surprised', 'calm', 'encouraging', 'confused'];
@@ -46,9 +56,6 @@ type BuddyForm = Omit<
   voiceId: string;
   avatarAssetUrl: string;
   avatarThumbUrl: string;
-  stability: string;
-  similarity: string;
-  style: string;
   emotionMap: Record<string, string>;
 };
 
@@ -58,7 +65,6 @@ const emptyForm = (): BuddyForm => ({
   extraMessagesAmount: 50, extraMessagesCost: 5000,
   voiceMinuteCostStr: '200',
   voiceId: '', avatarAssetUrl: '', avatarThumbUrl: '',
-  stability: '', similarity: '', style: '',
   emotionMap: {},
 });
 
@@ -101,7 +107,6 @@ export default function AiBuddyPage() {
   }
 
   function openEdit(b: Buddy) {
-    const vs = b.ttsParams?.voiceSettings ?? {};
     setForm({
       slug: b.slug, name: b.name, title: b.title,
       description: b.description, emoji: b.emoji,
@@ -112,9 +117,6 @@ export default function AiBuddyPage() {
       voiceId: b.voiceId ?? '',
       avatarAssetUrl: b.avatarAssetUrl ?? '',
       avatarThumbUrl: b.avatarThumbUrl ?? '',
-      stability: vs.stability != null ? String(vs.stability) : '',
-      similarity: vs.similarity_boost != null ? String(vs.similarity_boost) : '',
-      style: vs.style != null ? String(vs.style) : '',
       emotionMap: b.emotionMap ?? {},
     });
     setEditing(b); setError(''); setModal('edit');
@@ -126,10 +128,6 @@ export default function AiBuddyPage() {
     }
     setSaving(true); setError('');
     try {
-      const voiceSettings: Record<string, number> = {};
-      if (form.stability.trim() !== '') voiceSettings.stability = Number(form.stability);
-      if (form.similarity.trim() !== '') voiceSettings.similarity_boost = Number(form.similarity);
-      if (form.style.trim() !== '') voiceSettings.style = Number(form.style);
       // Only keep the emotion rows the admin actually filled in.
       const emotionMap = Object.fromEntries(
         Object.entries(form.emotionMap).filter(([, clip]) => clip.trim() !== ''),
@@ -146,7 +144,8 @@ export default function AiBuddyPage() {
         voiceMinuteCost: form.voiceMinuteCostStr.trim() !== ''
           ? Number(form.voiceMinuteCostStr) : null,
         voiceId: form.voiceId.trim() || undefined,
-        ttsParams: Object.keys(voiceSettings).length ? { voiceSettings } : undefined,
+        // Gemini prebuilt voices take no per-voice params (unlike ElevenLabs).
+        ttsParams: undefined,
         emotionMap: Object.keys(emotionMap).length ? emotionMap : undefined,
         avatarAssetUrl: form.avatarAssetUrl.trim() || undefined,
         avatarThumbUrl: form.avatarThumbUrl.trim() || undefined,
@@ -397,18 +396,10 @@ export default function AiBuddyPage() {
                 )}
               </div>
 
-              <Input label="ElevenLabs voice ID (хоосон=default)"
-                value={form.voiceId} placeholder="EXAVITQu4vr4xnSDxMaL"
-                onChange={(e) => f('voiceId', e.target.value)} />
-
-              <div className="grid grid-cols-3 gap-3">
-                <Input label="Stability (0–1)" type="number" min={0} max={1} step={0.05}
-                  value={form.stability} onChange={(e) => f('stability', e.target.value)} placeholder="0.5" />
-                <Input label="Similarity (0–1)" type="number" min={0} max={1} step={0.05}
-                  value={form.similarity} onChange={(e) => f('similarity', e.target.value)} placeholder="0.75" />
-                <Input label="Style (0–1)" type="number" min={0} max={1} step={0.05}
-                  value={form.style} onChange={(e) => f('style', e.target.value)} placeholder="0" />
-              </div>
+              <Select label="Gemini дуу хоолой (voice)"
+                value={form.voiceId}
+                onChange={(e) => f('voiceId', e.target.value)}
+                options={[{ value: '', label: 'Өгөгдмөл (Kore)' }, ...GEMINI_VOICES.map((v) => ({ value: v, label: v }))]} />
 
               <div className="grid grid-cols-2 gap-3">
                 <div>

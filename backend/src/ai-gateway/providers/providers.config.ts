@@ -1,29 +1,35 @@
 import { Provider } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { TTS_ADAPTER, ElevenLabsTtsAdapter } from './tts.adapter';
-import { LLM_ADAPTER, AnthropicLlmAdapter, OpenAiLlmAdapter } from './llm.adapter';
-import { STT_ADAPTER, ElevenLabsSttAdapter } from './stt.adapter';
+import { TTS_ADAPTER } from './tts.adapter';
+import {
+  LLM_ADAPTER,
+  AnthropicLlmAdapter,
+  OpenAiLlmAdapter,
+} from './llm.adapter';
+import { STT_ADAPTER } from './stt.adapter';
+import { GeminiSttAdapter } from './gemini-stt.adapter';
+import { GeminiTtsAdapter } from './gemini-tts.adapter';
 
 /**
  * Provider selection is config-driven (docx: never hardcode providers). Each
- * kind resolves its adapter from an env var, defaulting to the current vendor.
- * Adding a new provider = add a branch here; nothing else changes because
- * callers depend only on the interface + DI token.
+ * kind resolves its adapter from an env var. Voice (STT + TTS) runs on **Gemini**
+ * now — ElevenLabs has been removed. Adding another provider = add a branch here;
+ * nothing else changes because callers depend only on the interface + DI token.
  */
 export const aiProviders: Provider[] = [
-  ElevenLabsTtsAdapter,
+  GeminiTtsAdapter,
+  GeminiSttAdapter,
   AnthropicLlmAdapter,
   OpenAiLlmAdapter,
-  ElevenLabsSttAdapter,
   {
     provide: TTS_ADAPTER,
-    inject: [ConfigService, ElevenLabsTtsAdapter],
-    useFactory: (config: ConfigService, elevenlabs: ElevenLabsTtsAdapter) => {
-      const provider = config.get<string>('TTS_PROVIDER', 'elevenlabs');
+    inject: [ConfigService, GeminiTtsAdapter],
+    useFactory: (config: ConfigService, gemini: GeminiTtsAdapter) => {
+      const provider = config.get<string>('TTS_PROVIDER', 'gemini');
       switch (provider) {
-        case 'elevenlabs':
+        case 'gemini':
         default:
-          return elevenlabs;
+          return gemini;
       }
     },
   },
@@ -47,13 +53,13 @@ export const aiProviders: Provider[] = [
   },
   {
     provide: STT_ADAPTER,
-    inject: [ConfigService, ElevenLabsSttAdapter],
-    useFactory: (config: ConfigService, elevenlabs: ElevenLabsSttAdapter) => {
-      const provider = config.get<string>('STT_PROVIDER', 'elevenlabs');
+    inject: [ConfigService, GeminiSttAdapter],
+    useFactory: (config: ConfigService, gemini: GeminiSttAdapter) => {
+      const provider = config.get<string>('STT_PROVIDER', 'gemini');
       switch (provider) {
-        case 'elevenlabs':
+        case 'gemini':
         default:
-          return elevenlabs;
+          return gemini;
       }
     },
   },
