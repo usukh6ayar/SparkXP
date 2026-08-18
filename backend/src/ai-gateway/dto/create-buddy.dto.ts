@@ -21,9 +21,6 @@ export class CreateBuddyDto {
   description: string;
 
   @IsString()
-  emoji: string;
-
-  @IsString()
   systemPrompt: string;
 
   @IsOptional()
@@ -61,7 +58,6 @@ export class UpdateBuddyDto {
   @IsOptional() @IsString() name?: string;
   @IsOptional() @IsString() title?: string;
   @IsOptional() @IsString() description?: string;
-  @IsOptional() @IsString() emoji?: string;
   @IsOptional() @IsString() systemPrompt?: string;
   @IsOptional() @IsInt() @Min(0) extraMessagesAmount?: number;
   @IsOptional() @IsInt() @Min(0) extraMessagesCost?: number;

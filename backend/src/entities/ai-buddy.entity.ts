@@ -15,9 +15,6 @@ export class AiBuddy extends BaseEntity {
   @Column({ type: 'text' })
   description: string;
 
-  @Column()
-  emoji: string;
-
   @Column({ type: 'text', name: 'system_prompt' })
   systemPrompt: string;
 

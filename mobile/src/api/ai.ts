@@ -42,7 +42,6 @@ export interface Buddy {
   name: string;
   title: string;
   description: string;
-  emoji: string;
   avatarAssetUrl: string | null;
   avatarThumbUrl: string | null;
   emotionMap: Record<string, string>;

@@ -25,7 +25,7 @@ type Phase = 'idle' | 'recording' | 'locked';
 
 /**
  * Voice-first buddy screen (the landing after "Apply"). A big buddy avatar
- * (emoji placeholder until the 3D GLB pipeline is verified — see
+ * (thumbnail / name-initial placeholder until the 3D GLB pipeline is verified — see
  * buddyAvatarFlag.ts) floating over a soft glowing stage, a WhatsApp-style
  * hold-to-talk mic (slide ← to cancel, slide → to lock hands-free), and a
  * "type to chat" bar that hands off to the text conversation.
@@ -253,7 +253,7 @@ export function BuddyVoiceStage({
             {buddy?.avatarThumbUrl ? (
               <AppImage source={{ uri: buddy.avatarThumbUrl }} width={230} style={styles.buddyImg} contentFit="contain" />
             ) : (
-              <AppText style={styles.buddyEmoji}>{buddy?.emoji ?? '🦊'}</AppText>
+              <AppText style={styles.buddyEmoji}>{buddy?.name?.charAt(0) ?? '?'}</AppText>
             )}
           </Animated.View>
         </View>

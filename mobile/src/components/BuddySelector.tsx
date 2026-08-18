@@ -480,9 +480,9 @@ function BuddyCard({
   // Only the centered card mounts the 3D model (perf: avoid several live GL
   // canvases at once, and peek cards are scaled down anyway). It renders on
   // top of the 2D fallback, which stays visible as a placeholder while the
-  // GLB streams in and decodes. SHOW_3D_AVATAR is off for now (see
-  // buddyAvatarFlag.ts) — emoji/thumb is the deliberate primary rendering
-  // until the GLB texture pipeline is fixed and verified.
+  // GLB streams in and decodes. When SHOW_3D_AVATAR is off (see
+  // buddyAvatarFlag.ts) the thumbnail (or a name-initial placeholder) is the
+  // primary rendering until the GLB texture pipeline is fixed and verified.
   const show3d = SHOW_3D_AVATAR && isCenter && !!buddy.avatarAssetUrl;
 
   return (
@@ -501,7 +501,7 @@ function BuddyCard({
           {buddy.avatarThumbUrl && !imgFailed ? (
             // `contain` so the character stands on the lavender panel with the
             // gradient showing around it (like the reference), instead of the
-            // art being cropped edge-to-edge. Falls back to the emoji if the
+            // art being cropped edge-to-edge. Falls back to a name initial if the
             // remote asset is broken/unreachable.
             <AppImage
               source={{ uri: buddy.avatarThumbUrl }}
@@ -514,7 +514,7 @@ function BuddyCard({
               }}
             />
           ) : (
-            <AppText style={styles.cardEmoji}>{buddy.emoji}</AppText>
+            <AppText style={styles.cardEmoji}>{buddy.name?.charAt(0) ?? '?'}</AppText>
           )}
           {show3d && (
             <BuddyAvatar
