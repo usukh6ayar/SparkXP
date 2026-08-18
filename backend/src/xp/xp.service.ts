@@ -83,11 +83,34 @@ export interface GamificationSummary extends LevelInfo {
   dailyExerciseGoal: number;
 }
 
-/** Fallback daily-XP goal for rows predating the per-user column. */
+/**
+ * Fallback daily-XP goal for rows predating the per-user column.
+ *
+ * Deliberately still 50 — a legacy value, not one of the tiers below. Raising it
+ * would silently move the bar for every user who never picked a goal, and a bar
+ * they start missing costs them their streak.
+ */
 const DAILY_GOAL = 50;
 
-/** The goals the app offers (Хөнгөн / Дунд / Ширүүн). */
-export const DAILY_GOAL_CHOICES = [20, 50, 100] as const;
+/**
+ * The goals the app offers, one per learner profile:
+ *   30 — Сэргээх: already knows English, just keeping it warm (~3 review words).
+ *   80 — Тогтмол: the ordinary student's real daily shift (a lesson + its test).
+ *  200 — Эрчтэй: the fired-up beginner binging 3–4 lessons.
+ *
+ * Raised from 20 / 50 / 100 because the old floor was ~30 seconds of work
+ * (20 XP = two review words at 10 XP each), so keeping a streak said nothing
+ * about whether anyone had studied.
+ */
+export const DAILY_GOAL_CHOICES = [30, 80, 200] as const;
+
+/**
+ * Goals only older app builds send. Still accepted so a user who has not
+ * updated does not get a 400 from their own goal picker; never offered as a
+ * choice, and existing rows holding these values are left alone on purpose
+ * (see DAILY_GOAL above).
+ */
+export const LEGACY_DAILY_GOALS = [20, 50, 100] as const;
 
 /** Free-tier Sparks price of one streak freeze (plans may override). */
 const STREAK_FREEZE_SPARKS = 100;

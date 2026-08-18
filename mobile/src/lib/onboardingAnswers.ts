@@ -88,14 +88,21 @@ export function levelForRegister(level: OnboardingLevel | null): string | undefi
 }
 
 /**
- * Minutes → the daily XP goal the backend actually accepts
- * (`DAILY_GOAL_CHOICES` = 20 / 50 / 100). The app measures the daily goal in XP,
- * not minutes, so the four onboarding choices collapse onto three values —
- * 15 and 20 minutes both land on the "ширүүн" 100 XP goal.
+ * Minutes → the daily XP goal the backend accepts (`DAILY_GOAL_CHOICES` =
+ * 30 / 80 / 200). The app measures the goal in XP, not minutes, so the four
+ * onboarding choices collapse onto three values.
+ *
+ * 10 and 15 minutes deliberately share the 80 XP goal rather than 15 reaching
+ * for 200. XP-per-minute swings wildly by activity (reading pays 15 XP for a
+ * five-minute passage; the word game pays 5 XP per answer), so 200 XP is only a
+ * 15-minute day if you spend it in the fastest-paying screen. Setting a bar the
+ * learner misses costs them the streak they were promised, so where the mapping
+ * is ambiguous it errs low — the 20-minute pick is the one that asked for the
+ * binge tier.
  */
 export const MINUTES_TO_DAILY_XP: Record<DailyMinutes, DailyGoal> = {
-  5: 20,
-  10: 50,
-  15: 100,
-  20: 100,
+  5: 30,
+  10: 80,
+  15: 80,
+  20: 200,
 };

@@ -10,6 +10,7 @@ import { haptics } from '../lib/haptics';
 import { alertError } from '../lib/alerts';
 import {
   DAILY_GOAL_CHOICES,
+  goalTier,
   setDailyGoal,
   type DailyGoal,
   type Gamification,
@@ -18,19 +19,24 @@ import { ApiError } from '../api/client';
 import { t, tf, type TranslationKey } from '../i18n';
 import { spacing, radius, type AppColors } from '../theme/theme';
 
-/** Label + one-line "what this costs you" per goal, in DAILY_GOAL_CHOICES order. */
+/** Label + one-line "who this is for" per goal, in DAILY_GOAL_CHOICES order. */
 const GOAL_COPY: Record<DailyGoal, { labelKey: TranslationKey; hintKey: TranslationKey }> = {
-  20: { labelKey: 'goalEasy', hintKey: 'goalEasyHint' },
-  50: { labelKey: 'goalMedium', hintKey: 'goalMediumHint' },
-  100: { labelKey: 'goalHard', hintKey: 'goalHardHint' },
+  30: { labelKey: 'goalEasy', hintKey: 'goalEasyHint' },
+  80: { labelKey: 'goalMedium', hintKey: 'goalMediumHint' },
+  200: { labelKey: 'goalHard', hintKey: 'goalHardHint' },
 };
 
 /**
- * Daily XP goal picker (Хөнгөн 20 / Дунд 50 / Ширүүн 100).
+ * Daily XP goal picker (Сэргээх 30 / Тогтмол 80 / Эрчтэй 200).
  *
- * The three values are the only ones the backend accepts, so they come from
+ * The three values are the only ones the picker offers, so they come from
  * `DAILY_GOAL_CHOICES` rather than being retyped here. Saving returns the
  * refreshed gamification summary, which the caller uses directly — no refetch.
+ *
+ * A user who set their goal on an older build still holds a legacy number
+ * (20 / 50 / 100). `goalTier` maps that onto the row that replaced it so one
+ * row is still shown as selected, and the sheet states their real current goal
+ * above the list rather than pretending the tier's number is theirs.
  */
 export function DailyGoalSheet({
   visible,
@@ -47,6 +53,7 @@ export function DailyGoalSheet({
   const c = useColors();
   const { token } = useAuth();
   const [saving, setSaving] = useState<DailyGoal | null>(null);
+  const tier = goalTier(current);
 
   async function choose(goal: DailyGoal) {
     if (!token || saving) return;
@@ -77,11 +84,19 @@ export function DailyGoalSheet({
         {t('dailyGoalPickSubtitle')}
       </AppText>
 
+      {/* Only when their goal isn't exactly a tier — i.e. it was set on an
+          older build, so the selected row is an approximation. */}
+      {current > 0 && current !== tier && (
+        <AppText variant="caption" color={c.textMuted} center style={styles.subtitle}>
+          {tf('dailyGoalCurrentLegacy', { n: current })}
+        </AppText>
+      )}
+
       {DAILY_GOAL_CHOICES.map((goal) => (
         <GoalRow
           key={goal}
           goal={goal}
-          selected={goal === current}
+          selected={goal === tier}
           busy={saving === goal}
           disabled={saving !== null}
           onPress={() => choose(goal)}
