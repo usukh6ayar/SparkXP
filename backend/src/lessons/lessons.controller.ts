@@ -64,7 +64,7 @@ export class LessonsController {
   }
 
   /**
-   * Видеог бичвэр болгоно (ElevenLabs Scribe). Админ-only: энэ нь мөнгө
+   * Видеог бичвэр болгоно (Gemini STT). Админ-only: энэ нь мөнгө
    * зарцуулдаг дуудлага. 10 минутын видео ≈ 30–60 секунд тул синхрон.
    */
   @Post(':id/transcribe')

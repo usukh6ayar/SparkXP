@@ -50,7 +50,7 @@ import { XpModule } from '../xp/xp.module';
   ],
   controllers: [AiGatewayController, BuddyController, BuddyRealtimeController],
   // STT_ADAPTER is exported so the speaking-exercise module can reuse the same
-  // ElevenLabs Scribe transcriber the buddy uses (no second provider).
+  // Gemini STT transcriber the buddy uses (no second provider).
   exports: [AiGatewayService, ImageStorageService, STT_ADAPTER],
 })
 export class AiGatewayModule {}

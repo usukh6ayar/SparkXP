@@ -7,7 +7,7 @@ import {
 
 /**
  * This guard FAILS CLOSED: an unset or mistyped `AI_BUDDY_ENABLED` must block,
- * because the routes behind it bill ElevenLabs and Anthropic per call while
+ * because the routes behind it bill Gemini and Anthropic per call while
  * payments are disabled — so nobody can be charged for what they spend.
  * A "1" / "yes" / "TRUE" typed into Railway must NOT open the tap.
  */

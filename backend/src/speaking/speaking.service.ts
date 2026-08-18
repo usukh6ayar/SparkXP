@@ -51,7 +51,7 @@ function similarity(a: string, b: string): number {
 /**
  * Speaking exercise — pronunciation check.
  *
- * Reuses the AI-gateway STT adapter (ElevenLabs Scribe) the AI Buddy already
+ * Reuses the AI-gateway STT adapter (Gemini STT) the AI Buddy already
  * uses: the learner records a word, we transcribe it and compare to the target.
  * This is a "did you say the word" check, not phoneme-level scoring — enough for
  * a word-pronunciation drill, and it works today with no new provider.

@@ -37,7 +37,7 @@ export class Idiom extends BaseEntity {
   @Column({ name: 'image_url', type: 'varchar', nullable: true })
   imageUrl: string | null;
 
-  /** Pronunciation audio (ElevenLabs → Cloudinary), generated once. */
+  /** Pronunciation audio (Gemini → Cloudinary), generated once. */
   @Column({ name: 'audio_url', type: 'varchar', nullable: true })
   audioUrl: string | null;
 

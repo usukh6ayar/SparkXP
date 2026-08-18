@@ -32,11 +32,11 @@ export class AiBuddy extends BaseEntity {
 
   // --- Voice + avatar config (null = fall back to env defaults / 2D image) ---
 
-  /** Per-buddy ElevenLabs voice id; null uses ELEVENLABS_VOICE_ID. */
+  /** Per-buddy Gemini voice name (e.g. "Kore"); null uses GEMINI_TTS_VOICE. */
   @Column({ name: 'voice_id', type: 'varchar', nullable: true })
   voiceId: string | null;
 
-  /** ElevenLabs voice params (speed/stability/style). */
+  /** Legacy TTS voice params (unused by Gemini prebuilt voices; kept for compat). */
   @Column({ name: 'tts_params', type: 'jsonb', nullable: true })
   ttsParams: Record<string, unknown> | null;
 

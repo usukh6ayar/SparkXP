@@ -9,7 +9,7 @@ import { ConfigService } from '@nestjs/config';
  * Blocks every AI Buddy route that spends money on a third-party API, until the
  * owner deliberately turns the feature on.
  *
- * **Why this exists.** A buddy turn fans out to paid providers — ElevenLabs
+ * **Why this exists.** A buddy turn fans out to paid providers — Gemini
  * (STT + TTS) and Anthropic (LLM) — and bills per call. Those costs are meant
  * to be paid for by a subscription, but `PAYMENTS_ENABLED` is off (see
  * `PaymentsEnabledGuard`), so nobody can be charged: every turn is spend the

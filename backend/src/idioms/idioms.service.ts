@@ -158,7 +158,7 @@ function splitCsvLine(line: string): string[] {
   return result;
 }
 
-/** Idioms CRUD + AI fill (Gemini) + pronunciation audio (ElevenLabs). */
+/** Idioms CRUD + AI fill (Gemini) + pronunciation audio (Gemini). */
 @Injectable()
 export class IdiomsService {
   private readonly logger = new Logger(IdiomsService.name);
@@ -515,7 +515,7 @@ export class IdiomsService {
     }
   }
 
-  /** Generate pronunciation audio (ElevenLabs) for an idiom, cache the URL. */
+  /** Generate pronunciation audio (Gemini) for an idiom, cache the URL. */
   async generateAudio(id: string, userId: string): Promise<{ audioUrl: string }> {
     const idiom = await this.findOne(id);
     const { audioUrl } = await this.aiGateway.generateSpeechAudio({

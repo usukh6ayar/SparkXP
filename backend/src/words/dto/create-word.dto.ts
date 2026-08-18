@@ -99,7 +99,7 @@ export class CreateWordDto {
 
   /**
    * Admin-only request flag. If true, the WordsService asks the AI Gateway to
-   * generate a pronunciation audio clip (ElevenLabs) and attach it after saving.
+   * generate a pronunciation audio clip (Gemini) and attach it after saving.
    */
   @IsOptional()
   @IsBoolean()
