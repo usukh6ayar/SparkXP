@@ -21,7 +21,7 @@ const ALLOWED_VIDEO_EXT = ['.mp4', '.mov', '.webm', '.m4v'];
 const ALLOWED_AUDIO_EXT = ['.mp3', '.m4a', '.wav', '.ogg', '.aac'];
 const ALLOWED_MODEL_EXT = ['.glb', '.gltf']; // 3D avatars → Cloudflare R2
 const MAX_SIZE_IMAGE = 10 * 1024 * 1024; // 10 MB
-const MAX_SIZE_MODEL = 50 * 1024 * 1024; // 50 MB
+const MAX_SIZE_MODEL = 200 * 1024 * 1024; // 200 MB
 const MAX_SIZE_VIDEO = 200 * 1024 * 1024; // 200 MB
 
 /** Correct MIME for GLB/GLTF (multer often reports octet-stream). */
@@ -85,7 +85,7 @@ export class UploadController {
       throw new BadRequestException('Зургийн хэмжээ 10 MB-аас бага байх ёстой');
     }
     if (isModel && file.size > MAX_SIZE_MODEL) {
-      throw new BadRequestException('3D загварын хэмжээ 50 MB-аас бага байх ёстой');
+      throw new BadRequestException('3D загварын хэмжээ 200 MB-аас бага байх ёстой');
     }
 
     const filename = `${randomUUID()}${ext}`;
