@@ -71,6 +71,7 @@ export function BuddyVoiceStage({
   const tx = useSharedValue(0);     // horizontal finger drag: ← cancel · → lock
   const active = useSharedValue(0); // 0 idle → 1 recording (drives mic scale/tint)
   const [ready3d, setReady3d] = useState(false);
+  const is3d = SHOW_3D_AVATAR && !!buddy?.avatarAssetUrl && ready3d;
   const pulse = useSharedValue(0);  // buddy breathing / speaking pulse (backdrop glow)
   const float = useSharedValue(0);  // slow vertical bob so the buddy feels alive
   const think = useSharedValue(0);  // gentle head-tilt wobble while thinking (-1…1)
@@ -188,12 +189,18 @@ export function BuddyVoiceStage({
   const lockHintStyle = useAnimatedStyle(() => ({
     opacity: interpolate(tx.value, [0, LOCK_X], [0.4, 1], Extrapolation.CLAMP),
   }));
+  // The 2D art is bobbed/tilted from here. The 3D avatar is NOT: transforming a
+  // GL surface every frame makes it swim and shear (and costs a re-composite),
+  // so BuddyAvatar animates the model inside the scene instead — only the
+  // speaking pulse is kept, since a scale reads fine on the canvas.
   const buddyStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateY: interpolate(float.value, [0, 1], [6, -6], Extrapolation.CLAMP) },
-      { scale: interpolate(pulse.value, [0, 1], [1, speaking ? 1.04 : 1.015], Extrapolation.CLAMP) },
-      { rotate: `${think.value * 3}deg` },
-    ],
+    transform: is3d
+      ? [{ scale: interpolate(pulse.value, [0, 1], [1, speaking ? 1.03 : 1.008], Extrapolation.CLAMP) }]
+      : [
+          { translateY: interpolate(float.value, [0, 1], [6, -6], Extrapolation.CLAMP) },
+          { scale: interpolate(pulse.value, [0, 1], [1, speaking ? 1.04 : 1.015], Extrapolation.CLAMP) },
+          { rotate: `${think.value * 3}deg` },
+        ],
   }));
 
   function lockedStop() { setPhase('idle'); active.value = withSpring(0); haptics.success(); onRecordCommit(); }
@@ -266,7 +273,7 @@ export function BuddyVoiceStage({
                 emotionMap={buddy.emotionMap}
                 isSpeaking={speaking}
                 onReady={setReady3d}
-                style={styles.buddyImg}
+                style={styles.buddy3d}
               />
             )}
           </Animated.View>
@@ -365,7 +372,9 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   ccText: { letterSpacing: 0.5 },
   stage: { flex: 1, alignItems: 'center', justifyContent: 'center', width: '100%' },
   buddyWrap: { alignItems: 'center', justifyContent: 'center' },
-  buddyImg: { width: ms(230), height: ms(230) },
+  buddyImg: { width: ms(300), height: ms(300) },
+  /** The 3D canvas gets more room: the model is fitted with margin inside it. */
+  buddy3d: { width: ms(340), height: ms(340) },
   buddyEmoji: { fontSize: ms(156), lineHeight: ms(176) },
   bubble: {
     maxWidth: '86%', backgroundColor: c.surface, borderRadius: radius.xl,

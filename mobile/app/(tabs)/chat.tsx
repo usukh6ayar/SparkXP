@@ -27,6 +27,20 @@ import { useColors, useSettings } from '../../src/settings/SettingsContext';
 import { t, tf } from '../../src/i18n';
 import { type AppColors } from '../../src/theme/theme';
 
+/**
+ * Recording settings for a speech turn: mono 16 kHz at 32 kbps AAC, still in the
+ * .m4a container the backend expects. HIGH_QUALITY (stereo 44.1 kHz, 128 kbps)
+ * is music-grade — it makes the upload ~8× bigger for no gain, since the speech
+ * model downsamples to 16 kHz mono anyway, and every extra byte is time the
+ * user spends watching "бодож байна…" on mobile data.
+ */
+const SPEECH_RECORDING = {
+  ...RecordingPresets.HIGH_QUALITY,
+  sampleRate: 16000,
+  numberOfChannels: 1,
+  bitRate: 32000,
+};
+
 export default function ChatScreen() {
   const { token } = useAuth();
   const c = useColors();
@@ -87,7 +101,7 @@ export default function ChatScreen() {
   const holdRef = useRef(false); // synchronous "mic is held" flag (see startRecording)
   const player = useAudioPlayer();
   const playerStatus = useAudioPlayerStatus(player);
-  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recorder = useAudioRecorder(SPEECH_RECORDING);
 
   /** Flatten a loaded text thread into the local message list + bind its id. */
   const applyTextSession = useCallback((ts: BuddyTextSession) => {
