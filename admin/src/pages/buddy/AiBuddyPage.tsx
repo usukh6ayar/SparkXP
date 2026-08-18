@@ -89,6 +89,7 @@ export default function AiBuddyPage() {
   const [error, setError] = useState('');
   const [testing, setTesting] = useState(false);
   const [uploadingGlb, setUploadingGlb] = useState(false);
+  const [uploadingThumb, setUploadingThumb] = useState(false);
 
   const load = useCallback(() => {
     api.get<Buddy[]>('/ai/buddies').then(setBuddies).catch(() => {});
@@ -189,6 +190,23 @@ export default function AiBuddyPage() {
       setError(err instanceof Error ? err.message : 'GLB байршуулж чадсангүй');
     } finally {
       setUploadingGlb(false);
+      e.target.value = ''; // allow re-uploading the same file
+    }
+  }
+
+  async function uploadThumb(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingThumb(true); setError('');
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await api.upload<{ url: string }>('/upload', fd);
+      f('avatarThumbUrl', res.url);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Зураг байршуулж чадсангүй');
+    } finally {
+      setUploadingThumb(false);
       e.target.value = ''; // allow re-uploading the same file
     }
   }
@@ -406,9 +424,22 @@ export default function AiBuddyPage() {
                       disabled={uploadingGlb} onChange={uploadGlb} />
                   </label>
                 </div>
-                <Input label="Avatar thumbnail URL" value={form.avatarThumbUrl}
-                  placeholder="https://…/fox.png"
-                  onChange={(e) => f('avatarThumbUrl', e.target.value)} />
+                <div>
+                  <Input label="Avatar thumbnail URL" value={form.avatarThumbUrl}
+                    placeholder="https://…/fox.png"
+                    onChange={(e) => f('avatarThumbUrl', e.target.value)} />
+                  {/* Upload an image → R2/Cloudinary, auto-fills the URL above */}
+                  <label className="mt-1.5 inline-flex cursor-pointer items-center gap-1.5 text-xs font-medium text-primary hover:underline">
+                    <Upload className="h-3.5 w-3.5" />
+                    {uploadingThumb ? 'Байршуулж байна…' : 'Зураг байршуулах'}
+                    <input type="file" accept="image/*" className="hidden"
+                      disabled={uploadingThumb} onChange={uploadThumb} />
+                  </label>
+                  {form.avatarThumbUrl && (
+                    <img src={form.avatarThumbUrl} alt="thumbnail"
+                      className="mt-2 h-16 w-16 rounded-lg object-cover border border-gray-200" />
+                  )}
+                </div>
               </div>
 
               <details className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
