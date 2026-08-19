@@ -13,6 +13,7 @@ import { Quiz } from '../entities/quiz.entity';
 import { User } from '../entities/user.entity';
 import { AssignmentType, UserRole, SubmissionStatus } from '../common/enums';
 import { ClassesService } from '../classes/classes.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { CreateAssignmentDto } from './dto/create-assignment.dto';
 
 @Injectable()
@@ -27,6 +28,7 @@ export class AssignmentsService {
     @InjectRepository(Quiz)
     private readonly quizzes: Repository<Quiz>,
     private readonly classesService: ClassesService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /** Create an assignment. Only the class's teacher (or an admin) may do this. */
@@ -41,7 +43,7 @@ export class AssignmentsService {
       throw new ForbiddenException('Зөвхөн ангийн багш даалгавар онооно');
     }
 
-    await this.assertTargetExists(dto.type, dto.targetId);
+    const targetTitle = await this.assertTargetExists(dto.type, dto.targetId);
 
     // Resolve the target roster: explicit studentIds (validated against the class)
     // or the whole class. getStudents enforces teacher/admin access already.
@@ -84,6 +86,21 @@ export class AssignmentsService {
         .orIgnore()
         .execute();
     }
+
+    // Tell the students a task arrived — the whole point of the feature: the
+    // class disperses and the homework still reaches them. Best-effort by
+    // design (notifyUsers swallows its own errors), so a push outage can never
+    // make assigning homework fail.
+    await this.notifications.notifyUsers(targetIds, {
+      title: 'Шинэ даалгавар',
+      body: assignmentNotificationBody(targetTitle, assignment.dueAt),
+      data: {
+        type: 'assignment',
+        url: '/assignments',
+        assignmentId: assignment.id,
+      },
+    });
+
     return assignment;
   }
 
@@ -137,12 +154,31 @@ export class AssignmentsService {
    * Matches on the class roster (not the pre-created completion row) so a
    * student who joined AFTER the assignment was set is still covered.
    */
-  async isAssignedWork(userId: string, quizId: string): Promise<boolean> {
+  isAssignedWork(userId: string, quizId: string): Promise<boolean> {
+    return this.isAssigned(userId, AssignmentType.QUIZ, quizId);
+  }
+
+  /**
+   * Is this lesson homework the student's teacher set for them?
+   *
+   * Drives the free-lesson quota: assigned lessons are always free to open, so
+   * a student can never be paywalled out of their own homework.
+   */
+  isAssignedLesson(userId: string, lessonId: string): Promise<boolean> {
+    return this.isAssigned(userId, AssignmentType.LESSON, lessonId);
+  }
+
+  /** Shared membership test behind both `isAssigned*` methods above. */
+  private async isAssigned(
+    userId: string,
+    type: AssignmentType,
+    targetId: string,
+  ): Promise<boolean> {
     const count = await this.assignments
       .createQueryBuilder('a')
       .innerJoin('class_students', 'cs', 'cs.class_id = a.class_id AND cs.student_id = :userId', { userId })
-      .where('a.type = :type', { type: AssignmentType.QUIZ })
-      .andWhere('a.target_id = :quizId', { quizId })
+      .where('a.type = :type', { type })
+      .andWhere('a.target_id = :targetId', { targetId })
       // studentIds null = the whole class; otherwise only the listed students.
       .andWhere('(a.student_ids IS NULL OR a.student_ids @> :me::jsonb)', {
         me: JSON.stringify([userId]),
@@ -284,15 +320,18 @@ export class AssignmentsService {
     return user.role === UserRole.ADMIN || user.role === UserRole.SUPER_ADMIN;
   }
 
-  /** Make sure the lesson/quiz being assigned actually exists. */
+  /**
+   * Make sure the lesson/quiz being assigned actually exists, and hand back its
+   * title so the notification can name the task instead of saying "a new task".
+   */
   private async assertTargetExists(
     type: AssignmentType,
     targetId: string,
-  ): Promise<void> {
+  ): Promise<string> {
     const repo = type === AssignmentType.LESSON ? this.lessons : this.quizzes;
     const found = await repo.findOne({
       where: { id: targetId },
-      select: { id: true },
+      select: { id: true, title: true },
     });
     if (!found) {
       throw new BadRequestException(
@@ -301,5 +340,22 @@ export class AssignmentsService {
           : 'Оноох сорил олдсонгүй',
       );
     }
+    return found.title;
   }
+}
+
+/**
+ * The one-line push body: names the task, and the deadline when there is one.
+ *
+ * Rounds UP so "дуусахад 20 цаг үлдлээ" reads as "1 өдөр" rather than "0" —
+ * a deadline notification that says zero days is worse than no number at all.
+ */
+function assignmentNotificationBody(title: string, dueAt: Date | null): string {
+  const task = `Багш "${title}" даалгавар өглөө.`;
+  if (!dueAt) return task;
+
+  const days = Math.ceil((dueAt.getTime() - Date.now()) / 86_400_000);
+  if (days <= 0) return `${task} Хугацаа нь дууссан байна.`;
+  if (days === 1) return `${task} Маргааш дуусна.`;
+  return `${task} ${days} хоногийн дараа дуусна.`;
 }

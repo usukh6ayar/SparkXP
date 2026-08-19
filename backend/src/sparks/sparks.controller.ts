@@ -1,7 +1,6 @@
 import {
   Controller,
   Post,
-  Get,
   Param,
   ParseUUIDPipe,
   UseGuards,
@@ -15,7 +14,11 @@ import { SparksService } from './sparks.service';
  * Sparks-related operations on lessons.
  * Route prefix "lessons" so URLs match ROADMAP spec:
  *   POST /api/lessons/:id/unlock
- *   GET  /api/lessons/:id/access
+ *
+ * `GET /lessons/:id/access` used to live here too. It moved to
+ * `LessonsController` (2026-08-19) when access stopped being a Sparks question:
+ * a subscription, teacher homework, and the free-lesson quota all decide it now,
+ * and Sparks is only one of four routes in.
  */
 @Controller('lessons')
 @UseGuards(JwtAuthGuard)
@@ -29,15 +32,5 @@ export class SparksController {
     @CurrentUser() user: User,
   ) {
     return this.sparksService.unlockLesson(user.id, lessonId);
-  }
-
-  /** Check if the current user has access to a lesson (free or unlocked). */
-  @Get(':id/access')
-  async checkAccess(
-    @Param('id', ParseUUIDPipe) lessonId: string,
-    @CurrentUser() user: User,
-  ) {
-    const hasAccess = await this.sparksService.hasAccess(user.id, lessonId);
-    return { hasAccess };
   }
 }

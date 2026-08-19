@@ -84,6 +84,83 @@ export class NotificationsService {
   }
 
   /**
+   * The notification-centre feed for one user: their personal rows plus the
+   * broadcasts aimed at them (everyone, or their role). Newest first.
+   *
+   * The app has always called this endpoint — it just never existed on the
+   * server, so the centre showed nothing.
+   */
+  findForUser(user: User, limit = 50): Promise<Notification[]> {
+    return this.notifications
+      .createQueryBuilder('n')
+      .where('n.user_id = :userId', { userId: user.id })
+      .orWhere(
+        'n.user_id IS NULL AND (n.target_role IS NULL OR n.target_role = :role)',
+        { role: user.role },
+      )
+      .orderBy('n.created_at', 'DESC')
+      .limit(limit)
+      .getMany();
+  }
+
+  /**
+   * Send one personal notification to several users: a centre row each, plus a
+   * push to whoever has a live token.
+   *
+   * Delivery is best-effort on purpose. This is called from inside actions like
+   * "assign homework" — a dead push token or an Expo outage must never make the
+   * assignment itself fail, so everything here is caught and logged.
+   */
+  async notifyUsers(
+    userIds: string[],
+    payload: { title: string; body: string; data?: Record<string, unknown> },
+  ): Promise<{ sent: number }> {
+    if (userIds.length === 0) return { sent: 0 };
+
+    try {
+      // save(create(...)) rather than insert(): TypeORM's insert type cannot
+      // express a free-form jsonb column, and this stays one INSERT anyway.
+      await this.notifications.save(
+        userIds.map((userId) =>
+          this.notifications.create({
+            userId,
+            title: payload.title,
+            body: payload.body,
+            data: payload.data ?? null,
+            targetRole: null,
+          }),
+        ),
+      );
+
+      const recipients = await this.users.find({
+        where: {
+          id: In(userIds),
+          expoPushToken: Not(IsNull()),
+          pushEnabled: true,
+        },
+        select: { id: true, expoPushToken: true },
+      });
+      if (recipients.length === 0) return { sent: 0 };
+
+      const { sent, invalidTokens } = await this.push.send(
+        recipients.map((u) => ({
+          to: u.expoPushToken!,
+          title: payload.title,
+          body: payload.body,
+          data: payload.data ?? {},
+        })),
+      );
+      await this.dropInvalidTokens(invalidTokens);
+      return { sent };
+    } catch (err) {
+      this.logger.error(
+        `notifyUsers failed: ${(err as Error)?.message ?? err}`,
+      );
+      return { sent: 0 };
+    }
+  }
+
+  /**
    * The daily study reminder.
    *
    * Deliberately SPECIFIC rather than a generic "come back!" — it names how
