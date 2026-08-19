@@ -41,9 +41,15 @@ type Phase = 'idle' | 'recording' | 'locked';
 export function BuddyVoiceStage({
   buddy, greeting, speaking, thinking, voiceLimited, usageLabel, usageLevel,
   captions, onToggleCaptions, onRecordStart, onRecordCommit, onRecordCancel, onOpenText,
-  backgroundUrl,
+  backgroundUrl, emotion, speechText, speechDurationMs,
 }: {
   buddy: Buddy | null;
+  /** LLM emotion tag for the last reply → drives the 3D face expression. */
+  emotion?: string;
+  /** Reply text → the 3D avatar derives its mouth shapes from it. */
+  speechText?: string | null;
+  /** Real audio length so the mouth keeps pace with the voice. */
+  speechDurationMs?: number | null;
   greeting: string;
   /** Equipped background scene (from the shop) shown behind the buddy. */
   backgroundUrl?: string | null;
@@ -272,6 +278,12 @@ export function BuddyVoiceStage({
                 assetUrl={buddy.avatarAssetUrl}
                 emotionMap={buddy.emotionMap}
                 isSpeaking={speaking}
+                // While a turn is processing the face wears the thinking
+                // expression; otherwise the emotion the LLM asked for.
+                emotion={thinking ? 'thinking' : emotion}
+                speechText={speechText}
+                speechDurationMs={speechDurationMs}
+                lowPower={thinking}
                 onReady={setReady3d}
                 style={styles.buddy3d}
               />

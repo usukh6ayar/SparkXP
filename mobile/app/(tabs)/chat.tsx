@@ -83,6 +83,8 @@ export default function ChatScreen() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   // The voice screen's latest spoken reply (kept apart from the text `messages`).
   const [voiceReply, setVoiceReply] = useState<string | null>(null);
+  // What the LLM asked the avatar's face to do on the last turn (emotion + gesture).
+  const [avatarEmotion, setAvatarEmotion] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [recording, setRecording] = useState(false);
   const [usage, setUsage] = useState<BuddyUsageBlock | null>(null);
@@ -339,6 +341,7 @@ export default function ChatScreen() {
    */
   function renderVoiceTurn(res: aiApi.TurnResponse) {
     setVoiceReply(res.reply_text);
+    setAvatarEmotion(res.avatar_instruction?.emotion);
     setUsage(res.usage);
     playAudio(res.audio_url);
   }
@@ -363,7 +366,9 @@ export default function ChatScreen() {
     setMessages((prev) => [...prev, { id: `${Date.now()}u`, role: 'user', content: text }]);
     setLoading(true);
     try {
+      const startedAt = Date.now();
       const res = await sendBuddyTextTurnSmart(textSessionId, text, token!);
+      if (__DEV__) console.log(`[buddy] text turn took ${Date.now() - startedAt} ms`);
       setMessages((prev) => [
         ...prev,
         {
@@ -416,7 +421,11 @@ export default function ChatScreen() {
       await recorder.stop();
       const uri = recorder.uri;
       if (!uri || !sessionId) throw new Error('no audio');
+      const startedAt = Date.now();
       const res = await sendBuddyAudioTurnSmart(sessionId, uri, token!);
+      // The turn is STT + LLM + TTS on the server; log it so a slow reply can be
+      // pinned on the pipeline rather than guessed at.
+      if (__DEV__) console.log(`[buddy] voice turn took ${Date.now() - startedAt} ms`);
       renderVoiceTurn(res);
     } catch (err) {
       handleTurnError(err, { voice: true });
@@ -502,6 +511,11 @@ export default function ChatScreen() {
           greeting={voiceGreeting}
           backgroundUrl={bgUrl}
           speaking={playerStatus.playing}
+          emotion={avatarEmotion}
+          speechText={voiceReply}
+          // expo-audio reports seconds; the avatar stretches its mouth-shape
+          // sequence over this so the lips keep pace with the actual voice.
+          speechDurationMs={playerStatus.duration ? playerStatus.duration * 1000 : null}
           thinking={loading}
           voiceLimited={voiceLimited}
           usageLabel={usageLabel}
