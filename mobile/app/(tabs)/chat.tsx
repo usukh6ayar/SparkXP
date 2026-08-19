@@ -27,6 +27,20 @@ import { useColors, useSettings } from '../../src/settings/SettingsContext';
 import { t, tf } from '../../src/i18n';
 import { type AppColors } from '../../src/theme/theme';
 
+/**
+ * Recording settings for a speech turn: mono 16 kHz at 32 kbps AAC, still in the
+ * .m4a container the backend expects. HIGH_QUALITY (stereo 44.1 kHz, 128 kbps)
+ * is music-grade — it makes the upload ~8× bigger for no gain, since the speech
+ * model downsamples to 16 kHz mono anyway, and every extra byte is time the
+ * user spends watching "бодож байна…" on mobile data.
+ */
+const SPEECH_RECORDING = {
+  ...RecordingPresets.HIGH_QUALITY,
+  sampleRate: 16000,
+  numberOfChannels: 1,
+  bitRate: 32000,
+};
+
 export default function ChatScreen() {
   const { token } = useAuth();
   const c = useColors();
@@ -69,6 +83,8 @@ export default function ChatScreen() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   // The voice screen's latest spoken reply (kept apart from the text `messages`).
   const [voiceReply, setVoiceReply] = useState<string | null>(null);
+  // What the LLM asked the avatar's face to do on the last turn (emotion + gesture).
+  const [avatarEmotion, setAvatarEmotion] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [recording, setRecording] = useState(false);
   const [usage, setUsage] = useState<BuddyUsageBlock | null>(null);
@@ -87,7 +103,7 @@ export default function ChatScreen() {
   const holdRef = useRef(false); // synchronous "mic is held" flag (see startRecording)
   const player = useAudioPlayer();
   const playerStatus = useAudioPlayerStatus(player);
-  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recorder = useAudioRecorder(SPEECH_RECORDING);
 
   /** Flatten a loaded text thread into the local message list + bind its id. */
   const applyTextSession = useCallback((ts: BuddyTextSession) => {
@@ -150,10 +166,18 @@ export default function ChatScreen() {
         const covered = new Set(real.map((r) => r.slug));
         setRealSlugs(covered);
         setFallbackSlug(real[0]?.slug ?? null);
-        const mocks = buildMockBuddies(t, lang).filter((m) => !covered.has(m.slug));
-        const fox = mocks.find((m) => m.slug === FOX_SLUG);
-        const rest = mocks.filter((m) => m.slug !== FOX_SLUG);
-        setBuddies(fox ? [fox, ...real, ...rest] : [...real, ...rest]);
+        // Real buddies exist → show ONLY them (no mock padding). The DEV mocks
+        // (mockBuddies.ts) are a fallback for an empty backend so the carousel
+        // design can still be reviewed; once real buddies are authored they'd
+        // just duplicate them (e.g. a second "Спарк" with no avatar).
+        if (real.length > 0) {
+          setBuddies(real);
+        } else {
+          const mocks = buildMockBuddies(t, lang);
+          const fox = mocks.find((m) => m.slug === FOX_SLUG);
+          const rest = mocks.filter((m) => m.slug !== FOX_SLUG);
+          setBuddies(fox ? [fox, ...rest] : rest);
+        }
       })
       .catch((err) => {
         setBuddiesError(true);
@@ -317,6 +341,7 @@ export default function ChatScreen() {
    */
   function renderVoiceTurn(res: aiApi.TurnResponse) {
     setVoiceReply(res.reply_text);
+    setAvatarEmotion(res.avatar_instruction?.emotion);
     setUsage(res.usage);
     playAudio(res.audio_url);
   }
@@ -341,7 +366,9 @@ export default function ChatScreen() {
     setMessages((prev) => [...prev, { id: `${Date.now()}u`, role: 'user', content: text }]);
     setLoading(true);
     try {
+      const startedAt = Date.now();
       const res = await sendBuddyTextTurnSmart(textSessionId, text, token!);
+      if (__DEV__) console.log(`[buddy] text turn took ${Date.now() - startedAt} ms`);
       setMessages((prev) => [
         ...prev,
         {
@@ -394,7 +421,11 @@ export default function ChatScreen() {
       await recorder.stop();
       const uri = recorder.uri;
       if (!uri || !sessionId) throw new Error('no audio');
+      const startedAt = Date.now();
       const res = await sendBuddyAudioTurnSmart(sessionId, uri, token!);
+      // The turn is STT + LLM + TTS on the server; log it so a slow reply can be
+      // pinned on the pipeline rather than guessed at.
+      if (__DEV__) console.log(`[buddy] voice turn took ${Date.now() - startedAt} ms`);
       renderVoiceTurn(res);
     } catch (err) {
       handleTurnError(err, { voice: true });
@@ -480,6 +511,11 @@ export default function ChatScreen() {
           greeting={voiceGreeting}
           backgroundUrl={bgUrl}
           speaking={playerStatus.playing}
+          emotion={avatarEmotion}
+          speechText={voiceReply}
+          // expo-audio reports seconds; the avatar stretches its mouth-shape
+          // sequence over this so the lips keep pace with the actual voice.
+          speechDurationMs={playerStatus.duration ? playerStatus.duration * 1000 : null}
           thinking={loading}
           voiceLimited={voiceLimited}
           usageLabel={usageLabel}

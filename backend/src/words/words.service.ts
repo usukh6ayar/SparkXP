@@ -955,7 +955,7 @@ export class WordsService {
     }
   }
 
-  /** Generate and save a pronunciation audio clip for an existing word via ElevenLabs. */
+  /** Generate and save a pronunciation audio clip for an existing word via Gemini. */
   async generateAudio(id: string, userId: string): Promise<Word> {
     const word = await this.findOne(id);
     const result = await this.aiGateway.generateVocabularyAudio({

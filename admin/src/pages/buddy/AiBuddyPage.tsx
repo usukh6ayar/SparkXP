@@ -4,8 +4,18 @@ import { api } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
+import { Select } from '../../components/Select';
 import { Modal } from '../../components/Modal';
 import { FormActions } from '../../components/FormActions';
+
+/** Gemini prebuilt TTS voices (voiceName). Stored in the buddy's `voiceId`. */
+const GEMINI_VOICES = [
+  'Zephyr', 'Puck', 'Charon', 'Kore', 'Fenrir', 'Leda', 'Orus', 'Aoede',
+  'Callirrhoe', 'Autonoe', 'Enceladus', 'Iapetus', 'Umbriel', 'Algieba',
+  'Despina', 'Erinome', 'Algenib', 'Rasalgethi', 'Laomedeia', 'Achernar',
+  'Alnilam', 'Schedar', 'Gacrux', 'Pulcherrima', 'Achird', 'Zubenelgenubi',
+  'Vindemiatrix', 'Sadachbia', 'Sadaltager', 'Sulafat',
+];
 
 /** Emotion + gesture tags the mobile avatar animates (kept in sync with backend). */
 const EMOTION_TAGS = ['happy', 'curious', 'thinking', 'surprised', 'calm', 'encouraging', 'confused'];
@@ -17,7 +27,6 @@ interface Buddy {
   name: string;
   title: string;
   description: string;
-  emoji: string;
   systemPrompt: string;
   extraMessagesAmount: number;
   extraMessagesCost: number;
@@ -46,19 +55,15 @@ type BuddyForm = Omit<
   voiceId: string;
   avatarAssetUrl: string;
   avatarThumbUrl: string;
-  stability: string;
-  similarity: string;
-  style: string;
   emotionMap: Record<string, string>;
 };
 
 const emptyForm = (): BuddyForm => ({
   slug: '', name: '', title: '', description: '',
-  emoji: '🤖', systemPrompt: '',
+  systemPrompt: '',
   extraMessagesAmount: 50, extraMessagesCost: 5000,
   voiceMinuteCostStr: '200',
   voiceId: '', avatarAssetUrl: '', avatarThumbUrl: '',
-  stability: '', similarity: '', style: '',
   emotionMap: {},
 });
 
@@ -84,6 +89,7 @@ export default function AiBuddyPage() {
   const [error, setError] = useState('');
   const [testing, setTesting] = useState(false);
   const [uploadingGlb, setUploadingGlb] = useState(false);
+  const [uploadingThumb, setUploadingThumb] = useState(false);
 
   const load = useCallback(() => {
     api.get<Buddy[]>('/ai/buddies').then(setBuddies).catch(() => {});
@@ -101,10 +107,9 @@ export default function AiBuddyPage() {
   }
 
   function openEdit(b: Buddy) {
-    const vs = b.ttsParams?.voiceSettings ?? {};
     setForm({
       slug: b.slug, name: b.name, title: b.title,
-      description: b.description, emoji: b.emoji,
+      description: b.description,
       systemPrompt: b.systemPrompt,
       extraMessagesAmount: b.extraMessagesAmount,
       extraMessagesCost: b.extraMessagesCost,
@@ -112,24 +117,17 @@ export default function AiBuddyPage() {
       voiceId: b.voiceId ?? '',
       avatarAssetUrl: b.avatarAssetUrl ?? '',
       avatarThumbUrl: b.avatarThumbUrl ?? '',
-      stability: vs.stability != null ? String(vs.stability) : '',
-      similarity: vs.similarity_boost != null ? String(vs.similarity_boost) : '',
-      style: vs.style != null ? String(vs.style) : '',
       emotionMap: b.emotionMap ?? {},
     });
     setEditing(b); setError(''); setModal('edit');
   }
 
   async function save(keepOpen = false) {
-    if (!form.slug.trim() || !form.title.trim() || !form.emoji.trim()) {
-      setError('Slug, гарчиг, emoji заавал бөглөнө'); return;
+    if (!form.slug.trim() || !form.title.trim()) {
+      setError('Slug, гарчиг заавал бөглөнө'); return;
     }
     setSaving(true); setError('');
     try {
-      const voiceSettings: Record<string, number> = {};
-      if (form.stability.trim() !== '') voiceSettings.stability = Number(form.stability);
-      if (form.similarity.trim() !== '') voiceSettings.similarity_boost = Number(form.similarity);
-      if (form.style.trim() !== '') voiceSettings.style = Number(form.style);
       // Only keep the emotion rows the admin actually filled in.
       const emotionMap = Object.fromEntries(
         Object.entries(form.emotionMap).filter(([, clip]) => clip.trim() !== ''),
@@ -139,14 +137,14 @@ export default function AiBuddyPage() {
         name: form.name.trim(),
         title: form.title.trim(),
         description: form.description.trim(),
-        emoji: form.emoji.trim(),
         systemPrompt: form.systemPrompt.trim(),
         extraMessagesAmount: Number(form.extraMessagesAmount),
         extraMessagesCost: Number(form.extraMessagesCost),
         voiceMinuteCost: form.voiceMinuteCostStr.trim() !== ''
           ? Number(form.voiceMinuteCostStr) : null,
         voiceId: form.voiceId.trim() || undefined,
-        ttsParams: Object.keys(voiceSettings).length ? { voiceSettings } : undefined,
+        // Gemini prebuilt voices take no per-voice params (unlike ElevenLabs).
+        ttsParams: undefined,
         emotionMap: Object.keys(emotionMap).length ? emotionMap : undefined,
         avatarAssetUrl: form.avatarAssetUrl.trim() || undefined,
         avatarThumbUrl: form.avatarThumbUrl.trim() || undefined,
@@ -192,6 +190,23 @@ export default function AiBuddyPage() {
       setError(err instanceof Error ? err.message : 'GLB байршуулж чадсангүй');
     } finally {
       setUploadingGlb(false);
+      e.target.value = ''; // allow re-uploading the same file
+    }
+  }
+
+  async function uploadThumb(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingThumb(true); setError('');
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await api.upload<{ url: string }>('/upload', fd);
+      f('avatarThumbUrl', res.url);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Зураг байршуулж чадсангүй');
+    } finally {
+      setUploadingThumb(false);
       e.target.value = ''; // allow re-uploading the same file
     }
   }
@@ -251,7 +266,14 @@ export default function AiBuddyPage() {
             >
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-4 flex-1">
-                  <div className="text-5xl leading-none">{buddy.emoji}</div>
+                  {buddy.avatarThumbUrl ? (
+                    <img src={buddy.avatarThumbUrl} alt={buddy.name}
+                      className="h-14 w-14 rounded-xl object-cover" />
+                  ) : (
+                    <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-white/60 text-xl font-bold text-gray-400">
+                      {buddy.name.charAt(0) || '?'}
+                    </div>
+                  )}
                   <div className="flex-1">
                     <span className={`inline-block text-sm px-3 py-1 rounded-full font-semibold ${colors.badge}`}>
                       {buddy.title}
@@ -323,24 +345,11 @@ export default function AiBuddyPage() {
       {modal && (
         <Modal title={modal === 'create' ? 'AI Buddy нэмэх' : 'AI Buddy засах'} onClose={() => setModal(null)}>
           <div className="space-y-4">
-            <div className="grid grid-cols-4 gap-3">
-              <div className="col-span-1">
-                <label className="text-sm font-medium text-gray-700 block mb-1">Emoji</label>
-                <input
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-2xl text-center focus:border-primary focus:outline-none"
-                  value={form.emoji}
-                  onChange={(e) => f('emoji', e.target.value)}
-                  maxLength={4}
-                />
-              </div>
-              <div className="col-span-3">
-                <Input label="Slug (URL-д ашиглагдана)"
-                  value={form.slug} placeholder="cop, doctor, teacher..."
-                  onChange={(e) => f('slug', e.target.value)}
-                  disabled={modal === 'edit'}
-                />
-              </div>
-            </div>
+            <Input label="Slug (URL-д ашиглагдана)"
+              value={form.slug} placeholder="cop, doctor, teacher..."
+              onChange={(e) => f('slug', e.target.value)}
+              disabled={modal === 'edit'}
+            />
 
             <div className="grid grid-cols-2 gap-3">
               <Input label="Нэр" value={form.name} placeholder="Цагдаа Болд"
@@ -397,18 +406,10 @@ export default function AiBuddyPage() {
                 )}
               </div>
 
-              <Input label="ElevenLabs voice ID (хоосон=default)"
-                value={form.voiceId} placeholder="EXAVITQu4vr4xnSDxMaL"
-                onChange={(e) => f('voiceId', e.target.value)} />
-
-              <div className="grid grid-cols-3 gap-3">
-                <Input label="Stability (0–1)" type="number" min={0} max={1} step={0.05}
-                  value={form.stability} onChange={(e) => f('stability', e.target.value)} placeholder="0.5" />
-                <Input label="Similarity (0–1)" type="number" min={0} max={1} step={0.05}
-                  value={form.similarity} onChange={(e) => f('similarity', e.target.value)} placeholder="0.75" />
-                <Input label="Style (0–1)" type="number" min={0} max={1} step={0.05}
-                  value={form.style} onChange={(e) => f('style', e.target.value)} placeholder="0" />
-              </div>
+              <Select label="Gemini дуу хоолой (voice)"
+                value={form.voiceId}
+                onChange={(e) => f('voiceId', e.target.value)}
+                options={[{ value: '', label: 'Өгөгдмөл (Kore)' }, ...GEMINI_VOICES.map((v) => ({ value: v, label: v }))]} />
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -423,9 +424,22 @@ export default function AiBuddyPage() {
                       disabled={uploadingGlb} onChange={uploadGlb} />
                   </label>
                 </div>
-                <Input label="Avatar thumbnail URL" value={form.avatarThumbUrl}
-                  placeholder="https://…/fox.png"
-                  onChange={(e) => f('avatarThumbUrl', e.target.value)} />
+                <div>
+                  <Input label="Avatar thumbnail URL" value={form.avatarThumbUrl}
+                    placeholder="https://…/fox.png"
+                    onChange={(e) => f('avatarThumbUrl', e.target.value)} />
+                  {/* Upload an image → R2/Cloudinary, auto-fills the URL above */}
+                  <label className="mt-1.5 inline-flex cursor-pointer items-center gap-1.5 text-xs font-medium text-primary hover:underline">
+                    <Upload className="h-3.5 w-3.5" />
+                    {uploadingThumb ? 'Байршуулж байна…' : 'Зураг байршуулах'}
+                    <input type="file" accept="image/*" className="hidden"
+                      disabled={uploadingThumb} onChange={uploadThumb} />
+                  </label>
+                  {form.avatarThumbUrl && (
+                    <img src={form.avatarThumbUrl} alt="thumbnail"
+                      className="mt-2 h-16 w-16 rounded-lg object-cover border border-gray-200" />
+                  )}
+                </div>
               </div>
 
               <details className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">

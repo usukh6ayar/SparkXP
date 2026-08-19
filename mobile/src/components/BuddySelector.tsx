@@ -73,12 +73,12 @@ const DEFAULT_UNLOCK_COST = 500;
 const POLICE_SLUG = 'police';
 /**
  * Nothing is gated server-side yet: the backend sends no `isLocked` and the
- * unlock sheet doesn't spend Sparks (see BuddyUnlockSheet). So the invented
- * lock only runs in dev — where it exercises the design against the mock
- * roster. In production every real buddy admin publishes stays open rather
- * than showing a fake 500-Spark price it can't actually charge.
+ * unlock sheet doesn't spend Sparks (see BuddyUnlockSheet). Off by default so
+ * DEV matches production — every real buddy admin publishes stays open rather
+ * than showing a fake 500-Spark price it can't actually charge. Flip to
+ * `__DEV__` temporarily to exercise the lock/unlock design against mocks.
  */
-const DEMO_LOCKING = __DEV__;
+const DEMO_LOCKING = false;
 /** Dark text on the gold Unlock button — white would have poor contrast on `colors.xp`. */
 const UNLOCK_TEXT_COLOR = '#402D00';
 
@@ -112,7 +112,9 @@ function withDefaults(buddy: Buddy, index: number, t: (key: TranslationKey) => s
   return {
     ...buddy,
     personalityTags: buddy.personalityTags ?? [t('traitFriendly'), t('traitPatient'), t('traitEncouraging')],
-    motto: buddy.motto ?? t('defaultBuddyMotto'),
+    // Backend sends no motto yet → fall back to the buddy's own description so
+    // each greeting is distinct (not the same generic line on every buddy).
+    motto: buddy.motto || buddy.description || t('defaultBuddyMotto'),
     isLocked: buddy.isLocked ?? (DEMO_LOCKING && index > 0 && buddy.slug !== POLICE_SLUG),
     unlockCostSparks: buddy.unlockCostSparks ?? DEFAULT_UNLOCK_COST,
   };
@@ -465,6 +467,10 @@ function BuddyCard({
   isSpeaking: boolean;
 }) {
   const [imgFailed, setImgFailed] = useState(false);
+  // The 3D canvas is transparent, so leaving the 2D art underneath makes a
+  // rendering problem invisible (the PNG just shows through). Show the art only
+  // until the GLB is actually on screen.
+  const [ready3d, setReady3d] = useState(false);
   const cardStyle = useAnimatedStyle(() => {
     const pos = scrollX.value / SNAP - index;
     const scale = interpolate(pos, [-1, 0, 1], [0.82, 1, 0.82], Extrapolation.CLAMP);
@@ -480,10 +486,14 @@ function BuddyCard({
   // Only the centered card mounts the 3D model (perf: avoid several live GL
   // canvases at once, and peek cards are scaled down anyway). It renders on
   // top of the 2D fallback, which stays visible as a placeholder while the
-  // GLB streams in and decodes. SHOW_3D_AVATAR is off for now (see
-  // buddyAvatarFlag.ts) — emoji/thumb is the deliberate primary rendering
-  // until the GLB texture pipeline is fixed and verified.
+  // GLB streams in and decodes. When SHOW_3D_AVATAR is off (see
+  // buddyAvatarFlag.ts) the thumbnail (or a name-initial placeholder) is the
+  // primary rendering until the GLB texture pipeline is fixed and verified.
   const show3d = SHOW_3D_AVATAR && isCenter && !!buddy.avatarAssetUrl;
+  // The #1 cause of "3D never appears" is the buddy simply having no
+  // avatarAssetUrl (admin filled only the thumbnail) — on screen that is
+  // indistinguishable from a GLB that failed to load, so name it in DEV.
+  const missingAsset = __DEV__ && isCenter && SHOW_3D_AVATAR && !buddy.avatarAssetUrl;
 
   return (
     <Animated.View style={[styles.cardSlot, cardStyle]}>
@@ -498,10 +508,10 @@ function BuddyCard({
             end={{ x: 0.5, y: 1 }}
             style={StyleSheet.absoluteFill}
           />
-          {buddy.avatarThumbUrl && !imgFailed ? (
+          {ready3d ? null : buddy.avatarThumbUrl && !imgFailed ? (
             // `contain` so the character stands on the lavender panel with the
             // gradient showing around it (like the reference), instead of the
-            // art being cropped edge-to-edge. Falls back to the emoji if the
+            // art being cropped edge-to-edge. Falls back to a name initial if the
             // remote asset is broken/unreachable.
             <AppImage
               source={{ uri: buddy.avatarThumbUrl }}
@@ -514,13 +524,21 @@ function BuddyCard({
               }}
             />
           ) : (
-            <AppText style={styles.cardEmoji}>{buddy.emoji}</AppText>
+            <AppText style={styles.cardEmoji}>{buddy.name?.charAt(0) ?? '?'}</AppText>
+          )}
+          {missingAsset && (
+            <AppText style={styles.debug3d}>3D: avatarAssetUrl хоосон ({buddy.slug})</AppText>
           )}
           {show3d && (
             <BuddyAvatar
               assetUrl={buddy.avatarAssetUrl}
               emotionMap={buddy.emotionMap}
               isSpeaking={isSpeaking}
+              // The card reads the motto aloud (expo-speech), so the mouth
+              // shapes come from that text.
+              speechText={buddy.motto}
+              emotion="happy"
+              onReady={setReady3d}
               style={styles.cardAvatarFill}
             />
           )}
@@ -634,6 +652,8 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
   },
   cardAvatarFill: { ...StyleSheet.absoluteFillObject },
+  /** DEV-only overlay explaining a missing 3D avatar (see `missingAsset`). */
+  debug3d: { position: 'absolute', bottom: 6, left: 6, right: 6, color: '#FF5A5A', fontSize: 10 },
   cardEmoji: { fontSize: CARD_WIDTH * 0.42, lineHeight: CARD_WIDTH * 0.48 },
   cardLockBadge: {
     position: 'absolute', width: 62, height: 62, borderRadius: radius.full,

@@ -11,7 +11,7 @@ import type { Buddy } from '../api/ai';
  * talking to a persona they didn't pick. That is why `buildMockBuddies` is
  * gated behind `__DEV__` (same rule as DEV_MOCK_NOTIFICATIONS): in production
  * the carousel shows only the real buddies the backend returns. Usukhbayar
- * adds those via admin (name/emoji/GLB/etc.), and they appear with no app
+ * adds those via admin (name/GLB/thumbnail/etc.), and they appear with no app
  * update. DELETE this file once the real roster is authored.
  *
  * `FOX_SLUG` is the default/flagship stand-in (matches the app's existing
@@ -26,7 +26,6 @@ export const FOX_SLUG = 'spark-fox';
 
 interface MockBuddyDef {
   slug: string;
-  emoji: string;
   traitKeys: [TranslationKey, TranslationKey, TranslationKey];
   isLocked?: boolean;
   mn: { name: string; title: string; description: string; motto: string };
@@ -36,7 +35,6 @@ interface MockBuddyDef {
 const DEFS: MockBuddyDef[] = [
   {
     slug: FOX_SLUG,
-    emoji: '🦊',
     traitKeys: ['traitFriendly', 'traitPatient', 'traitEncouraging'],
     isLocked: false,
     mn: {
@@ -54,7 +52,6 @@ const DEFS: MockBuddyDef[] = [
   },
   {
     slug: 'doctor',
-    emoji: '👩‍⚕️',
     traitKeys: ['traitWise', 'traitCalm', 'traitCaring'],
     mn: {
       name: 'Эмч Сарнай',
@@ -71,7 +68,6 @@ const DEFS: MockBuddyDef[] = [
   },
   {
     slug: 'firefighter',
-    emoji: '👨‍🚒',
     traitKeys: ['traitBrave', 'traitStrong', 'traitEncouraging'],
     mn: {
       name: 'Гал сөнөөгч Эрдэнэ',
@@ -88,7 +84,6 @@ const DEFS: MockBuddyDef[] = [
   },
   {
     slug: 'teacher',
-    emoji: '👩‍🏫',
     traitKeys: ['traitWise', 'traitMotivating', 'traitFocused'],
     mn: {
       name: 'Багш Мөнхзул',
@@ -115,7 +110,6 @@ export function buildMockBuddies(t: (key: TranslationKey) => string, lang: Lang)
       name: d.slug === FOX_SLUG ? t('defaultBuddyName') : copy.name,
       title: copy.title,
       description: copy.description,
-      emoji: d.emoji,
       avatarAssetUrl: null,
       avatarThumbUrl: null,
       emotionMap: {},

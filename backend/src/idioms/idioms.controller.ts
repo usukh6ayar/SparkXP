@@ -173,7 +173,7 @@ export class IdiomsController {
     return this.idiomsService.remove(id);
   }
 
-  /** Generate pronunciation audio (ElevenLabs) for an idiom. */
+  /** Generate pronunciation audio (Gemini) for an idiom. */
   @Post(':id/generate-audio')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.MODERATOR)

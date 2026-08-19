@@ -212,7 +212,7 @@ export class LessonsService {
   }
 
   /**
-   * Видеог ElevenLabs Scribe-аар бичвэр болгоно.
+   * Видеог Gemini STT-аар бичвэр болгоно.
    *
    * Видео энэ процессоор дамжихгүй — Scribe-д URL өгнө (`transcribeUrl`).
    * Зардлыг `ai_usages`-д АДМИНЫ нэр дээр бичнэ: сурагчийн

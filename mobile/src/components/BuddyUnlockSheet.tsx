@@ -69,7 +69,7 @@ export function BuddyUnlockSheet({
             {buddy.avatarThumbUrl ? (
               <AppImage source={{ uri: buddy.avatarThumbUrl }} width={72} style={styles.avatarImg} contentFit="contain" />
             ) : (
-              <AppText style={styles.avatarEmoji}>{buddy.emoji}</AppText>
+              <AppText style={styles.avatarEmoji}>{buddy.name?.charAt(0) ?? '?'}</AppText>
             )}
           </View>
 

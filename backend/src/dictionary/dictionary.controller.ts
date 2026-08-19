@@ -108,7 +108,7 @@ export class DictionaryController {
 
   /**
    * GET /api/dictionary/:word/audio
-   * Pronunciation audio URL (ElevenLabs). Generated once on the first speaker
+   * Pronunciation audio URL (Gemini). Generated once on the first speaker
    * tap, then cached and reused forever.
    */
   @Get(':word/audio')

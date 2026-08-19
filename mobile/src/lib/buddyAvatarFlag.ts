@@ -12,4 +12,4 @@
  * both BuddySelector.tsx (buddy carousel) and chat.tsx (post-Apply screen)
  * read this single flag, so there's one place to flip, not two.
  */
-export const SHOW_3D_AVATAR = false;
+export const SHOW_3D_AVATAR = true;
