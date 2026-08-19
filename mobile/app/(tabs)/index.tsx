@@ -47,6 +47,7 @@ import { Skeleton } from "../../src/components/Skeleton";
 import { ProgressBar } from "../../src/components/ProgressBar";
 import { useColors, useSettings } from "../../src/settings/SettingsContext";
 import { haptics } from "../../src/lib/haptics";
+import { useAssignmentBadge } from "../../src/lib/useAssignmentBadge";
 import { tf, type TranslationKey } from "../../src/i18n";
 import {
   spacing,
@@ -355,6 +356,9 @@ export default function HomeScreen() {
   // Whether the student has joined a class — assignments come from a teacher's
   // class, so the "My assignments" card only shows for enrolled students.
   const [enrolled, setEnrolled] = useState(false);
+  // Homework badge for the card below. Only fetched once the student is known to
+  // be in a class — the card is hidden otherwise, so the request would be waste.
+  const assignmentBadge = useAssignmentBadge(enrolled);
   const [refreshing, setRefreshing] = useState(false);
   // First-load flag → show skeletons instead of "jumping from 0" content.
   const [loading, setLoading] = useState(true);
@@ -667,11 +671,46 @@ export default function HomeScreen() {
             />
           ) : null}
 
-          {/* SECONDARY — review + assignments, each a FULL-WIDTH card stacked
+          {/* SECONDARY — assignments + review, each a FULL-WIDTH card stacked
               one under the other. Half-width tiles squeezed the Mongolian
               labels ("Давтах үгс" / "Миний даалгавар") into one clipped line
               and shrank the review CTA to an icon; full width keeps both
-              readable whether or not the student is enrolled in a class. */}
+              readable whether or not the student is enrolled in a class.
+
+              Assignments sit ABOVE review on purpose: homework has a deadline
+              and comes from a person, so missing it costs the student something
+              review does not. Below the fold it went unnoticed entirely. */}
+          {/* My assignments — only for students enrolled in a class (that's
+              where assignments come from). */}
+          {enrolled ? (
+            <Pressable
+              style={({ pressed }) => [styles.joinCard, pressed && styles.pressed]}
+              onPress={() => { haptics.tap(); router.push("/assignments"); }}
+            >
+              <View style={[styles.joinIcon, { backgroundColor: tints.green.bg, borderColor: tints.green.fg }]}>
+                <Ionicons name="clipboard" size={24} color={tints.green.fg} />
+              </View>
+              <View style={styles.joinBody}>
+                <View style={styles.assignHead}>
+                  <AppText variant="h3">{t("myAssignments")}</AppText>
+                  {/* Arrived since the list was last opened — the whole point:
+                      a student who ignores the push still sees it here. */}
+                  {assignmentBadge.hasNew ? (
+                    <View style={[styles.newPill, { backgroundColor: c.danger }]}>
+                      <AppText variant="caption" color={c.white}>{t("newLabel")}</AppText>
+                    </View>
+                  ) : null}
+                </View>
+                <AppText variant="caption" color={c.textSecondary}>
+                  {assignmentBadge.pending > 0
+                    ? tf("assignmentsPendingCount", { n: assignmentBadge.pending })
+                    : t("assignmentsSubtitle")}
+                </AppText>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={c.borderStrong} />
+            </Pressable>
+          ) : null}
+
           {/* Review reminder */}
           <View style={styles.reviewCard}>
             <View style={styles.reviewHead}>
@@ -699,24 +738,6 @@ export default function HomeScreen() {
               onPress={() => router.push("/swipe")}
             />
           </View>
-
-          {/* My assignments — only for students enrolled in a class (that's
-              where assignments come from). */}
-          {enrolled ? (
-            <Pressable
-              style={({ pressed }) => [styles.joinCard, pressed && styles.pressed]}
-              onPress={() => { haptics.tap(); router.push("/assignments"); }}
-            >
-              <View style={[styles.joinIcon, { backgroundColor: tints.green.bg, borderColor: tints.green.fg }]}>
-                <Ionicons name="clipboard" size={24} color={tints.green.fg} />
-              </View>
-              <View style={styles.joinBody}>
-                <AppText variant="h3">{t("myAssignments")}</AppText>
-                <AppText variant="caption" color={c.textSecondary}>{t("assignmentsSubtitle")}</AppText>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={c.borderStrong} />
-            </Pressable>
-          ) : null}
 
           {/* BROWSE — the skill menu as ONE row of 4 gradient tiles ("Юу сурах
               вэ?"). All four skills are peers, so a single row says that; the
@@ -800,6 +821,31 @@ export default function HomeScreen() {
           {/* Live events (Daily · Weekly · Double XP) — hidden when none. */}
           <EventsCard events={events} />
 
+          {/* Occasional verticals drop into a horizontal rail ("Бас үзээрэй"). */}
+          <View style={styles.learnHead}>
+            <AppText variant="h2">{t("alsoTry")}</AppText>
+          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.railScroll}
+            contentContainerStyle={styles.rail}
+          >
+            <PressableScale style={styles.railCard} onPress={() => { haptics.tap(); router.push("/ielts"); }}>
+              <View style={[styles.railIcon, { backgroundColor: tints.amber.bg, borderColor: tints.amber.fg }]}>
+                <Ionicons name="school" size={24} color={tints.amber.fg} />
+              </View>
+              <AppText variant="h3" numberOfLines={1}>{t("ieltsHomeCard")}</AppText>
+              <AppText variant="caption" color={c.textSecondary} numberOfLines={2}>{t("ieltsHomeHint")}</AppText>
+            </PressableScale>
+            <PressableScale style={styles.railCard} onPress={() => { haptics.tap(); router.push("/idioms"); }}>
+              <View style={[styles.railIcon, { backgroundColor: tints.purple.bg, borderColor: tints.purple.fg }]}>
+                <Ionicons name="chatbubbles" size={24} color={tints.purple.fg} />
+              </View>
+              <AppText variant="h3" numberOfLines={1}>{t("idiomsTitle")}</AppText>
+              <AppText variant="caption" color={c.textSecondary} numberOfLines={2}>{t("idiomsSubtitle")}</AppText>
+            </PressableScale>
+          </ScrollView>
           {/* Top-3 leaderboard preview — the whole card taps into the full board. */}
           {leaders.length > 0 ? (
             <>
@@ -833,31 +879,6 @@ export default function HomeScreen() {
             </>
           ) : null}
 
-          {/* Occasional verticals drop into a horizontal rail ("Бас үзээрэй"). */}
-          <View style={styles.learnHead}>
-            <AppText variant="h2">{t("alsoTry")}</AppText>
-          </View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.railScroll}
-            contentContainerStyle={styles.rail}
-          >
-            <PressableScale style={styles.railCard} onPress={() => { haptics.tap(); router.push("/ielts"); }}>
-              <View style={[styles.railIcon, { backgroundColor: tints.amber.bg, borderColor: tints.amber.fg }]}>
-                <Ionicons name="school" size={24} color={tints.amber.fg} />
-              </View>
-              <AppText variant="h3" numberOfLines={1}>{t("ieltsHomeCard")}</AppText>
-              <AppText variant="caption" color={c.textSecondary} numberOfLines={2}>{t("ieltsHomeHint")}</AppText>
-            </PressableScale>
-            <PressableScale style={styles.railCard} onPress={() => { haptics.tap(); router.push("/idioms"); }}>
-              <View style={[styles.railIcon, { backgroundColor: tints.purple.bg, borderColor: tints.purple.fg }]}>
-                <Ionicons name="chatbubbles" size={24} color={tints.purple.fg} />
-              </View>
-              <AppText variant="h3" numberOfLines={1}>{t("idiomsTitle")}</AppText>
-              <AppText variant="caption" color={c.textSecondary} numberOfLines={2}>{t("idiomsSubtitle")}</AppText>
-            </PressableScale>
-          </ScrollView>
 
           <View style={{ height: 110 }} />
         </View>
@@ -1079,6 +1100,8 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
     justifyContent: "center",
   },
   joinBody: { flex: 1, gap: 2 },
+  assignHead: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  newPill: { paddingHorizontal: spacing.sm, paddingVertical: 1, borderRadius: radius.full },
 
   // Section eyebrow + title (skill grid / rail).
   learnHead: { marginTop: spacing.xl, marginBottom: spacing.md, gap: 2 },

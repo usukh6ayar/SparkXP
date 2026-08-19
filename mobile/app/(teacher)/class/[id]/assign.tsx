@@ -10,10 +10,11 @@ import * as classesApi from '../../../../src/api/classes';
 import type { ClassStudent } from '../../../../src/api/classes';
 import { getLessons } from '../../../../src/api/lessons';
 import { getQuizzes } from '../../../../src/api/quizzes';
-import { t, type TranslationKey } from '../../../../src/i18n';
+import { t, tf, type TranslationKey } from '../../../../src/i18n';
 import { AppText } from '../../../../src/components/Text';
 import { SelectField } from '../../../../src/components/SelectField';
 import { TextField } from '../../../../src/components/TextField';
+import { FilterChips } from '../../../../src/components/FilterChips';
 import { ActionButton } from '../../../../src/components/ActionButton';
 import { spacing, radius, type AppColors } from '../../../../src/theme/theme';
 import { bounded } from '../../../../src/theme/responsive';
@@ -28,6 +29,27 @@ const DUE_PRESETS: { labelKey: TranslationKey; days: number | null }[] = [
   { labelKey: 'due7Days', days: 7 },
 ];
 
+/**
+ * One assignable piece of content. `group` is what the filter chips slice on —
+ * the CEFR level for a lesson, the category for a quiz — kept as one field so
+ * the filtering code does not branch on the content type.
+ */
+type Pickable = { id: string; title: string; group: string };
+
+/** Content with no level/category still needs a chip to live under. */
+const UNGROUPED = '—';
+
+/**
+ * The dropdown label. The group is appended because two lessons can share a
+ * title (e.g. "Present Simple" at A1 and B1) and the picker matches on the
+ * label — without it the teacher could assign the wrong one.
+ */
+function labelOf(item: Pickable): string {
+  return item.group === UNGROUPED
+    ? item.title
+    : `${item.title} · ${item.group.toUpperCase()}`;
+}
+
 export default function AssignScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { token } = useAuth();
@@ -36,12 +58,16 @@ export default function AssignScreen() {
   const router = useRouter();
 
   const [type, setType] = useState<AssignmentType>('lesson');
-  const [items, setItems] = useState<Record<AssignmentType, { id: string; title: string }[]>>({
+  const [items, setItems] = useState<Record<AssignmentType, Pickable[]>>({
     lesson: [],
     quiz: [],
   });
   const [loading, setLoading] = useState(true);
   const [selectedTitle, setSelectedTitle] = useState<string | undefined>();
+  // Content filters. A school can have hundreds of lessons; without these the
+  // picker is one unscrollable list and the teacher simply cannot find theirs.
+  const [group, setGroup] = useState('all');
+  const [query, setQuery] = useState('');
   const [dueIdx, setDueIdx] = useState(0);
   const dueLabels = DUE_PRESETS.map((p) => t(p.labelKey));
   const [note, setNote] = useState('');
@@ -60,8 +86,16 @@ export default function AssignScreen() {
           classesApi.getClassStudents(id, token),
         ]);
         setItems({
-          lesson: lessons.items.map((l) => ({ id: l.id, title: l.title })),
-          quiz: quizzes.items.map((q) => ({ id: q.id, title: q.title })),
+          lesson: lessons.items.map((l) => ({
+            id: l.id,
+            title: l.title,
+            group: l.level || UNGROUPED,
+          })),
+          quiz: quizzes.items.map((q) => ({
+            id: q.id,
+            title: q.title,
+            group: q.category || UNGROUPED,
+          })),
         });
         setStudents(roster);
       } finally {
@@ -77,11 +111,51 @@ export default function AssignScreen() {
   }
 
   const list = items[type];
-  const selected = list.find((i) => i.title === selectedTitle);
+
+  // Chips are built from what actually exists, not a hardcoded level list — a
+  // school that only has A1/A2 content should not see four dead chips.
+  const groupChips = useMemo(() => {
+    const seen = [...new Set(list.map((i) => i.group))].sort();
+    return [
+      { key: 'all', label: t('filterAll') },
+      ...seen.map((g) => ({ key: g, label: g.toUpperCase() })),
+    ];
+  }, [list]);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return list.filter(
+      (i) =>
+        (group === 'all' || i.group === group) &&
+        (!q || i.title.toLowerCase().includes(q)),
+    );
+  }, [list, group, query]);
+
+  // Label → item, so the picker resolves back to an id rather than a title.
+  const byLabel = useMemo(
+    () => new Map(filtered.map((i) => [labelOf(i), i])),
+    [filtered],
+  );
+  const selected = selectedTitle ? byLabel.get(selectedTitle) : undefined;
 
   function pickType(next: AssignmentType) {
     setType(next);
-    setSelectedTitle(undefined); // reset selection when switching type
+    // Every filter is scoped to one content type, so all of it resets together.
+    setSelectedTitle(undefined);
+    setGroup('all');
+    setQuery('');
+  }
+
+  /**
+   * Narrowing the list can hide whatever was already picked. Clearing the
+   * selection alongside keeps the field honest — otherwise it keeps showing a
+   * lesson that is no longer selectable while the Assign button sits disabled
+   * with no visible reason.
+   */
+  function narrow(next: { group?: string; query?: string }) {
+    if (next.group !== undefined) setGroup(next.group);
+    if (next.query !== undefined) setQuery(next.query);
+    setSelectedTitle(undefined);
   }
 
   function computeDueAt(): string | undefined {
@@ -149,14 +223,49 @@ export default function AssignScreen() {
               <AppText variant="caption" color={colors.textSecondary} style={{ marginBottom: spacing.sm }}>
                 {t('noContentToAssign')}
               </AppText>
+            ) : (
+              <>
+                <TextField
+                  label={t('assignSearch')}
+                  placeholder={t('assignSearch')}
+                  value={query}
+                  onChangeText={(v) => narrow({ query: v })}
+                  autoCorrect={false}
+                />
+                {/* Only worth a chip row when there is more than one group. */}
+                {groupChips.length > 2 ? (
+                  <FilterChips
+                    value={group}
+                    options={groupChips}
+                    onChange={(g) => narrow({ group: g })}
+                    style={{ marginBottom: spacing.sm }}
+                  />
+                ) : null}
+              </>
+            )}
+
+            {list.length > 0 && filtered.length === 0 ? (
+              <AppText variant="caption" color={colors.textSecondary} style={{ marginBottom: spacing.sm }}>
+                {t('assignNoMatch')}
+              </AppText>
             ) : null}
+
             <SelectField
               label={t('selectContent')}
               placeholder={t('selectContent')}
               value={selectedTitle}
-              options={list.map((i) => i.title)}
+              options={[...byLabel.keys()]}
               onSelect={setSelectedTitle}
             />
+            {filtered.length > 0 ? (
+              <AppText
+                variant="caption"
+                color={colors.textMuted}
+                style={{ marginTop: -spacing.sm, marginBottom: spacing.sm }}
+              >
+                {tf('assignFoundCount', { n: filtered.length })}
+              </AppText>
+            ) : null}
             <SelectField
               label={t('dueDate')}
               placeholder={t('noDueDate')}

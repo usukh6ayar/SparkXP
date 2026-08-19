@@ -14,27 +14,16 @@ import { Skeleton } from '../src/components/Skeleton';
 import { getMyNotifications, type AppNotification } from '../src/api/notifications';
 import { markNotificationsSeen } from '../src/lib/useUnreadNotifications';
 import { haptics } from '../src/lib/haptics';
+import { timeAgo } from '../src/lib/timeAgo';
 import { enter, useReduceMotion } from '../src/lib/motion';
 import {
-  categorize, chipOf, bucketOf, notifStore, DEV_MOCK_NOTIFICATIONS,
+  categorize, chipOf, bucketOf, notifStore,
   type NotifCategory, type ChipKey, type TimeBucket,
 } from '../src/lib/notificationCenter';
 import { t, tf } from '../src/i18n';
 import { spacing, radius, tints, elevation, type AppColors } from '../src/theme/theme';
 import { useColors } from '../src/settings/SettingsContext';
 import { bounded } from '../src/theme/responsive';
-
-/** Compact "x ago" label from an ISO timestamp; falls back to a date. */
-function timeAgo(iso: string): string {
-  const min = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
-  if (min < 1) return t('timeNow');
-  if (min < 60) return tf('timeMinAgo', { n: min });
-  const hr = Math.floor(min / 60);
-  if (hr < 24) return tf('timeHourAgo', { n: hr });
-  const day = Math.floor(hr / 24);
-  if (day < 7) return tf('timeDayAgo', { n: day });
-  return new Date(iso).toLocaleDateString();
-}
 
 /** Visual identity + optional deep-link for each category (routes all exist). */
 type CategoryMeta = {
@@ -47,6 +36,8 @@ function metaFor(category: NotifCategory, c: AppColors): CategoryMeta {
   switch (category) {
     case 'learning':
       return { icon: 'flash', tint: tints.purple, cta: { labelKey: 'notifCtaContinue', href: '/(tabs)/lessons' } };
+    case 'assignment':
+      return { icon: 'clipboard', tint: tints.pink, cta: { labelKey: 'notifCtaView', href: '/assignments' } };
     case 'rewards':
       return { icon: 'star', tint: tints.orange };
     case 'achievement':
@@ -237,16 +228,9 @@ export default function NotificationsScreen() {
     try {
       setError(false);
       const list = token ? await getMyNotifications(token) : [];
-      // DEV: preview data until real broadcasts exist (see DEV_MOCK_NOTIFICATIONS).
-      await (list.length === 0 ? show(DEV_MOCK_NOTIFICATIONS, false) : show(list, true));
+      await show(list, true);
     } catch {
-      // DEV: still preview the UI even when the API is unreachable.
-      if (DEV_MOCK_NOTIFICATIONS.length > 0) {
-        await show(DEV_MOCK_NOTIFICATIONS, false);
-        setError(false);
-      } else {
-        setError(true);
-      }
+      setError(true);
     }
   }, [token]);
 
@@ -343,8 +327,11 @@ export default function NotificationsScreen() {
 
   const open = useCallback((n: AppNotification, category: NotifCategory) => {
     markRead(n.id);
-    const meta = metaFor(category, colors);
-    if (meta.cta) router.push(meta.cta.href);
+    // The backend's own deep link wins — it can point at one specific item,
+    // while the category default only knows the section. Falls back to the
+    // category for broadcasts and older rows, which carry no `data`.
+    const href = n.data?.url ?? metaFor(category, colors).cta?.href;
+    if (href) router.push(href as Href);
   }, [markRead, router, colors]);
 
   // Long-press context menu (Open · Mark read · Mute type · Delete).

@@ -3,7 +3,7 @@ import { useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../auth/AuthContext';
 import { getMyNotifications } from '../api/notifications';
-import { DEV_MOCK_NOTIFICATIONS, notifStore } from './notificationCenter';
+
 
 const LAST_SEEN_KEY = 'notifications.lastSeen';
 
@@ -32,29 +32,22 @@ export function useUnreadNotifications(): boolean {
         try {
           real = await getMyNotifications(token);
         } catch {
-          real = []; // API unreachable — fall through to the dev preview below
+          real = []; // API unreachable — show no dot rather than a false one
         }
         if (!active) return;
 
-        if (real.length > 0) {
-          // Real broadcasts: timestamp "seen" model (backend has no per-id read).
-          const latest = real.reduce((max, n) => (n.createdAt > max ? n.createdAt : max), real[0].createdAt);
-          const seen = await AsyncStorage.getItem(LAST_SEEN_KEY);
-          if (active) setHasUnread(!seen || latest > seen);
+        if (real.length === 0) {
+          setHasUnread(false);
           return;
         }
 
-        // DEV: derive the dot from the local read/dismissed sets, exactly like
-        // the notifications screen — so it stays visible until the user marks
-        // things read and clears reliably afterwards.
-        if (DEV_MOCK_NOTIFICATIONS.length > 0) {
-          const [read, dismissed] = await Promise.all([notifStore.loadRead(), notifStore.loadDismissed()]);
-          if (active) {
-            setHasUnread(DEV_MOCK_NOTIFICATIONS.some((n) => !read.has(n.id) && !dismissed.has(n.id)));
-          }
-        } else if (active) {
-          setHasUnread(false);
-        }
+        // Timestamp "seen" model — the backend has no per-id read flag.
+        const latest = real.reduce(
+          (max, n) => (n.createdAt > max ? n.createdAt : max),
+          real[0].createdAt,
+        );
+        const seen = await AsyncStorage.getItem(LAST_SEEN_KEY);
+        if (active) setHasUnread(!seen || latest > seen);
       })();
       return () => {
         active = false;

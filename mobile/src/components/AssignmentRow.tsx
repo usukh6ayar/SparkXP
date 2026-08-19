@@ -3,6 +3,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { AppText } from './Text';
 import { IconTile } from './IconTile';
 import { t } from '../i18n';
+import { dueState } from '../lib/dueDate';
 import { useColors } from '../settings/SettingsContext';
 import { spacing, tints } from '../theme/theme';
 import type { AssignmentType } from '../api/assignments';
@@ -15,7 +16,8 @@ export function AssignmentRow({
   dueAt,
   onDelete,
   onPress,
-  overdue = false,
+  progress,
+  expanded,
 }: {
   type: AssignmentType;
   title: string;
@@ -24,14 +26,25 @@ export function AssignmentRow({
   dueAt: string | null;
   onDelete?: () => void;
   onPress?: () => void;
-  overdue?: boolean;
+  /**
+   * Teacher view: how many of the targeted students have handed it in. Shown as
+   * a "8/12" pill so the teacher sees at a glance which task is lagging without
+   * opening anything.
+   */
+  progress?: { done: number; total: number };
+  /** Teacher view: whether the submissions list below this row is open. */
+  expanded?: boolean;
 }) {
   const c = useColors();
   const isLesson = type === 'lesson';
   const tint = isLesson ? tints.blue : tints.green;
-  const due = dueAt
-    ? new Date(dueAt).toLocaleDateString('mn-MN', { month: 'short', day: 'numeric' })
-    : t('noDueDate');
+  // "3 өдөр үлдлээ" beats "8-р сарын 22": the student no longer has to work out
+  // how urgent it is, which is the moment homework gets forgotten.
+  const due = dueState(dueAt);
+  const dueColor = due.overdue ? c.danger : due.urgent ? c.warning : undefined;
+  // Everyone handed it in — the one state worth colouring green, so a teacher
+  // scanning the list can skip it.
+  const allDone = !!progress && progress.total > 0 && progress.done >= progress.total;
 
   const Row = onPress ? Pressable : View;
   return (
@@ -54,17 +67,39 @@ export function AssignmentRow({
         <View style={styles.meta}>
           <AppText variant="caption" color={tint.fg}>{isLesson ? t('assignLesson') : t('assignQuiz')}</AppText>
           <AppText variant="caption" color={c.textMuted}>·</AppText>
-          <Ionicons name="calendar-outline" size={12} color={overdue ? c.danger : c.textMuted} />
-          <AppText variant="caption" color={overdue ? c.danger : undefined}>
-            {overdue ? t('overdue') : due}
+          <Ionicons name="calendar-outline" size={12} color={dueColor ?? c.textMuted} />
+          <AppText variant="caption" color={dueColor}>
+            {due.label}
           </AppText>
+          {progress ? (
+            <>
+              <AppText variant="caption" color={c.textMuted}>·</AppText>
+              <Ionicons
+                name="people-outline"
+                size={12}
+                color={allDone ? c.success : c.textMuted}
+              />
+              <AppText variant="caption" color={allDone ? c.success : undefined}>
+                {progress.done}/{progress.total}
+              </AppText>
+            </>
+          ) : null}
         </View>
       </View>
+      {/* The teacher row carries both: a chevron for expanding the submissions
+          list, and delete. The student row has neither and just navigates. */}
+      {onPress && expanded !== undefined ? (
+        <Ionicons
+          name={expanded ? 'chevron-up' : 'chevron-down'}
+          size={18}
+          color={c.borderStrong}
+        />
+      ) : null}
       {onDelete ? (
         <Pressable onPress={onDelete} hitSlop={8}>
           <Ionicons name="trash-outline" size={20} color={c.danger} />
         </Pressable>
-      ) : onPress ? (
+      ) : onPress && expanded === undefined ? (
         <Ionicons name="chevron-forward" size={18} color={c.borderStrong} />
       ) : null}
     </Row>

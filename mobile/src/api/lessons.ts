@@ -13,8 +13,22 @@ export interface Lesson {
   priceSparks: number;
 }
 
+/**
+ * Whether this student may watch a lesson, and why.
+ *
+ * The server owns the rule — the app only renders it. `freeRemaining` /
+ * `freeQuota` are `null` while the free-lesson quota is switched off
+ * (`FREE_LESSON_QUOTA_ENABLED`), which is the case until QPay ships; the UI
+ * must show no counter at all then rather than guessing a number.
+ */
 export interface LessonAccess {
   hasAccess: boolean;
+  /** 'plan' | 'unlocked' | 'assignment' | 'free_lesson' | 'locked' */
+  reason?: string;
+  /** True when `openLesson()` would succeed — homework, or a right to spend. */
+  canOpen?: boolean;
+  freeRemaining?: number | null;
+  freeQuota?: number | null;
 }
 
 export interface LessonUnlock {
@@ -37,6 +51,18 @@ export function getLesson(id: string, token: string): Promise<Lesson> {
 
 export function checkAccess(id: string, token: string): Promise<LessonAccess> {
   return apiRequest<LessonAccess>(`/lessons/${id}/access`, { token });
+}
+
+/**
+ * POST /lessons/:id/open — the "Эхлэх" tap. Grants access, spending one of the
+ * three free rights unless the lesson is teacher-assigned homework (always
+ * free). Idempotent on the server, so a double tap cannot cost two rights.
+ */
+export function openLesson(id: string, token: string): Promise<LessonAccess> {
+  return apiRequest<LessonAccess>(`/lessons/${id}/open`, {
+    method: 'POST',
+    token,
+  });
 }
 
 export function unlockLesson(id: string, token: string): Promise<LessonUnlock> {

@@ -1,9 +1,23 @@
 import { apiRequest } from './client';
 
 /**
- * A broadcast notification shown to the student (title/body announcement sent
- * from the admin panel). Named `AppNotification` to avoid clashing with the
- * global DOM `Notification` type.
+ * The deep link a notification carries, so tapping it lands on the right
+ * screen instead of just opening the app. Set by the backend; absent on older
+ * rows and on plain admin broadcasts.
+ */
+export interface NotificationData {
+  /** What produced it — drives the icon/colour without keyword-guessing. */
+  type?: 'assignment' | 'broadcast' | 'review_due' | string;
+  /** Expo Router href to open on tap, e.g. `/assignments`. */
+  url?: string;
+  assignmentId?: string;
+}
+
+/**
+ * A notification shown to the student. Two kinds share this shape: an admin
+ * broadcast (`targetRole` may narrow it to one role) and a personal one such
+ * as "your teacher assigned homework". Named `AppNotification` to avoid
+ * clashing with the global DOM `Notification` type.
  */
 export interface AppNotification {
   id: string;
@@ -11,11 +25,12 @@ export interface AppNotification {
   body: string;
   targetRole: string | null;
   createdAt: string;
+  data?: NotificationData | null;
 }
 
 /**
- * Notifications targeting the current user (role-matched + global broadcasts),
- * newest first. Backend: `GET /notifications/me` (Өсөхбаяр).
+ * Notifications targeting the current user (personal rows + role-matched and
+ * global broadcasts), newest first. Backend: `GET /notifications/me`.
  */
 export function getMyNotifications(token: string): Promise<AppNotification[]> {
   return apiRequest<AppNotification[]>('/notifications/me', { token });

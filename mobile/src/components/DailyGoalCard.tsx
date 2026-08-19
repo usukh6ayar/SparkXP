@@ -45,26 +45,32 @@ export function DailyGoalCard({
     >
       <ProgressRing
         progress={progress}
-        size={56}
-        stroke={7}
+        size={40}
+        stroke={5}
         gradient={done ? progressGradients.success : progressGradients.xp}
         track={c.surfaceAlt}
       >
         {done ? (
-          <Ionicons name="checkmark" size={22} color={c.success} />
+          <Ionicons name="checkmark" size={16} color={c.success} />
         ) : (
-          <AppIcon name="xp" size={22} />
+          <AppIcon name="xp" size={16} />
         )}
       </ProgressRing>
 
+      {/* Two lines, not three. The old layout stacked an ALL-CAPS overline, the
+          numbers and the remainder, which made a status strip as tall as the
+          feature cards around it. The label and the numbers share a row now —
+          the ring already carries the "progress" meaning. */}
       <View style={styles.copy}>
-        <AppText variant="overline" color={c.textMuted}>
-          {t('dailyGoalTitle').toUpperCase()}
-        </AppText>
-        <AppText variant="h3" color={c.text}>
-          {tf('dailyGoalProgress', { done: todayXp, goal: dailyGoal })}
-        </AppText>
-        <AppText variant="caption" color={done ? c.success : c.textSecondary}>
+        <View style={styles.titleRow}>
+          <AppText variant="label" color={c.textMuted} numberOfLines={1}>
+            {t('dailyGoalTitle')}
+          </AppText>
+          <AppText variant="bodyStrong" color={c.text}>
+            {tf('dailyGoalProgress', { done: todayXp, goal: dailyGoal })}
+          </AppText>
+        </View>
+        <AppText variant="caption" color={done ? c.success : c.textSecondary} numberOfLines={1}>
           {done ? t('dailyGoalDone') : tf('dailyGoalRemaining', { n: remaining })}
         </AppText>
       </View>
@@ -97,8 +103,11 @@ const makeStyles = (c: AppColors) =>
       borderWidth: 1,
       borderColor: c.border,
       paddingHorizontal: spacing.md,
-      paddingVertical: spacing.md,
+      paddingVertical: spacing.sm,
     },
-    copy: { flex: 1, gap: 0 },
-    editHint: { alignSelf: 'flex-start' },
+    copy: { flex: 1, gap: 2 },
+    titleRow: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.sm },
+    // Centred now that the card is two lines tall — pinned to the top it
+    // floated level with nothing.
+    editHint: { alignSelf: 'center' },
   });
