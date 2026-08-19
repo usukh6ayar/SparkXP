@@ -12,11 +12,13 @@ import {
   HttpCode,
 } from '@nestjs/common';
 import { LessonsService } from './lessons.service';
+import { LessonAccessService } from './lesson-access.service';
 import { CreateLessonDto } from './dto/create-lesson.dto';
 import { UpdateLessonDto } from './dto/update-lesson.dto';
 import { QueryLessonsDto } from './dto/query-lessons.dto';
 import { UpdateTranscriptDto } from './dto/update-transcript.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -30,7 +32,10 @@ import { UserRole } from '../common/enums';
  */
 @Controller('lessons')
 export class LessonsController {
-  constructor(private readonly lessonsService: LessonsService) {}
+  constructor(
+    private readonly lessonsService: LessonsService,
+    private readonly lessonAccess: LessonAccessService,
+  ) {}
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -93,9 +98,38 @@ export class LessonsController {
     return this.lessonsService.saveTranscript(id, dto.text);
   }
 
+  /** What this student may do with this lesson (plan / unlock / homework / quota). */
+  @Get(':id/access')
+  @UseGuards(JwtAuthGuard)
+  access(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string) {
+    return this.lessonAccess.getAccess(user.id, id);
+  }
+
+  /**
+   * "Эхлэх" — grant access, spending one free right unless this lesson is
+   * homework. Idempotent, so a double tap cannot cost two rights.
+   */
+  @Post(':id/open')
+  @UseGuards(JwtAuthGuard)
+  open(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string) {
+    return this.lessonAccess.open(user.id, id);
+  }
+
+  /**
+   * Public, but the paid `content` only comes back to someone entitled to it —
+   * otherwise the paywall would live in the app alone and a plain curl would
+   * walk past it. Title, description and thumbnail stay readable to everyone so
+   * the locked screen still has something to show.
+   */
   @Get(':id')
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
-    return this.lessonsService.findOne(id);
+  @UseGuards(OptionalJwtAuthGuard)
+  async findOne(
+    @CurrentUser() user: User | undefined,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    const lesson = await this.lessonsService.findOne(id);
+    const allowed = await this.lessonAccess.canSeeContent(user?.id ?? null, id);
+    return allowed ? lesson : { ...lesson, content: {} };
   }
 
   /** Student marks a lesson complete → awards XP once (idempotent). */

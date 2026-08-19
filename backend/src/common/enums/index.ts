@@ -236,6 +236,24 @@ export enum SparksSource {
   STORE_PURCHASE = "store_purchase",
 }
 
+/**
+ * Why a lesson is permanently open to a user (`lesson_unlocks.source`).
+ *
+ * The row itself has always meant "this lesson is mine forever"; the source
+ * records how it was earned, which the free-lesson quota needs in order to
+ * count only the opens that actually consumed one of the three free rights.
+ */
+export enum LessonUnlockSource {
+  /** Bought with Sparks (the original meaning of the table). */
+  SPARKS = "sparks",
+  /** Spent one of the free-tier lesson rights. */
+  FREE = "free",
+  /** Opened as teacher-assigned homework — never counts against the quota. */
+  ASSIGNMENT = "assignment",
+  /** Backfilled: completed before the quota existed. Grandfathered, never counted. */
+  LEGACY = "legacy",
+}
+
 /** Time windows for leaderboards. Computed from XpLog.created_at (no reset of
  * actual XP — just a date filter over the ledger). */
 export enum LeaderboardPeriod {

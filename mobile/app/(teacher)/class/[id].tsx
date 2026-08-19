@@ -19,6 +19,7 @@ import { JoinCodeCard } from '../../../src/components/JoinCodeCard';
 import { StudentRow } from '../../../src/components/StudentRow';
 import { RequestRow } from '../../../src/components/RequestRow';
 import { AssignmentRow } from '../../../src/components/AssignmentRow';
+import { SubmissionList } from '../../../src/components/SubmissionList';
 import { Button } from '../../../src/components/Button';
 import { Card } from '../../../src/components/Card';
 import { EmptyState } from '../../../src/components/EmptyState';
@@ -91,6 +92,9 @@ export default function ClassDetailScreen() {
     }, [token, id]),
   );
 
+  // Which assignment's submissions list is open. One at a time — the teacher is
+  // chasing one task, and stacking open lists buries the roster below.
+  const [openAssignmentId, setOpenAssignmentId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [actingId, setActingId] = useState<string | null>(null);
 
@@ -276,14 +280,27 @@ export default function ClassDetailScreen() {
         ) : (
           <Card variant="raised" padding="md">
             {assignments.map((a) => (
-              <AssignmentRow
-                key={a.id}
-                type={a.type}
-                title={titles[a.targetId] ?? '—'}
-                note={a.note}
-                dueAt={a.dueAt}
-                onDelete={() => confirmDelete(a.id)}
-              />
+              <View key={a.id}>
+                <AssignmentRow
+                  type={a.type}
+                  title={titles[a.targetId] ?? '—'}
+                  note={a.note}
+                  dueAt={a.dueAt}
+                  progress={{
+                    done: a.completedCount ?? 0,
+                    // Targeted students, or the whole roster when it went to everyone.
+                    total: a.studentIds?.length ?? detail?.students.length ?? 0,
+                  }}
+                  expanded={openAssignmentId === a.id}
+                  onPress={() =>
+                    setOpenAssignmentId((cur) => (cur === a.id ? null : a.id))
+                  }
+                  onDelete={() => confirmDelete(a.id)}
+                />
+                {openAssignmentId === a.id ? (
+                  <SubmissionList assignmentId={a.id} />
+                ) : null}
+              </View>
             ))}
           </Card>
         )}

@@ -17,6 +17,14 @@ export interface Assignment {
   /** Present on GET /assignments/mine rows (the student's own submission state). */
   status?: SubmissionStatus;
   scorePct?: number | null;
+  /**
+   * Present on GET /assignments?classId= (the teacher's view): how many of the
+   * targeted students have actually handed it in. Counts submitted rows only —
+   * the still-pending `assigned` ones are excluded server-side.
+   */
+  completedCount?: number;
+  /** Who it was set for. `null` = the whole class. */
+  studentIds?: string[] | null;
 }
 
 export interface CreateAssignmentInput {

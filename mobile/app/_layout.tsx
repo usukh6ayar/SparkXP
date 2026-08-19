@@ -17,6 +17,7 @@ import {
   Manrope_400Regular, Manrope_500Medium, Manrope_600SemiBold, Manrope_700Bold, Manrope_800ExtraBold,
 } from "@expo-google-fonts/manrope";
 import { AuthProvider, useAuth } from "../src/auth/AuthContext";
+import { usePushTapRouting } from "../src/lib/pushRegistration";
 import {
   SettingsProvider, useColors, useSettings, useStatusBarStyle,
 } from "../src/settings/SettingsContext";
@@ -61,6 +62,9 @@ function RootNavigator() {
   const colors = useColors();
   const segments = useSegments();
   const router = useRouter();
+
+  // Tapping a push ("Шинэ даалгавар") opens the screen it points at.
+  usePushTapRouting(!!token);
 
   useEffect(() => {
     if (PREVIEW_AUTH || loading) return;

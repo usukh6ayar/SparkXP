@@ -49,6 +49,16 @@ export class NotificationsController {
     return this.svc.setPrefs(user.id, dto.enabled);
   }
 
+  /**
+   * This user's notification centre — personal rows + broadcasts aimed at them.
+   * Declared before the admin `@Get()` below purely for readability; Nest
+   * matches on the exact path, so order does not affect routing here.
+   */
+  @Get('me')
+  findMine(@CurrentUser() user: User) {
+    return this.svc.findForUser(user);
+  }
+
   @Post('broadcast')
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)

@@ -74,7 +74,15 @@ export default function LessonDetailScreen() {
   const reduceMotion = useReduceMotion();
 
   const [lesson, setLesson] = useState<Lesson | null>(null);
-  const [hasAccess, setHasAccess] = useState(false);
+  // The whole access verdict, not just a boolean: the locked screen needs to
+  // know WHY it is locked (out of free lessons vs. a Sparks price) to say
+  // anything useful.
+  const [access, setAccess] = useState<lessonsApi.LessonAccess | null>(null);
+  const hasAccess = access?.hasAccess ?? false;
+  // The server sends a quota only when the feature is switched on, so this is
+  // also the "is the paywall live?" flag — no second env mirrored into the app.
+  const quotaLive = access?.freeQuota != null;
+  const isHomework = access?.reason === 'assignment';
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   // Words an admin attached to this lesson (empty for lessons with none).
   const [words, setWords] = useState<Word[]>([]);
@@ -122,7 +130,7 @@ export default function LessonDetailScreen() {
         AsyncStorage.getItem(watchKey),
       ]);
       setLesson(l);
-      setHasAccess(access.hasAccess);
+      setAccess(access);
       setQuizzes(qz.items);
       setWords(wordList.items);
       setDone(savedDone === '1');
@@ -231,6 +239,47 @@ export default function LessonDetailScreen() {
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 260);
   }, []);
 
+  /**
+   * "Эхлэх" — take the lesson using the free-lesson quota.
+   *
+   * Homework opens straight away (the server never charges a right for it);
+   * anything the student picked themselves asks first, because spending one of
+   * only three rights by mis-tapping would be the worst possible surprise.
+   *
+   * The server re-checks everything and is the authority — this is only the
+   * prompt.
+   */
+  function openFree() {
+    if (!id || !token) return;
+
+    const take = async () => {
+      setUnlocking(true);
+      try {
+        setAccess(await lessonsApi.openLesson(id, token));
+        haptics.success();
+      } catch {
+        alertError(t('unlockError'));
+      } finally {
+        setUnlocking(false);
+      }
+    };
+
+    // `freeRemaining` is null while the quota is off, and homework costs
+    // nothing — neither case deserves a "you are spending a right" prompt.
+    const isHomework = access?.reason === 'assignment' || access?.freeRemaining == null;
+    if (isHomework) {
+      void take();
+      return;
+    }
+
+    confirm({
+      title: t('lessonQuotaSpendTitle'),
+      message: tf('lessonQuotaSpendBody', { total: access?.freeQuota ?? 3 }),
+      confirmLabel: t('lessonQuotaSpendConfirm'),
+      onConfirm: take,
+    });
+  }
+
   function unlock() {
     if (!lesson) return;
     if ((user?.sparks ?? 0) < lesson.priceSparks) {
@@ -250,7 +299,7 @@ export default function LessonDetailScreen() {
         setUnlocking(true);
         try {
           await lessonsApi.unlockLesson(id!, token!);
-          setHasAccess(true);
+          setAccess((a) => ({ ...(a ?? {}), hasAccess: true }));
           haptics.success(); // lesson unlocked with sparks
           Alert.alert(t('unlockSuccessTitle'), t('unlockSuccessBody'));
         } catch {
@@ -347,23 +396,75 @@ export default function LessonDetailScreen() {
         {!hasAccess ? (
           <View style={styles.lockedBox}>
             <View style={styles.lockedIcon}>
-              <Ionicons name="lock-closed" size={28} color={c.primary} />
+              <Ionicons
+                name={access?.canOpen ? 'play-circle' : 'lock-closed'}
+                size={28}
+                color={c.primary}
+              />
             </View>
-            <AppText variant="h3" style={styles.lockedTitle}>{t('lessonLocked')}</AppText>
-            <AppText variant="body" color={c.textSecondary} center>
-              {t('lessonLockedBodyPrefix')} {lesson.priceSparks} {t('lessonLockedBodySuffix')}
-            </AppText>
-            <View style={styles.balance}>
-              <AppIcon name="sparks" size={16} />
-              <AppText variant="bodyStrong" color={c.sparks}>{t('balanceLabel')}: {user?.sparks ?? 0}</AppText>
-            </View>
-            <Button
-              label={unlocking ? t('unlocking') : `${t('unlockLabel')} · ${lesson.priceSparks} ${t('sparksUnit')}`}
-              icon="lock-open"
-              onPress={unlock}
-              disabled={unlocking}
-              style={{ marginTop: spacing.lg }}
-            />
+
+            {quotaLive ? (
+              /* Free-lesson quota. Two states only: the student can take this
+                 lesson (homework, or a right left), or they are out and the
+                 only way on is a subscription. */
+              access?.canOpen ? (
+                <>
+                  <AppText variant="h3" style={styles.lockedTitle}>
+                    {isHomework ? t('lessonHomeworkFree') : t('lessonQuotaTitle')}
+                  </AppText>
+                  {!isHomework ? (
+                    <AppText variant="body" color={c.textSecondary} center>
+                      {access.freeRemaining === 1
+                        ? t('lessonQuotaLastOne')
+                        : tf('lessonQuotaRemaining', { n: access.freeRemaining ?? 0 })}
+                    </AppText>
+                  ) : null}
+                  <Button
+                    label={unlocking ? t('lessonOpening') : t('lessonStart')}
+                    icon="play"
+                    onPress={openFree}
+                    disabled={unlocking}
+                    style={{ marginTop: spacing.lg }}
+                  />
+                </>
+              ) : (
+                <>
+                  <AppText variant="h3" style={styles.lockedTitle}>
+                    {t('lessonQuotaExhaustedTitle')}
+                  </AppText>
+                  <AppText variant="body" color={c.textSecondary} center>
+                    {t('lessonQuotaExhaustedBody')}
+                  </AppText>
+                  {/* Until QPay lands this only opens the plan list — no
+                      checkout is wired, and pretending otherwise would dead-end. */}
+                  <Button
+                    label={t('seePlans')}
+                    icon="sparkles"
+                    onPress={() => router.push('/plan')}
+                    style={{ marginTop: spacing.lg }}
+                  />
+                </>
+              )
+            ) : (
+              /* Quota off → the original Sparks purchase, untouched. */
+              <>
+                <AppText variant="h3" style={styles.lockedTitle}>{t('lessonLocked')}</AppText>
+                <AppText variant="body" color={c.textSecondary} center>
+                  {t('lessonLockedBodyPrefix')} {lesson.priceSparks} {t('lessonLockedBodySuffix')}
+                </AppText>
+                <View style={styles.balance}>
+                  <AppIcon name="sparks" size={16} />
+                  <AppText variant="bodyStrong" color={c.sparks}>{t('balanceLabel')}: {user?.sparks ?? 0}</AppText>
+                </View>
+                <Button
+                  label={unlocking ? t('unlocking') : `${t('unlockLabel')} · ${lesson.priceSparks} ${t('sparksUnit')}`}
+                  icon="lock-open"
+                  onPress={unlock}
+                  disabled={unlocking}
+                  style={{ marginTop: spacing.lg }}
+                />
+              </>
+            )}
           </View>
         ) : (
           <>

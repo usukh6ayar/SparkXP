@@ -10,25 +10,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { AppNotification } from '../api/notifications';
 
-// ── DEV-only preview data ───────────────────────────────────────────────────
-// Lets us exercise the full notification flow (home bell dot → list → categories
-// → swipe → CTA) before the admin panel has sent any real broadcasts. Gated
-// behind __DEV__ so it never ships, and only used when the real list is empty.
-// DELETE this block + its imports once real notifications exist.
-const MIN = 60_000, HR = 60 * MIN, DAY = 24 * HR;
-export const DEV_MOCK_NOTIFICATIONS: AppNotification[] = __DEV__
-  ? [
-      { id: 'mockv2-1', targetRole: null, title: '🔥 Өдрийн дараалал', body: '15 өдрийн дарааллаа таслуулалгүй үргэлжлүүл!', createdAt: new Date(Date.now() - 5 * MIN).toISOString() },
-      { id: 'mockv2-2', targetRole: null, title: '🤖 AI Найз', body: 'Өнөөдрийн ярианы дасгал бэлэн боллоо.', createdAt: new Date(Date.now() - 2 * HR).toISOString() },
-      { id: 'mockv2-3', targetRole: null, title: '🏆 Амжилт нээгдлээ', body: 'Vocabulary Master II тэмдэг авлаа.', createdAt: new Date(Date.now() - 6 * HR).toISOString() },
-      { id: 'mockv2-4', targetRole: null, title: '⭐ XP шагнал', body: '+150 XP цуглууллаа.', createdAt: new Date(Date.now() - 1 * DAY - 2 * HR).toISOString() },
-      { id: 'mockv2-5', targetRole: null, title: '👥 Найзын мэдээ', body: 'Батбаяр таны сонсголын оноог дайрч гарлаа.', createdAt: new Date(Date.now() - 1 * DAY - 5 * HR).toISOString() },
-      { id: 'mockv2-6', targetRole: null, title: 'Шинэ хувилбар гарлаа', body: 'SparkXP 2.0 — олон шинэ хичээл нэмэгдлээ.', createdAt: new Date(Date.now() - 4 * DAY).toISOString() },
-    ]
-  : [];
-
 /** Visual buckets a notification can fall into (drives icon + accent color). */
 export type NotifCategory =
+  | 'assignment'
   | 'learning'
   | 'rewards'
   | 'achievement'
@@ -43,6 +27,7 @@ export type NotifCategory =
  * than mislabelled.
  */
 const RULES: { category: NotifCategory; words: string[] }[] = [
+  { category: 'assignment', words: ['даалгавар', 'assignment', 'homework'] },
   { category: 'aibuddy', words: ['🤖', 'ai buddy', 'ai найз', 'buddy', 'speaking', 'ярих дасгал', 'ai чат'] },
   { category: 'achievement', words: ['🏆', 'achievement', 'unlock', 'badge', 'medal', 'master', 'амжилт', 'тэмдэг', 'нээгд'] },
   { category: 'friend', words: ['👥', 'friend', 'passed', 'follow', 'дагагч', 'чансаа', 'дайрч', 'найзын', 'ангийн'] },
@@ -50,8 +35,24 @@ const RULES: { category: NotifCategory; words: string[] }[] = [
   { category: 'learning', words: ['🔥', 'streak', 'lesson', 'хичээл', 'дараалал', 'урам', 'review', 'давтлага', 'daily', 'өдрийн', 'сурал'] },
 ];
 
-/** Classify a broadcast into a visual category from its title + body. */
+/** `data.type` values the backend sets, mapped to their visual category. */
+const TYPE_CATEGORY: Record<string, NotifCategory> = {
+  assignment: 'assignment',
+  review_due: 'learning',
+};
+
+/**
+ * Classify a notification into a visual category.
+ *
+ * Prefers the backend's own `data.type` — it is authoritative, so a teacher
+ * note that happens to contain the word "оноо" is not mislabelled as a reward.
+ * Falls back to keyword matching for admin broadcasts and older rows, which
+ * carry no `data` at all.
+ */
 export function categorize(n: AppNotification): NotifCategory {
+  const byType = n.data?.type ? TYPE_CATEGORY[n.data.type] : undefined;
+  if (byType) return byType;
+
   const text = `${n.title} ${n.body}`.toLowerCase();
   for (const rule of RULES) {
     if (rule.words.some((w) => text.includes(w))) return rule.category;
@@ -65,7 +66,9 @@ export type ChipKey = 'all' | 'learning' | 'rewards' | 'aibuddy' | 'social' | 's
 export function chipOf(category: NotifCategory): Exclude<ChipKey, 'all'> {
   if (category === 'achievement' || category === 'rewards') return 'rewards';
   if (category === 'friend') return 'social';
-  if (category === 'learning') return 'learning';
+  // Homework files under Learning rather than earning a 7th chip — it is
+  // learning work, and the row already reads "Шинэ даалгавар".
+  if (category === 'learning' || category === 'assignment') return 'learning';
   if (category === 'aibuddy') return 'aibuddy';
   return 'system';
 }
