@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Plus, Upload, Trash2, Sparkles } from 'lucide-react';
 import { AiBulkGenerator } from '../../components/AiBulkGenerator';
 import { HiddenBadge, VisibilityButton, UnpublishedBanner } from '../../components/Publish';
-import { BankBadge, BankCheckbox, TopicField } from '../../components/AssignmentBank';
+import { TopicField } from '../../components/AssignmentBank';
 import { BulkGenerateModal, BulkGenerateProgress, BulkGenerateButton } from '../../components/BulkGenerate';
 import { ErrorBox } from '../../components/ErrorBox';
 import { QualityPanel, type QualityRow } from '../../components/QualityPanel';
@@ -26,8 +26,20 @@ import {
 import ReadingPage from '../reading/ReadingPage';
 import { SpeakingPanel } from './SpeakingPanel';
 import { toggleInSet } from '../../lib/utils';
+import type { Pack } from '../../lib/importRows';
+import { ImportModal } from '../../components/ImportModal';
 
 const LIMIT = 20;
+
+/**
+ * Даалгаврын сангийн таб/`Quiz.category` утга.
+ *
+ * ⚠️ Аюулгүй байдлын хил нь ЭНЭ БИШ — тэр нь `Quiz.assignOnly` (сервер
+ * сурагчийн бүх жагсаалтаас SQL түвшинд хасдаг). `category` нь зөвхөн админ
+ * дээр «энэ нь тусдаа сан» гэдгийг харуулах бөгөөд аппад **уншигч дэлгэцгүй**
+ * байх ёстой — сурагчийн ямар ч дэлгэц энэ ангиллыг татдаггүй.
+ */
+const BANK_CAT = 'assignment';
 
 /**
  * Дасгалын ангилалууд. `key` = `Quiz.category` бөгөөд апп дээрх
@@ -45,6 +57,11 @@ const CATS = [
   { key: 'speaking', label: 'Дуудлага' },
   { key: 'fill', label: 'Нөхөх' },
   { key: 'grammar', label: 'Дүрэм' },
+  // ⚠️ Энэ нь ур чадвар БИШ — **багшийн даалгаврын сан** (`Quiz.assignOnly`).
+  // Урьд нь ангилал бүрийн дотор нуугдсан «хамрах хүрээ» шүүлтүүр байсан тул
+  // хаана байгааг нь хэн ч олдоггүй байв. Одоо Сонсгол/Унших/Бичихтэй нэг
+  // эгнээнд, өөрийн табтай: сурагчид ОГТ харагдахгүй дасгалууд зөвхөн энд.
+  { key: BANK_CAT, label: 'Даалгавар' },
 ] as const;
 
 /**
@@ -70,7 +87,10 @@ const MIN_SCRIPT = 40;
  * тараана.
  */
 const BULK_TARGETS = CATS
-  .filter((c) => c.key !== 'speaking' && c.key !== 'reading')
+  // `assignment` (сан) энд ОРОХГҮЙ: энэ модал нь сурагчид нээлттэй дасгал
+  // үүсгэдэг (assignOnly бичдэггүй) тул сан руу үүсгэх бол тухайн таб дээрх
+  // «AI-аар үүсгэх»-ийг ашиглана.
+  .filter((c) => c.key !== 'speaking' && c.key !== 'reading' && c.key !== BANK_CAT)
   .map((c) => ({
     key: c.key,
     category: c.key,
@@ -110,18 +130,18 @@ interface Form {
   /** Сонсголын дасгал: аппын дуугаар уншуулах яриа. Бусад ангилалд хоосон. */
   passageText: string;
   audioUrl: string;
-  assignOnly: boolean;
 }
 // "Ноорог" төлөв формд байхгүй: Хадгалах = шууд нийтлэх (`components/Publish.tsx`).
 const emptyForm: Form = {
   title: '', level: 'a1', topic: '', questionType: 'multiple_choice', questions: [], xpReward: 50,
   passageText: '',
   audioUrl: '',
-  assignOnly: false,
 };
 
 export default function ExercisesPage() {
   const [cat, setCat] = useState<string>('listening');
+  /** Даалгаврын сангийн таб дээр байна уу — жагсаалт, форм, импорт бүгд үүнийг дагана. */
+  const bank = cat === BANK_CAT;
   const [items, setItems] = useState<Exercise[]>([]);
   /** Серверийн чанарын тайлан, дасгалын id-гаар. */
   const [quality, setQuality] = useState<Map<string, QualityRow>>(new Map());
@@ -134,12 +154,6 @@ export default function ExercisesPage() {
 
   // Selection (bulk publish/delete)
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  /**
-   * Жагсаалтын хамрах хүрээ: бүгд · зөвхөн сурагчид нээлттэй · зөвхөн
-   * даалгаврын сан. Сан нь сурагчийн контенттой хольж харагдвал «яагаад энэ
-   * дасгал апп дээр гарахгүй байна вэ» гэсэн эргэлзээ төрүүлнэ.
-   */
-  const [scope, setScope] = useState<'all' | 'open' | 'bank'>('all');
   const [publishingAll, setPublishingAll] = useState(false);
   // AI-аар үүсгэх (дундын AiBulkGenerator)
   const [aiOpen, setAiOpen] = useState(false);
@@ -154,35 +168,46 @@ export default function ExercisesPage() {
   const [impLevel, setImpLevel] = useState('a1');
   const [impTopic, setImpTopic] = useState('');
   const [impType, setImpType] = useState<QuestionType>('multiple_choice');
-  const [impText, setImpText] = useState('');
   /** Сонсголын импортод заавал — асуултууд энэ яриан дээр тулгуурлана. */
   const [impScript, setImpScript] = useState('');
-  const [importing, setImporting] = useState(false);
-  const [impError, setImpError] = useState('');
-  /** Импортоор орж ирэх дасгалууд даалгаврын сан уу — шүүлтүүрээ дагана. */
-  const [impAssignOnly, setImpAssignOnly] = useState(false);
+  /** Эхний багана нь багцын нэр үү. Санд анхдагчаар тийм. */
+  const [impMultiPack, setImpMultiPack] = useState(true);
 
   const load = useCallback(async () => {
     if (cat === 'speaking' || cat === 'reading') { setItems([]); return; }
-    // `includeUnanswerable=true` — сервер нь хариулах боломжгүй дасгалыг
-    // анхдагчаар нуудаг (сурагч руу гаргахгүйн тулд). Админ л тэдгээрийг
-    // хараад засах ёстой тул энд зориудаар асаана.
+    /*
+     * Хоёр тусдаа жагсаалт, огтлолцохгүй:
+     *  - **Даалгаврын сан** = `assignOnly=true` бүх мөр (ангиллаас үл хамааран,
+     *    учир нь хуучин сангийн мөрүүд `listening`/`grammar` гэх мэт
+     *    ангилалтай хэвээр үлдсэн).
+     *  - **Ур чадварын таб** = `assignOnly=false` — сангийн дасгал сурагчийн
+     *    контентын дунд хэзээ ч харагдахгүй («яагаад энэ апп дээр гарахгүй
+     *    байна вэ» гэсэн эргэлзээний эх үүсвэр байсан).
+     *
+     * `includeUnanswerable=true` — сервер нь хариулах боломжгүй дасгалыг
+     * анхдагчаар нуудаг (сурагч руу гаргахгүйн тулд). Админ л тэдгээрийг
+     * хараад засах ёстой тул энд зориудаар асаана.
+     */
+    const listQuery = bank
+      ? 'standalone=true&assignOnly=true'
+      : `standalone=true&category=${cat}&assignOnly=false`;
     const [data, report] = await Promise.all([
       api.get<{ items: Exercise[] }>(
-        `/quizzes?standalone=true&category=${cat}&limit=200&includeUnanswerable=true`,
+        `/quizzes?${listQuery}&limit=200&includeUnanswerable=true`,
       ),
-      api.get<{ items: QualityRow[] }>(`/quizzes/quality-report?category=${cat}`),
+      api.get<{ items: QualityRow[] }>(
+        `/quizzes/quality-report${bank ? '' : `?category=${cat}`}`,
+      ),
     ]);
     setItems(data.items ?? []);
     setQuality(new Map((report.items ?? []).map((r) => [r.id, r])));
     setSelected(new Set());
-  }, [cat]);
+  }, [cat, bank]);
   useEffect(() => { load(); }, [load]);
 
   function openCreate() {
-    // Санг үзэж байхад нэмсэн дасгал сан руу ороход л зөв — тэгэхгүй бол
-    // 15 дасгал үүсгээд бүгдийг нь дараа нь гараар шилжүүлэх болно.
-    setForm({ ...emptyForm, assignOnly: scope === 'bank' });
+    // Таб нь юу үүсэхийг шийднэ: «Даалгавар» табад нэмсэн бүхэн санд орно.
+    setForm({ ...emptyForm });
     setEditing(null); setError(''); setModal('create');
   }
   function openEdit(ex: Exercise) {
@@ -192,7 +217,6 @@ export default function ExercisesPage() {
       questions: ex.questions ?? [], xpReward: ex.xpReward,
       passageText: ex.passageText ?? '',
       audioUrl: ex.audioUrl ?? '',
-      assignOnly: ex.assignOnly ?? false,
     });
     setEditing(ex); setError(''); setModal('edit');
   }
@@ -235,7 +259,8 @@ export default function ExercisesPage() {
         passageText: cat === 'listening' ? form.passageText.trim() || undefined : undefined,
         audioUrl: cat === 'listening' ? form.audioUrl.trim() || undefined : undefined,
         isPublished: true, // хадгалсан контент шууд аппад гарна
-        assignOnly: form.assignOnly,
+        // Хаана байгаа нь юу болохыг шийднэ — формд checkbox байхаа больсон.
+        assignOnly: bank,
       };
       if (modal === 'create') await api.post('/quizzes', payload);
       else if (editing) await api.patch(`/quizzes/${editing.id}`, payload);
@@ -294,65 +319,40 @@ export default function ExercisesPage() {
     load();
   }
 
-  // ── CSV / JSON import (rows = questions) ──
-  /** Parse pasted CSV (pipe-delimited) or a JSON array into a questions[]. */
-  function parseQuestions(text: string, type: QuestionType): Question[] {
-    const trimmed = text.trim();
-    if (trimmed.startsWith('[')) {
-      const arr = JSON.parse(trimmed) as Question[];
-      if (!Array.isArray(arr)) throw new Error('JSON массив байх ёстой');
-      return arr;
-    }
-    // Pipe-delimited lines, one question per line.
-    return trimmed
-      .split(/\r?\n/)
-      .map((l) => l.trim())
-      .filter(Boolean)
-      .map((line) => {
-        const p = line.split('|').map((s) => s.trim());
-        if (type === 'fill_blank') {
-          return { type: 'fill_blank', question: p[0], answer: p[1] ?? '', points: Number(p[2] || 10) };
-        }
-        // multiple_choice: question | opt1 | opt2 | ... | correctNo | points
-        const points = Number(p[p.length - 1] || 10);
-        const correctNo = Number(p[p.length - 2] || 1);
-        const options = p.slice(1, p.length - 2);
-        return { type: 'multiple_choice', question: p[0], options, correct: Math.max(0, correctNo - 1), points };
-      });
-  }
+  // ── Файл / CSV / JSON импорт ──
+  // Задлагч нь `lib/importRows.ts`-д: Excel-ийн CSV (таслал), Excel-ээс шууд
+  // буулгасан (таб), гараар бичсэн (|) гурвуулан ижил кодоор уншигдана.
 
-  async function runImport() {
-    if (!impTitle.trim()) { setImpError('Гарчиг оруулна уу'); return; }
-    let questions: Question[];
-    try {
-      questions = parseQuestions(impText, impType);
-    } catch (e) {
-      setImpError(e instanceof Error ? e.message : 'Задлахад алдаа гарлаа');
-      return;
-    }
-    if (questions.length === 0) { setImpError('Асуулт олдсонгүй'); return; }
+  /**
+   * Импорт. **Нэг файл → олон дасгал**: багцын багана нь мөрүүдийг тусад нь
+   * хуваадаг тул «5 багц × 15 асуулт» гэсэн нэг файл 5 дасгал үүсгэнэ.
+   * Тэдгээр нь багшийн нэг даалгаврын 5 багц болж очно.
+   */
+  async function runImport(packs: Pack[]) {
+    if (!impTitle.trim()) throw new Error('Гарчиг оруулна уу');
     if (cat === 'listening' && impScript.trim().length < MIN_SCRIPT) {
-      setImpError('Сонсох яриаг бөглөнө үү — яриагүй бол сурагч зөвхөн таамаглана.');
-      return;
+      throw new Error('Сонсох яриаг бөглөнө үү — яриагүй бол сурагч зөвхөн таамаглана.');
     }
-    setImporting(true); setImpError('');
-    try {
+    // Дараалан илгээнэ (зэрэг биш): 5-10 дасгал бол ялгаа мэдэгдэхгүй, харин
+    // алдаа гарвал хаана зогссоныг нь хэлж чадна.
+    for (const pack of packs) {
       await api.post('/quizzes', {
-        title: impTitle.trim(), level: impLevel, category: cat, topic: impTopic,
-        quizType: impType, questions, xpReward: 50, isPublished: true,
-        assignOnly: impAssignOnly,
+        // Багцын нэр байвал гарчигт залгана — админы жагсаалтад «Present
+        // Simple · Багц 2» гэж ялгарч харагдана.
+        title: pack.name ? `${impTitle.trim()} · ${pack.name}` : impTitle.trim(),
+        level: impLevel, category: cat, topic: impTopic,
+        quizType: impType, questions: pack.questions, xpReward: 50, isPublished: true,
+        assignOnly: bank,
         ...(cat === 'listening' ? { passageText: impScript.trim() } : {}),
       });
-      setImportOpen(false); setImpTitle(''); setImpText(''); setImpScript('');
-      load();
-    } catch (e: unknown) {
-      setImpError(e instanceof Error ? e.message : 'Импорт амжилтгүй');
-    } finally { setImporting(false); }
+    }
+    setImportOpen(false); setImpTitle(''); setImpScript('');
+    load();
   }
 
-  const visible = items.filter((e) =>
-    scope === 'all' ? true : scope === 'bank' ? e.assignOnly : !e.assignOnly,
-  );
+  // Шүүлт нь СЕРВЕР дээр хийгдэж байна (`assignOnly` query) — энд давхар
+  // шүүхгүй, эс бөгөөс хоёр газарт хоёр өөр дүрэм үүснэ.
+  const visible = items;
   const total = visible.length;
   const paged = visible.slice((page - 1) * LIMIT, page * LIMIT);
   const hidden = items.filter((e) => !e.isPublished);
@@ -376,7 +376,15 @@ export default function ExercisesPage() {
         <span className="flex items-center gap-2">
           <span className="font-medium">{e.title}</span>
           <HiddenBadge published={e.isPublished} />
-          <BankBadge assignOnly={e.assignOnly} />
+          {/* Санд «шилжүүлсэн» хуучин мөрүүд ур чадварынхаа ангиллыг
+              хадгалсаар байгаа тул аль табаас ирснийг нь хэлнэ. Шинээр
+              үүсгэсэн нь `assignment` тул юу ч гарахгүй. «Даалгаврын сан»
+              гэсэн шошго байсныг хассан: энэ табын мөр бүр сангийнх. */}
+          {bank && e.category && e.category !== BANK_CAT && (
+            <Badge color="gray">
+              {CATS.find((c) => c.key === e.category)?.label ?? e.category}
+            </Badge>
+          )}
           {/* Үр дагаврыг нь хэлнэ, оноштой нь биш: «хариулах боломжгүй» гэдэг
               нь юу болсныг хэлэх боловч тэр мөр аппад ОГТ харагдахгүй байгааг
               хэлдэггүй — админ нийтэлсэн мөрөө хараад бүх юм хэвийн гэж боддог. */}
@@ -418,7 +426,7 @@ export default function ExercisesPage() {
         description="Хичээлээс тусдаа, бие даасан дасгалууд (4 төрөл)"
         action={!speaking && !reading && (
           <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => { setImpError(''); setImpAssignOnly(scope === 'bank'); setImportOpen(true); }}><Upload className="h-4 w-4" /> Импорт</Button>
+            <Button variant="secondary" onClick={() => setImportOpen(true)}><Upload className="h-4 w-4" /> Импорт</Button>
             <Button variant="secondary" onClick={() => { setAiBrief(''); setAiOpen(true); }}><Sparkles className="h-4 w-4" /> AI-аар үүсгэх</Button>
             <BulkGenerateButton onClick={() => setBulkOpen(true)} />
             <Button onClick={openCreate}><Plus className="h-4 w-4" /> Дасгал нэмэх</Button>
@@ -434,6 +442,8 @@ export default function ExercisesPage() {
             category: cat,
             topicOptions: exerciseCategoryOptions(cat),
             xpReward: 50,
+            // Санд үүсгэсэн дасгал сурагчид ил гарвал бүх утга нь алдагдана.
+            ...(bank ? { save: { assignOnly: true } } : {}),
           }}
           initialBrief={aiBrief}
           onClose={() => setAiOpen(false)}
@@ -465,31 +475,15 @@ export default function ExercisesPage() {
         ))}
       </div>
 
-      {/*
-        Хамрах хүрээ. «Даалгаврын сан» = зөвхөн багш хардаг, сурагч даалгавар
-        авсны дараа л нээгддэг дасгалууд (`Quiz.assignOnly`).
-      */}
-      {!speaking && !reading && (
-        <div className="mb-4 flex flex-wrap items-center gap-2">
-          {([
-            { key: 'all', label: 'Бүгд' },
-            { key: 'open', label: 'Сурагчид нээлттэй' },
-            { key: 'bank', label: 'Даалгаврын сан' },
-          ] as const).map((s) => (
-            <button
-              key={s.key}
-              onClick={() => { setScope(s.key); setPage(1); }}
-              className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${scope === s.key ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-            >
-              {s.label}
-              {s.key !== 'all' && (
-                <span className="ml-1 opacity-60">
-                  {items.filter((e) => (s.key === 'bank' ? e.assignOnly : !e.assignOnly)).length}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
+      {/* Сан гэдэг нь юу болохыг нэг л удаа, тухайн таб дээр байхад хэлнэ. */}
+      {bank && (
+        <p className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900">
+          <b>Зөвхөн багш хардаг сан.</b> Сурагч эдгээрийг Дасгал/Сорил табаасаа
+          ОГТ олохгүй — багш ангидаа даалгавар болгож өгсний дараа л нээгдэнэ.
+          Багш нэг тестээс дурын хэдэн асуултыг (ж: 15-аас 5) сонгож өгч чадна,
+          тиймээс энд <b>сэдэв</b> (Present Simple, Modal verbs…) нь хамгийн
+          чухал талбар.
+        </p>
       )}
 
       {bulkJobId && (
@@ -556,10 +550,6 @@ export default function ExercisesPage() {
               value={form.topic}
               onChange={(topic) => setForm({ ...form, topic })}
             />
-            <BankCheckbox
-              checked={form.assignOnly}
-              onChange={(assignOnly) => setForm({ ...form, assignOnly })}
-            />
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <Select label="Түвшин" options={LEVEL_OPTIONS} value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value })} />
               <Select label="Асуултын төрөл" options={QTYPE_OPTIONS} value={form.questionType} onChange={(e) => changeType(e.target.value as QuestionType)} />
@@ -615,7 +605,7 @@ export default function ExercisesPage() {
             </div>
 
             <p className="text-xs text-gray-500">
-              {form.assignOnly
+              {bank
                 ? '📋 Даалгаврын санд хадгална — сурагч өөрөө олохгүй, зөвхөн багш өгсний дараа нээгдэнэ.'
                 : '✅ Хадгалмагц шууд нийтлэгдэж, апп дээр гарна.'}
             </p>
@@ -625,92 +615,60 @@ export default function ExercisesPage() {
         </Modal>
       )}
 
-      {/* CSV / JSON import — rows = questions → one new exercise */}
+      {/* Импорт — дундын цонх (`components/ImportModal.tsx`). Excel/Word/CSV
+          бүгд нэг замаар уншигдана, формат нь тэнд нэг л газар бичигдсэн. */}
       {importOpen && (
-        <Modal title={`Дасгал импорт (${CATS.find((c) => c.key === cat)?.label})`} onClose={() => setImportOpen(false)} size="2xl">
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Input label="Гарчиг" value={impTitle} onChange={(e) => setImpTitle(e.target.value)} />
-              <TopicField
-                listId="exercise-import-topics"
-                options={exerciseCategoryOptions(cat)}
-                value={impTopic}
-                onChange={setImpTopic}
-              />
-              <Select label="Түвшин" options={LEVEL_OPTIONS} value={impLevel} onChange={(e) => setImpLevel(e.target.value)} />
-              <Select
-                label="Асуултын төрөл"
-                options={[{ value: 'multiple_choice', label: 'Олон сонголт' }, { value: 'fill_blank', label: 'Нөхөх' }]}
-                value={impType}
-                onChange={(e) => setImpType(e.target.value as QuestionType)}
-              />
-            </div>
-            <div className="rounded-lg bg-gray-50 p-3 text-xs text-gray-500">
-              <p className="font-medium text-gray-700">Формат (мөр бүр = 1 асуулт, `|`-аар тусгаарла):</p>
-              {impType === 'fill_blank' ? (
-                <p className="mt-1 font-mono">She ___ to school. | goes | 10</p>
-              ) : (
-                <p className="mt-1 font-mono">Нийслэл? | Улаанбаатар | Дархан | Эрдэнэт | 1 | 10</p>
-              )}
-              <p className="mt-1">
-                {impType === 'fill_blank'
-                  ? 'асуулт | зөв хариулт | оноо'
-                  : 'асуулт | сонголт1 | сонголт2 | … | зөв№(1-ээс) | оноо'}
-                . Эсвэл JSON массив ([{'{'}…{'}'}) буулгаж болно.
-              </p>
-            </div>
-            {/* Импортоор ч сонсголын дасгал ЯРИАГҮЙ орж болохгүй — эс бөгөөс
-                асуултууд эх мэдээлэлгүй үлдэнэ (сервер ч татгалзана). */}
-            {cat === 'listening' && (
-              <div className="flex flex-col gap-1">
-                <label className="text-sm font-medium text-gray-700">
-                  Сонсох яриа <span className="text-red-500">*</span>{' '}
-                  <span className="text-gray-400">(бүх асуултад нэг яриа)</span>
-                </label>
-                <textarea
-                  className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                  rows={4}
-                  placeholder={'Sarah: Hi Tom, how are you?\nTom: I am good, thanks.'}
-                  value={impScript}
-                  onChange={(e) => setImpScript(e.target.value)}
+        <ImportModal
+          title={`Дасгал импорт (${CATS.find((c) => c.key === cat)?.label})`}
+          questionType={impType}
+          multiPack={impMultiPack}
+          onMultiPack={setImpMultiPack}
+          onClose={() => setImportOpen(false)}
+          onAi={(text) => { setAiBrief(text); setImportOpen(false); setAiOpen(true); }}
+          note={
+            bank
+              ? '📋 Даалгаврын санд орно — сурагч өөрөө олохгүй, зөвхөн багш өгсний дараа нээгдэнэ.'
+              : '✅ Импортолсон дасгал шууд нийтлэгдэж, апп дээр гарна.'
+          }
+          fields={
+            <>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Input label="Гарчиг" value={impTitle} onChange={(e) => setImpTitle(e.target.value)} />
+                <TopicField
+                  listId="exercise-import-topics"
+                  options={exerciseCategoryOptions(cat)}
+                  value={impTopic}
+                  onChange={setImpTopic}
+                />
+                <Select label="Түвшин" options={LEVEL_OPTIONS} value={impLevel} onChange={(e) => setImpLevel(e.target.value)} />
+                <Select
+                  label="Асуултын төрөл"
+                  options={[{ value: 'multiple_choice', label: 'Олон сонголт' }, { value: 'fill_blank', label: 'Нөхөх' }]}
+                  value={impType}
+                  onChange={(e) => setImpType(e.target.value as QuestionType)}
                 />
               </div>
-            )}
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-gray-700">Өгөгдөл</label>
-              <textarea
-                className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                rows={8}
-                value={impText}
-                onChange={(e) => setImpText(e.target.value)}
-                placeholder="Энд CSV (|-аар) эсвэл JSON буулгана..."
-              />
-            </div>
-            {/* Формат тааруулах цаг заваарахгүй бол — яг тэр текстийг AI-д өгнө. */}
-            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primarySoft px-3 py-2.5">
-              <Sparkles className="h-4 w-4 shrink-0 text-primary" />
-              <span className="flex-1 text-xs text-gray-600">
-                Формат нь таарахгүй байна уу? Дээрх текстээ AI-д өгөөд асуулт болгож
-                үүсгүүлж болно — гарчиг, хариулт, оноог нь өөрөө бөглөнө.
-              </span>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => { setAiBrief(impText); setImportOpen(false); setAiOpen(true); }}
-              >
-                <Sparkles className="h-4 w-4" /> AI-аар үүсгэх
-              </Button>
-            </div>
-            <BankCheckbox checked={impAssignOnly} onChange={setImpAssignOnly} />
-            <p className="text-xs text-gray-500">
-              {impAssignOnly
-                ? '📋 Даалгаврын санд орно — сурагч өөрөө олохгүй, зөвхөн багш өгсний дараа нээгдэнэ.'
-                : '✅ Импортолсон дасгал шууд нийтлэгдэж, апп дээр гарна.'}
-            </p>
-            <ErrorBox message={impError} />
-            <FormActions onCancel={() => setImportOpen(false)} onSave={runImport} saving={importing} saveLabel="Импортлох" />
-          </div>
-        </Modal>
+              {/* Импортоор ч сонсголын дасгал ЯРИАГҮЙ орж болохгүй — эс бөгөөс
+                  асуултууд эх мэдээлэлгүй үлдэнэ (сервер ч татгалзана). */}
+              {cat === 'listening' && (
+                <div className="flex flex-col gap-1">
+                  <label className="text-sm font-medium text-gray-700">
+                    Сонсох яриа <span className="text-red-500">*</span>{' '}
+                    <span className="text-gray-400">(бүх асуултад нэг яриа)</span>
+                  </label>
+                  <textarea
+                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    rows={4}
+                    placeholder={'Sarah: Hi Tom, how are you?\nTom: I am good, thanks.'}
+                    value={impScript}
+                    onChange={(e) => setImpScript(e.target.value)}
+                  />
+                </div>
+              )}
+            </>
+          }
+          onImport={runImport}
+        />
       )}
     </>
   );
