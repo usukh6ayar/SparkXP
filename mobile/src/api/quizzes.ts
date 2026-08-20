@@ -110,11 +110,12 @@ export function getQuiz(
  */
 export function getAssignmentBank(
   token: string,
+  params: { page?: number; limit?: number } = {},
 ): Promise<{ items: Quiz[]; total: number }> {
-  return apiRequest<{ items: Quiz[]; total: number }>(
-    '/quizzes?assignOnly=true&isPublished=true&limit=200',
-    { token },
-  );
+  let q = '/quizzes?assignOnly=true&isPublished=true';
+  if (params.page) q += `&page=${params.page}`;
+  q += `&limit=${params.limit ?? 100}`;
+  return apiRequest<{ items: Quiz[]; total: number }>(q, { token });
 }
 
 /** GET /api/quizzes — optionally filtered by lesson (for the lesson's test).
@@ -122,11 +123,12 @@ export function getAssignmentBank(
  *  matching how getLessons filters by isPublished. */
 export function getQuizzes(
   token: string,
-  params: { lessonId?: string; limit?: number } = {},
+  params: { lessonId?: string; page?: number; limit?: number } = {},
 ): Promise<{ items: Quiz[]; total: number }> {
   let q = '?isPublished=true';
   if (params.lessonId) q += `&lessonId=${params.lessonId}`;
   // Серверийн анхдагч нь 20 — багшийн оноох дэлгэц бүх контентоо харах ёстой.
+  if (params.page) q += `&page=${params.page}`;
   if (params.limit) q += `&limit=${params.limit}`;
   return apiRequest<{ items: Quiz[]; total: number }>(`/quizzes${q}`, { token });
 }
