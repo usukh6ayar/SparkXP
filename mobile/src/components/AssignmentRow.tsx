@@ -2,6 +2,7 @@ import { View, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AppText } from './Text';
 import { IconTile } from './IconTile';
+import { ProgressBar } from './ProgressBar';
 import { t, tf } from '../i18n';
 import { dueState } from '../lib/dueDate';
 import { useColors } from '../settings/SettingsContext';
@@ -14,11 +15,13 @@ export function AssignmentRow({
   title,
   topic,
   questionCount,
+  partCount,
   note,
   dueAt,
   onDelete,
   onPress,
   progress,
+  progressLabel,
   expanded,
 }: {
   type: AssignmentType;
@@ -31,17 +34,27 @@ export function AssignmentRow({
   topic?: string | null;
   /** Хийх асуултын тоо — багш нэг тестээс хэсгийг нь өгсөн байж болно. */
   questionCount?: number | null;
+  /**
+   * Энэ даалгавар доторх **багцын тоо**. Нэг илгээлтэд олон сэдэв багтсан
+   * үед л (>1) харагдана — `src/lib/assignmentGroups.ts`-ийг үз.
+   */
+  partCount?: number;
   /** Optional teacher note shown under the title. */
   note?: string | null;
   dueAt: string | null;
   onDelete?: () => void;
   onPress?: () => void;
   /**
-   * Teacher view: how many of the targeted students have handed it in. Shown as
-   * a "8/12" pill so the teacher sees at a glance which task is lagging without
-   * opening anything.
+   * Багшийн харагдац: оноогдсон сурагчдаас хэд нь хийсэн бэ. Мөрийн доор
+   * дүүргэлтийн зураас болж гарна — багш нээлгүйгээр аль даалгавар хоцорч
+   * байгааг харна. Сурагчийн жагсаалт үүнийг өгдөггүй.
    */
   progress?: { done: number; total: number };
+  /**
+   * Дүүргэлтийн зураасны бичиг. Өгөөгүй бол «8/12 хийсэн» (сурагчийн тоо).
+   * Багцын жагсаалт нь «2/5 багц хийсэн» гэх мэт өөр нэгжтэй тул дарж бичнэ.
+   */
+  progressLabel?: string;
   /** Teacher view: whether the submissions list below this row is open. */
   expanded?: boolean;
 }) {
@@ -55,6 +68,9 @@ export function AssignmentRow({
   // Everyone handed it in — the one state worth colouring green, so a teacher
   // scanning the list can skip it.
   const allDone = !!progress && progress.total > 0 && progress.done >= progress.total;
+  // Дуусаагүй мөртлөө хугацаа нь өнгөрсөн даалгавар бол багшийн анхаарах ганц
+  // зүйл — түүнийг өнгөөр нь ялгана.
+  const barColor = allDone ? c.success : due.overdue ? c.danger : c.primary;
 
   const Row = onPress ? Pressable : View;
   return (
@@ -82,6 +98,14 @@ export function AssignmentRow({
               <AppText variant="caption" color={c.primary}>{topic}</AppText>
             </>
           ) : null}
+          {partCount && partCount > 1 ? (
+            <>
+              <AppText variant="caption" color={c.textMuted}>·</AppText>
+              <AppText variant="caption" color={c.primary}>
+                {tf('assignmentPartCount', { n: partCount })}
+              </AppText>
+            </>
+          ) : null}
           {!isLesson && questionCount ? (
             <>
               <AppText variant="caption" color={c.textMuted}>·</AppText>
@@ -95,20 +119,35 @@ export function AssignmentRow({
           <AppText variant="caption" color={dueColor}>
             {due.label}
           </AppText>
-          {progress ? (
-            <>
-              <AppText variant="caption" color={c.textMuted}>·</AppText>
-              <Ionicons
-                name="people-outline"
-                size={12}
-                color={allDone ? c.success : c.textMuted}
-              />
-              <AppText variant="caption" color={allDone ? c.success : undefined}>
-                {progress.done}/{progress.total}
-              </AppText>
-            </>
-          ) : null}
         </View>
+
+        {/*
+          Багшийн гол асуулт бол «хэд нь хийсэн бэ». Өмнө нь энэ нь мета мөрийн
+          хамгийн ард «👥 8/12» гэсэн жижиг бичиг байсан тул төрөл · сэдэв ·
+          хугацаатай нэг эгнээнд нийлж, харагддаггүй байв. Одоо өөрийн мөртэй:
+          дүүргэлт нь хол зайнаас ч уншигдана.
+        */}
+        {progress && progress.total > 0 ? (
+          <View style={styles.progress}>
+            <View style={styles.bar}>
+              <ProgressBar
+                value={progress.done / progress.total}
+                color={barColor}
+                height={6}
+                glow={false}
+              />
+            </View>
+            <AppText variant="label" color={barColor}>
+              {progressLabel ??
+                (allDone
+                  ? t('submissionsAllDone')
+                  : tf('submissionsDoneCount', {
+                      done: progress.done,
+                      total: progress.total,
+                    }))}
+            </AppText>
+          </View>
+        ) : null}
       </View>
       {/* The teacher row carries both: a chevron for expanding the submissions
           list, and delete. The student row has neither and just navigates. */}
@@ -135,4 +174,6 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.sm },
   body: { flex: 1, gap: 4 },
   meta: { flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' },
+  progress: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: 2 },
+  bar: { flex: 1 },
 });

@@ -1,19 +1,28 @@
 import { useCallback, useState, useMemo } from 'react';
-import { View, ScrollView, StyleSheet, RefreshControl } from 'react-native';
+import { View, Pressable, ScrollView, StyleSheet, RefreshControl } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../src/auth/AuthContext';
 import { getMyAssignments, type Assignment } from '../src/api/assignments';
+import {
+  groupAssignments,
+  groupTitle,
+  type AssignmentGroup,
+} from '../src/lib/assignmentGroups';
 import { TopBar } from '../src/components/TopBar';
 import { Card } from '../src/components/Card';
 import { AssignmentRow } from '../src/components/AssignmentRow';
-import { StatusBadge } from '../src/components/StatusBadge';
+import { PeriodTabs } from '../src/components/PeriodTabs';
 import { AppText } from '../src/components/Text';
 import { SkeletonRows } from '../src/components/SkeletonRows';
 import { EmptyState } from '../src/components/EmptyState';
-import { t } from '../src/i18n';
-import { timeAgo, isRecent } from '../src/lib/timeAgo';
+import { t, tf, type TranslationKey } from '../src/i18n';
+import { isRecent } from '../src/lib/timeAgo';
+import {
+  bucketOf, BUCKET_ORDER, BUCKET_LABEL, type TimeBucket,
+} from '../src/lib/notificationCenter';
 import {
   markAssignmentsSeen,
   getAssignmentsLastSeen,
@@ -23,24 +32,20 @@ import { useColors } from '../src/settings/SettingsContext';
 import { spacing, radius, type AppColors } from '../src/theme/theme';
 import { bounded } from '../src/theme/responsive';
 
-/** Has the student handed this one in? `assigned` is the only pending state. */
-function isDone(a: Assignment): boolean {
-  return (a.status ?? 'assigned') !== 'assigned';
-}
+/** The three views of the list — one tap each, no scrolling to find them. */
+type FilterKey = 'all' | 'todo' | 'done';
 
-/**
- * Not-yet-done first, newest arrival at the top of each group.
- *
- * The previous order was by due date, which buried homework that arrived today
- * under everything already finished — the student had no way to tell what was
- * new. Urgency is not lost: every row carries its own "3 өдөр үлдлээ" countdown.
- */
-function sortAssignments(list: Assignment[]): Assignment[] {
-  return [...list].sort((a, b) => {
-    if (isDone(a) !== isDone(b)) return isDone(a) ? 1 : -1;
-    // ISO strings compare correctly, newest first.
-    return b.createdAt.localeCompare(a.createdAt);
-  });
+const FILTERS: { key: FilterKey; labelKey: TranslationKey }[] = [
+  { key: 'all', labelKey: 'filterAll' },
+  { key: 'todo', labelKey: 'assignmentFilterTodo' },
+  { key: 'done', labelKey: 'assignmentFilterDone' },
+];
+
+/** Inside one day-group: still-unfinished first, then newest arrival. */
+function byPriority(a: AssignmentGroup, b: AssignmentGroup): number {
+  if (a.done !== b.done) return a.done ? 1 : -1;
+  // ISO strings compare correctly.
+  return b.head.createdAt.localeCompare(a.head.createdAt);
 }
 
 /**
@@ -55,23 +60,84 @@ function isNew(a: Assignment, lastSeen: string | null): boolean {
 }
 
 /**
- * What this assignment is worth, stated BEFORE the student opens it — the whole
- * point of the change: "хэдэн оноотой вэ" should never be a mystery.
+ * Нэг багцын мөр — задарсан даалгаврын дотор.
  *
- * Quizzes are graded 0–100 (`scorePct`). Lessons are not graded at all: the
- * server records completion with a null score, so claiming a number there would
- * be an invented one.
+ * Багц бүр өөрийн `assignmentId`-тай тул нээхэд сервер яг тэр багцын
+ * асуултуудыг л өгнө. Дугаар нь дараалал ЗААХГҮЙ (дурын дарааллаар хийнэ),
+ * зөвхөн «хэд дэх нь вэ» гэдгийг хэлнэ.
  */
-function scoreLabel(a: Assignment): string {
-  if (a.type === 'lesson') return t('assignmentLessonNoScore');
-  if (a.scorePct == null) return t('assignmentMaxScore');
-  return `${t('assignmentScore')} ${a.scorePct} / 100`;
+function PartRow({
+  part,
+  index,
+  c,
+  onPress,
+}: {
+  part: Assignment;
+  index: number;
+  c: AppColors;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable style={styles.partRow} onPress={onPress}>
+      <View style={[styles.partNo, { backgroundColor: c.surfaceAlt }]}>
+        <AppText variant="label" color={c.textSecondary}>{index + 1}</AppText>
+      </View>
+      <View style={styles.partBody}>
+        <AppText variant="bodyStrong" numberOfLines={1}>
+          {part.targetTopic || part.targetTitle || '—'}
+        </AppText>
+        {part.questionCount ? (
+          <AppText variant="caption" color={c.textMuted}>
+            {tf('questionCount', { n: part.questionCount })}
+          </AppText>
+        ) : null}
+      </View>
+      <ActionChip a={part} c={c} />
+    </Pressable>
+  );
+}
+
+/**
+ * The row's one right-hand chip.
+ *
+ * The old meta row stacked three competing labels — a grey "Хийгээгүй" pill,
+ * "100 оноотой" / "Үзэхэд хангалттай", and the timestamp — none of which the
+ * student could act on. A pending row now says what tapping it does; a handed-in
+ * row shows the score, which is the only number that actually exists (lessons
+ * are recorded with a null score, so there is nothing to invent there).
+ */
+function ActionChip({ a, c }: { a: Assignment; c: AppColors }) {
+  const status = a.status ?? 'assigned';
+
+  if (status === 'assigned') {
+    return (
+      <View style={[styles.chip, { backgroundColor: c.primarySoft }]}>
+        <AppText variant="label" color={c.primary}>
+          {t(a.type === 'lesson' ? 'assignmentOpenLesson' : 'assignmentOpenQuiz')}
+        </AppText>
+        <Ionicons name="arrow-forward" size={13} color={c.primary} />
+      </View>
+    );
+  }
+
+  const late = status === 'late';
+  const fg = late ? c.warning : c.success;
+  return (
+    <View style={[styles.chip, { backgroundColor: late ? c.warningSoft : c.successSoft }]}>
+      <Ionicons name={late ? 'time' : 'checkmark-circle'} size={14} color={fg} />
+      <AppText variant="label" color={fg}>
+        {a.scorePct == null
+          ? t(`submissionStatus_${status}`)
+          : tf('assignmentScoreOf', { n: a.scorePct })}
+      </AppText>
+    </View>
+  );
 }
 
 export default function AssignmentsScreen() {
   const { token } = useAuth();
   const c = useColors();
-  const styles = useMemo(() => makeStyles(c), [c]);
+  const themed = useMemo(() => makeStyles(c), [c]);
   const reduce = useReduceMotion();
   const router = useRouter();
   const [items, setItems] = useState<Assignment[]>([]);
@@ -80,6 +146,10 @@ export default function AssignmentsScreen() {
   const [error, setError] = useState(false);
   // When the student last opened this list — anything newer gets a "ШИНЭ" pill.
   const [lastSeen, setLastSeen] = useState<string | null>(null);
+  const [filter, setFilter] = useState<FilterKey>('all');
+  // Аль олон багцтай даалгавар задарсан бэ. Нэг нь л задарна — сурагч нэг
+  // даалгавраа хийж байгаа, задарсан жагсаалтууд дараагийнхаа нурааж булна.
+  const [openKey, setOpenKey] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -92,7 +162,7 @@ export default function AssignmentsScreen() {
        * тул тэр арга «—» гэж гаргана — мөн 2 илүү хүсэлт байсан.
        */
       const assignments = await getMyAssignments(token);
-      setItems(sortAssignments(assignments));
+      setItems(assignments);
       setError(false);
 
       // Read the previous mark BEFORE moving it, so "ШИНЭ" stays visible for
@@ -127,6 +197,54 @@ export default function AssignmentsScreen() {
   }, [load]);
 
   /**
+   * Segment counts: "how many are still waiting" is the number the student
+   * opens this screen for, so it sits on the tab itself rather than being
+   * something they have to count down the list.
+   */
+  /**
+   * Нэг илгээлт = нэг мөр. Багш 5 сэдвээс асуулт сонгож нэг даалгавар өгөхөд
+   * сервер 5 мөр үүсгэдэг — сурагч дээр тэр нь **ганц** даалгавар байх ёстой
+   * (`src/lib/assignmentGroups.ts`).
+   */
+  const groups = useMemo(() => groupAssignments(items), [items]);
+
+  const tabs = useMemo(() => {
+    const done = groups.filter((g) => g.done).length;
+    const count: Record<FilterKey, number> = {
+      all: groups.length,
+      todo: groups.length - done,
+      done,
+    };
+    return FILTERS.map((f) => ({ ...f, count: count[f.key] }));
+  }, [groups]);
+
+  const visible = useMemo(() => {
+    if (filter === 'all') return groups;
+    return groups.filter((g) => (filter === 'done' ? g.done : !g.done));
+  }, [groups, filter]);
+
+  /**
+   * Grouped by the day it arrived — the same Өнөөдөр / Өчигдөр / Сүүлийн 7
+   * хоног / Өмнөх sections the notification centre uses.
+   *
+   * A per-row "23 цагийн өмнө ирсэн" caption made the student do date
+   * arithmetic on every single row for something the header can state once.
+   */
+  const sections = useMemo(() => {
+    const byBucket = new Map<TimeBucket, AssignmentGroup[]>();
+    for (const g of visible) {
+      const bucket = bucketOf(g.head.createdAt);
+      const list = byBucket.get(bucket);
+      if (list) list.push(g);
+      else byBucket.set(bucket, [g]);
+    }
+    return BUCKET_ORDER.flatMap((bucket) => {
+      const rows = byBucket.get(bucket);
+      return rows ? [{ key: bucket, label: t(BUCKET_LABEL[bucket]), rows: rows.sort(byPriority) }] : [];
+    });
+  }, [visible]);
+
+  /**
    * Даалгавраа нээх.
    *
    * ⚠️ Сорилд `assignmentId` **заавал** дамжина: сервер түүгээр л багшийн
@@ -142,11 +260,14 @@ export default function AssignmentsScreen() {
     );
   }
 
+  // Runs across every day-group so the entry animation stays one cascade.
+  let row = 0;
+
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={themed.safe} edges={['top']}>
       <TopBar title={t('myAssignments')} back showBadges={false} />
       {loading ? (
-        <SkeletonRows count={4} style={styles.skeleton} />
+        <SkeletonRows count={4} style={themed.skeleton} />
       ) : (
         <ScrollView
           contentContainerStyle={[styles.list, bounded]}
@@ -173,38 +294,126 @@ export default function AssignmentsScreen() {
               )}
             </Animated.View>
           ) : (
-            items.map((a, i) => (
-              <Animated.View key={a.id} entering={reduce ? undefined : enter(i * 55, 260)}>
-                <Card variant="flat" padding="md">
-                  <AssignmentRow
-                    type={a.type}
-                    title={a.targetTitle ?? '—'}
-                    topic={a.targetTopic}
-                    questionCount={a.questionCount}
-                    note={a.note}
-                    dueAt={a.dueAt}
-                    onPress={() => open(a)}
-                  />
-                  <View style={styles.metaRow}>
-                    {/* Arrived since the last visit — answers "which one is
-                        today's?", which a list of finished tasks otherwise hides. */}
-                    {isNew(a, lastSeen) ? (
-                      <View style={[styles.newPill, { backgroundColor: c.danger }]}>
-                        <AppText variant="caption" color={c.white}>{t('newLabel')}</AppText>
-                      </View>
-                    ) : null}
-                    {a.status ? <StatusBadge status={a.status} /> : null}
-                    <AppText variant="label" color={c.textSecondary}>
-                      {scoreLabel(a)}
-                    </AppText>
-                    <View style={styles.spacer} />
-                    <AppText variant="caption" color={c.textMuted}>
-                      {timeAgo(a.createdAt)}
-                    </AppText>
+            <>
+              <PeriodTabs
+                value={filter}
+                options={tabs}
+                onChange={setFilter}
+                style={styles.tabs}
+              />
+              {/* The filter emptied the list — say which of the two good
+                  things happened, not a bare "no results". */}
+              {sections.length === 0 ? (
+                <EmptyState
+                  icon={filter === 'done' ? 'time-outline' : 'checkmark-done-outline'}
+                  title={t(filter === 'done' ? 'assignmentNoneDone' : 'assignmentAllDone')}
+                  hint={t(filter === 'done' ? 'assignmentNoneDoneHint' : 'assignmentAllDoneHint')}
+                />
+              ) : null}
+              {sections.map((section) => (
+                <View key={section.key} style={styles.section}>
+                  <AppText variant="overline" color={c.textMuted} style={styles.sectionHeader}>
+                    {section.label}
+                  </AppText>
+                  {section.rows.map((g) => {
+                    const a = g.head;
+                    const fresh = isNew(a, lastSeen);
+                    // Олон багцтай даалгавар нээгддэггүй — задардаг. Багц бүр
+                    // өөрийн сорилтой тул нээх үйлдэл нь багцын мөрөнд байна.
+                    const bundle = g.parts.length > 1;
+                    const isOpen = openKey === g.key;
+                    return (
+                      <Animated.View
+                        key={g.key}
+                        entering={reduce ? undefined : enter(row++ * 55, 260)}
+                      >
+                        <Card
+                          padding="md"
+                          onPress={() =>
+                            bundle ? setOpenKey(isOpen ? null : g.key) : open(a)
+                          }
+                          style={fresh ? themed.cardNew : undefined}
+                        >
+                          <AssignmentRow
+                            type={a.type}
+                            title={bundle ? groupTitle(g) : a.targetTitle ?? '—'}
+                            topic={bundle ? null : a.targetTopic}
+                            partCount={g.parts.length}
+                            questionCount={g.questionCount}
+                            note={a.note}
+                            dueAt={a.dueAt}
+                            progress={
+                              bundle
+                                ? { done: g.doneParts, total: g.parts.length }
+                                : undefined
+                            }
+                            progressLabel={
+                              bundle
+                                ? g.done
+                                  ? t('assignmentPacksAllDone')
+                                  : tf('assignmentPacksDone', {
+                                      done: g.doneParts,
+                                      total: g.parts.length,
+                                    })
+                                : undefined
+                            }
+                          />
+
+                          {bundle && isOpen ? (
+                            <View style={themed.parts}>
+                              <AppText variant="caption" color={c.textMuted}>
+                                {t('assignmentPacksHint')}
+                              </AppText>
+                              {g.parts.map((part, i) => (
+                                <PartRow
+                                  key={part.id}
+                                  part={part}
+                                  index={i}
+                                  c={c}
+                                  onPress={() => open(part)}
+                                />
+                              ))}
+                            </View>
+                          ) : null}
+
+                          {/* Ганц багцтай даалгаварт үйлдлийн чип хэрэгтэй;
+                              олон багцтайд нь чип нь багц бүр дээрээ байна. */}
+                          {fresh || !bundle ? (
+                            <>
+                              <View style={themed.divider} />
+                              <View style={styles.metaRow}>
+                                {/* Arrived since the last visit — the day header says
+                                    "Өнөөдөр", this says "and you haven't seen it yet". */}
+                                {fresh ? (
+                                  <View style={[styles.newPill, { backgroundColor: c.primary }]}>
+                                    <AppText variant="label" color={c.white}>{t('newLabel')}</AppText>
+                                  </View>
+                                ) : null}
+                                <View style={styles.spacer} />
+                                {bundle ? (
+                                  <View style={[styles.chip, { backgroundColor: c.primarySoft }]}>
+                                    <AppText variant="label" color={c.primary}>
+                                      {t(isOpen ? 'close' : 'assignmentOpenPacks')}
+                                    </AppText>
+                                    <Ionicons
+                                      name={isOpen ? 'chevron-up' : 'chevron-down'}
+                                      size={13}
+                                      color={c.primary}
+                                    />
+                                  </View>
+                                ) : (
+                                  <ActionChip a={a} c={c} />
+                                )}
+                              </View>
+                            </>
+                          ) : null}
+                        </Card>
+                      </Animated.View>
+                    );
+                  })}
                   </View>
-                </Card>
-              </Animated.View>
-            ))
+                ))}
+            </>
           )}
           <View style={{ height: spacing.xxl }} />
         </ScrollView>
@@ -213,12 +422,50 @@ export default function AssignmentsScreen() {
   );
 }
 
+// Theme-free layout lives outside the component so it is built once.
+const styles = StyleSheet.create({
+  list: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
+  section: { gap: spacing.sm },
+  sectionHeader: { marginTop: spacing.md, marginBottom: 2, textTransform: 'uppercase' },
+  tabs: { marginTop: spacing.xs },
+  emptyWrap: { marginTop: spacing.xxl },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  partRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: 6 },
+  partNo: {
+    width: 24, height: 24, borderRadius: radius.full,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  partBody: { flex: 1 },
+  spacer: { flex: 1 },
+  newPill: { paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radius.full },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    borderRadius: radius.full,
+  },
+});
+
 const makeStyles = (c: AppColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: c.background },
-  list: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, gap: spacing.sm },
   skeleton: { marginHorizontal: spacing.lg, marginTop: spacing.sm },
-  emptyWrap: { marginTop: spacing.xxl },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.sm },
-  spacer: { flex: 1 },
-  newPill: { paddingHorizontal: spacing.sm, paddingVertical: 1, borderRadius: radius.full },
+  // Same "unread" language as the notification centre: a tinted card, not a
+  // red alarm pill — new homework is an invitation, not an error.
+  cardNew: { backgroundColor: c.primarySoft, borderColor: c.primary },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: c.border,
+    marginTop: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  // Задарсан багцууд — картын дотор, нимгэн зураасаар тусгаарлагдсан.
+  parts: {
+    marginTop: spacing.sm,
+    paddingTop: spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: c.border,
+    gap: 2,
+  },
 });

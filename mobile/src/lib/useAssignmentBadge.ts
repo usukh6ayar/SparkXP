@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../auth/AuthContext';
 import { getMyAssignments } from '../api/assignments';
 import { isRecent } from './timeAgo';
+import { groupAssignments } from './assignmentGroups';
 
 const LAST_SEEN_KEY = 'assignments.lastSeen';
 
@@ -50,8 +51,10 @@ export function useAssignmentBadge(enabled = true): AssignmentBadge {
           const list = await getMyAssignments(token);
           if (!active) return;
 
-          // `assigned` is the only not-yet-handed-in state; completed/late are done.
-          const pending = list.filter((a) => (a.status ?? 'assigned') === 'assigned').length;
+          // Нэг илгээлт = нэг даалгавар. Багш 5 сэдвээс асуулт сонгоод нэг
+          // даалгавар өгөхөд сервер 5 мөр үүсгэдэг тул мөрөөр тоолвол Home
+          // дээр «5 даалгавар хүлээгдэж байна» гэж худал гарна.
+          const pending = groupAssignments(list).filter((g) => !g.done).length;
 
           const seen = await AsyncStorage.getItem(LAST_SEEN_KEY);
           // First launch has no mark to compare against — fall back to

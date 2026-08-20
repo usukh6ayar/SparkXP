@@ -73,6 +73,44 @@ export function getStudentProgress(
   );
 }
 
+/** Нэг асуултын хариу — багшийн «юун дээр алдав» харагдац. */
+export interface AnsweredQuestion {
+  question: string;
+  type: string;
+  /** Сонголтууд (`multiple_choice`), эс бөгөөс `null`. */
+  options: string[] | null;
+  /** Зөв хариулт **текстээр** (индекс биш). */
+  correctAnswer: string | null;
+  /** Сурагчийн өгсөн хариулт: сонголтын дугаар эсвэл бичсэн текст. */
+  studentAnswer: number | string | null;
+  /** `null` = тухайн асуултад хариулаагүй / хуучин илгээлт. */
+  correct: boolean | null;
+}
+
+export interface AssignmentAnswers {
+  studentId: string;
+  fullName: string | null;
+  scorePct: number | null;
+  submittedAt: string | null;
+  /** Хоосон = хийгээгүй, эсвэл хариулт хадгалагдаагүй хуучин илгээлт. */
+  questions: AnsweredQuestion[];
+}
+
+/**
+ * GET /assignments/:id/students/:studentId/answers — нэг сурагчийн сүүлийн
+ * илгээлт, асуулт тус бүрээр. Зөв хариулт нь энд ил ирнэ (багш дүн тавина).
+ */
+export function getAssignmentAnswers(
+  assignmentId: string,
+  studentId: string,
+  token: string,
+): Promise<AssignmentAnswers> {
+  return apiRequest<AssignmentAnswers>(
+    `/assignments/${assignmentId}/students/${studentId}/answers`,
+    { token },
+  );
+}
+
 /** GET /assignments/:id/submissions — teacher view of who's done/pending/late. */
 export function getAssignmentSubmissions(
   assignmentId: string,
