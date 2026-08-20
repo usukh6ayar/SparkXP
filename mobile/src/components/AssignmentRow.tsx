@@ -2,7 +2,7 @@ import { View, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AppText } from './Text';
 import { IconTile } from './IconTile';
-import { t } from '../i18n';
+import { t, tf } from '../i18n';
 import { dueState } from '../lib/dueDate';
 import { useColors } from '../settings/SettingsContext';
 import { spacing, tints } from '../theme/theme';
@@ -12,6 +12,8 @@ import type { AssignmentType } from '../api/assignments';
 export function AssignmentRow({
   type,
   title,
+  topic,
+  questionCount,
   note,
   dueAt,
   onDelete,
@@ -21,6 +23,14 @@ export function AssignmentRow({
 }: {
   type: AssignmentType;
   title: string;
+  /**
+   * Сорилын **сэдэв**. Багш нэг дор «Present Simple» ба «Modal verbs» хоёрын
+   * даалгавар өгч болох тул энэ нь сурагч (мөн багш) хоёр мөрийг ялгах гол
+   * тэмдэг — гарчиг нь ижил төстэй байж болно.
+   */
+  topic?: string | null;
+  /** Хийх асуултын тоо — багш нэг тестээс хэсгийг нь өгсөн байж болно. */
+  questionCount?: number | null;
   /** Optional teacher note shown under the title. */
   note?: string | null;
   dueAt: string | null;
@@ -66,6 +76,20 @@ export function AssignmentRow({
         ) : null}
         <View style={styles.meta}>
           <AppText variant="caption" color={tint.fg}>{isLesson ? t('assignLesson') : t('assignQuiz')}</AppText>
+          {topic ? (
+            <>
+              <AppText variant="caption" color={c.textMuted}>·</AppText>
+              <AppText variant="caption" color={c.primary}>{topic}</AppText>
+            </>
+          ) : null}
+          {!isLesson && questionCount ? (
+            <>
+              <AppText variant="caption" color={c.textMuted}>·</AppText>
+              <AppText variant="caption" color={c.textSecondary}>
+                {tf('questionCount', { n: questionCount })}
+              </AppText>
+            </>
+          ) : null}
           <AppText variant="caption" color={c.textMuted}>·</AppText>
           <Ionicons name="calendar-outline" size={12} color={dueColor ?? c.textMuted} />
           <AppText variant="caption" color={dueColor}>
@@ -110,5 +134,5 @@ export function AssignmentRow({
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.sm },
   body: { flex: 1, gap: 4 },
-  meta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  meta: { flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' },
 });

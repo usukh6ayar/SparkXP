@@ -5,8 +5,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useAuth } from '../src/auth/AuthContext';
 import { getMyAssignments, type Assignment } from '../src/api/assignments';
-import { getLessons } from '../src/api/lessons';
-import { getQuizzes } from '../src/api/quizzes';
 import { TopBar } from '../src/components/TopBar';
 import { Card } from '../src/components/Card';
 import { AssignmentRow } from '../src/components/AssignmentRow';
@@ -77,7 +75,6 @@ export default function AssignmentsScreen() {
   const reduce = useReduceMotion();
   const router = useRouter();
   const [items, setItems] = useState<Assignment[]>([]);
-  const [titles, setTitles] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(false);
@@ -87,16 +84,15 @@ export default function AssignmentsScreen() {
   const load = useCallback(async () => {
     if (!token) return;
     try {
-      const [assignments, lessons, quizzes] = await Promise.all([
-        getMyAssignments(token),
-        getLessons(token),
-        getQuizzes(token),
-      ]);
+      /*
+       * Гарчиг нь **даалгаврын мөрөн дээрээ** ирнэ (`targetTitle`).
+       *
+       * Урьд нь бүх хичээл + бүх сорилыг татаад id-гаар нь тааруулдаг байв.
+       * Даалгаврын сангийн тест сурагчийн жагсаалтад ОГТ харагдахгүй болсон
+       * тул тэр арга «—» гэж гаргана — мөн 2 илүү хүсэлт байсан.
+       */
+      const assignments = await getMyAssignments(token);
       setItems(sortAssignments(assignments));
-      const map: Record<string, string> = {};
-      lessons.items.forEach((l) => (map[l.id] = l.title));
-      quizzes.items.forEach((q) => (map[q.id] = q.title));
-      setTitles(map);
       setError(false);
 
       // Read the previous mark BEFORE moving it, so "ШИНЭ" stays visible for
@@ -130,8 +126,20 @@ export default function AssignmentsScreen() {
     setRefreshing(false);
   }, [load]);
 
+  /**
+   * Даалгавраа нээх.
+   *
+   * ⚠️ Сорилд `assignmentId` **заавал** дамжина: сервер түүгээр л багшийн
+   * сонгосон асуултуудыг шүүж өгдөг (мөн даалгаврын сангийн дасгалыг нээх
+   * цорын ганц түлхүүр нь энэ) бөгөөд гүйцэтгэлийг багшийн самбарт
+   * бүртгэдэг.
+   */
   function open(a: Assignment) {
-    router.push(a.type === 'lesson' ? `/lesson/${a.targetId}` : `/quiz/${a.targetId}`);
+    router.push(
+      a.type === 'lesson'
+        ? `/lesson/${a.targetId}`
+        : `/quiz/${a.targetId}?assignmentId=${a.id}`,
+    );
   }
 
   return (
@@ -170,7 +178,9 @@ export default function AssignmentsScreen() {
                 <Card variant="flat" padding="md">
                   <AssignmentRow
                     type={a.type}
-                    title={titles[a.targetId] ?? '—'}
+                    title={a.targetTitle ?? '—'}
+                    topic={a.targetTopic}
+                    questionCount={a.questionCount}
                     note={a.note}
                     dueAt={a.dueAt}
                     onPress={() => open(a)}

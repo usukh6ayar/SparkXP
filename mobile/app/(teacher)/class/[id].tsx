@@ -6,8 +6,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../src/auth/AuthContext';
 import * as classesApi from '../../../src/api/classes';
 import * as assignmentsApi from '../../../src/api/assignments';
-import { getLessons } from '../../../src/api/lessons';
-import { getQuizzes } from '../../../src/api/quizzes';
 import { useSWR } from '../../../src/api/useSWR';
 import type { ClassDetail, ClassStudent } from '../../../src/api/classes';
 import type { Assignment } from '../../../src/api/assignments';
@@ -72,16 +70,12 @@ export default function ClassDetailScreen() {
     () => assignmentsApi.getClassAssignments(id!, token!),
     { enabled },
   );
-  const { data: lessons } = useSWR('/lessons?isPublished=true', () => getLessons(token!), { enabled });
-  const { data: quizzes } = useSWR('/quizzes?isPublished=true', () => getQuizzes(token!), { enabled });
-
-  // Map assignment targetId → human title, derived from the SWR'd lists.
-  const titles = useMemo(() => {
-    const map: Record<string, string> = {};
-    lessons?.items.forEach((l) => (map[l.id] = l.title));
-    quizzes?.items.forEach((q) => (map[q.id] = q.title));
-    return map;
-  }, [lessons, quizzes]);
+  /*
+   * Гарчиг/сэдэв нь даалгаврын мөрөн дээрээ серверээс ирнэ (`targetTitle`,
+   * `targetTopic`). Урьд нь бүх хичээл + бүх сорилыг татаж id-гаар нь
+   * тааруулдаг байсныг больсон: даалгаврын сангийн тест тэр жагсаалтад
+   * байхгүй тул «—» болно (мөн 2 илүү хүсэлт).
+   */
 
   // Analytics overview is fire-and-forget behind the `overview &&` guard, so its
   // failure never blanks the roster/assignments.
@@ -283,7 +277,9 @@ export default function ClassDetailScreen() {
               <View key={a.id}>
                 <AssignmentRow
                   type={a.type}
-                  title={titles[a.targetId] ?? '—'}
+                  title={a.targetTitle ?? '—'}
+                  topic={a.targetTopic}
+                  questionCount={a.questionCount}
                   note={a.note}
                   dueAt={a.dueAt}
                   progress={{

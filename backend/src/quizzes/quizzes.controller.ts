@@ -12,6 +12,7 @@ import {
   HttpCode,
   HttpStatus,
   Inject,
+  ForbiddenException,
 } from '@nestjs/common';
 import { createHash } from 'crypto';
 import type Redis from 'ioredis';
@@ -21,23 +22,25 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import { UserRole } from '../common/enums';
 import { QuizzesService } from './quizzes.service';
 import { XpService } from '../xp/xp.service';
 import { StarsService } from '../xp/stars.service';
-import { XpSource } from '../common/enums';
+import { XpSource, UserRole, AssignmentType } from '../common/enums';
 import { AiGenerateQuizDto } from './dto/ai-generate-quiz.dto';
 import { BulkGenerateQuizDto } from './dto/bulk-generate-quiz.dto';
 import { IeltsPaperDto } from './dto/ielts-paper.dto';
 import { CreateQuizDto } from './dto/create-quiz.dto';
 import { IELTS_OBJECTIVE_CATEGORIES, ieltsBand } from './ielts';
-import { canSeeAnswers, stripAnswers } from './sanitize';
+import { canSeeAnswers, canSeeAssignmentBank, stripAnswers } from './sanitize';
 import { UpdateQuizDto } from './dto/update-quiz.dto';
 import { QueryQuizzesDto } from './dto/query-quizzes.dto';
-import { SubmitQuizDto, AnswerItemDto } from './dto/submit-quiz.dto';
+import { SubmitQuizDto, CheckAnswerDto } from './dto/submit-quiz.dto';
 import { User } from '../entities/user.entity';
 import { ProgressService } from '../teacher/progress.service';
 import { AssignmentsService } from '../assignments/assignments.service';
+import { subsetQuiz } from '../assignments/question-subset';
+import { Quiz } from '../entities/quiz.entity';
+import { Assignment } from '../entities/assignment.entity';
 
 @Controller('quizzes')
 @UseGuards(JwtAuthGuard)
@@ -132,7 +135,10 @@ export class QuizzesController {
    */
   @Get()
   async findAll(@Query() query: QueryQuizzesDto, @CurrentUser() user: User) {
-    const page = await this.quizzesService.findAll(query);
+    const page = await this.quizzesService.findAll(
+      query,
+      canSeeAssignmentBank(user?.role),
+    );
     if (canSeeAnswers(user?.role)) return page;
     return { ...page, items: page.items.map(stripAnswers) };
   }
@@ -151,17 +157,70 @@ export class QuizzesController {
     return this.quizzesService.qualityReport(category);
   }
 
-  /** Get a single quiz by id. */
+  /**
+   * Get a single quiz by id.
+   *
+   * `assignmentId` нь багшийн даалгавар гүйцэтгэж байгаа сурагчийнх — сервер
+   * түүгээр нь **сонгогдсон асуултуудыг** л буцаана (`question-subset.ts`).
+   */
   @Get(':id')
   async findOne(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: User,
+    // ⚠️ `optional: true`-тэй ParseUUIDPipe заавал: түүхий мөр Postgres руу
+    // очвол `invalid input syntax for type uuid` гэж 500 өгнө.
+    @Query('assignmentId', new ParseUUIDPipe({ optional: true }))
+    assignmentId?: string,
   ) {
-    // Аппын хувилбар: `fill_blank` бүрд яг 4 сонголт бэлдэнэ.
-    const quiz = await this.quizzesService.findOneForStudent(id);
+    const { quiz: scoped } = await this.scopeToAssignment(
+      await this.quizzesService.findOne(id),
+      user,
+      assignmentId,
+    );
+    // Аппын хувилбар: `fill_blank` бүрд яг 4 сонголт бэлдэнэ. Дэд олонлогийн
+    // ДАРАА хийгдэх ёстой — үгийн сан зөвхөн хийх асуултуудынх байхын тулд.
+    const quiz = this.quizzesService.toStudentQuiz(scoped);
     // ⚠️ Сонголт/үгийн санг бэлдсэний ДАРАА хасна — тэдгээр нь хариултаас
     // тооцоологддог (аль хэдийн холигдсон тул түлхүүрээ задлахгүй).
     return canSeeAnswers(user?.role) ? quiz : stripAnswers(quiz);
+  }
+
+  /**
+   * Сурагч энэ quiz-ийг үзэх эрхтэй эсэхийг шалгаад, даалгавраар оноогдсон
+   * асуултуудаар нь шүүнэ. **Гурван зам (нээх · шалгах · илгээх) бүгд үүгээр
+   * дамжина** — эс бөгөөс нэг нь шүүгдэж, нөгөө нь шүүгдэхгүй үлдэж, индекс
+   * зөрөх болно.
+   *
+   * Зардал: даалгаврын сангийн БИШ quiz дээр `assignmentId` ирээгүй бол ямар
+   * ч нэмэлт query хийхгүй — ердийн дасгалын урсгал урьдын адил хурдан.
+   */
+  private async scopeToAssignment(
+    quiz: Quiz,
+    user: User,
+    assignmentId?: string,
+  ): Promise<{ quiz: Quiz; assignment: Assignment | null }> {
+    const staff = canSeeAssignmentBank(user?.role);
+    if ((!assignmentId && !quiz.assignOnly) || (staff && !assignmentId)) {
+      return { quiz, assignment: null };
+    }
+
+    const assignment = await this.assignments.findStudentAssignment(
+      user.id,
+      AssignmentType.QUIZ,
+      quiz.id,
+      assignmentId,
+    );
+
+    // Даалгаврын сан = зөвхөн багшаас ирсэн даалгавраар нээгдэнэ.
+    if (quiz.assignOnly && !assignment && !staff) {
+      throw new ForbiddenException(
+        'Энэ дасгалыг багш даалгавар болгож өгсний дараа үзнэ',
+      );
+    }
+    return {
+      quiz: subsetQuiz(quiz, assignment?.questionIndexes ?? null),
+      assignment,
+    };
   }
 
   /**
@@ -206,7 +265,13 @@ export class QuizzesController {
     @Body() dto: SubmitQuizDto,
     @CurrentUser() user: User,
   ) {
-    const quiz = await this.quizzesService.findOne(id);
+    // Даалгаврын дэд олонлогийг ЭНД мөн хэрэглэнэ — эс бөгөөс сурагч 5
+    // асуулт хараад, оноо нь 15 асуултаас бодогдоно.
+    const { quiz, assignment } = await this.scopeToAssignment(
+      await this.quizzesService.findOne(id),
+      user,
+      dto.assignmentId,
+    );
     const result = this.quizzesService.scoreSubmission(quiz, dto);
 
     // IELTS objective modules (listening/reading): report an approximate band,
@@ -251,12 +316,16 @@ export class QuizzesController {
       correctCount: result.breakdown.filter((b) => b.correct).length,
       totalCount: result.breakdown.length,
       scorePct: result.percentage,
-      assignmentId: dto.assignmentId ?? null,
+      assignmentId: assignment?.id ?? null,
     });
 
-    if (dto.assignmentId) {
+    // ⚠️ `dto.assignmentId`-г ШУУД бичихгүй — `scopeToAssignment` түүнийг
+    // «энэ сурагчийнх мөн үү, энэ quiz руу заасан уу» гэж шалгасны дараа
+    // л `assignment` болж ирнэ. Эс бөгөөс сурагч өөр ангийн даалгаврын id
+    // хавчуулж тэнд гүйцэтгэлийн мөр үүсгэж чадна.
+    if (assignment) {
       await this.assignments.recordSubmission(
-        dto.assignmentId,
+        assignment.id,
         user.id,
         result.percentage,
       );
@@ -296,10 +365,16 @@ export class QuizzesController {
   @HttpCode(HttpStatus.OK)
   async check(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: AnswerItemDto,
+    @Body() dto: CheckAnswerDto,
     @CurrentUser() user: User,
   ) {
-    const quiz = await this.quizzesService.findOne(id);
+    // Шүүгдсэн quiz дээр шалгана — сурагчийн 3 дахь асуулт нь эх тестийн 3
+    // дахь асуулт биш байж болно (`question-subset.ts`).
+    const { quiz } = await this.scopeToAssignment(
+      await this.quizzesService.findOne(id),
+      user,
+      dto.assignmentId,
+    );
     const result = this.quizzesService.checkAnswer(
       quiz,
       dto.questionIndex,
@@ -334,7 +409,7 @@ export class QuizzesController {
   private async wasJustCharged(
     userId: string,
     quizId: string,
-    dto: AnswerItemDto,
+    dto: CheckAnswerDto,
   ): Promise<boolean> {
     const key = `quizcheck:${userId}:${quizId}:${dto.questionIndex}:${createHash(
       'sha1',

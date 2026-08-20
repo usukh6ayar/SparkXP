@@ -19,6 +19,20 @@ export function canSeeAnswers(role?: string | null): boolean {
   return STAFF_ROLES.includes(role as (typeof STAFF_ROLES)[number]);
 }
 
+/**
+ * Аль дүр **даалгаврын санг** (`Quiz.assignOnly`) жагсаалтаас харах вэ.
+ *
+ * Багш нэмэгдсэн нь энэ сангаас даалгавар сонгодог хүн тэр — гэхдээ
+ * `canSeeAnswers`-т ОРООГҮЙ хэвээр: багш асуултаа хараад сонгоно, зөв
+ * хариултын түлхүүр хэрэггүй.
+ *
+ * ⚠️ Сурагч энэ жагсаалтад хэзээ ч орохгүй. Тэдний цорын ганц зам нь
+ * өөрсдөд нь оногдсон `assignments` мөр (`GET /quizzes/:id?assignmentId=`).
+ */
+export function canSeeAssignmentBank(role?: string | null): boolean {
+  return canSeeAnswers(role) || role === 'teacher';
+}
+
 /** Fisher–Yates — байрлалаараа түлхүүрээ задлахгүйн тулд. */
 function shuffle<T>(list: T[]): T[] {
   const out = [...list];
