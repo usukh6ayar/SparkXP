@@ -28,9 +28,7 @@ export function normalizeIndexes(
   if (!indexes || indexes.length === 0) return null;
 
   const unique = [...new Set(indexes)].sort((a, b) => a - b);
-  const bad = unique.find(
-    (i) => !Number.isInteger(i) || i < 0 || i >= total,
-  );
+  const bad = unique.find((i) => !Number.isInteger(i) || i < 0 || i >= total);
   if (bad !== undefined) {
     throw new BadRequestException(
       `Асуултын дугаар буруу байна (${bad + 1}). Энэ тест ${total} асуулттай.`,

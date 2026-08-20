@@ -91,6 +91,24 @@ export function getMyAssignments(token: string): Promise<Assignment[]> {
   return apiRequest<Assignment[]>('/assignments/mine', { token });
 }
 
+/**
+ * PATCH /assignments/:id — даалгаврын **хүрээг засах** (хэнд оногдох вэ).
+ *
+ * Хоосон массив = **бүх анги**. Багц даалгаварт багц бүрд нь дуудна — нэг
+ * даалгаврын бүх багц ижил бүрэлдэхүүнтэй байх ёстой.
+ */
+export function updateAssignmentStudents(
+  id: string,
+  studentIds: string[],
+  token: string,
+): Promise<Assignment> {
+  return apiRequest<Assignment>(`/assignments/${id}`, {
+    method: 'PATCH',
+    body: { studentIds },
+    token,
+  });
+}
+
 /** DELETE /assignments/:id — teacher removes an assignment. */
 export function deleteAssignment(id: string, token: string): Promise<void> {
   return apiRequest<void>(`/assignments/${id}`, { method: 'DELETE', token });

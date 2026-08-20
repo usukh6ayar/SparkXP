@@ -317,6 +317,15 @@ export class QuizzesController {
       totalCount: result.breakdown.length,
       scorePct: result.percentage,
       assignmentId: assignment?.id ?? null,
+      // Зөв эсэх нь `breakdown`-д, харин ЮУ гэж хариулсан нь зөвхөн `dto`-д
+      // байдаг — багш алдааг харахын тулд хоёулаа хэрэгтэй.
+      answers: result.breakdown.map((b) => ({
+        i: b.questionIndex,
+        a:
+          dto.answers.find((x) => x.questionIndex === b.questionIndex)
+            ?.answer ?? null,
+        ok: b.correct,
+      })),
     });
 
     // ⚠️ `dto.assignmentId`-г ШУУД бичихгүй — `scopeToAssignment` түүнийг

@@ -9,8 +9,13 @@ import * as assignmentsApi from '../../../src/api/assignments';
 import { useSWR } from '../../../src/api/useSWR';
 import type { ClassDetail, ClassStudent } from '../../../src/api/classes';
 import type { Assignment } from '../../../src/api/assignments';
+import {
+  groupAssignments,
+  groupTitle,
+  type AssignmentGroup,
+} from '../../../src/lib/assignmentGroups';
 import { getClassOverview, type ClassOverview } from '../../../src/api/teacher';
-import { t } from '../../../src/i18n';
+import { t, tf } from '../../../src/i18n';
 import { AppText } from '../../../src/components/Text';
 import { SkillBars } from '../../../src/components/SkillBars';
 import { JoinCodeCard } from '../../../src/components/JoinCodeCard';
@@ -18,6 +23,7 @@ import { StudentRow } from '../../../src/components/StudentRow';
 import { RequestRow } from '../../../src/components/RequestRow';
 import { AssignmentRow } from '../../../src/components/AssignmentRow';
 import { SubmissionList } from '../../../src/components/SubmissionList';
+import { EditAssignmentStudents } from '../../../src/components/EditAssignmentStudents';
 import { Button } from '../../../src/components/Button';
 import { Card } from '../../../src/components/Card';
 import { EmptyState } from '../../../src/components/EmptyState';
@@ -86,9 +92,14 @@ export default function ClassDetailScreen() {
     }, [token, id]),
   );
 
-  // Which assignment's submissions list is open. One at a time — the teacher is
-  // chasing one task, and stacking open lists buries the roster below.
-  const [openAssignmentId, setOpenAssignmentId] = useState<string | null>(null);
+  /*
+   * Аль даалгаврын нэрсийн жагсаалт нээлттэй байна вэ. Нэг нь л — багш нэг
+   * ажлын араас хөөцөлдөж байгаа бөгөөд задарсан жагсаалтууд доорх ангийн
+   * жагсаалтыг булчихна.
+   */
+  const [openGroupKey, setOpenGroupKey] = useState<string | null>(null);
+  /** Аль даалгаврын бүрэлдэхүүнийг засаж байна вэ (багцуудынх нь id). */
+  const [editing, setEditing] = useState<AssignmentGroup | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [actingId, setActingId] = useState<string | null>(null);
 
@@ -135,23 +146,36 @@ export default function ClassDetailScreen() {
     ]);
   }
 
-  function confirmDelete(assignmentId: string) {
-    Alert.alert(t('deleteAssignment'), '', [
-      { text: t('back'), style: 'cancel' },
-      {
-        text: t('delete'),
-        style: 'destructive',
-        onPress: async () => {
-          if (!token) return;
-          try {
-            await assignmentsApi.deleteAssignment(assignmentId, token);
-            refetchAssignments();
-          } catch {
-            alertError(t('errorGeneric'));
-          }
+  /**
+   * Даалгавар устгах. Олон багцтай бол **бүх багцыг** устгана — багш нэг
+   * даалгавар өгсөн, түүнийгээ буцааж авч байгаа болохоос «5-аас 1-ийг нь»
+   * гэж бодохгүй.
+   */
+  function confirmDelete(group: AssignmentGroup) {
+    Alert.alert(
+      t('deleteAssignment'),
+      group.parts.length > 1
+        ? tf('deleteAssignmentParts', { n: group.parts.length })
+        : '',
+      [
+        { text: t('back'), style: 'cancel' },
+        {
+          text: t('delete'),
+          style: 'destructive',
+          onPress: async () => {
+            if (!token) return;
+            try {
+              await Promise.all(
+                group.parts.map((p) => assignmentsApi.deleteAssignment(p.id, token)),
+              );
+              refetchAssignments();
+            } catch {
+              alertError(t('errorGeneric'));
+            }
+          },
         },
-      },
-    ]);
+      ],
+    );
   }
 
   // First load — skeleton. Only while we have nothing to show yet.
@@ -179,6 +203,12 @@ export default function ClassDetailScreen() {
 
   // Roster ranked by XP for a leaderboard-like feel.
   const ranked = [...detail.students].sort((a, b) => b.xp - a.xp);
+  /*
+   * Нэг илгээлт = нэг мөр. Багш 5 сэдвээс асуулт сонгоод нэг даалгавар өгөхөд
+   * сервер 5 мөр үүсгэдэг — багш өөрөө нэг л даалгавар өгсөн гэж боддог тул
+   * жагсаалт нь мөн тэгж харагдана (`src/lib/assignmentGroups.ts`).
+   */
+  const groups = groupAssignments(assignments);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -266,38 +296,110 @@ export default function ClassDetailScreen() {
         )}
 
         {/* Assignments */}
-        <SectionTitle title={t('assignments')} count={assignments.length || undefined} />
-        {assignments.length === 0 ? (
+        <SectionTitle title={t('assignments')} count={groups.length || undefined} />
+        {groups.length === 0 ? (
           <Card variant="filled">
             <AppText variant="bodyStrong" center>{t('noAssignments')}</AppText>
           </Card>
         ) : (
           <Card variant="raised" padding="md">
-            {assignments.map((a) => (
-              <View key={a.id}>
-                <AssignmentRow
-                  type={a.type}
-                  title={a.targetTitle ?? '—'}
-                  topic={a.targetTopic}
-                  questionCount={a.questionCount}
-                  note={a.note}
-                  dueAt={a.dueAt}
-                  progress={{
-                    done: a.completedCount ?? 0,
-                    // Targeted students, or the whole roster when it went to everyone.
-                    total: a.studentIds?.length ?? detail?.students.length ?? 0,
-                  }}
-                  expanded={openAssignmentId === a.id}
-                  onPress={() =>
-                    setOpenAssignmentId((cur) => (cur === a.id ? null : a.id))
-                  }
-                  onDelete={() => confirmDelete(a.id)}
-                />
-                {openAssignmentId === a.id ? (
-                  <SubmissionList assignmentId={a.id} />
-                ) : null}
-              </View>
-            ))}
+            {groups.map((g) => {
+              const a = g.head;
+              const students = a.studentIds?.length ?? detail?.students.length ?? 0;
+              const bundle = g.parts.length > 1;
+              const open = openGroupKey === g.key;
+              const handedIn = g.parts.reduce((sum, p) => sum + (p.completedCount ?? 0), 0);
+              const expected = students * g.parts.length;
+              return (
+                <View key={g.key}>
+                  <AssignmentRow
+                    type={a.type}
+                    title={bundle ? groupTitle(g) : a.targetTitle ?? '—'}
+                    topic={bundle ? null : a.targetTopic}
+                    partCount={g.parts.length}
+                    questionCount={g.questionCount}
+                    note={a.note}
+                    dueAt={a.dueAt}
+                    progress={{ done: handedIn, total: expected }}
+                    progressLabel={
+                      /*
+                       * Олон багцтай даалгаварт «8/12 хийсэн» гэж бичих
+                       * боломжгүй: хэдэн сурагч БҮГДИЙГ нь дуусгасныг мэдэхийн
+                       * тулд багц бүрийн нэрсийг татах хэрэгтэй (задлахад л
+                       * татагдана). Тиймээс энд нэгжгүй хувь — «нийт хэдэн
+                       * хувь нь гүйцэтгэгдсэн бэ». Сурагч тус бүрийн явц
+                       * доорх жагсаалтад гарна.
+                       */
+                      bundle
+                        ? tf('submissionsProgressPct', {
+                            n: expected ? Math.round((handedIn / expected) * 100) : 0,
+                          })
+                        : undefined
+                    }
+                    expanded={open}
+                    onPress={() => setOpenGroupKey((cur) => (cur === g.key ? null : g.key))}
+                    onDelete={() => confirmDelete(g)}
+                  />
+
+                  {open ? (
+                    <>
+                      {/*
+                        Багцууд нь **мэдээлэл** — юу өгсний жагсаалт. Урьд нь
+                        эдгээрийг дарж багц тус бүрийн нэрсийг задалдаг байсан
+                        нь буруу байв: тэнд бүх сурагчийн нэр гарч, «энэ багцад
+                        эдгээр сурагч байна» гэж уншигдаж, хэн юу хийснийг
+                        хэлдэггүй байлаа. Сурагч даалгаврыг багц багцаар нь
+                        гүйцэтгэдэг тул хариулт нь доорх ганц жагсаалтад:
+                        нэр бүрийн ард «3/5 багц».
+                      */}
+                      {bundle ? (
+                        <View style={styles.parts}>
+                          {g.parts.map((part, i) => (
+                            <View key={part.id} style={styles.partRow}>
+                              <View style={styles.partNo}>
+                                <AppText variant="label" color={colors.textSecondary}>
+                                  {i + 1}
+                                </AppText>
+                              </View>
+                              <View style={styles.partBody}>
+                                <AppText variant="body" numberOfLines={1}>
+                                  {part.targetTopic || part.targetTitle || '—'}
+                                </AppText>
+                              </View>
+                              {part.questionCount ? (
+                                <AppText variant="caption" color={colors.textMuted}>
+                                  {tf('questionCount', { n: part.questionCount })}
+                                </AppText>
+                              ) : null}
+                            </View>
+                          ))}
+                        </View>
+                      ) : null}
+                      {/* Бүрэлдэхүүн засах — шинэ сурагч нэмэх / буруу
+                          сонголтыг залруулах. Даалгаврыг устгаад дахин өгөх
+                          нь хийсэн хүмүүсийн дүнг арчина. */}
+                      <Pressable style={styles.editRow} onPress={() => setEditing(g)}>
+                        <Ionicons name="people-outline" size={16} color={colors.primary} />
+                        <AppText variant="label" color={colors.primary}>
+                          {t('editStudents')}
+                        </AppText>
+                        <AppText variant="caption" color={colors.textMuted}>
+                          {a.studentIds?.length
+                            ? tf('assignedToCount', { n: a.studentIds.length })
+                            : t('editStudentsAll')}
+                        </AppText>
+                      </Pressable>
+                      <SubmissionList
+                        packs={g.parts.map((p) => ({
+                          id: p.id,
+                          label: p.targetTopic || p.targetTitle || '—',
+                        }))}
+                      />
+                    </>
+                  ) : null}
+                </View>
+              );
+            })}
           </Card>
         )}
 
@@ -309,6 +411,17 @@ export default function ClassDetailScreen() {
         />
         <View style={{ height: spacing.xxl }} />
       </ScrollView>
+
+      {editing ? (
+        <EditAssignmentStudents
+          visible
+          onClose={() => setEditing(null)}
+          onSaved={refetchAssignments}
+          assignmentIds={editing.parts.map((p) => p.id)}
+          roster={detail.students}
+          current={editing.head.studentIds ?? null}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -335,5 +448,22 @@ const makeStyles = (colors: AppColors) => StyleSheet.create({
     backgroundColor: colors.surfaceAlt, alignItems: 'center', justifyContent: 'center',
   },
   requestCard: { borderWidth: 1, borderColor: colors.streak },
+  // Задарсан багцууд — толгой мөрөөс догол мөрөөр ялгарна.
+  parts: {
+    paddingLeft: spacing.md,
+    borderLeftWidth: 2,
+    borderLeftColor: colors.border,
+    marginBottom: spacing.sm,
+  },
+  partRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xs },
+  partNo: {
+    width: 24, height: 24, borderRadius: radius.full, backgroundColor: colors.surfaceAlt,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  partBody: { flex: 1 },
+  editRow: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
+    paddingVertical: spacing.sm,
+  },
   weakChip: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start' },
 });

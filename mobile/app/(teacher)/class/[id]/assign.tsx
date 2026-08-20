@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useCallback, useEffect, useState, useMemo } from 'react';
 import { View, Pressable, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -9,13 +9,14 @@ import type { AssignmentType } from '../../../../src/api/assignments';
 import * as classesApi from '../../../../src/api/classes';
 import type { ClassStudent } from '../../../../src/api/classes';
 import { getLessons } from '../../../../src/api/lessons';
-import { getQuizzes, getAssignmentBank, type Quiz } from '../../../../src/api/quizzes';
+import { getAssignmentBank, type Quiz } from '../../../../src/api/quizzes';
 import { t, tf, type TranslationKey } from '../../../../src/i18n';
 import { AppText } from '../../../../src/components/Text';
 import { SelectField } from '../../../../src/components/SelectField';
 import { TextField } from '../../../../src/components/TextField';
 import { FilterChips } from '../../../../src/components/FilterChips';
 import { ActionButton } from '../../../../src/components/ActionButton';
+import { EmptyState } from '../../../../src/components/EmptyState';
 import {
   QuestionPicker,
   countPicked,
@@ -34,8 +35,34 @@ const DUE_PRESETS: { labelKey: TranslationKey; days: number | null }[] = [
   { labelKey: 'due7Days', days: 7 },
 ];
 
-/** Багшийн жагсаалтад бүх контент багтах ёстой (серверийн анхдагч нь 20). */
-const CONTENT_LIMIT = 200;
+/**
+ * Нэг хүсэлтэд авах мөрийн тоо. Багшийн жагсаалтад бүх контент багтах ёстой
+ * (серверийн анхдагч нь ердөө 20), гэхдээ **100-аас хэтэрч болохгүй**:
+ * `QueryLessonsDto.limit` дээр `@Max(100)` байгаа тул 200 гэж бичихэд сервер
+ * 400 «limit must not be greater than 100» буцаадаг байв. Тэр алдаа нь
+ * `Promise.all`-ийн дотор баригдалгүй унаж, дэлгэц нээмэгц «Uncaught (in
+ * promise) API Error: limit …» болж гарч ирдэг байсан.
+ */
+const PAGE_LIMIT = 100;
+
+/** Хамгийн ихдээ татах хуудас (500 мөр). Түүнээс цааш багш хайлтаа ашиглана. */
+const MAX_PAGES = 5;
+
+/**
+ * Хуудаслаж бүгдийг татна — сервер нэг удаад `PAGE_LIMIT`-ээс илүүг өгдөггүй
+ * тул «бүх контент» гэдэг нь хэд хэдэн хүсэлт гэсэн үг.
+ */
+async function fetchAll<T>(
+  fetchPage: (page: number, limit: number) => Promise<{ items: T[]; total: number }>,
+): Promise<T[]> {
+  const out: T[] = [];
+  for (let page = 1; page <= MAX_PAGES; page++) {
+    const { items, total } = await fetchPage(page, PAGE_LIMIT);
+    out.push(...items);
+    if (items.length < PAGE_LIMIT || out.length >= total) break;
+  }
+  return out;
+}
 
 /**
  * Оноож болох нэг хичээл. `group` дээр чипс шүүнэ — CEFR түвшин.
@@ -89,41 +116,50 @@ export default function AssignScreen() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!token || !id) return;
-    (async () => {
-      try {
-        /*
-         * Даалгаврын сан нь тусдаа хүсэлт: сурагчид нээлттэй контентоос
-         * ЯЛГААТАЙ нөхцөлөөр татагддаг (`?assignOnly=true`), мөн багшийн
-         * эрхгүй хүн дуудвал хоосон ирдэг. Хоёуланг нь нийлүүлж, сангийн
-         * мөрүүд нь өөрийн шошготойгоор нэг жагсаалтад гарна.
-         */
-        const [lessonPage, quizPage, bankPage, roster] = await Promise.all([
-          getLessons(token, { limit: CONTENT_LIMIT }),
-          getQuizzes(token, { limit: CONTENT_LIMIT }),
-          getAssignmentBank(token).catch(() => ({ items: [] as Quiz[] })),
-          classesApi.getClassStudents(id, token),
-        ]);
-        setLessons(
-          lessonPage.items.map((l) => ({
-            id: l.id,
-            title: l.title,
-            group: l.level || UNGROUPED,
-          })),
-        );
-        // Сервер санг нээлттэй жагсаалтад оруулдаггүй ч давхардлаас хамгаална.
-        const bankIds = new Set(bankPage.items.map((q) => q.id));
-        setQuizzes([
-          ...bankPage.items,
-          ...quizPage.items.filter((q) => !bankIds.has(q.id)),
-        ]);
-        setStudents(roster);
-      } finally {
-        setLoading(false);
-      }
-    })();
+    setLoading(true);
+    setError(null);
+    try {
+      /*
+       * ⚠️ Сорил нь **зөвхөн даалгаврын сангаас** (`?assignOnly=true`) ирнэ.
+       * Сурагчид нээлттэй дасгалуудыг ЗОРИУД татахаа больсон: даалгавар гэдэг
+       * нь сурагч өөрөө хийж чадахгүй, зөвхөн багшаар дамжин нээгддэг зүйл
+       * байх ёстой. Нээлттэй дасгалыг оноох нь тэр гэрээг эвдэнэ — сурагч
+       * Дасгал табаасаа тэр дасгалыг ямар ч даалгаваргүйгээр хийчихнэ.
+       *
+       * Сангийн мөрүүдийг сурагчийн token-оор дуудвал сервер хоосон буцаадаг
+       * (`canSeeBank`), тиймээс энэ жагсаалт багшийн эрхээр л дүүрнэ.
+       */
+      const [lessonItems, bankItems, roster] = await Promise.all([
+        fetchAll((page, limit) => getLessons(token, { page, limit })),
+        fetchAll((page, limit) => getAssignmentBank(token, { page, limit })),
+        classesApi.getClassStudents(id, token),
+      ]);
+      setLessons(
+        lessonItems.map((l) => ({
+          id: l.id,
+          title: l.title,
+          group: l.level || UNGROUPED,
+        })),
+      );
+      setQuizzes(bankItems);
+      setStudents(roster);
+    } catch (e) {
+      /*
+       * Аль нэг хүсэлт унавал өмнө нь `catch` огт байхгүй тул промис
+       * баригдалгүй унаж, Expo улаан дэлгэц гаргадаг байв. Одоо дэлгэц
+       * дахин оролдох боломжтой алдааны төлөвт орно.
+       */
+      setError(e instanceof Error ? e.message : t('errorGeneric'));
+    } finally {
+      setLoading(false);
+    }
   }, [token, id]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   function toggleStudent(sid: string) {
     setSelectedIds((prev) =>
@@ -244,6 +280,15 @@ export default function AssignScreen() {
 
         {loading ? (
           <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.xl }} />
+        ) : error && lessons.length === 0 && quizzes.length === 0 ? (
+          /* Татаж чадаагүй — сонгох юу ч алга. Хоосон талбарууд харуулахын
+             оронд шалтгааныг хэлээд дахин оролдох товч өгнө. */
+          <EmptyState
+            icon="alert-circle-outline"
+            title={t('error')}
+            hint={error}
+            action={{ label: t('retry'), onPress: () => void load() }}
+          />
         ) : (
           <>
             {type === 'lesson' ? (

@@ -9,6 +9,7 @@
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { AppNotification } from '../api/notifications';
+import type { TranslationKey } from '../i18n';
 
 /** Visual buckets a notification can fall into (drives icon + accent color). */
 export type NotifCategory =
@@ -73,8 +74,22 @@ export function chipOf(category: NotifCategory): Exclude<ChipKey, 'all'> {
   return 'system';
 }
 
-/** Day bucket for the section a notification is grouped under. */
-export type TimeBucket = 'today' | 'yesterday' | 'earlier';
+/** Day bucket for the section a row is grouped under. */
+export type TimeBucket = 'today' | 'yesterday' | 'week' | 'earlier';
+
+/** The order sections are rendered in — newest bucket first. */
+export const BUCKET_ORDER: TimeBucket[] = ['today', 'yesterday', 'week', 'earlier'];
+
+/**
+ * Section labels, kept next to the buckets so every list that groups by day
+ * (notification centre, assignments) reads the same words.
+ */
+export const BUCKET_LABEL: Record<TimeBucket, TranslationKey> = {
+  today: 'notifGroupToday',
+  yesterday: 'notifGroupYesterday',
+  week: 'notifGroupWeek',
+  earlier: 'notifGroupEarlier',
+};
 
 export function bucketOf(iso: string): TimeBucket {
   const startOfToday = new Date();
@@ -82,6 +97,9 @@ export function bucketOf(iso: string): TimeBucket {
   const t = new Date(iso).getTime();
   if (t >= startOfToday.getTime()) return 'today';
   if (t >= startOfToday.getTime() - 86_400_000) return 'yesterday';
+  // "Earlier" alone lumped last Tuesday in with last month. A week is the
+  // window a student still thinks of as "recent", so it gets its own section.
+  if (t >= startOfToday.getTime() - 7 * 86_400_000) return 'week';
   return 'earlier';
 }
 

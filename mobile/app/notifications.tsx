@@ -17,10 +17,10 @@ import { haptics } from '../src/lib/haptics';
 import { timeAgo } from '../src/lib/timeAgo';
 import { enter, useReduceMotion } from '../src/lib/motion';
 import {
-  categorize, chipOf, bucketOf, notifStore,
+  categorize, chipOf, bucketOf, notifStore, BUCKET_LABEL,
   type NotifCategory, type ChipKey, type TimeBucket,
 } from '../src/lib/notificationCenter';
-import { t, tf } from '../src/i18n';
+import { t } from '../src/i18n';
 import { spacing, radius, tints, elevation, type AppColors } from '../src/theme/theme';
 import { useColors } from '../src/settings/SettingsContext';
 import { bounded } from '../src/theme/responsive';
@@ -59,12 +59,6 @@ const CHIPS: { key: ChipKey; labelKey: Parameters<typeof t>[0] }[] = [
   { key: 'social', labelKey: 'notifFilterSocial' },
   { key: 'system', labelKey: 'notifFilterSystem' },
 ];
-
-const BUCKET_LABEL: Record<TimeBucket, Parameters<typeof t>[0]> = {
-  today: 'notifGroupToday',
-  yesterday: 'notifGroupYesterday',
-  earlier: 'notifGroupEarlier',
-};
 
 /** A flattened list row — either a time-section header or a notification card. */
 type Row =

@@ -20,7 +20,7 @@ import { getGamification, type Gamification } from "../../src/api/gamification";
 import { getHearts, type HeartsState } from "../../src/api/hearts";
 import { HeartsRow } from "../../src/components/HeartsRow";
 import { HeartsSheet } from "../../src/components/HeartsSheet";
-import { DailyGoalCard } from "../../src/components/DailyGoalCard";
+import { DailyGoalRing } from "../../src/components/DailyGoalRing";
 import { DailyGoalSheet } from "../../src/components/DailyGoalSheet";
 import { StreakFreezeSheet } from "../../src/components/StreakFreezeSheet";
 import { getDue } from "../../src/api/reviews";
@@ -85,6 +85,10 @@ const SCENE_H = Math.round(SCENE_W * SCENE_RATIO);
 // gem vs a bolt) — below ~24pt they all reduce to a coloured smudge. Still well
 // under the source PNGs' 166–234px, so nothing softens.
 const STAT_PILL_H = 44;
+// The daily-goal dial: a touch smaller than a stat pill so it reads as a badge
+// hanging off the streak rather than a second stat of equal weight, but still
+// over the 40pt minimum tap target.
+const GOAL_DIAL = 40;
 const STAT_ICON = 28;
 /**
  * Hearts show as five separate icons, so each stays smaller than a lone stat
@@ -136,6 +140,9 @@ const RAIL_SHADOW_PAD = 12;
 
 // Translucent dark pill used for the hero overlay badges.
 const HERO_PILL = "rgba(18,10,40,0.45)";
+// Unfilled part of the daily-goal ring ON the artwork — the themed track
+// (`surfaceAlt`) is a page colour and vanishes against the dark sky.
+const HERO_RING_TRACK = "rgba(255,255,255,0.22)";
 
 // Gold · silver · bronze medal fills for the top-3 leaderboard ranks.
 const RANK_COLORS = ["#FFC93C", "#B9C0C9", "#CD7F32"] as const;
@@ -529,32 +536,61 @@ export default function HomeScreen() {
               </View>
             </View>
 
-            {/* Streak alone on the left, the other three stacked on the right —
-                so the middle of the frame, where the fox stands, stays empty.
+            {/* Streak + daily goal on the left, the other three stacked on the
+                right — so the middle of the frame, where the fox stands, stays empty.
                 The right column is right-aligned and each pill is only as wide
                 as its contents, which leaves a ragged inner edge: the stats read
                 as badges floating over the scene rather than a panel bolted on
                 top of it. The whole block also sits ABOVE the fox (see
                 HEADER_RESERVE) — nothing covers him. */}
             <View style={styles.statFrame}>
-              {/* Tapping the streak opens the freeze shop — the offer appears
-                  where the thing it protects is already on screen. The ❄ badge
-                  shows how many freezes are banked. */}
-              <StatPill
-                tint={tints.orange}
-                value={String(streak)}
-                label={t("streak")}
-                onPress={() => { haptics.tap(); setFreezeSheet(true); }}
-                accessibilityLabel={`${t("statStreak")}: ${streak} — ${t("streakFreezeTitle")}`}
-                badge={freezes > 0 ? (
-                  <View style={styles.freezeBadge}>
-                    <Ionicons name="snow" size={9} color={c.sparks} />
-                    <AppText variant="caption" color={c.white}>{freezes}</AppText>
-                  </View>
+              <View style={styles.statLeft}>
+                {/* Tapping the streak opens the freeze shop — the offer appears
+                    where the thing it protects is already on screen. The ❄ badge
+                    shows how many freezes are banked. */}
+                <StatPill
+                  tint={tints.orange}
+                  value={String(streak)}
+                  label={t("streak")}
+                  onPress={() => { haptics.tap(); setFreezeSheet(true); }}
+                  accessibilityLabel={`${t("statStreak")}: ${streak} — ${t("streakFreezeTitle")}`}
+                  badge={freezes > 0 ? (
+                    <View style={styles.freezeBadge}>
+                      <Ionicons name="snow" size={9} color={c.sparks} />
+                      <AppText variant="caption" color={c.white}>{freezes}</AppText>
+                    </View>
+                  ) : null}
+                >
+                  <StreakFlame />
+                </StatPill>
+
+                {/* Today's goal, directly under the streak — the two daily
+                    habit counters read as one pair. A round dial, NOT a pill:
+                    as a capsule it repeated "12/50 Зорилт" in text and became
+                    another wide bar under the streak, which is what it was
+                    trying to stop being in the body. The arc plus today's XP
+                    says the same thing in a badge, and the number the ring is
+                    measured against lives one tap away in the sheet.
+                    Only once the summary lands: a ring at 0/50 while loading
+                    reads as "you did nothing today". */}
+                {gam ? (
+                  <Pressable
+                    style={({ pressed }) => [styles.goalDial, pressed && styles.goalDialPressed]}
+                    onPress={() => { haptics.tap(); setGoalSheet(true); }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${t("dailyGoalTitle")}: ${tf("dailyGoalProgress", { done: gam.todayXp, goal: gam.dailyGoal })}`}
+                  >
+                    <DailyGoalRing
+                      todayXp={gam.todayXp}
+                      dailyGoal={gam.dailyGoal}
+                      size={GOAL_DIAL - 10}
+                      track={HERO_RING_TRACK}
+                      showValue
+                      valueColor={c.white}
+                    />
+                  </Pressable>
                 ) : null}
-              >
-                <StreakFlame />
-              </StatPill>
+              </View>
 
               {/* Hearts first: they are the only stat that gates play, so they
                   get the position closest to the greeting. Sparks and XP are
@@ -657,18 +693,6 @@ export default function HomeScreen() {
                 )}
               </View>
             </Pressable>
-          ) : null}
-
-          {/* Today's XP against the student's own goal. Only once the summary
-              has loaded — a ring at 0/50 while loading reads as "you did
-              nothing today", which is a lie on a slow connection. */}
-          {gam ? (
-            <DailyGoalCard
-              todayXp={gam.todayXp}
-              dailyGoal={gam.dailyGoal}
-              onPress={() => { haptics.tap(); setGoalSheet(true); }}
-              style={styles.goalCard}
-            />
           ) : null}
 
           {/* SECONDARY — assignments + review, each a FULL-WIDTH card stacked
@@ -984,6 +1008,28 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   // Shrinkable: the pills grew a name each, and on a 320pt screen hearts +
   // "Зүрх" beside the streak pill would otherwise run off the frame. Bounding
   // the column lets each label truncate instead.
+  // Streak + daily goal stack on the left; the fox keeps the middle. One pill
+  // plus a small dial here against three pills on the right, so the block is
+  // no taller than before.
+  statLeft: { alignItems: "flex-start", gap: spacing.sm, flexShrink: 1 },
+  // The daily goal as a round badge under the streak: same frosted shell and
+  // glow as the pills so it belongs to the set, but circular and content-free
+  // — it holds the ring and nothing else.
+  goalDial: {
+    width: GOAL_DIAL,
+    height: GOAL_DIAL,
+    borderRadius: radius.full,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: HERO_PILL,
+    borderWidth: 1,
+    borderColor: tints.purple.fg,
+    shadowColor: tints.purple.fg,
+    shadowOpacity: 0.45,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 0 },
+  },
+  goalDialPressed: { opacity: 0.85 },
   statRight: { alignItems: "flex-end", gap: spacing.sm, flexShrink: 1 },
   // Banked streak freezes — a corner badge so it never widens the pill.
   freezeBadge: {
@@ -1039,8 +1085,6 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   // Every block on Home owns the gap ABOVE it (see reviewCard/joinCard). The
   // daily-goal strip had none, so it sat flush against the glowing "continue"
   // card and the two read as one merged shape.
-  goalCard: { marginTop: spacing.lg },
-
   // Review reminder — full-width card: icon chip + title/subtitle + due badge,
   // with the "start review" button on its own line underneath.
   reviewCard: {

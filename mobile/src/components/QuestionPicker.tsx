@@ -174,15 +174,11 @@ export function QuestionPicker({
                   {quiz.title}
                 </AppText>
                 <View style={styles.meta}>
+                  {/* «Даалгаврын сан» гэсэн түгжээтэй шошго байсныг хассан:
+                      энэ жагсаалтад одоо ЗӨВХӨН сангийн дасгал ирдэг тул мөр
+                      болгон дээр давтагдаад мэдээлэл өгөхөө больсон. Тэр
+                      баримтыг дэлгэцийн дээд талын нэг мөр тайлбар хэлнэ. */}
                   <Pill label={groupOf(quiz)} />
-                  {quiz.assignOnly ? (
-                    <Pill
-                      label={t('assignBankPill')}
-                      bg={c.primarySoft}
-                      fg={c.primary}
-                      icon="lock-closed"
-                    />
-                  ) : null}
                   <AppText variant="caption" color={c.textMuted}>
                     {chosen.length > 0
                       ? `${chosen.length}/${quiz.questions.length}`
