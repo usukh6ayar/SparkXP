@@ -4,6 +4,7 @@ import { Assignment } from '../entities/assignment.entity';
 import { AssignmentCompletion } from '../entities/assignment-completion.entity';
 import { Lesson } from '../entities/lesson.entity';
 import { Quiz } from '../entities/quiz.entity';
+import { QuizAttempt } from '../entities/quiz-attempt.entity';
 import { ClassesModule } from '../classes/classes.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { AssignmentsService } from './assignments.service';
@@ -14,7 +15,14 @@ import { AssignmentsController } from './assignments.controller';
  *  new task arrived. */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Assignment, AssignmentCompletion, Lesson, Quiz]),
+    TypeOrmModule.forFeature([
+      Assignment,
+      AssignmentCompletion,
+      Lesson,
+      Quiz,
+      // Багшийн «юун дээр алдав» харагдацад сурагчийн илгээлт хэрэгтэй.
+      QuizAttempt,
+    ]),
     ClassesModule,
     NotificationsModule,
   ],

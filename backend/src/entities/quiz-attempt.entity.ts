@@ -45,4 +45,18 @@ export class QuizAttempt extends BaseEntity {
   /** Set when this attempt fulfils an assignment. */
   @Column({ name: 'assignment_id', type: 'uuid', nullable: true })
   assignmentId: string | null;
+
+  /**
+   * Асуулт тус бүрийн хариулт — багш «сурагч юун дээр алдсан» бэ гэдгийг
+   * харах цорын ганц эх сурвалж. Урьд нь зөвхөн тоо (`correctCount`) хадгалдаг
+   * байсан тул «6/10» гэдгээс цааш юу ч мэдэх боломжгүй байв.
+   *
+   * ⚠️ `i` нь **сурагчийн харсан** дарааллын индекс. Багш нэг тестээс 5 асуулт
+   * сонгож өгсөн бол энэ нь эх тестийн индекс БИШ — уншихдаа даалгаврын
+   * `questionIndexes`-ээр дахин шүүсэн (`subsetQuiz`) хувилбартай тааруулна.
+   *
+   * Хуучин мөрүүд `null` — тэдгээрт «дэлгэрэнгүй алга» гэж харуулна.
+   */
+  @Column({ name: 'answers', type: 'jsonb', nullable: true })
+  answers: { i: number; a: number | string | null; ok: boolean }[] | null;
 }

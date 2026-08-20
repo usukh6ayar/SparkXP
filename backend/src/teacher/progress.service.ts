@@ -14,8 +14,16 @@ import { resolveSkill } from './skill';
 
 // ── Pure aggregation helpers (module-level, testable without DI) ──────────────
 
-export const SKILL_DIMENSIONS = ['listening', 'reading', 'writing', 'fill'] as const;
-export type SkillBreakdown = Record<(typeof SKILL_DIMENSIONS)[number], number | null>;
+export const SKILL_DIMENSIONS = [
+  'listening',
+  'reading',
+  'writing',
+  'fill',
+] as const;
+export type SkillBreakdown = Record<
+  (typeof SKILL_DIMENSIONS)[number],
+  number | null
+>;
 
 /** Average score_pct per mapped skill; unseen dimensions → null; 'other' dropped. */
 export function averageBySkill(
@@ -64,6 +72,8 @@ export class ProgressService {
     totalCount: number;
     scorePct: number;
     assignmentId?: string | null;
+    /** Асуулт тус бүрийн хариулт — багшийн «юун дээр алдав» харагдац. */
+    answers?: { i: number; a: number | string | null; ok: boolean }[];
   }): Promise<QuizAttempt> {
     let lessonType = null as Lesson['type'] | null;
     // Only pay for the lookup when the category can't answer it on its own.
@@ -83,6 +93,7 @@ export class ProgressService {
       totalCount: params.totalCount,
       scorePct: params.scorePct,
       assignmentId: params.assignmentId ?? null,
+      answers: params.answers ?? null,
     });
     return this.attempts.save(attempt);
   }
@@ -98,7 +109,9 @@ export class ProgressService {
   }
 
   /** Raw skill rows for a user, for averageBySkill(). */
-  studentSkillRows(userId: string): Promise<{ skill: string; scorePct: number }[]> {
+  studentSkillRows(
+    userId: string,
+  ): Promise<{ skill: string; scorePct: number }[]> {
     return this.attempts.find({
       where: { userId },
       select: { skill: true, scorePct: true },
@@ -170,11 +183,15 @@ export class ProgressService {
       : [];
     const students = roster.map((s) => {
       const mine = subs.filter((x) => x.studentId === s.id);
-      const done = mine.filter((x) => x.status !== SubmissionStatus.ASSIGNED).length;
+      const done = mine.filter(
+        (x) => x.status !== SubmissionStatus.ASSIGNED,
+      ).length;
       return {
         studentId: s.id,
         fullName: s.fullName,
-        completionPct: mine.length ? Math.round((done / mine.length) * 100) : null,
+        completionPct: mine.length
+          ? Math.round((done / mine.length) * 100)
+          : null,
       };
     });
 
@@ -190,7 +207,14 @@ export class ProgressService {
     const { teaching } = await this.classes.findForUser(teacher);
     const classIds = teaching.map((c) => c.id);
     if (classIds.length === 0) {
-      return { classCount: 0, studentCount: 0, activeStudents: 0, pending: 0, overdue: 0, classes: [] };
+      return {
+        classCount: 0,
+        studentCount: 0,
+        activeStudents: 0,
+        pending: 0,
+        overdue: 0,
+        classes: [],
+      };
     }
 
     const students = await this.classes.getStudentsForClasses(classIds);
@@ -207,13 +231,22 @@ export class ProgressService {
       : 0;
 
     const assignmentIds = (
-      await this.assignmentRepo.find({ where: { classId: In(classIds) }, select: { id: true } })
+      await this.assignmentRepo.find({
+        where: { classId: In(classIds) },
+        select: { id: true },
+      })
     ).map((a) => a.id);
     const subs = assignmentIds.length
-      ? await this.submissionRepo.find({ where: { assignmentId: In(assignmentIds) } })
+      ? await this.submissionRepo.find({
+          where: { assignmentId: In(assignmentIds) },
+        })
       : [];
-    const pending = subs.filter((s) => s.status === SubmissionStatus.ASSIGNED).length;
-    const overdue = subs.filter((s) => s.status === SubmissionStatus.LATE).length;
+    const pending = subs.filter(
+      (s) => s.status === SubmissionStatus.ASSIGNED,
+    ).length;
+    const overdue = subs.filter(
+      (s) => s.status === SubmissionStatus.LATE,
+    ).length;
 
     return {
       classCount: teaching.length,

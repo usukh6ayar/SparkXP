@@ -10,12 +10,14 @@ import { Assignment } from '../entities/assignment.entity';
 import { AssignmentCompletion } from '../entities/assignment-completion.entity';
 import { Lesson } from '../entities/lesson.entity';
 import { Quiz } from '../entities/quiz.entity';
+import { QuizAttempt } from '../entities/quiz-attempt.entity';
 import { User } from '../entities/user.entity';
 import { AssignmentType, UserRole, SubmissionStatus } from '../common/enums';
 import { ClassesService } from '../classes/classes.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CreateAssignmentDto } from './dto/create-assignment.dto';
-import { normalizeIndexes } from './question-subset';
+import { UpdateAssignmentDto } from './dto/update-assignment.dto';
+import { normalizeIndexes, subsetQuiz } from './question-subset';
 
 /**
  * Даалгаврын мөр + аппад харуулахад хэрэгтэй нэмэлт талбарууд.
@@ -47,6 +49,8 @@ export class AssignmentsService {
     private readonly lessons: Repository<Lesson>,
     @InjectRepository(Quiz)
     private readonly quizzes: Repository<Quiz>,
+    @InjectRepository(QuizAttempt)
+    private readonly attempts: Repository<QuizAttempt>,
     private readonly classesService: ClassesService,
     private readonly notifications: NotificationsService,
   ) {}
@@ -86,7 +90,10 @@ export class AssignmentsService {
           targetId: pick.targetId,
           questionIndexes:
             dto.type === AssignmentType.QUIZ
-              ? normalizeIndexes(pick.questionIndexes, target.questionCount ?? 0)
+              ? normalizeIndexes(
+                  pick.questionIndexes,
+                  target.questionCount ?? 0,
+                )
               : null,
         };
       }),
@@ -186,11 +193,15 @@ export class AssignmentsService {
       .select('ac.assignment_id', 'assignmentId')
       .addSelect('COUNT(ac.id)', 'count')
       .where('ac.assignment_id IN (:...ids)', { ids: list.map((a) => a.id) })
-      .andWhere('ac.status != :assigned', { assigned: SubmissionStatus.ASSIGNED })
+      .andWhere('ac.status != :assigned', {
+        assigned: SubmissionStatus.ASSIGNED,
+      })
       .groupBy('ac.assignment_id')
       .getRawMany<{ assignmentId: string; count: string }>();
 
-    const countMap = new Map(counts.map((r) => [r.assignmentId, Number(r.count)]));
+    const countMap = new Map(
+      counts.map((r) => [r.assignmentId, Number(r.count)]),
+    );
     return this.attachTargets(
       list.map((a) =>
         Object.assign(a, { completedCount: countMap.get(a.id) ?? 0 }),
@@ -279,18 +290,20 @@ export class AssignmentsService {
    * даалгавар өгөгдсөний ДАРАА элссэн сурагч ч хамрагдана.
    */
   private assignedToStudent(userId: string) {
-    return this.assignments
-      .createQueryBuilder('a')
-      .innerJoin(
-        'class_students',
-        'cs',
-        'cs.class_id = a.class_id AND cs.student_id = :userId',
-        { userId },
-      )
-      // studentIds null = the whole class; otherwise only the listed students.
-      .where('(a.student_ids IS NULL OR a.student_ids @> :me::jsonb)', {
-        me: JSON.stringify([userId]),
-      });
+    return (
+      this.assignments
+        .createQueryBuilder('a')
+        .innerJoin(
+          'class_students',
+          'cs',
+          'cs.class_id = a.class_id AND cs.student_id = :userId',
+          { userId },
+        )
+        // studentIds null = the whole class; otherwise only the listed students.
+        .where('(a.student_ids IS NULL OR a.student_ids @> :me::jsonb)', {
+          me: JSON.stringify([userId]),
+        })
+    );
   }
 
   /**
@@ -360,10 +373,26 @@ export class AssignmentsService {
     const classIds = enrolled.map((c) => c.id);
     if (classIds.length === 0) return [];
 
-    const assignments = await this.assignments.find({
-      where: { classId: In(classIds) },
-      order: { dueAt: 'ASC', createdAt: 'DESC' },
-    });
+    /*
+     * ⚠️ **Зөвхөн энэ сурагчид оногдсон даалгавар.** Урьд нь зөвхөн `classId`
+     * -гаар шүүдэг байсан тул багш «зөвхөн 3 сурагчид» гэж өгсөн даалгавар
+     * ангийн БҮХ сурагчид харагддаг байв — сонгогдоогүй хүн түүнийг хийж ч
+     * чадна, харин багшийн самбарт мөр нь байхгүй тул хаана ч бүртгэгдэхгүй
+     * («багш дээр сурагч алга, гэтэл сурагч дээр даалгавар байна» гэдгийн
+     * шалтгаан).
+     *
+     * `student_ids IS NULL` = бүх ангид өгсөн. jsonb `@>` нь массив доторх
+     * утгыг шалгана.
+     */
+    const assignments = await this.assignments
+      .createQueryBuilder('a')
+      .where('a.class_id IN (:...classIds)', { classIds })
+      .andWhere('(a.student_ids IS NULL OR a.student_ids @> :me::jsonb)', {
+        me: JSON.stringify([user.id]),
+      })
+      .orderBy('a.due_at', 'ASC')
+      .addOrderBy('a.created_at', 'DESC')
+      .getMany();
     if (assignments.length === 0) return [];
 
     // One completion row per (assignment, this student) — attach its state.
@@ -384,25 +413,182 @@ export class AssignmentsService {
     );
   }
 
-  /** Teacher view: every targeted student's submission for one assignment. */
+  /**
+   * Teacher view: every targeted student's submission for one assignment.
+   *
+   * ⚠️ Жагсаалт нь **одоогийн бүрэлдэхүүнээс** гардаг (`studentIds` эсвэл
+   * ангийн бүх сурагч), гүйцэтгэлийн мөрүүдээс биш. Учир нь тэдгээр мөр нь
+   * даалгавар үүсэх агшинд л бэлдэгддэг тул **дараа элссэн сурагч** хаана ч
+   * харагдахгүй байв — багш «сурагч алга» гэж хардаг мөртлөө сурагч даалгавраа
+   * хүлээж авсан байдаг. Одоо мөргүй сурагч «хийгээгүй» гэж гарна.
+   */
   async submissionsFor(assignmentId: string, user: User) {
-    const assignment = await this.assignments.findOne({ where: { id: assignmentId } });
+    const assignment = await this.assignments.findOne({
+      where: { id: assignmentId },
+    });
     if (!assignment) throw new NotFoundException('Даалгавар олдсонгүй');
     // Reuse class access control (throws 403 if not the class teacher/admin).
-    await this.classesService.getStudents(assignment.classId, user);
-    const rows = await this.completions.find({
-      where: { assignmentId },
-      relations: ['student'],
-      order: { status: 'ASC', submittedAt: 'DESC' },
+    const roster = await this.classesService.getStudents(
+      assignment.classId,
+      user,
+    );
+    const rows = await this.completions.find({ where: { assignmentId } });
+    const byStudent = new Map(rows.map((r) => [r.studentId, r]));
+
+    // Оногдсон хүрээ: сонгосон сурагчид, эсвэл бүх анги.
+    const targets = assignment.studentIds?.length
+      ? roster.filter((s) => assignment.studentIds!.includes(s.id))
+      : roster;
+
+    return targets.map((student) => {
+      const done = byStudent.get(student.id);
+      return {
+        studentId: student.id,
+        fullName: student.fullName ?? null,
+        status: done?.status ?? SubmissionStatus.ASSIGNED,
+        scorePct: done?.scorePct ?? null,
+        submittedAt: done?.submittedAt ?? null,
+        attemptCount: done?.attemptCount ?? 0,
+      };
     });
-    return rows.map((r) => ({
-      studentId: r.studentId,
-      fullName: r.student?.fullName ?? null,
-      status: r.status,
-      scorePct: r.scorePct,
-      submittedAt: r.submittedAt,
-      attemptCount: r.attemptCount,
-    }));
+  }
+
+  /**
+   * Оноосон даалгаврын **хүрээг засах** (хэнд оногдох вэ).
+   *
+   * Багц даалгавар нь мөр бүрдээ тусдаа хүрээтэй тул апп багц бүрд нэг удаа
+   * дуудна — нэг даалгаврын бүх багц ижил бүрэлдэхүүнтэй байх ёстой.
+   */
+  async updateTargets(
+    id: string,
+    dto: UpdateAssignmentDto,
+    user: User,
+  ): Promise<Assignment> {
+    const assignment = await this.assignments.findOne({ where: { id } });
+    if (!assignment) throw new NotFoundException('Даалгавар олдсонгүй');
+
+    const klass = await this.classesService.findOneWithAccess(
+      assignment.classId,
+      user,
+    );
+    if (!this.isAdmin(user) && klass.teacherId !== user.id) {
+      throw new ForbiddenException('Зөвхөн ангийн багш даалгавар засна');
+    }
+    if (!dto.studentIds) return assignment;
+
+    const roster = await this.classesService.getStudents(
+      assignment.classId,
+      user,
+    );
+    const rosterIds = new Set(roster.map((s) => s.id));
+    const invalid = dto.studentIds.filter((sid) => !rosterIds.has(sid));
+    if (invalid.length) {
+      throw new BadRequestException('Сонгосон сурагч энэ ангид алга');
+    }
+
+    // Хоосон = бүх анги (`create`-тэй ижил дүрэм).
+    const next = dto.studentIds.length ? dto.studentIds : null;
+    const before = new Set(
+      assignment.studentIds?.length
+        ? assignment.studentIds
+        : roster.map((s) => s.id),
+    );
+    const after = new Set(next ?? roster.map((s) => s.id));
+
+    assignment.studentIds = next;
+    await this.assignments.save(assignment);
+
+    // Шинээр орсон сурагчид мөр үүсгэнэ (аль хэдийн байвал дарж бичихгүй).
+    const added = [...after].filter((sid) => !before.has(sid));
+    if (added.length) {
+      await this.completions
+        .createQueryBuilder()
+        .insert()
+        .into(AssignmentCompletion)
+        .values(
+          added.map((studentId) => ({
+            assignmentId: assignment.id,
+            studentId,
+            status: SubmissionStatus.ASSIGNED,
+          })),
+        )
+        .orIgnore()
+        .execute();
+    }
+
+    // Хасагдсан сурагчийн мөрийг зөвхөн **хийгээгүй** бол устгана: гүйцэтгэсэн
+    // ажлыг устгах нь сурагчийн хөдөлмөрийг арчих явдал.
+    const removed = [...before].filter((sid) => !after.has(sid));
+    if (removed.length) {
+      await this.completions.delete({
+        assignmentId: assignment.id,
+        studentId: In(removed),
+        status: SubmissionStatus.ASSIGNED,
+      });
+    }
+
+    return assignment;
+  }
+
+  /**
+   * **Сурагч юун дээр алдав.** Нэг даалгавар дээрх нэг сурагчийн хамгийн
+   * сүүлийн илгээлтийг асуулт тус бүрээр нь задалж өгнө.
+   *
+   * ⚠️ Багш зөв хариултыг харна — тэр дүн тавьж, алдааг нь тайлбарлах ёстой
+   * хүн. (Сурагчийн зам нь урьдын адил `stripAnswers`-аар хамгаалалттай.)
+   */
+  async answersFor(assignmentId: string, studentId: string, user: User) {
+    const assignment = await this.assignments.findOne({
+      where: { id: assignmentId },
+    });
+    if (!assignment) throw new NotFoundException('Даалгавар олдсонгүй');
+    const roster = await this.classesService.getStudents(
+      assignment.classId,
+      user,
+    );
+    const student = roster.find((s) => s.id === studentId);
+    if (!student) throw new NotFoundException('Сурагч энэ ангид алга');
+
+    const attempt = await this.attempts.findOne({
+      where: { assignmentId, userId: studentId },
+      order: { createdAt: 'DESC' },
+    });
+    const quiz =
+      assignment.type === AssignmentType.QUIZ
+        ? await this.quizzes.findOne({ where: { id: assignment.targetId } })
+        : null;
+
+    if (!attempt || !quiz) {
+      return {
+        studentId,
+        fullName: student.fullName ?? null,
+        scorePct: attempt?.scorePct ?? null,
+        submittedAt: attempt?.createdAt ?? null,
+        // Хуучин илгээлтэд `answers` байхгүй (баганыг хожим нэмсэн) —
+        // апп үүнийг «дэлгэрэнгүй алга» гэж харуулна.
+        questions: [],
+      };
+    }
+
+    // Багшийн сонгосон асуултууд — сурагчийн харсан яг тэр дараалал.
+    const questions = subsetQuiz(quiz, assignment.questionIndexes)
+      .questions as GradedQuestion[];
+    const given = new Map((attempt.answers ?? []).map((a) => [a.i, a]));
+
+    return {
+      studentId,
+      fullName: student.fullName ?? null,
+      scorePct: attempt.scorePct,
+      submittedAt: attempt.createdAt,
+      questions: questions.map((q, i) => ({
+        question: q.question ?? q.prompt ?? '',
+        type: q.type,
+        options: q.options ?? null,
+        correctAnswer: correctAnswerOf(q),
+        studentAnswer: given.get(i)?.a ?? null,
+        correct: given.get(i)?.ok ?? null,
+      })),
+    };
   }
 
   /** Delete an assignment. Only the class's teacher (or an admin) may do this. */
@@ -438,7 +624,10 @@ export class AssignmentsService {
    */
   private async attachTargets<T extends Assignment>(
     list: T[],
-  ): Promise<(T & Pick<AssignmentView, 'targetTitle' | 'targetTopic' | 'questionCount'>)[]> {
+  ): Promise<
+    (T &
+      Pick<AssignmentView, 'targetTitle' | 'targetTopic' | 'questionCount'>)[]
+  > {
     const idsOf = (type: AssignmentType) =>
       list.filter((a) => a.type === type).map((a) => a.targetId);
     const lessonIds = idsOf(AssignmentType.LESSON);
@@ -492,7 +681,11 @@ export class AssignmentsService {
   private async assertTargetExists(
     type: AssignmentType,
     targetId: string,
-  ): Promise<{ title: string; topic: string | null; questionCount: number | null }> {
+  ): Promise<{
+    title: string;
+    topic: string | null;
+    questionCount: number | null;
+  }> {
     if (type === AssignmentType.LESSON) {
       const lesson = await this.lessons.findOne({
         where: { id: targetId },
@@ -542,7 +735,10 @@ function resolveTargets(
  * Rounds UP so "дуусахад 20 цаг үлдлээ" reads as "1 өдөр" rather than "0" —
  * a deadline notification that says zero days is worse than no number at all.
  */
-function assignmentNotificationBody(titles: string[], dueAt: Date | null): string {
+function assignmentNotificationBody(
+  titles: string[],
+  dueAt: Date | null,
+): string {
   // Олон сэдвийг нэг мөрөнд жагсаавал push таслагдана — тоог нь хэлэх нь
   // тодорхой, жагсаалтыг аппаас харна.
   const task =
@@ -555,4 +751,28 @@ function assignmentNotificationBody(titles: string[], dueAt: Date | null): strin
   if (days <= 0) return `${task} Хугацаа нь дууссан байна.`;
   if (days === 1) return `${task} Маргааш дуусна.`;
   return `${task} ${days} хоногийн дараа дуусна.`;
+}
+
+/** Асуултын хадгалагдсан хэлбэр — зөвхөн энд харуулахад хэрэгтэй талбарууд. */
+type GradedQuestion = {
+  type: string;
+  question?: string;
+  prompt?: string;
+  options?: string[];
+  correct?: number;
+  answer?: string;
+  modelAnswer?: string;
+};
+
+/**
+ * Зөв хариултыг **уншиж болохоор** гаргана (индекс биш, текст).
+ *
+ * `word_match` нь хос-хосоороо тул нэг мөрөнд багтахгүй — багш асуултаа
+ * админаас хараг. `open_response` нь автомат үнэлгээгүй ч жишиг хариулттай.
+ */
+function correctAnswerOf(q: GradedQuestion): string | null {
+  if (q.type === 'multiple_choice') return q.options?.[q.correct ?? 0] ?? null;
+  if (q.type === 'fill_blank') return q.answer ?? null;
+  if (q.type === 'open_response') return q.modelAnswer ?? null;
+  return null;
 }
