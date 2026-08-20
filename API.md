@@ -770,9 +770,9 @@ Controller-level: JWT.
 
 | Method + Path | Auth | Зорилго | Params / Body |
 | --- | --- | --- | --- |
-| POST `/assignments` | teacher, admin, super_admin | Хичээл/quiz-ийг ангид оноох. `note` + `studentIds` (сонгосон сурагчид, хоосон = бүх анги) дэмжинэ; оноох үед target сурагч бүрд `assigned` submission урьдчилж үүснэ | `CreateAssignmentDto` (`note?`, `studentIds?`) |
-| GET `/assignments/mine` | JWT | Элссэн ангиудын даалгаврууд | — |
-| GET `/assignments` | JWT (гишүүнчлэл шалгана) | Ангийн даалгаврууд | `classId` (required) |
+| POST `/assignments` | teacher, admin, super_admin | Хичээл/quiz-ийг ангид оноох. `note` + `studentIds` (сонгосон сурагчид, хоосон = бүх анги) дэмжинэ; оноох үед target сурагч бүрд `assigned` submission урьдчилж үүснэ. **Массив буцаана** (доорх «олон сэдэв»-ийг үз) | `CreateAssignmentDto` (`targetId?` **эсвэл** `targets[]`, `questionIndexes?`, `note?`, `studentIds?`) |
+| GET `/assignments/mine` | JWT | Элссэн ангиудын даалгаврууд (+`targetTitle`, `targetTopic`, `questionCount`) | — |
+| GET `/assignments` | JWT (гишүүнчлэл шалгана) | Ангийн даалгаврууд (+`targetTitle`, `targetTopic`, `questionCount`) | `classId` (required) |
 | GET `/assignments/:id/submissions` | teacher, admin, super_admin | Даалгаврын submission-ууд (сурагч бүрийн status/оноо/оролдлого) | path `id` |
 | POST `/assignments/:id/complete` | JWT | Сурагч даалгавар дуусгах (idempotent; `late`/`completed` тэмдэглэнэ) | path `id` |
 
@@ -783,6 +783,37 @@ Controller-level: JWT.
 > Push-ийн текст deadline-ыг нэрлэнэ: «Багш "X" даалгавар өглөө. 3 хоногийн
 > дараа дуусна.»
 | DELETE `/assignments/:id` | teacher, admin, super_admin | Даалгавар устгах | path `id` |
+
+> 🆕 **Даалгаврын сан + асуултаар сонгох (2026-08-20).** Хоёр шинэ багана:
+> - **`quizzes.assign_only`** — `true` бол **зөвхөн багш** хардаг. Сурагчийн
+>   бүх зам хаагдана: `GET /quizzes` (SQL түвшинд шүүгдэнэ), `GET /quizzes/:id`,
+>   `/check`, `/submit`. Цорын ганц орох хаалга нь тухайн сурагчид оногдсон
+>   `assignments` мөр. Багш `?assignOnly=true`-гаар санг жагсаана
+>   (`canSeeAssignmentBank` = admin · super_admin · moderator · **teacher**;
+>   `canSeeAnswers`-т багш ОРООГҮЙ — зөв хариулт багшид ч явахгүй).
+> - **`assignments.question_indexes`** — багшийн сонгосон асуултын индексүүд
+>   (`NULL` = бүгд). 15 асуулттай тестээс 5-ыг өгөх зам. Сервер сурагч руу
+>   явахдаа тэр асуултуудаар **шүүж, 0..n-1 болгон дахин дугаарлана**
+>   (`assignments/question-subset.ts`) — тиймээс `/check` ба `/submit` рүү
+>   **`assignmentId` заавал дамжуулна**, эс бөгөөс индекс зөрнө.
+>
+> **Олон сэдэв нэг дор.** Багш «Present Simple»-ээс 3, «Modal verbs»-ээс 2
+> асуулт сонгож нэг илгээлтээр өгч болно: `targets: [{ targetId,
+> questionIndexes }]`. Сэдэв бүр **өөрийн даалгаврын мөр** болно (сурагч ч,
+> багш ч ялгаж харна) — харин **мэдэгдэл нэг л** очно. Хуучин `targetId`
+> (ганц) хэлбэр хэвээр ажиллана; хоёуланг нь хамт илгээвэл 400.
+>
+> ⚠️ **`assignmentId` бол итгэмжлэл БИШ.** Сервер бүр удаад «энэ мөр үнэхээр
+> энэ сурагчийнх мөн үү, энэ quiz руу заасан уу» гэж шалгана
+> (`findStudentAssignment`) — тиймээс өөр ангийн даалгаврын id хавчуулж
+> нуугдсан контент нээх, эсвэл өөр даалгаварт гүйцэтгэлийн мөр үүсгэх
+> боломжгүй. Зүрх/XP-ийн шийдвэр урьдын адил `isAssignedWork()`-оос гарна.
+>
+> ⚠️ **Prod migration `AddAssignmentBank1787800000000`.** Хоёулаа шинэ багана,
+> backfill байхгүй (анхдагч нь `false`/`NULL` тул байгаа бүх контент, байгаа
+> бүх даалгавар яг хэвээрээ). Railway дээр `DB_MIGRATIONS_RUN=true` эсэхийг
+> шалгаж байж deploy хий — эс бөгөөс админы «Зөвхөн даалгавраар» checkbox
+> байхгүй багана руу бичих гэж оролдоод 500 өгнө.
 
 > 🔴 **Даалгавар = гамификацийн ГАДНА (2026-07-31).** Багшийн оноосон сорил
 > дээр **XP олгохгүй**, **зүрх хасахгүй** — энэ бол энгийн сургуулийн даалгавар.

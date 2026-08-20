@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Plus, Upload, Trash2, Sparkles } from 'lucide-react';
 import { AiBulkGenerator } from '../../components/AiBulkGenerator';
 import { HiddenBadge, VisibilityButton, UnpublishedBanner } from '../../components/Publish';
+import { BankBadge, BankCheckbox, TopicField } from '../../components/AssignmentBank';
 import { BulkGenerateModal, BulkGenerateProgress, BulkGenerateButton } from '../../components/BulkGenerate';
 import { ErrorBox } from '../../components/ErrorBox';
 import { QualityPanel, type QualityRow } from '../../components/QualityPanel';
@@ -92,6 +93,8 @@ interface Exercise {
   quizType: string | null;
   xpReward: number;
   isPublished: boolean;
+  /** Зөвхөн даалгавраар нээгддэг «багшийн сан» мөр эсэх. */
+  assignOnly: boolean;
   questions: Question[];
   passageText: string | null;
   audioUrl: string | null;
@@ -107,12 +110,14 @@ interface Form {
   /** Сонсголын дасгал: аппын дуугаар уншуулах яриа. Бусад ангилалд хоосон. */
   passageText: string;
   audioUrl: string;
+  assignOnly: boolean;
 }
 // "Ноорог" төлөв формд байхгүй: Хадгалах = шууд нийтлэх (`components/Publish.tsx`).
 const emptyForm: Form = {
   title: '', level: 'a1', topic: '', questionType: 'multiple_choice', questions: [], xpReward: 50,
   passageText: '',
   audioUrl: '',
+  assignOnly: false,
 };
 
 export default function ExercisesPage() {
@@ -129,6 +134,12 @@ export default function ExercisesPage() {
 
   // Selection (bulk publish/delete)
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  /**
+   * Жагсаалтын хамрах хүрээ: бүгд · зөвхөн сурагчид нээлттэй · зөвхөн
+   * даалгаврын сан. Сан нь сурагчийн контенттой хольж харагдвал «яагаад энэ
+   * дасгал апп дээр гарахгүй байна вэ» гэсэн эргэлзээ төрүүлнэ.
+   */
+  const [scope, setScope] = useState<'all' | 'open' | 'bank'>('all');
   const [publishingAll, setPublishingAll] = useState(false);
   // AI-аар үүсгэх (дундын AiBulkGenerator)
   const [aiOpen, setAiOpen] = useState(false);
@@ -148,6 +159,8 @@ export default function ExercisesPage() {
   const [impScript, setImpScript] = useState('');
   const [importing, setImporting] = useState(false);
   const [impError, setImpError] = useState('');
+  /** Импортоор орж ирэх дасгалууд даалгаврын сан уу — шүүлтүүрээ дагана. */
+  const [impAssignOnly, setImpAssignOnly] = useState(false);
 
   const load = useCallback(async () => {
     if (cat === 'speaking' || cat === 'reading') { setItems([]); return; }
@@ -167,7 +180,10 @@ export default function ExercisesPage() {
   useEffect(() => { load(); }, [load]);
 
   function openCreate() {
-    setForm(emptyForm); setEditing(null); setError(''); setModal('create');
+    // Санг үзэж байхад нэмсэн дасгал сан руу ороход л зөв — тэгэхгүй бол
+    // 15 дасгал үүсгээд бүгдийг нь дараа нь гараар шилжүүлэх болно.
+    setForm({ ...emptyForm, assignOnly: scope === 'bank' });
+    setEditing(null); setError(''); setModal('create');
   }
   function openEdit(ex: Exercise) {
     const qt = (ex.quizType as QuestionType) || (ex.questions[0]?.type ?? 'multiple_choice');
@@ -176,6 +192,7 @@ export default function ExercisesPage() {
       questions: ex.questions ?? [], xpReward: ex.xpReward,
       passageText: ex.passageText ?? '',
       audioUrl: ex.audioUrl ?? '',
+      assignOnly: ex.assignOnly ?? false,
     });
     setEditing(ex); setError(''); setModal('edit');
   }
@@ -218,6 +235,7 @@ export default function ExercisesPage() {
         passageText: cat === 'listening' ? form.passageText.trim() || undefined : undefined,
         audioUrl: cat === 'listening' ? form.audioUrl.trim() || undefined : undefined,
         isPublished: true, // хадгалсан контент шууд аппад гарна
+        assignOnly: form.assignOnly,
       };
       if (modal === 'create') await api.post('/quizzes', payload);
       else if (editing) await api.patch(`/quizzes/${editing.id}`, payload);
@@ -259,6 +277,16 @@ export default function ExercisesPage() {
       await Promise.all(hidden.map((e) => api.patch(`/quizzes/${e.id}`, { isPublished: true })));
       load();
     } finally { setPublishingAll(false); }
+  }
+  /**
+   * Сонгосон мөрүүдийг санд оруулах/гаргах. Excel-ээс багцаар импортолсны
+   * дараа нэг товчоор бүхэлд нь санд шилжүүлэх гол зам.
+   */
+  async function bulkSetBank(assignOnly: boolean) {
+    await Promise.all(
+      [...selected].map((id) => api.patch(`/quizzes/${id}`, { assignOnly })),
+    );
+    load();
   }
   async function bulkDelete() {
     if (!confirm(`${selected.size} дасгал устгах уу?`)) return;
@@ -312,6 +340,7 @@ export default function ExercisesPage() {
       await api.post('/quizzes', {
         title: impTitle.trim(), level: impLevel, category: cat, topic: impTopic,
         quizType: impType, questions, xpReward: 50, isPublished: true,
+        assignOnly: impAssignOnly,
         ...(cat === 'listening' ? { passageText: impScript.trim() } : {}),
       });
       setImportOpen(false); setImpTitle(''); setImpText(''); setImpScript('');
@@ -321,8 +350,11 @@ export default function ExercisesPage() {
     } finally { setImporting(false); }
   }
 
-  const total = items.length;
-  const paged = items.slice((page - 1) * LIMIT, page * LIMIT);
+  const visible = items.filter((e) =>
+    scope === 'all' ? true : scope === 'bank' ? e.assignOnly : !e.assignOnly,
+  );
+  const total = visible.length;
+  const paged = visible.slice((page - 1) * LIMIT, page * LIMIT);
   const hidden = items.filter((e) => !e.isPublished);
   /** Сервер эдгээрийг аппаас нууж байна — засахгүй бол сурагч хэзээ ч харахгүй. */
   const broken = items.filter((e) => quality.get(e.id)?.blocked);
@@ -344,6 +376,7 @@ export default function ExercisesPage() {
         <span className="flex items-center gap-2">
           <span className="font-medium">{e.title}</span>
           <HiddenBadge published={e.isPublished} />
+          <BankBadge assignOnly={e.assignOnly} />
           {/* Үр дагаврыг нь хэлнэ, оноштой нь биш: «хариулах боломжгүй» гэдэг
               нь юу болсныг хэлэх боловч тэр мөр аппад ОГТ харагдахгүй байгааг
               хэлдэггүй — админ нийтэлсэн мөрөө хараад бүх юм хэвийн гэж боддог. */}
@@ -385,7 +418,7 @@ export default function ExercisesPage() {
         description="Хичээлээс тусдаа, бие даасан дасгалууд (4 төрөл)"
         action={!speaking && !reading && (
           <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => { setImpError(''); setImportOpen(true); }}><Upload className="h-4 w-4" /> Импорт</Button>
+            <Button variant="secondary" onClick={() => { setImpError(''); setImpAssignOnly(scope === 'bank'); setImportOpen(true); }}><Upload className="h-4 w-4" /> Импорт</Button>
             <Button variant="secondary" onClick={() => { setAiBrief(''); setAiOpen(true); }}><Sparkles className="h-4 w-4" /> AI-аар үүсгэх</Button>
             <BulkGenerateButton onClick={() => setBulkOpen(true)} />
             <Button onClick={openCreate}><Plus className="h-4 w-4" /> Дасгал нэмэх</Button>
@@ -432,6 +465,33 @@ export default function ExercisesPage() {
         ))}
       </div>
 
+      {/*
+        Хамрах хүрээ. «Даалгаврын сан» = зөвхөн багш хардаг, сурагч даалгавар
+        авсны дараа л нээгддэг дасгалууд (`Quiz.assignOnly`).
+      */}
+      {!speaking && !reading && (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          {([
+            { key: 'all', label: 'Бүгд' },
+            { key: 'open', label: 'Сурагчид нээлттэй' },
+            { key: 'bank', label: 'Даалгаврын сан' },
+          ] as const).map((s) => (
+            <button
+              key={s.key}
+              onClick={() => { setScope(s.key); setPage(1); }}
+              className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${scope === s.key ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+            >
+              {s.label}
+              {s.key !== 'all' && (
+                <span className="ml-1 opacity-60">
+                  {items.filter((e) => (s.key === 'bank' ? e.assignOnly : !e.assignOnly)).length}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+
       {bulkJobId && (
         <BulkGenerateProgress
           jobId={bulkJobId}
@@ -469,6 +529,8 @@ export default function ExercisesPage() {
           <span className="text-sm text-gray-500">{selected.size} сонгосон:</span>
           <Button variant="secondary" size="sm" onClick={() => bulkPublish(true)}>Нийтлэх</Button>
           <Button variant="secondary" size="sm" onClick={() => bulkPublish(false)}>Аппаас нуух</Button>
+          <Button variant="secondary" size="sm" onClick={() => bulkSetBank(true)}>Даалгаврын сан руу</Button>
+          <Button variant="secondary" size="sm" onClick={() => bulkSetBank(false)}>Сурагчид нээх</Button>
           <Button variant="danger" size="sm" onClick={bulkDelete}><Trash2 className="h-4 w-4" /> Устгах</Button>
         </div>
       )}
@@ -488,7 +550,16 @@ export default function ExercisesPage() {
         <Modal title={modal === 'create' ? 'Дасгал нэмэх' : 'Дасгал засах'} onClose={() => setModal(null)} size="2xl">
           <div className="space-y-4">
             <Input label="Гарчиг" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
-            <Select label="Сэдэв (category)" options={exerciseCategoryOptions(cat)} value={form.topic} onChange={(e) => setForm({ ...form, topic: e.target.value })} />
+            <TopicField
+              listId="exercise-topics"
+              options={exerciseCategoryOptions(cat)}
+              value={form.topic}
+              onChange={(topic) => setForm({ ...form, topic })}
+            />
+            <BankCheckbox
+              checked={form.assignOnly}
+              onChange={(assignOnly) => setForm({ ...form, assignOnly })}
+            />
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <Select label="Түвшин" options={LEVEL_OPTIONS} value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value })} />
               <Select label="Асуултын төрөл" options={QTYPE_OPTIONS} value={form.questionType} onChange={(e) => changeType(e.target.value as QuestionType)} />
@@ -543,7 +614,11 @@ export default function ExercisesPage() {
               />
             </div>
 
-            <p className="text-xs text-gray-500">✅ Хадгалмагц шууд нийтлэгдэж, апп дээр гарна.</p>
+            <p className="text-xs text-gray-500">
+              {form.assignOnly
+                ? '📋 Даалгаврын санд хадгална — сурагч өөрөө олохгүй, зөвхөн багш өгсний дараа нээгдэнэ.'
+                : '✅ Хадгалмагц шууд нийтлэгдэж, апп дээр гарна.'}
+            </p>
             <ErrorBox message={error} />
             <FormActions onCancel={() => setModal(null)} onSave={save} saving={saving} />
           </div>
@@ -556,7 +631,12 @@ export default function ExercisesPage() {
           <div className="space-y-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Input label="Гарчиг" value={impTitle} onChange={(e) => setImpTitle(e.target.value)} />
-              <Select label="Сэдэв (category)" options={exerciseCategoryOptions(cat)} value={impTopic} onChange={(e) => setImpTopic(e.target.value)} />
+              <TopicField
+                listId="exercise-import-topics"
+                options={exerciseCategoryOptions(cat)}
+                value={impTopic}
+                onChange={setImpTopic}
+              />
               <Select label="Түвшин" options={LEVEL_OPTIONS} value={impLevel} onChange={(e) => setImpLevel(e.target.value)} />
               <Select
                 label="Асуултын төрөл"
@@ -621,7 +701,12 @@ export default function ExercisesPage() {
                 <Sparkles className="h-4 w-4" /> AI-аар үүсгэх
               </Button>
             </div>
-            <p className="text-xs text-gray-500">✅ Импортолсон дасгал шууд нийтлэгдэж, апп дээр гарна.</p>
+            <BankCheckbox checked={impAssignOnly} onChange={setImpAssignOnly} />
+            <p className="text-xs text-gray-500">
+              {impAssignOnly
+                ? '📋 Даалгаврын санд орно — сурагч өөрөө олохгүй, зөвхөн багш өгсний дараа нээгдэнэ.'
+                : '✅ Импортолсон дасгал шууд нийтлэгдэж, апп дээр гарна.'}
+            </p>
             <ErrorBox message={impError} />
             <FormActions onCancel={() => setImportOpen(false)} onSave={runImport} saving={importing} saveLabel="Импортлох" />
           </div>

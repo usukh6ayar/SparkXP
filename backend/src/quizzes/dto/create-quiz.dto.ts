@@ -215,4 +215,12 @@ export class CreateQuizDto {
   @IsOptional()
   @IsUUID()
   lessonId?: string;
+
+  /**
+   * **Даалгаврын сан** — `true` бол зөвхөн багш дамжуулж өгсний дараа сурагчид
+   * харагдана (`Quiz.assignOnly`-г үз).
+   */
+  @IsOptional()
+  @IsBoolean()
+  assignOnly?: boolean;
 }

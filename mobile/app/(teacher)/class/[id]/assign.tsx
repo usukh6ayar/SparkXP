@@ -9,13 +9,18 @@ import type { AssignmentType } from '../../../../src/api/assignments';
 import * as classesApi from '../../../../src/api/classes';
 import type { ClassStudent } from '../../../../src/api/classes';
 import { getLessons } from '../../../../src/api/lessons';
-import { getQuizzes } from '../../../../src/api/quizzes';
+import { getQuizzes, getAssignmentBank, type Quiz } from '../../../../src/api/quizzes';
 import { t, tf, type TranslationKey } from '../../../../src/i18n';
 import { AppText } from '../../../../src/components/Text';
 import { SelectField } from '../../../../src/components/SelectField';
 import { TextField } from '../../../../src/components/TextField';
 import { FilterChips } from '../../../../src/components/FilterChips';
 import { ActionButton } from '../../../../src/components/ActionButton';
+import {
+  QuestionPicker,
+  countPicked,
+  type PickedQuestions,
+} from '../../../../src/components/QuestionPicker';
 import { spacing, radius, type AppColors } from '../../../../src/theme/theme';
 import { bounded } from '../../../../src/theme/responsive';
 import { useColors } from '../../../../src/settings/SettingsContext';
@@ -29,14 +34,15 @@ const DUE_PRESETS: { labelKey: TranslationKey; days: number | null }[] = [
   { labelKey: 'due7Days', days: 7 },
 ];
 
+/** Багшийн жагсаалтад бүх контент багтах ёстой (серверийн анхдагч нь 20). */
+const CONTENT_LIMIT = 200;
+
 /**
- * One assignable piece of content. `group` is what the filter chips slice on —
- * the CEFR level for a lesson, the category for a quiz — kept as one field so
- * the filtering code does not branch on the content type.
+ * Оноож болох нэг хичээл. `group` дээр чипс шүүнэ — CEFR түвшин.
  */
 type Pickable = { id: string; title: string; group: string };
 
-/** Content with no level/category still needs a chip to live under. */
+/** Түвшингүй хичээл ч ямар нэг чипсэд харагдах ёстой. */
 const UNGROUPED = '—';
 
 /**
@@ -50,6 +56,14 @@ function labelOf(item: Pickable): string {
     : `${item.title} · ${item.group.toUpperCase()}`;
 }
 
+/**
+ * Даалгавар оноох дэлгэц.
+ *
+ * **Хичээл** нь бүхлээрээ оногддог тул нэгийг нь сонгоно. **Сорил** нь
+ * асуултын түвшинд оногддог (`QuestionPicker`): багш «Present Simple»-ээс 3,
+ * «Modal verbs»-ээс 2 асуулт сонгоод нэг дор явуулж чадна — сэдэв бүр өөрийн
+ * даалгаврын мөр болно, харин сурагч руу мэдэгдэл нэг л очно.
+ */
 export default function AssignScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { token } = useAuth();
@@ -58,16 +72,15 @@ export default function AssignScreen() {
   const router = useRouter();
 
   const [type, setType] = useState<AssignmentType>('lesson');
-  const [items, setItems] = useState<Record<AssignmentType, Pickable[]>>({
-    lesson: [],
-    quiz: [],
-  });
+  const [lessons, setLessons] = useState<Pickable[]>([]);
+  const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [loading, setLoading] = useState(true);
+  // Хичээлийн сонголт (нэг зүйл).
   const [selectedTitle, setSelectedTitle] = useState<string | undefined>();
-  // Content filters. A school can have hundreds of lessons; without these the
-  // picker is one unscrollable list and the teacher simply cannot find theirs.
   const [group, setGroup] = useState('all');
   const [query, setQuery] = useState('');
+  // Сорилын сонголт (олон тест, тест бүрээс олон асуулт).
+  const [picked, setPicked] = useState<PickedQuestions>({});
   const [dueIdx, setDueIdx] = useState(0);
   const dueLabels = DUE_PRESETS.map((p) => t(p.labelKey));
   const [note, setNote] = useState('');
@@ -80,23 +93,31 @@ export default function AssignScreen() {
     if (!token || !id) return;
     (async () => {
       try {
-        const [lessons, quizzes, roster] = await Promise.all([
-          getLessons(token),
-          getQuizzes(token),
+        /*
+         * Даалгаврын сан нь тусдаа хүсэлт: сурагчид нээлттэй контентоос
+         * ЯЛГААТАЙ нөхцөлөөр татагддаг (`?assignOnly=true`), мөн багшийн
+         * эрхгүй хүн дуудвал хоосон ирдэг. Хоёуланг нь нийлүүлж, сангийн
+         * мөрүүд нь өөрийн шошготойгоор нэг жагсаалтад гарна.
+         */
+        const [lessonPage, quizPage, bankPage, roster] = await Promise.all([
+          getLessons(token, { limit: CONTENT_LIMIT }),
+          getQuizzes(token, { limit: CONTENT_LIMIT }),
+          getAssignmentBank(token).catch(() => ({ items: [] as Quiz[] })),
           classesApi.getClassStudents(id, token),
         ]);
-        setItems({
-          lesson: lessons.items.map((l) => ({
+        setLessons(
+          lessonPage.items.map((l) => ({
             id: l.id,
             title: l.title,
             group: l.level || UNGROUPED,
           })),
-          quiz: quizzes.items.map((q) => ({
-            id: q.id,
-            title: q.title,
-            group: q.category || UNGROUPED,
-          })),
-        });
+        );
+        // Сервер санг нээлттэй жагсаалтад оруулдаггүй ч давхардлаас хамгаална.
+        const bankIds = new Set(bankPage.items.map((q) => q.id));
+        setQuizzes([
+          ...bankPage.items,
+          ...quizPage.items.filter((q) => !bankIds.has(q.id)),
+        ]);
         setStudents(roster);
       } finally {
         setLoading(false);
@@ -110,41 +131,32 @@ export default function AssignScreen() {
     );
   }
 
-  const list = items[type];
-
   // Chips are built from what actually exists, not a hardcoded level list — a
   // school that only has A1/A2 content should not see four dead chips.
   const groupChips = useMemo(() => {
-    const seen = [...new Set(list.map((i) => i.group))].sort();
+    const seen = [...new Set(lessons.map((i) => i.group))].sort();
     return [
       { key: 'all', label: t('filterAll') },
       ...seen.map((g) => ({ key: g, label: g.toUpperCase() })),
     ];
-  }, [list]);
+  }, [lessons]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return list.filter(
+    return lessons.filter(
       (i) =>
         (group === 'all' || i.group === group) &&
         (!q || i.title.toLowerCase().includes(q)),
     );
-  }, [list, group, query]);
+  }, [lessons, group, query]);
 
   // Label → item, so the picker resolves back to an id rather than a title.
   const byLabel = useMemo(
     () => new Map(filtered.map((i) => [labelOf(i), i])),
     [filtered],
   );
-  const selected = selectedTitle ? byLabel.get(selectedTitle) : undefined;
-
-  function pickType(next: AssignmentType) {
-    setType(next);
-    // Every filter is scoped to one content type, so all of it resets together.
-    setSelectedTitle(undefined);
-    setGroup('all');
-    setQuery('');
-  }
+  const selectedLesson = selectedTitle ? byLabel.get(selectedTitle) : undefined;
+  const summary = useMemo(() => countPicked(picked, quizzes), [picked, quizzes]);
 
   /**
    * Narrowing the list can hide whatever was already picked. Clearing the
@@ -168,18 +180,33 @@ export default function AssignScreen() {
 
   function onAssign() {
     setError(null);
+    const common = {
+      classId: id!,
+      type,
+      dueAt: computeDueAt(),
+      note: note.trim() || undefined,
+      studentIds: targetMode === 'select' ? selectedIds : undefined,
+    };
     return assignmentsApi.createAssignment(
-      {
-        classId: id!,
-        type,
-        targetId: selected!.id,
-        dueAt: computeDueAt(),
-        note: note.trim() || undefined,
-        studentIds: targetMode === 'select' ? selectedIds : undefined,
-      },
+      type === 'lesson'
+        ? { ...common, targetId: selectedLesson!.id }
+        : {
+            ...common,
+            // Тест бүр = нэг даалгавар, өөрийн сонгосон асуултуудтай.
+            targets: Object.entries(picked).map(([targetId, questionIndexes]) => ({
+              targetId,
+              questionIndexes,
+            })),
+          },
       token!,
     );
   }
+
+  const canAssign =
+    !!token &&
+    !!id &&
+    (type === 'lesson' ? !!selectedLesson : summary.questions > 0) &&
+    (targetMode !== 'select' || selectedIds.length > 0);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -205,7 +232,7 @@ export default function AssignScreen() {
               <Pressable
                 key={tp}
                 style={[styles.toggleBtn, active && styles.toggleOn]}
-                onPress={() => pickType(tp)}
+                onPress={() => setType(tp)}
               >
                 <AppText variant="bodyStrong" color={active ? colors.white : colors.textSecondary}>
                   {tp === 'lesson' ? t('assignLesson') : t('assignQuiz')}
@@ -219,53 +246,80 @@ export default function AssignScreen() {
           <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.xl }} />
         ) : (
           <>
-            {list.length === 0 ? (
-              <AppText variant="caption" color={colors.textSecondary} style={{ marginBottom: spacing.sm }}>
-                {t('noContentToAssign')}
-              </AppText>
+            {type === 'lesson' ? (
+              <>
+                {lessons.length === 0 ? (
+                  <AppText variant="caption" color={colors.textSecondary} style={styles.note}>
+                    {t('noContentToAssign')}
+                  </AppText>
+                ) : (
+                  <>
+                    <TextField
+                      label={t('assignSearch')}
+                      placeholder={t('assignSearch')}
+                      value={query}
+                      onChangeText={(v) => narrow({ query: v })}
+                      autoCorrect={false}
+                    />
+                    {/* Only worth a chip row when there is more than one group. */}
+                    {groupChips.length > 2 ? (
+                      <FilterChips
+                        value={group}
+                        options={groupChips}
+                        onChange={(g) => narrow({ group: g })}
+                        style={{ marginBottom: spacing.sm }}
+                      />
+                    ) : null}
+                  </>
+                )}
+
+                {lessons.length > 0 && filtered.length === 0 ? (
+                  <AppText variant="caption" color={colors.textSecondary} style={styles.note}>
+                    {t('assignNoMatch')}
+                  </AppText>
+                ) : null}
+
+                <SelectField
+                  label={t('selectContent')}
+                  placeholder={t('selectContent')}
+                  value={selectedTitle}
+                  options={[...byLabel.keys()]}
+                  onSelect={setSelectedTitle}
+                />
+                {filtered.length > 0 ? (
+                  <AppText
+                    variant="caption"
+                    color={colors.textMuted}
+                    style={styles.foundCount}
+                  >
+                    {tf('assignFoundCount', { n: filtered.length })}
+                  </AppText>
+                ) : null}
+              </>
             ) : (
               <>
-                <TextField
-                  label={t('assignSearch')}
-                  placeholder={t('assignSearch')}
-                  value={query}
-                  onChangeText={(v) => narrow({ query: v })}
-                  autoCorrect={false}
+                <AppText variant="caption" color={colors.textSecondary} style={styles.note}>
+                  {t('assignPickHint')}
+                </AppText>
+                <QuestionPicker
+                  quizzes={quizzes}
+                  picked={picked}
+                  onChange={setPicked}
                 />
-                {/* Only worth a chip row when there is more than one group. */}
-                {groupChips.length > 2 ? (
-                  <FilterChips
-                    value={group}
-                    options={groupChips}
-                    onChange={(g) => narrow({ group: g })}
-                    style={{ marginBottom: spacing.sm }}
-                  />
+                {summary.questions > 0 ? (
+                  <View style={styles.summary}>
+                    <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
+                    <AppText variant="bodyStrong" color={colors.primary}>
+                      {tf('assignPickedSummary', {
+                        q: summary.questions,
+                        t: summary.topics,
+                      })}
+                    </AppText>
+                  </View>
                 ) : null}
               </>
             )}
 
-            {list.length > 0 && filtered.length === 0 ? (
-              <AppText variant="caption" color={colors.textSecondary} style={{ marginBottom: spacing.sm }}>
-                {t('assignNoMatch')}
-              </AppText>
-            ) : null}
-
-            <SelectField
-              label={t('selectContent')}
-              placeholder={t('selectContent')}
-              value={selectedTitle}
-              options={[...byLabel.keys()]}
-              onSelect={setSelectedTitle}
-            />
-            {filtered.length > 0 ? (
-              <AppText
-                variant="caption"
-                color={colors.textMuted}
-                style={{ marginTop: -spacing.sm, marginBottom: spacing.sm }}
-              >
-                {tf('assignFoundCount', { n: filtered.length })}
-              </AppText>
-            ) : null}
             <SelectField
               label={t('dueDate')}
               placeholder={t('noDueDate')}
@@ -320,7 +374,7 @@ export default function AssignScreen() {
             ) : null}
 
             {error ? (
-              <AppText variant="caption" color={colors.danger} style={{ marginBottom: spacing.sm }}>
+              <AppText variant="caption" color={colors.danger} style={styles.note}>
                 {error}
               </AppText>
             ) : null}
@@ -330,9 +384,7 @@ export default function AssignScreen() {
               action={onAssign}
               onSuccess={() => router.back()} // class detail refetches on focus
               onError={setError}
-              disabled={
-                !selected || !token || !id || (targetMode === 'select' && selectedIds.length === 0)
-              }
+              disabled={!canAssign}
             />
           </>
         )}
@@ -353,6 +405,8 @@ const makeStyles = (colors: AppColors) => StyleSheet.create({
   topTitle: { flex: 1, textAlign: 'center' },
   body: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.xxl },
   label: { marginBottom: spacing.xs },
+  note: { marginBottom: spacing.sm },
+  foundCount: { marginTop: -spacing.sm, marginBottom: spacing.sm },
   toggle: {
     flexDirection: 'row',
     backgroundColor: colors.surfaceAlt,
@@ -367,6 +421,12 @@ const makeStyles = (colors: AppColors) => StyleSheet.create({
     borderRadius: radius.sm,
   },
   toggleOn: { backgroundColor: colors.primary },
+  summary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
   roster: { marginBottom: spacing.lg, gap: spacing.xs },
   rosterRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xs },
 });

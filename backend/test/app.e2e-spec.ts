@@ -469,6 +469,8 @@ describe('Organizations + Classes + Assignments', () => {
   let joinCode: string;
   let lessonId: string;
   let assignmentId: string;
+  /** Даалгаврын сангийн тест (`assignOnly`) — 4 асуулттай. */
+  let bankQuizId: string;
 
   /** Promote the user behind `token` to `role` in the DB. */
   async function setRole(token: string, role: string): Promise<string> {
@@ -638,14 +640,17 @@ describe('Organizations + Classes + Assignments', () => {
     lessonId = res.body.id;
   });
 
+  // Нэг илгээлт олон даалгавар үүсгэж болох тул хариу нь **массив**
+  // (багш 2 сэдвийн даалгаврыг нэг дор өгдөг — API.md §16).
   it('POST /api/assignments (teacher) → 201', async () => {
     const res = await request(app.getHttpServer())
       .post('/api/assignments')
       .set('Authorization', `Bearer ${teacherToken}`)
       .send({ classId, type: 'lesson', targetId: lessonId });
     expect(res.status).toBe(201);
-    expect(res.body.classId).toBe(classId);
-    assignmentId = res.body.id;
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].classId).toBe(classId);
+    assignmentId = res.body[0].id;
   });
 
   it('POST /api/assignments with unknown target → 400', async () => {
@@ -662,6 +667,108 @@ describe('Organizations + Classes + Assignments', () => {
       .set('Authorization', `Bearer ${studentToken}`);
     expect(res.status).toBe(200);
     expect(res.body.some((a: { id: string }) => a.id === assignmentId)).toBe(true);
+  });
+
+  // ── Даалгаврын сан + асуултаар сонгох (API.md §16) ──
+
+  it('POST /api/quizzes (admin) → assignOnly bank quiz with 4 questions', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/quizzes')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        title: 'Present Simple bank',
+        level: 'a1',
+        category: 'grammar',
+        topic: 'Present Simple',
+        isPublished: true,
+        assignOnly: true,
+        questions: [0, 1, 2, 3].map((i) => ({
+          type: 'multiple_choice',
+          question: `Q${i}: she ___ to school.`,
+          options: ['go', 'goes', 'going', 'gone'],
+          correct: 1,
+          points: 10,
+        })),
+      });
+    expect(res.status).toBe(201);
+    expect(res.body.assignOnly).toBe(true);
+    bankQuizId = res.body.id;
+  });
+
+  it('GET /api/quizzes (student) → the bank quiz is hidden', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/api/quizzes?limit=200')
+      .set('Authorization', `Bearer ${studentToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body.items.some((q: { id: string }) => q.id === bankQuizId)).toBe(false);
+  });
+
+  it('GET /api/quizzes?assignOnly=true (teacher) → the bank quiz is listed', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/api/quizzes?assignOnly=true&limit=200')
+      .set('Authorization', `Bearer ${teacherToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body.items.some((q: { id: string }) => q.id === bankQuizId)).toBe(true);
+  });
+
+  it('GET /api/quizzes/:id (student, no assignment) → 403', async () => {
+    const res = await request(app.getHttpServer())
+      .get(`/api/quizzes/${bankQuizId}`)
+      .set('Authorization', `Bearer ${studentToken}`);
+    expect(res.status).toBe(403);
+  });
+
+  it('POST /api/assignments with 2 targets → 2 rows, questions subset kept', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/assignments')
+      .set('Authorization', `Bearer ${teacherToken}`)
+      .send({
+        classId,
+        type: 'quiz',
+        targets: [{ targetId: bankQuizId, questionIndexes: [0, 2] }],
+      });
+    expect(res.status).toBe(201);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].questionIndexes).toEqual([0, 2]);
+  });
+
+  it('GET /api/quizzes/:id?assignmentId= (student) → only the 2 assigned questions', async () => {
+    const mine = await request(app.getHttpServer())
+      .get('/api/assignments/mine')
+      .set('Authorization', `Bearer ${studentToken}`);
+    const row = mine.body.find(
+      (a: { targetId: string }) => a.targetId === bankQuizId,
+    );
+    expect(row).toBeDefined();
+    // Гарчиг/сэдэв/асуултын тоо серверээс ирнэ — апп өөрөө олох боломжгүй.
+    expect(row.targetTitle).toBe('Present Simple bank');
+    expect(row.targetTopic).toBe('Present Simple');
+    expect(row.questionCount).toBe(2);
+
+    const res = await request(app.getHttpServer())
+      .get(`/api/quizzes/${bankQuizId}?assignmentId=${row.id}`)
+      .set('Authorization', `Bearer ${studentToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body.questions).toHaveLength(2);
+    // 0..n-1 болж дахин дугаарлагдсан: 1 дэх нь эх тестийн 3 дахь асуулт.
+    expect(res.body.questions[1].question).toContain('Q2');
+    // Хариултын түлхүүр сурагч руу хэзээ ч явахгүй.
+    expect(res.body.questions[0]).not.toHaveProperty('correct');
+  });
+
+  it('POST /api/quizzes/:id/check → grades against the SUBSET index', async () => {
+    const mine = await request(app.getHttpServer())
+      .get('/api/assignments/mine')
+      .set('Authorization', `Bearer ${studentToken}`);
+    const row = mine.body.find(
+      (a: { targetId: string }) => a.targetId === bankQuizId,
+    );
+    const res = await request(app.getHttpServer())
+      .post(`/api/quizzes/${bankQuizId}/check`)
+      .set('Authorization', `Bearer ${studentToken}`)
+      .send({ questionIndex: 1, answer: 1, assignmentId: row.id });
+    expect(res.status).toBe(200);
+    expect(res.body.correct).toBe(true);
   });
 
   it('DELETE /api/assignments/:id (student) → 403', async () => {

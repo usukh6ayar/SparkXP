@@ -49,6 +49,13 @@ export interface Quiz {
   quizType: string | null;
   /** Хэзээ нэмэгдсэн — «Шинэ» тэмдэг ба эрэмбэлэлтэд ашиглана. */
   createdAt: string;
+  /**
+   * **Даалгаврын сан** — зөвхөн багш даалгавар болгож өгсний дараа нээгдэнэ.
+   *
+   * Сурагчийн жагсаалтад ийм мөр огт ирдэггүй (сервер шүүнэ) тул зөвхөн
+   * багшийн оноох дэлгэц дээр л утгатай.
+   */
+  assignOnly?: boolean;
   /** IELTS Reading: passage shown above the questions (null for other quizzes). */
   passageText: string | null;
   /** IELTS Listening: the section's recording (null for other quizzes). */
@@ -81,8 +88,33 @@ export interface QuizResult {
   starsEarned?: number;
 }
 
-export function getQuiz(id: string, token: string): Promise<Quiz> {
-  return apiRequest<Quiz>(`/quizzes/${id}`, { token });
+/**
+ * GET /quizzes/:id
+ *
+ * `assignmentId` өгвөл сервер **зөвхөн тэр даалгаварт оногдсон асуултуудыг**
+ * буцаана (багш 15-аас 5-ыг сонгосон бол 5). Даалгаврын сангийн дасгалыг
+ * нээх цорын ганц зам ч мөн энэ — эс бөгөөс 403.
+ */
+export function getQuiz(
+  id: string,
+  token: string,
+  assignmentId?: string,
+): Promise<Quiz> {
+  const q = assignmentId ? `?assignmentId=${assignmentId}` : '';
+  return apiRequest<Quiz>(`/quizzes/${id}${q}`, { token });
+}
+
+/**
+ * Багшийн **даалгаврын сан** — сурагчид нээлттэй биш, зөвхөн оноох дасгалууд.
+ * Сурагчийн token-оор дуудвал хоосон ирнэ (сервер дүрээр нь шүүдэг).
+ */
+export function getAssignmentBank(
+  token: string,
+): Promise<{ items: Quiz[]; total: number }> {
+  return apiRequest<{ items: Quiz[]; total: number }>(
+    '/quizzes?assignOnly=true&isPublished=true&limit=200',
+    { token },
+  );
 }
 
 /** GET /api/quizzes — optionally filtered by lesson (for the lesson's test).
@@ -90,10 +122,12 @@ export function getQuiz(id: string, token: string): Promise<Quiz> {
  *  matching how getLessons filters by isPublished. */
 export function getQuizzes(
   token: string,
-  params: { lessonId?: string } = {},
+  params: { lessonId?: string; limit?: number } = {},
 ): Promise<{ items: Quiz[]; total: number }> {
   let q = '?isPublished=true';
   if (params.lessonId) q += `&lessonId=${params.lessonId}`;
+  // Серверийн анхдагч нь 20 — багшийн оноох дэлгэц бүх контентоо харах ёстой.
+  if (params.limit) q += `&limit=${params.limit}`;
   return apiRequest<{ items: Quiz[]; total: number }>(`/quizzes${q}`, { token });
 }
 
@@ -109,14 +143,22 @@ export function getExercises(
   );
 }
 
+/**
+ * POST /quizzes/:id/submit
+ *
+ * `assignmentId` нь хоёр зүйл хийнэ: багшийн самбарт гүйцэтгэлийг оноотой нь
+ * бүртгэнэ, мөн оноог **сонгогдсон асуултуудаас** бодуулна (эс бөгөөс сурагч
+ * 5 асуулт хараад 15-аас оноо авна).
+ */
 export function submitQuiz(
   id: string,
   answers: AnswerItem[],
   token: string,
+  assignmentId?: string,
 ): Promise<QuizResult> {
   return apiRequest<QuizResult>(`/quizzes/${id}/submit`, {
     method: 'POST',
-    body: { answers },
+    body: { answers, assignmentId },
     token,
   });
 }
@@ -142,10 +184,13 @@ export function checkAnswer(
   questionIndex: number,
   answer: number | string,
   token: string,
+  assignmentId?: string,
 ): Promise<CheckResult> {
   return apiRequest<CheckResult>(`/quizzes/${id}/check`, {
     method: 'POST',
-    body: { questionIndex, answer },
+    // ⚠️ `assignmentId` заавал — эс бөгөөс сервер бүтэн тестийн индексээр
+    // шалгаж, сурагчийн 3 дахь асуулт өөр асуулттай тулгагдана.
+    body: { questionIndex, answer, assignmentId },
     token,
   });
 }

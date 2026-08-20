@@ -25,23 +25,56 @@ export interface Assignment {
   completedCount?: number;
   /** Who it was set for. `null` = the whole class. */
   studentIds?: string[] | null;
+  /**
+   * Сорилын аль асуултууд оногдсон бэ. `null` = бүгд.
+   * Багш нэг тестээс 5 асуулт сонгож өгөх зам.
+   */
+  questionIndexes?: number[] | null;
+  /**
+   * Хичээл/сорилын гарчиг — **серверээс** ирнэ.
+   *
+   * Даалгаврын сангийн тест сурагчийн `GET /quizzes` жагсаалтад огт
+   * харагдахгүй тул апп гарчгийг өөрөө олж чадахгүй.
+   */
+  targetTitle?: string | null;
+  /** Сорилын сэдэв — нэг дор ирсэн 2 сэдвийн даалгаврыг ялгахад. */
+  targetTopic?: string | null;
+  /** Сурагчийн үнэхээр хийх асуултын тоо (хичээлд `null`). */
+  questionCount?: number | null;
+}
+
+/** Нэг илгээлтийн доторх нэг сэдвийн даалгавар. */
+export interface AssignmentTarget {
+  targetId: string;
+  /** Тухайн тестээс сонгосон асуултууд. Хоосон = бүгд. */
+  questionIndexes?: number[];
 }
 
 export interface CreateAssignmentInput {
   classId: string;
   type: AssignmentType;
-  targetId: string;
+  /** Ганц зүйл оноох богино хэлбэр. `targets`-тэй хамт илгээж болохгүй. */
+  targetId?: string;
+  /**
+   * Нэг дор оноох олон зүйл — сэдэв тус бүрд нэг мөр. Багш Present Simple ба
+   * Modal verbs хоёрыг нэг илгээлтээр өгөхөд ингэж явна (мэдэгдэл нэг очно).
+   */
+  targets?: AssignmentTarget[];
   dueAt?: string; // ISO date
   note?: string;
   studentIds?: string[]; // omit = whole class
 }
 
-/** POST /assignments — teacher assigns a lesson/quiz to a class. */
+/**
+ * POST /assignments — багш ангид хичээл/сорил оноох.
+ *
+ * Нэг илгээлт олон даалгавар үүсгэж болох тул **массив** буцаана.
+ */
 export function createAssignment(
   input: CreateAssignmentInput,
   token: string,
-): Promise<Assignment> {
-  return apiRequest<Assignment>('/assignments', {
+): Promise<Assignment[]> {
+  return apiRequest<Assignment[]>('/assignments', {
     method: 'POST',
     body: input,
     token,

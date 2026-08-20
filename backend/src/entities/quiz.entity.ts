@@ -63,6 +63,22 @@ export class Quiz extends BaseEntity {
   @Column({ name: 'is_published', type: 'boolean', default: false })
   isPublished: boolean;
 
+  /**
+   * **Даалгаврын сан** — зөвхөн багш даалгавар болгож өгсний дараа сурагчид
+   * харагдана.
+   *
+   * Яагаад тугаар шийдэв: сан нь `category`-аас хамааралгүй (сонсгол ч бай,
+   * дүрэм ч бай санд байж болно), тиймээс шинэ ангилал биш **харагдацын
+   * шинж чанар**. `true` бол сурагчийн бүх зам хаагдана — жагсаалт
+   * (`findAll`), нээх (`GET /quizzes/:id`), шалгах, илгээх. Цорын ганц
+   * үлдэх орох хаалга нь тухайн сурагчид оноогдсон `assignments` мөр.
+   *
+   * ⚠️ Энэ бол сурагч бие даан хийчихээд байхаас сэргийлэх **аюулгүй байдлын
+   * хилийн зурвас** — шүүлтийг апп талд хийж болохгүй.
+   */
+  @Column({ name: 'assign_only', type: 'boolean', default: false })
+  assignOnly: boolean;
+
   @ManyToOne(() => Lesson, (lesson) => lesson.quizzes, {
     nullable: true,
     onDelete: 'SET NULL',

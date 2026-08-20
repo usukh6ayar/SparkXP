@@ -48,4 +48,19 @@ export class Assignment extends BaseEntity {
   /** Target a subset of the class. NULL = the whole class. */
   @Column({ name: 'student_ids', type: 'jsonb', nullable: true })
   studentIds: string[] | null;
+
+  /**
+   * Оноосон **асуултуудын индекс** (quiz даалгаварт). NULL = бүх асуулт.
+   *
+   * Даалгаврын сангийн нэг тест 15 асуулттай байж болох ба багш түүнээс 5-ыг
+   * сонгож өгнө — өөрөөр хэлбэл нэг тестийг хэдэн ч удаа, өөр өөр асуултаар
+   * дахин оноох боломжтой. Тестийг 15 тусдаа мөр болгож хуваахгүйгээр үүнийг
+   * хийх цорын ганц зам.
+   *
+   * Индекс нь `quiz.questions` массивын **анхны** байрлал. Сервер дасгалыг
+   * сурагч руу явуулахдаа энэ дарааллаар шүүдэг тул сурагчийн талд индекс нь
+   * 0..n-1 болж дахин дугаарлагдана — `question-subset.ts`-ийг үз.
+   */
+  @Column({ name: 'question_indexes', type: 'jsonb', nullable: true })
+  questionIndexes: number[] | null;
 }

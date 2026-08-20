@@ -37,11 +37,12 @@ export interface LessonUnlock {
   sparksSpent: number;
 }
 
-export function getLessons(token: string, params?: { level?: string; type?: string }): Promise<{ items: Lesson[]; total: number }> {
+export function getLessons(token: string, params?: { level?: string; type?: string; limit?: number }): Promise<{ items: Lesson[]; total: number }> {
   // Plain query string — React Native's URLSearchParams is unreliable.
   let url = '/lessons?isPublished=true';
   if (params?.level) url += `&level=${params.level}`;
   if (params?.type) url += `&type=${params.type}`;
+  if (params?.limit) url += `&limit=${params.limit}`;
   return apiRequest<{ items: Lesson[]; total: number }>(url, { token });
 }
 
