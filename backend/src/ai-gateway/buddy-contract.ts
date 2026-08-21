@@ -27,6 +27,30 @@ export interface BuddyTurnResult {
   safety: { flagged: boolean; reason: string | null };
 }
 
+/**
+ * Hard cap on spoken reply words (Azure brief §1: 6–12 words normally, 20 max,
+ * ≈8 seconds of audio). Enforced here rather than trusted from the prompt,
+ * because reply length is what drives BOTH the LLM's time-to-last-token and the
+ * TTS bill — an LLM that ignores the instruction would cost real money.
+ */
+export const MAX_REPLY_WORDS = 20;
+
+/**
+ * Trim `text` to at most `maxWords` words, preferring to stop at a sentence
+ * boundary so a capped reply still ends like a sentence instead of mid-clause.
+ */
+export function capWords(text: string, maxWords: number): string {
+  const words = text.trim().split(/\s+/);
+  if (words.length <= maxWords) return text.trim();
+
+  const cut = words.slice(0, maxWords).join(' ');
+  // Prefer the last whole sentence inside the cut, but only if it kept most of
+  // it — otherwise a long first clause is thrown away for a 3-word sentence.
+  const lastStop = Math.max(cut.lastIndexOf('.'), cut.lastIndexOf('!'), cut.lastIndexOf('?'));
+  if (lastStop > cut.length * 0.5) return cut.slice(0, lastStop + 1);
+  return cut;
+}
+
 /** Hard cap on spoken reply length (~15s of speech). Also enforced at runtime. */
 export const MAX_REPLY_CHARS = 280;
 
@@ -50,7 +74,10 @@ export const FALLBACK_TURN: BuddyTurnResult = {
  * required field is missing/wrong-typed (caller then retries once, else falls
  * back). Never throws.
  */
-export function parseBuddyTurn(raw: string): BuddyTurnResult | null {
+export function parseBuddyTurn(
+  raw: string,
+  opts?: { maxChars?: number; maxWords?: number },
+): BuddyTurnResult | null {
   const json = stripFences(raw);
   let data: unknown;
   try {
@@ -65,7 +92,10 @@ export function parseBuddyTurn(raw: string): BuddyTurnResult | null {
   if (typeof d.follow_up_question !== 'string') return null;
   if (typeof d.safety !== 'object' || d.safety === null) return null;
 
-  const reply = d.reply_text.trim().slice(0, MAX_REPLY_CHARS);
+  const reply = capWords(
+    d.reply_text.trim().slice(0, opts?.maxChars ?? MAX_REPLY_CHARS),
+    opts?.maxWords ?? MAX_REPLY_WORDS,
+  );
   const correction = d.correction ?? {};
   const memory = d.memory_update ?? {};
 
@@ -118,7 +148,8 @@ export function buildBuddySystemPrompt(
     '',
     'You are SparkXP AI Buddy, a friendly English speaking practice partner.',
     `Always match the user CEFR level (${cefr}).`,
-    'Keep the spoken reply short enough for 8–15 seconds of audio.',
+    `Keep reply_text to ${MAX_REPLY_WORDS} words maximum — aim for 6–12 words.`,
+    'This is a spoken conversation, not an essay: one or two short sentences.',
     'Give only one correction per turn, unless the user asks for detailed correction.',
     'Write correction.short_explanation in Mongolian (Cyrillic), one short sentence.',
     'Set mistake_tags to short grammar/vocab labels for the mistake (e.g. "past_simple"); [] if none.',
@@ -126,6 +157,17 @@ export function buildBuddySystemPrompt(
     'Do not give long lectures. Do not over-explain grammar.',
     'If the user asks for medical, legal, or financial advice, or brings up self-harm',
     'or adult topics, set safety.flagged=true and gently redirect to English practice.',
+    // Last, and repeated, because it is the rule most often broken: a buddy's
+    // own systemPrompt is authored in admin and several were written in
+    // Mongolian — one even told the model to mix the two languages. This is an
+    // English-learning app; a buddy that answers in Mongolian removes the only
+    // practice the student came for. Instructions late in the prompt carry more
+    // weight, so the language rule sits here rather than at the top.
+    'LANGUAGE — ABSOLUTE RULE: reply_text and follow_up_question must be in',
+    'ENGLISH ONLY. Never write them in Mongolian, Cyrillic, or any other',
+    'language, even if the user writes to you in Mongolian, asks you to switch,',
+    'or your persona description is written in Mongolian. If the user speaks',
+    'Mongolian, still answer in simple English at their CEFR level.',
     'Return valid JSON only. No markdown, no extra text outside JSON.',
     '',
     'Output exactly this JSON shape:',

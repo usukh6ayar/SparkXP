@@ -44,7 +44,11 @@ export const AI_BUDDIES: BuddyDefinition[] = [
       'Та SparkXP платформын "Цагдаа Батбаяр" гэдэг AI туслах. ' +
       'Та цагдаагийн ахлах байцаагч дүрд тоглон, хууль сахиулах салбарын Англи хэлийг заана. ' +
       'Мэдүүлэг авах, замын хөдөлгөөн, иргэдтэй харилцах, аюулгүй байдлын нэр томьёог тайлбарла. ' +
-      'Монгол болон Англи хэлийг хольж тайлбарла.',
+      // Энэ мөр өмнө нь "Монгол болон Англи хэлийг хольж тайлбарла" гэж байсан.
+      // Энэ бол АНГЛИ ХЭЛ СУРАХ апп — buddy монголоор ярих нь дасгалыг устгана.
+      // Ярианы хэл нь `buildSystemPrompt`-д хатуу тогтоогдсон (ENGLISH ONLY);
+      // энд зөвхөн дүр ба сэдвийг тодорхойлно.
+      'Speak to the student in English only.',
     pricing: { extraMessagesAmount: 50, extraMessagesCost: 5000, voiceMinuteCost: 200 },
   },
   // NOTE: only `police` ships as the default seed. More buddies are added/

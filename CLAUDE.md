@@ -311,6 +311,37 @@ Scribe-д `source_url` өгнө), гарсан бичвэрийг **засаж**
   эсэхийг шалгаж байж deploy хий.
 - Дэлгэрэнгүй (аюулгүй байдлын дүрэм, данс холбох логик) → `API.md` §1.
 
+**AI Buddy: жинхэнэ lip-sync — Azure HD Voice + viseme (2026-08-21).**
+`docs/SparkXP_Azure_HD_AI_Buddy_Engineering_Brief_MN (1).docx`-ийн даалгавар.
+Шийдвэр: **Frostember болон lip-sync freelancer ашиглахгүй** — Azure өөрөө цаг
+өгнө, инженерүүд mapping-ийг хийнэ. Backend + mobile хоёулаа **бэлэн**;
+үлдсэн ганц зүйл нь **Azure бүртгэл + voice сонголт** (§4.1 Go/No-Go).
+- **Гэрээ:** turn-ийн хариунд заавал бус `visemes: [{ id, offset_ms }]` (Azure
+  viseme id 0–21). **Байхгүй бол апп хуучин зангаараа** (бичвэрээс амны хэлбэр
+  таамаглах) ажиллана → эвдрэлгүй нэмэлт, **аппын шинэ bundle шаардахгүй**.
+- **Апп:** `mobile/src/components/azureVisemes.ts` (22 id → ARKit pose,
+  binary-search lookup). Уруул нь `expo-audio`-гийн **playback цагаар** явна,
+  локал таймераар биш → frame алдагдвал одоогийн хэлбэр рүү шууд үсэрнэ.
+- **⚠️ `composeFace` (`buddyFace.ts`) — шинэ дүрэм.** Emotion + viseme + blink-ийг
+  `maxPose`-оор нийлүүлэхээ **боливоо** (эсрэг shape-уудыг зэрэг асаадаг байсан:
+  инээмсэглэл дундуур "oo" хэлэх, `surprised` үед нүд бүрэн аниагүй анивчих г.м).
+  Одоо ярианы үед ам нь viseme-ийнх, emotion зөвхөн 0.12 хүртэл өнгө оруулна.
+  **Шинэ emotion/viseme нэмэхдээ `maxPose` руу бүү буц.**
+- **Backend:** `TTS_PROVIDER=azure` (шинэ `azure-tts.adapter.ts`, Speech **SDK** —
+  viseme нь REST endpoint-оор ирдэггүй). Хариулт **20 үгээр** таслагдана
+  (`ai:limits:default` → `maxReplyWords`). Turn бүрийн шатны хугацаа
+  assistant мессежийн `metadata.latency`-д → p50/p95-ыг SQL-ээр.
+- **Хамт зассан:** аудио нь WAV байхад `.mp3`/`audio/mpeg` гэж хадгалагддаг байсан;
+  `maxReplyChars` limit үхмэл байсан (тохируулга нөлөөгүй); `.env.example`-ийн
+  `STT_PROVIDER=elevenlabs` (adapter нь аль хэдийн устсан байсан).
+- ⚠️ **Prod migration `AddVoiceCacheVisemes1787600000000`** (`buddy_voice_cache`
+  дээр `visemes jsonb`). Railway дээр `DB_MIGRATIONS_RUN=true` эсэхийг шалга.
+- ⚠️ **Шинэ backend dependency:** `microsoft-cognitiveservices-speech-sdk`.
+- ⚠️ **Азурын voice бүр viseme өгдөггүй.** `POST /ai/buddy/admin/test-voice` одоо
+  `viseme_count` буцаадаг болсон — voice сонгохдоо түүгээр шалга. 0 бол тэр
+  voice-ыг ашиглаж болохгүй.
+- Дэлгэрэнгүй → **`docs/AZURE_VISEME_PLAN.md`** · `API.md` §10a.
+
 **Хараахан хийгдээгүй (blocker БИШ):** Lucide migration; бодит видео тоглуулагч;
 QPay; 3D avatar (1.2-т).
 **Already DONE (was wrongly listed as pending):** app icon wired
