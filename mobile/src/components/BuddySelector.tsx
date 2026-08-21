@@ -48,6 +48,12 @@ const CARD_GAP = spacing.xs;
 const SNAP = CARD_WIDTH + CARD_GAP;
 const SIDE_PAD = (SCREEN_W - CARD_WIDTH) / 2;
 const MOTTO_LINE_HEIGHT = 23;
+/**
+ * Fewest buddies worth looping. With two, the strip is centre + one peek on each
+ * side — three slots drawn from two buddies, so one of them is always on screen
+ * twice and the carousel looks like it holds more buddies than it does.
+ */
+const LOOP_MIN = 3;
 /** Pill-soft corners — a plain rounded rect still read as "boxy". */
 const CARD_RADIUS = 38;
 /** Vertical breathing room inside the horizontal list so each card's shadow has
@@ -170,13 +176,21 @@ export function BuddySelector({
     [t('traitBrave')]: tints.purple,
     [t('traitStrong')]: tints.orange,
   }), [lang]);
-  // Infinite loop: pad the real data with a clone of the last item up front
-  // and a clone of the first item at the end. Swiping past either edge lands
-  // on a clone that looks identical to the real item it mimics, so we can
-  // silently (unanimated) snap the scroll position back into the real range
-  // — the "wrap" is invisible to the user instead of a jarring hard cut.
+  /**
+   * Infinite loop: pad the real data with a clone of the last item up front and
+   * a clone of the first at the end. Swiping past either edge lands on a clone
+   * identical to the item it mimics, so the scroll can be snapped back into the
+   * real range unanimated and the wrap is invisible.
+   *
+   * **Only from three buddies up.** The carousel shows the neighbours peeking in
+   * on both sides, so with two buddies the left peek, the centre and the right
+   * peek are drawn from a set of two — the same two faces repeat across the
+   * strip and it reads as four or more buddies rather than two. Below the
+   * threshold the list is finite and the arrows clamp at the ends.
+   */
+  const looping = display.length >= LOOP_MIN;
   const loopData = useMemo(
-    () => (display.length > 1 ? [display[display.length - 1], ...display, display[0]] : display),
+    () => (display.length >= LOOP_MIN ? [display[display.length - 1], ...display, display[0]] : display),
     [display],
   );
   const [unlockedSlugs, setUnlockedSlugs] = useState<Set<string>>(new Set());
@@ -185,7 +199,7 @@ export function BuddySelector({
   const [unlockTarget, setUnlockTarget] = useState<Buddy | null>(null);
   // Matches initialScrollIndex below (1 when looping) so the first frame's
   // card scale/opacity isn't computed against the wrong (pre-scroll) offset.
-  const scrollX = useSharedValue(display.length > 1 ? SNAP : 0);
+  const scrollX = useSharedValue(display.length >= LOOP_MIN ? SNAP : 0);
   const listRef = useRef<FlatList<ReturnType<typeof withDefaults>>>(null);
 
   const centerBuddy = display[centerIndex] ?? null;
@@ -194,37 +208,22 @@ export function BuddySelector({
   useEffect(() => () => { Speech.stop(); }, []);
 
   /**
-   * Greet ONCE on arrival, then stay quiet while swiping.
+   * The buddy speaks ONLY when the speaker button is tapped.
    *
-   * `aac2f54` removed auto-speak entirely because it fired on every centered
-   * buddy, so the carousel talked over itself on each swipe. The hello on entry
-   * was the half worth keeping — `greetedRef` is what separates the two.
+   * There used to be a greeting on arrival. It read the motto aloud the moment
+   * the tab opened, with no way to ask for it and no way to stop it, and it
+   * re-armed on every return to the tab — so simply moving between tabs made
+   * the app talk at you. Opening a screen is not a request to be spoken to.
+   *
+   * All that is left is stopping: this tab stays mounted, so leaving it while
+   * speech is running would otherwise carry the voice onto the next screen.
    */
-  const [focused, setFocused] = useState(false);
-  const greetedRef = useRef(false);
-
   useFocusEffect(
-    useCallback(() => {
-      setFocused(true);
-      return () => {
-        // This tab stays mounted, so leaving it would otherwise keep talking.
-        // Re-arm the greeting too: coming back counts as arriving again.
-        setFocused(false);
-        greetedRef.current = false;
-        Speech.stop();
-        setSpeakingSlug(null);
-      };
+    useCallback(() => () => {
+      Speech.stop();
+      setSpeakingSlug(null);
     }, []),
   );
-
-  useEffect(() => {
-    if (!focused || greetedRef.current || !centerBuddy) return;
-    greetedRef.current = true;
-    speak(centerBuddy.motto);
-    // `speak` is a stable function declaration below; re-running this on every
-    // centered buddy is exactly what we are avoiding.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focused, centerBuddy]);
 
   function speak(text: string) {
     if (!centerBuddy) return;
@@ -245,7 +244,7 @@ export function BuddySelector({
   function handleMomentumEnd(offsetX: number) {
     const loopIdx = Math.round(offsetX / SNAP);
 
-    if (display.length > 1) {
+    if (looping) {
       if (loopIdx <= 0) {
         // Landed on the prepended "last item" clone — snap to the real last,
         // no animation so the identical-looking clone/real swap is invisible.
@@ -270,13 +269,31 @@ export function BuddySelector({
     haptics.select();
   }
 
-  /** Scroll to a real-data index, wrapping around at either end (prev of first → last, next of last → first). */
-  function scrollToIndex(idx: number) {
+  /**
+   * Step one card left (−1) or right (+1).
+   *
+   * Moves by LOOP position, never by real index. That distinction is the whole
+   * bug this replaced: jumping straight to the wrapped real index meant that
+   * pressing → on the last buddy animated all the way back across every card —
+   * so the arrow visibly travelled the wrong way — and pressing ← on the first
+   * did the same in reverse. One step onto the neighbouring clone looks like a
+   * normal move, and `handleMomentumEnd` does the invisible swap on landing.
+   *
+   * It also does NOT set `centerIndex`. `handleMomentumEnd` is the single place
+   * that knows whether we came to rest on a clone; setting it here too made the
+   * two disagree mid-animation, which is what made the carousel judder and
+   * appear to change buddy on its own.
+   */
+  function step(delta: -1 | 1) {
     if (display.length === 0) return;
-    const wrapped = ((idx % display.length) + display.length) % display.length;
-    const loopPos = display.length > 1 ? wrapped + 1 : wrapped;
-    listRef.current?.scrollToOffset({ offset: loopPos * SNAP, animated: true });
-    setCenterIndex(wrapped);
+    if (!looping) {
+      // Finite list: clamp instead of wrapping, or we'd scroll into empty space.
+      const next = Math.min(display.length - 1, Math.max(0, centerIndex + delta));
+      if (next === centerIndex) return;
+      listRef.current?.scrollToOffset({ offset: next * SNAP, animated: true });
+      return;
+    }
+    listRef.current?.scrollToOffset({ offset: (centerIndex + 1 + delta) * SNAP, animated: true });
   }
 
   if (loading) {
@@ -337,19 +354,19 @@ export function BuddySelector({
           onScroll={scrollHandler}
           scrollEventThrottle={16}
           getItemLayout={(_, index) => ({ length: SNAP, offset: SNAP * index, index })}
-          initialScrollIndex={display.length > 1 ? 1 : 0}
+          initialScrollIndex={looping ? 1 : 0}
           onMomentumScrollEnd={(e) => handleMomentumEnd(e.nativeEvent.contentOffset.x)}
           renderItem={({ item, index }) => {
             // Map the loop index back to the real data index so each buddy keeps
             // one stable glow colour (its front/back clones match it too).
-            const realIdx = display.length > 1 ? (index - 1 + display.length) % display.length : index;
+            const realIdx = looping ? (index - 1 + display.length) % display.length : index;
             return (
               <BuddyCard
                 buddy={item}
                 index={index}
                 scrollX={scrollX}
                 haloColor={HALO_COLORS[realIdx % HALO_COLORS.length]}
-                isCenter={index === (display.length > 1 ? centerIndex + 1 : centerIndex)}
+                isCenter={index === (looping ? centerIndex + 1 : centerIndex)}
                 isSpeaking={speakingSlug === item.slug}
               />
             );
@@ -357,12 +374,12 @@ export function BuddySelector({
         />
 
         {display.length > 1 && (
-          <Pressable style={[styles.navBtn, styles.navBtnLeft, { backgroundColor: c.surface }]} onPress={() => scrollToIndex(centerIndex - 1)} hitSlop={8}>
+          <Pressable style={[styles.navBtn, styles.navBtnLeft, { backgroundColor: c.surface }]} onPress={() => step(-1)} hitSlop={8}>
             <Ionicons name="chevron-back" size={20} color={c.text} />
           </Pressable>
         )}
         {display.length > 1 && (
-          <Pressable style={[styles.navBtn, styles.navBtnRight, { backgroundColor: c.surface }]} onPress={() => scrollToIndex(centerIndex + 1)} hitSlop={8}>
+          <Pressable style={[styles.navBtn, styles.navBtnRight, { backgroundColor: c.surface }]} onPress={() => step(1)} hitSlop={8}>
             <Ionicons name="chevron-forward" size={20} color={c.text} />
           </Pressable>
         )}
@@ -372,7 +389,7 @@ export function BuddySelector({
       {display.length > 1 && (
         <View style={styles.dots}>
           {display.map((b, i) => (
-            <Dot key={b.slug} index={display.length > 1 ? i + 1 : i} scrollX={scrollX} colors={c} />
+            <Dot key={b.slug} index={looping ? i + 1 : i} scrollX={scrollX} colors={c} />
           ))}
         </View>
       )}
@@ -489,6 +506,7 @@ function BuddyCard({
   // GLB streams in and decodes. When SHOW_3D_AVATAR is off (see
   // buddyAvatarFlag.ts) the thumbnail (or a name-initial placeholder) is the
   // primary rendering until the GLB texture pipeline is fixed and verified.
+  const c = useColors();
   const show3d = SHOW_3D_AVATAR && isCenter && !!buddy.avatarAssetUrl;
   // The #1 cause of "3D never appears" is the buddy simply having no
   // avatarAssetUrl (admin filled only the thumbnail) — on screen that is
@@ -524,7 +542,14 @@ function BuddyCard({
               }}
             />
           ) : (
-            <AppText style={styles.cardEmoji}>{buddy.name?.charAt(0) ?? '?'}</AppText>
+            // No artwork for this buddy yet. A bare letter at 110px read as a
+            // rendering fault rather than a placeholder, so it is set in a soft
+            // disc — the same shape an avatar would occupy.
+            <View style={[styles.cardMonogram, { backgroundColor: c.surface }]}>
+              <AppText style={[styles.cardMonogramText, { color: c.primary }]}>
+                {buddy.name?.charAt(0)?.toUpperCase() ?? '?'}
+              </AppText>
+            </View>
           )}
           {missingAsset && (
             <AppText style={styles.debug3d}>3D: avatarAssetUrl хоосон ({buddy.slug})</AppText>
@@ -654,7 +679,11 @@ const styles = StyleSheet.create({
   cardAvatarFill: { ...StyleSheet.absoluteFillObject },
   /** DEV-only overlay explaining a missing 3D avatar (see `missingAsset`). */
   debug3d: { position: 'absolute', bottom: 6, left: 6, right: 6, color: '#FF5A5A', fontSize: 10 },
-  cardEmoji: { fontSize: CARD_WIDTH * 0.42, lineHeight: CARD_WIDTH * 0.48 },
+  cardMonogram: {
+    width: CARD_WIDTH * 0.46, height: CARD_WIDTH * 0.46, borderRadius: radius.full,
+    alignItems: 'center', justifyContent: 'center', opacity: 0.9,
+  },
+  cardMonogramText: { fontSize: CARD_WIDTH * 0.2, lineHeight: CARD_WIDTH * 0.26 },
   cardLockBadge: {
     position: 'absolute', width: 62, height: 62, borderRadius: radius.full,
     backgroundColor: 'rgba(35,20,70,0.42)', borderWidth: 2, borderColor: 'rgba(255,255,255,0.92)',
@@ -670,7 +699,13 @@ const styles = StyleSheet.create({
   // One single row, no wrap, no scroll — all chips visible side by side. Chips
   // are small (see chipStyles) and may shrink so they always fit on one line
   // (a 2nd wrapped row used to punch the card down into the name/dots).
-  tagsRow: { flexDirection: 'row', flexWrap: 'nowrap', justifyContent: 'center', gap: spacing.xs, marginBottom: spacing.md, paddingHorizontal: spacing.sm },
+  tagsRow: {
+    flexDirection: 'row', flexWrap: 'nowrap', justifyContent: 'center',
+    gap: spacing.xs, marginBottom: spacing.md,
+    // Inset well clear of the screen edge — at spacing.sm the outer chips ran
+    // right up against it and the row read as cut off rather than centred.
+    paddingHorizontal: spacing.lg,
+  },
   applyBtn: {
     height: 56, borderRadius: radius.full, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     marginBottom: spacing.lg,

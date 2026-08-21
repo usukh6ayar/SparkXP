@@ -7,9 +7,10 @@ import { toByteArray } from 'base64-js';
 import { decode as decodeJpeg } from 'jpeg-js';
 import UPNG from 'upng-js';
 import {
-  EMOTION_POSES, blinkPose, estimateSpeechMs, maxPose, textToVisemes, visemePoseAt,
-  type Pose, type Viseme,
+  ARKIT_52, EMOTION_POSES, GESTURE_POSES, blend, blinkPose, composeFace, estimateSpeechMs,
+  missingArkitShapes, textToVisemes, visemePoseAt, type Pose, type Viseme,
 } from './buddyFace';
+import { azurePoseAt, type VisemeCue } from './azureVisemes';
 
 /**
  * 3D AI Buddy avatar (Meshy-generated GLB rendered with three.js on expo-gl).
@@ -17,10 +18,15 @@ import {
  * - Loads the GLB from `assetUrl` (set per-buddy in admin → `avatarAssetUrl`).
  * - Plays the `idle` animation on loop; on each turn the parent passes the
  *   LLM `emotion`/`gesture` and we crossfade to the mapped animation clip.
- * - **Lip-sync (MVP):** expo-audio does NOT expose playback amplitude, so while
- *   `isSpeaking` we drive a `mouth_open` morph target (or a jaw bone) with a
- *   procedural "jabber" curve — a talking-mouth approximation. Upgrade path:
- *   ElevenLabs `with-timestamps` → real visemes (see docs/AI_BUDDY_PLAN.md).
+ * - **Lip-sync:** two sources, best first.
+ *   1. `visemes` — real `(VisemeId, AudioOffset)` cues from the TTS provider
+ *      (Azure HD Voice). Timing comes from the engine that made the audio, so
+ *      the mouth matches the voice exactly.
+ *   2. `speechText` — no cues from the provider, so the shapes are derived from
+ *      the reply text and stretched over the audio's length. Approximate, but
+ *      every syllable still lands on a plausible shape.
+ *   Either way the timeline is read with the **audio player's own clock**
+ *   (`speechPositionMs`), never a local timer — see docs/AZURE_VISEME_PLAN.md.
  *
  * If `assetUrl` is missing/failed, renders nothing — the parent keeps showing
  * the 2D image fallback, so the feature degrades gracefully.
@@ -37,6 +43,18 @@ interface Props {
   speechText?: string | null;
   /** Real length of the reply audio, so the mouth keeps pace with the voice. */
   speechDurationMs?: number | null;
+  /**
+   * Timed mouth-shape cues from the TTS provider. When present these replace the
+   * text-derived guess entirely. Empty/absent = fall back to `speechText`.
+   */
+  visemes?: VisemeCue[] | null;
+  /**
+   * Where the reply audio actually is, in ms (expo-audio `currentTime` × 1000).
+   * This is the master clock: status updates are coarse, so the avatar advances
+   * its own clock between them and re-syncs to this value every time it changes.
+   * Without it the mouth free-runs and drifts from the voice.
+   */
+  speechPositionMs?: number | null;
   /** True while a turn is in flight → render at a trickle, leaving the JS
    *  thread and GPU to the request, the audio and the UI. */
   lowPower?: boolean;
@@ -49,17 +67,43 @@ interface Props {
 const MAX_GLB_MB = 20;
 
 /**
- * Model height in world units after fitting. The camera below (fov 32 at z 2.6)
- * sees 2 · 2.6 · tan(16°) ≈ 1.49 units of height, so anything above that gets
- * cropped — 1.3 keeps the whole character on screen with a small margin.
+ * How much of the frame the model fills — as a fraction of whichever axis runs
+ * out first (a "contain" fit).
+ *
+ * Two things were tried and both were wrong:
+ *   - fitting by HEIGHT alone to a fixed 1.3 world units, which ignored how big
+ *     the canvas actually was and left the buddy reading small;
+ *   - fitting by WIDTH, which put the ears at the screen edges but made the
+ *     model far taller than the frame, so the body ran off the bottom and only
+ *     a head was left.
+ *
+ * Taking the smaller of the two scales is a "contain" fit — the largest the
+ * character can be while entirely on screen. Side margins are then just the
+ * model's own aspect ratio: a bust is narrower than it is tall.
+ *
+ * Kept a hair above 1 so the character meets the frame edges instead of sitting
+ * in a visible margin — but only a hair. It was 1.12 for a while and the extra
+ * came out of the bottom of the torso, which is the buddy's body: growth has to
+ * come from giving the frame more HEIGHT (see BUBBLE_SLOT_H), never from
+ * cropping. Whatever little does overflow is pushed to the bottom, so the head
+ * is never clipped.
  */
-const FIT_HEIGHT = 1.3;
+const FIT_FILL = 1.02;
 
 /** Avatar render rate. Half of 60 fps is imperceptible here and frees JS time. */
 const AVATAR_FPS = 30;
 
 /** Frame rate while a turn is being processed — just enough to not look frozen. */
 const LOW_POWER_FPS = 8;
+
+/**
+ * How long a gesture is held, in ms. Long enough to be seen and understood,
+ * short enough that the buddy is back to its emotion before the next turn.
+ */
+const GESTURE_MS = 1400;
+
+/** How far the head pitches on `small_nod`, in radians. */
+const NOD_ANGLE = 0.13;
 
 /** How long one blink takes, eyes closing and opening again. */
 const BLINK_MS = 140;
@@ -94,7 +138,7 @@ interface Loaded {
 
 export function BuddyAvatar({
   assetUrl, emotion, gesture, emotionMap, isSpeaking, speechText, speechDurationMs,
-  lowPower, onReady, style,
+  visemes, speechPositionMs, lowPower, onReady, style,
 }: Props) {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -174,6 +218,8 @@ export function BuddyAvatar({
           isSpeaking={isSpeaking}
           speechText={speechText}
           speechDurationMs={speechDurationMs}
+          visemes={visemes}
+          speechPositionMs={speechPositionMs}
         />
       </Canvas>
     </View>
@@ -208,8 +254,17 @@ function muteUnsupportedPixelStore(gl: WebGLRenderingContext | null): void {
 
 function BuddyModel({
   scene, animations, emotion, gesture, emotionMap, isSpeaking, speechText, speechDurationMs,
+  visemes, speechPositionMs,
 }: Loaded &
-  Pick<Props, 'emotion' | 'gesture' | 'emotionMap' | 'isSpeaking' | 'speechText' | 'speechDurationMs'>) {
+  Pick<Props,
+    | 'emotion' | 'gesture' | 'emotionMap' | 'isSpeaking'
+    | 'speechText' | 'speechDurationMs' | 'visemes' | 'speechPositionMs'>) {
+  // Canvas size in PIXELS and the camera, from which the visible area is derived
+  // below. Deliberately not `state.viewport`: that is already in world units, so
+  // reading it hides the aspect maths — and its identity does not reliably change
+  // on resize, which left the model fitted for a stale canvas. `size` does.
+  const size3d = useThree((s) => s.size);
+  const camera = useThree((s) => s.camera);
   const mixer = useRef<THREE.AnimationMixer | null>(null);
   const current = useRef<THREE.AnimationAction | null>(null);
   /** lowercased blendshape name → every (mesh, morph index) that carries it. */
@@ -219,24 +274,58 @@ function BuddyModel({
   const live = useRef<Pose>({});
   const idleT = useRef(0);
   const baseY = useRef(0);
-  // Lip-sync state: the shape sequence for the current reply and where we are in it.
-  const visemes = useRef<Viseme[]>([]);
+  // Lip-sync state. `cues` is the provider's real timeline when we have one;
+  // `textVisemes` is the text-derived fallback. `speechT` is the playback clock.
+  const cues = useRef<VisemeCue[]>([]);
+  const textVisemes = useRef<Viseme[]>([]);
   const speechT = useRef(0);
   const speechMs = useRef(0);
+  // Gesture state: ms into the current gesture, or -1 when none is playing.
+  const gestureT = useRef(-1);
+  const gestureTag = useRef<string | null>(null);
   // Blink state: seconds until the next blink, then how far through it we are.
   const nextBlink = useRef(2 + Math.random() * 3);
   const blinkT = useRef(-1);
 
   // One-time setup: center/scale the model, wire the mixer, find mouth targets.
   useEffect(() => {
-    // Fit: center the model at origin and normalize its height to FIT_HEIGHT.
+    // What the camera can see at z = 0, in world units. The vertical FOV is
+    // fixed, so the visible HEIGHT never changes with the canvas — only the
+    // width does, through the aspect ratio. Fitting has to account for that or
+    // a taller canvas silently shrinks the model.
+    const cam = camera as THREE.PerspectiveCamera;
+    const frameH = 2 * Math.tan(((cam.fov ?? 32) * Math.PI) / 360) * Math.abs(cam.position.z);
+    const frameW = frameH * (size3d.height > 0 ? size3d.width / size3d.height : 1);
+
+    // Fit INSIDE that frame and centre it.
     const box = new THREE.Box3().setFromObject(scene);
     const size = box.getSize(new THREE.Vector3());
     const center = box.getCenter(new THREE.Vector3());
-    const scale = size.y > 0 ? FIT_HEIGHT / size.y : 1;
+    const scale = Math.min(
+      size.x > 0 ? (frameW * FIT_FILL) / size.x : 1,
+      size.y > 0 ? (frameH * FIT_FILL) / size.y : 1,
+    );
     scene.scale.setScalar(scale);
-    scene.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
+    // Centred, then pushed down by however much taller than the frame it ended
+    // up — so the top of the head lands on the frame's top edge and everything
+    // that doesn't fit is lost from the bottom of the torso instead.
+    const overflowY = Math.max(0, size.y * scale - frameH);
+    scene.position.set(
+      -center.x * scale,
+      -center.y * scale - overflowY / 2,
+      -center.z * scale,
+    );
     baseY.current = scene.position.y;
+
+    if (__DEV__) {
+      console.log(
+        `[BuddyAvatar] fit: canvas ${size3d.width}×${size3d.height}px · ` +
+        `frame ${frameW.toFixed(2)}×${frameH.toFixed(2)} · ` +
+        `model ${(size.x / size.y).toFixed(2)} w/h · ` +
+        `fills ${((size.x * scale) / frameW * 100).toFixed(0)}% wide, ` +
+        `${((size.y * scale) / frameH * 100).toFixed(0)}% tall`,
+      );
+    }
 
     const mx = new THREE.AnimationMixer(scene);
     mixer.current = mx;
@@ -259,6 +348,21 @@ function BuddyModel({
     shapes.current = byName;
     live.current = {};
 
+    // Rig check (Azure brief §5). A missing shape is silent — the weight is
+    // written nowhere — so say it out loud in dev rather than leaving someone
+    // to wonder why this buddy never closes its lips.
+    if (__DEV__) {
+      const missing = missingArkitShapes(byName.keys());
+      let meshes = 0;
+      scene.traverse((o) => { if ((o as THREE.Mesh).isMesh) meshes++; });
+      console.log(
+        `[BuddyAvatar] rig: ${byName.size} morph targets ` +
+        `(${ARKIT_52.length - missing.length}/52 ARKit), ${meshes} meshes, ` +
+        `${animations.length} clips` +
+        (missing.length ? `\n  missing: ${missing.join(', ')}` : ''),
+      );
+    }
+
     // When a one-shot emotion/gesture clip ends, settle back to the idle loop.
     const onFinished = () => playClip(pickClip(animations, 'idle'), true);
     mx.addEventListener('finished', onFinished);
@@ -273,14 +377,14 @@ function BuddyModel({
       // Disposing them would blank the avatar the next time it is shown.
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scene]);
+  }, [scene, size3d.width, size3d.height]);
 
   // A new reply → build its mouth-shape sequence and restart the lip-sync clock.
   // Rebuilt on text change (not on `isSpeaking`) so replaying the same audio
   // reuses the same timeline.
   useEffect(() => {
     const text = speechText?.trim() ?? '';
-    visemes.current = text ? textToVisemes(text) : [];
+    textVisemes.current = text ? textToVisemes(text) : [];
     speechMs.current = speechDurationMs && speechDurationMs > 0
       ? speechDurationMs
       : estimateSpeechMs(text);
@@ -290,12 +394,36 @@ function BuddyModel({
   // Restart the clock whenever the audio starts, so shapes line up with the voice.
   useEffect(() => { if (isSpeaking) speechT.current = 0; }, [isSpeaking]);
 
-  // React to a new emotion/gesture: play that clip once, then settle to idle.
+  // The provider's timed cues for the current reply. Held in a ref: only the
+  // frame loop reads them, so a new timeline must not re-render the canvas.
+  useEffect(() => { cues.current = visemes ?? []; }, [visemes]);
+
+  // Re-sync to the audio player's clock — playback is the master clock, not us.
+  // expo-audio reports its position on its own cadence, so the frame loop keeps
+  // counting between reports and this snaps it back whenever truth arrives.
+  // That is also the whole frame-drop story: a late frame just reads a later
+  // position and picks the shape belonging to *now* instead of replaying.
+  useEffect(() => {
+    if (speechPositionMs != null && speechPositionMs >= 0) speechT.current = speechPositionMs;
+  }, [speechPositionMs]);
+
+  // React to a new emotion/gesture.
+  //
+  // Two paths, and the second one is the one that actually fires today: a rig
+  // WITH animation clips crossfades to the matching clip, and a rig without —
+  // which is every buddy currently shipped — plays the gesture on the face and
+  // head instead. Before this, a gesture on a clipless rig did nothing at all,
+  // so every `wave` / `thumbs_up` / `small_nod` the LLM asked for was silently
+  // dropped.
   useEffect(() => {
     const tag = emotionMap?.[gesture ?? ''] ?? emotionMap?.[emotion ?? ''] ?? gesture ?? emotion;
     if (!tag || tag === 'idle' || tag === 'calm') { playClip(pickClip(animations, 'idle'), true); return; }
     const clip = pickClip(animations, tag);
-    if (clip) playClip(clip, false);
+    if (clip) { playClip(clip, false); return; }
+    if (gesture && GESTURE_POSES[gesture] && gesture !== 'idle') {
+      gestureTag.current = gesture;
+      gestureT.current = 0;
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [emotion, gesture]);
 
@@ -313,15 +441,15 @@ function BuddyModel({
   useFrame((_, delta) => {
     mixer.current?.update(delta);
 
-    // These avatars ship with no animation clips, so without this they are a
-    // frozen statue. A slow breath + a small turn reads as "alive" and, unlike
-    // animating the native view around the canvas, it stays perfectly smooth.
+    // These avatars ship with no animation clips. They used to be given a slow
+    // turn and a bob to look alive; at the size the buddy is drawn now that read
+    // as the character drifting and swaying on its own, which is worse than
+    // stillness. What is left is a breath — small enough to be felt rather than
+    // watched — and NO rotation: a body that turns by itself is the part the eye
+    // actually catches. The blink and the face are what carry the life.
     if (!animations.length) {
       idleT.current += delta;
-      const t = idleT.current;
-      scene.position.y = baseY.current + Math.sin(t * 1.1) * 0.018;
-      scene.rotation.y = Math.sin(t * 0.42) * 0.09;
-      scene.rotation.z = Math.sin(t * 0.31) * 0.012;
+      scene.position.y = baseY.current + Math.sin(idleT.current * 0.9) * 0.005;
     }
 
     // --- Face: expression + lip-sync + blink, merged into one target pose ---
@@ -337,21 +465,50 @@ function BuddyModel({
     const blinkProgress = blinkT.current < 0 ? 0 : 1 - Math.abs(blinkT.current / (BLINK_MS / 2000) - 1);
 
     let mouth: Pose = {};
-    if (isSpeaking && visemes.current.length) {
+    if (isSpeaking) {
       speechT.current += delta * 1000;
-      mouth = visemePoseAt(visemes.current, speechT.current, speechMs.current);
+      mouth = cues.current.length
+        // Real cues from the TTS engine — exact timing, no stretching needed.
+        ? azurePoseAt(cues.current, speechT.current)
+        // No cues: shapes guessed from the text, stretched over the audio length.
+        : visemePoseAt(textVisemes.current, speechT.current, speechMs.current);
     }
 
-    const expression = EMOTION_POSES[emotion ?? 'calm'] ?? EMOTION_POSES.calm;
-    // Speech wins over expression on shared shapes (a smile must not hold the
-    // jaw shut mid-word), and the blink is always on top.
-    applyPose(maxPose(expression, mouth, blinkPose(blinkProgress)), delta);
+    // Gesture layer: a bell curve over GESTURE_MS, blended over the emotion so
+    // the face eases into the gesture and back out instead of snapping.
+    let expression = EMOTION_POSES[emotion ?? 'calm'] ?? EMOTION_POSES.calm;
+    if (gestureT.current >= 0) {
+      gestureT.current += delta * 1000;
+      const p = gestureT.current / GESTURE_MS;
+      if (p >= 1) {
+        gestureT.current = -1;
+        gestureTag.current = null;
+        if (!animations.length) scene.rotation.x = 0;
+      } else {
+        const weight = Math.sin(p * Math.PI); // 0 → 1 → 0
+        const pose = GESTURE_POSES[gestureTag.current ?? ''] ?? {};
+        expression = blend(expression, pose, weight);
+        // A nod is the one gesture the face can't carry on its own.
+        if (gestureTag.current === 'small_nod' && !animations.length) {
+          scene.rotation.x = Math.sin(p * Math.PI * 4) * NOD_ANGLE * weight;
+        }
+      }
+    }
+    // Layered, not merged: speech owns the mouth, emotion owns eyes and brows,
+    // the blink rides on top of both. See `composeFace`.
+    applyPose(composeFace(expression, mouth, blinkPose(blinkProgress), !!isSpeaking), delta);
   });
 
   /** Ease the live weights towards `target` and push them into the meshes. */
   function applyPose(target: Pose, delta: number) {
     const rig = shapes.current;
-    if (!rig.size) return;
+    if (!rig.size) {
+      // Rigs without blendshapes (e.g. the police model) still get a moving jaw.
+      // This has to run BEFORE the return — it used to sit at the end of the
+      // function behind the same `!rig.size` check, so it never ran at all.
+      if (jaw.current) jaw.current.rotation.x = (target.jawOpen ?? 0) * 0.3;
+      return;
+    }
     const ease = Math.min(1, delta * FACE_EASE);
     const names = new Set([...Object.keys(live.current), ...Object.keys(target)]);
 
@@ -366,8 +523,6 @@ function BuddyModel({
         if (hit.mesh.morphTargetInfluences) hit.mesh.morphTargetInfluences[hit.index] = value;
       }
     }
-    // Rigs without blendshapes (e.g. the police model) still get a moving jaw.
-    if (!rig.size && jaw.current) jaw.current.rotation.x = (target.jawOpen ?? 0) * 0.3;
   }
 
   return <primitive object={scene} />;
@@ -391,6 +546,10 @@ async function loadGlb(url: string): Promise<Loaded> {
   // costs ~1.4× its size as a JS string before it is even parsed — a 100 MB
   // model runs the phone out of memory. Keep avatars small (see docs below).
   const mb = buffer.byteLength / 1048576;
+  // Name the file. When a rig turns out to have fewer blendshapes than the one
+  // that was commissioned, the first question is always "is the app even
+  // loading that file?" — and admin can point a buddy at an older upload.
+  if (__DEV__) console.log(`[BuddyAvatar] loading ${mb.toFixed(2)} MB — ${url}`);
   if (mb > MAX_GLB_MB) console.warn(`[BuddyAvatar] GLB is ${mb.toFixed(1)} MB — too big for phones, optimize it (target < ${MAX_GLB_MB} MB)`);
   const gltf = await new Promise<GLTFResult>((resolve, reject) => {
     new GLTFLoader().parse(buffer, '', resolve as (g: unknown) => void, (e) =>
