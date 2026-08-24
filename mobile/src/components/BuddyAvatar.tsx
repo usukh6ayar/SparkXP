@@ -63,8 +63,21 @@ interface Props {
   style?: ViewStyle;
 }
 
-/** Above this, loading the model is likely to OOM the phone (see loadGlb). */
-const MAX_GLB_MB = 20;
+/**
+ * Warn above this size (see `loadGlb`). A warning only — nothing is blocked.
+ *
+ * The ceiling is not the file: RN reads a fetch body through a base64 data URL,
+ * so a GLB costs roughly 1.4× its size as a JS string *before* it is parsed, and
+ * its PNG textures are then decoded to raw RGBA in JS on top of that. A 4K
+ * texture alone is 67 MB decoded, which is what actually runs a phone out of
+ * memory — not the megabytes on disk.
+ *
+ * Raised 20 → 30 on 2026-08-24: the shipped fox is 24.2 MB (52 blendshapes,
+ * 1K textures) and loads fine on device, so 20 was crying wolf. Keep a warning
+ * at all, though — it is the only thing standing between a 110 MB export and a
+ * silent crash on a student's phone.
+ */
+const MAX_GLB_MB = 30;
 
 /**
  * How much of the frame the model fills — as a fraction of whichever axis runs
@@ -298,6 +311,15 @@ function BuddyModel({
     const frameW = frameH * (size3d.height > 0 ? size3d.width / size3d.height : 1);
 
     // Fit INSIDE that frame and centre it.
+    // Measure the model at its ORIGINAL size. This effect re-runs whenever the
+    // canvas resizes (rotation, the caption bubble appearing, the keyboard), and
+    // `Box3.setFromObject` reads the CURRENT world transform — so on the second
+    // run it was measuring an already-scaled model and fitting that. Since
+    // `setScalar` replaces the scale rather than multiplying it, every resize
+    // shrank the buddy by the previous scale factor and left it hanging near the
+    // top. Reset first, measure, then fit.
+    scene.scale.setScalar(1);
+    scene.position.set(0, 0, 0);
     const box = new THREE.Box3().setFromObject(scene);
     const size = box.getSize(new THREE.Vector3());
     const center = box.getCenter(new THREE.Vector3());
