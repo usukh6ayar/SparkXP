@@ -76,6 +76,16 @@ export interface TurnResponse {
   correction: Correction | null;
   follow_up_question: string;
   audio_url: string | null;
+  /**
+   * Timed mouth-shape cues for `audio_url`, straight from the TTS provider
+   * (Azure `VisemeReceived`: viseme id + its `AudioOffset`).
+   *
+   * **Optional on purpose.** Providers that only return audio omit it, and so
+   * does the backend until the Azure integration ships — in both cases the
+   * avatar falls back to shapes derived from `reply_text`. Never make this
+   * required: an older server would then break every turn.
+   */
+  visemes?: { id: number; offset_ms: number }[] | null;
   avatar_instruction: { emotion: string; gesture: string; duration_ms: number };
   usage: BuddyUsageBlock;
 }

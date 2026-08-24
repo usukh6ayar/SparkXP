@@ -138,6 +138,16 @@ export class GeminiTtsAdapter implements TtsAdapter {
     const durationMs = Math.round(
       (pcm.length / (SAMPLE_RATE * (BITS_PER_SAMPLE / 8))) * 1000,
     );
-    return { audio, durationMs, model, voiceId: voice };
+    // WAV, and it must say so: the caller used to file this under `.mp3` with
+    // an `audio/mpeg` content type. No visemes — Gemini reports no timing, so
+    // the app derives mouth shapes from the reply text instead.
+    return {
+      audio,
+      durationMs,
+      model,
+      voiceId: voice,
+      mimeType: 'audio/wav',
+      fileExtension: 'wav',
+    };
   }
 }

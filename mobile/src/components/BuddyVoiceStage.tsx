@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { View, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   useAnimatedStyle, useSharedValue, withRepeat, withTiming, withSpring, withSequence,
@@ -10,6 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { AppText } from './Text';
 import { AppImage } from './AppImage';
 import { BuddyAvatar } from './BuddyAvatar';
+import type { VisemeCue } from './azureVisemes';
 import { SHOW_3D_AVATAR } from '../lib/buddyAvatarFlag';
 import { PressableScale } from './PressableScale';
 import { haptics } from '../lib/haptics';
@@ -22,6 +23,23 @@ import type { Buddy } from '../api/ai';
 const CANCEL_X = -90;
 /** Drag right past this (px) → hands-free lock; release keeps recording. */
 const LOCK_X = 90;
+/**
+ * Breathing room between the buddy and each screen edge. Small on purpose —
+ * the brief was "almost touching both sides" — but not zero, so the art never
+ * reads as clipped on a device with curved glass.
+ */
+const EDGE_GAP = 6;
+/**
+ * Height reserved for the caption bubble, always. TWO lines of body text plus
+ * the bubble's padding and the gap to the buddy.
+ *
+ * It is a constant on purpose: anything that varies here changes the buddy's
+ * canvas and re-fits the 3D model. It is also as SMALL as it can be, because
+ * every pixel it does not take is a pixel the buddy grows by — and the buddy can
+ * only grow upward, since anything below it is the character's own body.
+ * A rare third line is truncated; the audio is still saying the whole thing.
+ */
+const BUBBLE_SLOT_H = 88;
 
 type Phase = 'idle' | 'recording' | 'locked';
 
@@ -41,7 +59,7 @@ type Phase = 'idle' | 'recording' | 'locked';
 export function BuddyVoiceStage({
   buddy, greeting, speaking, thinking, voiceLimited, usageLabel, usageLevel,
   captions, onToggleCaptions, onRecordStart, onRecordCommit, onRecordCancel, onOpenText,
-  backgroundUrl, emotion, speechText, speechDurationMs,
+  backgroundUrl, emotion, speechText, speechDurationMs, visemes, speechPositionMs,
 }: {
   buddy: Buddy | null;
   /** LLM emotion tag for the last reply → drives the 3D face expression. */
@@ -50,6 +68,10 @@ export function BuddyVoiceStage({
   speechText?: string | null;
   /** Real audio length so the mouth keeps pace with the voice. */
   speechDurationMs?: number | null;
+  /** Timed viseme cues for the reply audio (empty = derive them from the text). */
+  visemes?: VisemeCue[] | null;
+  /** Live playback position of the reply audio in ms — the lip-sync master clock. */
+  speechPositionMs?: number | null;
   greeting: string;
   /** Equipped background scene (from the shop) shown behind the buddy. */
   backgroundUrl?: string | null;
@@ -78,6 +100,29 @@ export function BuddyVoiceStage({
   const active = useSharedValue(0); // 0 idle → 1 recording (drives mic scale/tint)
   const [ready3d, setReady3d] = useState(false);
   const is3d = SHOW_3D_AVATAR && !!buddy?.avatarAssetUrl && ready3d;
+
+  /**
+   * The buddy is the screen — it spans the full display width, leaving only
+   * EDGE_GAP so it doesn't literally touch the bezel. Square, because both the
+   * 3D canvas and the 2D art are fitted by height and would otherwise letterbox.
+   *
+   * Sized from the window rather than a fixed `ms()` value on purpose: this is
+   * the one element that should grow with the device instead of being scaled
+   * from a reference phone.
+   */
+  const { width: winW } = useWindowDimensions();
+  // The frame the buddy is drawn in: ALWAYS the full screen width, and as tall
+  // as the room left under the speech bubble. Not square — a square capped by
+  // the available height was narrower than the screen, so the character could
+  // never reach the edges no matter how it was fitted inside.
+  //
+  // `BuddyAvatar` fits the model to this frame's WIDTH and anchors it by the
+  // top, so the head stays in view and the overflow falls off the bottom.
+  // Height is measured off `buddyWrap` (`flex: 1`) — no feedback loop, since
+  // that height comes from the layout, never from this child.
+  const [roomH, setRoomH] = useState(0);
+  const boxW = winW - EDGE_GAP * 2;
+  const boxH = roomH || boxW;
   const pulse = useSharedValue(0);  // buddy breathing / speaking pulse (backdrop glow)
   const float = useSharedValue(0);  // slow vertical bob so the buddy feels alive
   const think = useSharedValue(0);  // gentle head-tilt wobble while thinking (-1…1)
@@ -195,13 +240,16 @@ export function BuddyVoiceStage({
   const lockHintStyle = useAnimatedStyle(() => ({
     opacity: interpolate(tx.value, [0, LOCK_X], [0.4, 1], Extrapolation.CLAMP),
   }));
-  // The 2D art is bobbed/tilted from here. The 3D avatar is NOT: transforming a
-  // GL surface every frame makes it swim and shear (and costs a re-composite),
-  // so BuddyAvatar animates the model inside the scene instead — only the
-  // speaking pulse is kept, since a scale reads fine on the canvas.
+  // The 2D art is bobbed/tilted from here. The 3D avatar gets NO transform at
+  // all. Transforming a GL surface every frame makes it swim and shear (and
+  // costs a re-composite), and the speaking scale-pulse that used to survive
+  // here — 1 → 1.03 twice a second — read as the character drifting toward and
+  // away from the camera once the buddy was drawn at full screen width, where
+  // 3% is over a centimetre of travel. The 3D buddy has real lip-sync and
+  // expressions to show that it is talking; it does not need the body to move.
   const buddyStyle = useAnimatedStyle(() => ({
     transform: is3d
-      ? [{ scale: interpolate(pulse.value, [0, 1], [1, speaking ? 1.03 : 1.008], Extrapolation.CLAMP) }]
+      ? []
       : [
           { translateY: interpolate(float.value, [0, 1], [6, -6], Extrapolation.CLAMP) },
           { scale: interpolate(pulse.value, [0, 1], [1, speaking ? 1.04 : 1.015], Extrapolation.CLAMP) },
@@ -248,28 +296,53 @@ export function BuddyVoiceStage({
         </PressableScale>
       </View>
 
-      {/* Buddy stage — speech bubble (captions) sits ABOVE the buddy. */}
+      {/* Buddy stage — speech bubble (captions) sits ABOVE the buddy.
+          The bubble lives in a FIXED-HEIGHT slot. Its own height used to follow
+          its text, so "Thinking…" (one line) and a reply (two or three) left
+          different amounts of room below — which resized the buddy's canvas and
+          therefore re-fitted the model. The buddy visibly changed size every
+          time it started or stopped thinking. A constant slot decouples them. */}
       <View style={styles.stage}>
         {captions && (
-          <Animated.View key={thinking ? 'thinking' : greeting} entering={FadeIn.duration(220)} style={[styles.bubble, elevation.md]}>
-            {thinking ? (
-              <View style={styles.thinkingRow}>
-                <ActivityIndicator size="small" color={c.primary} />
-                <AppText variant="body" color={c.textSecondary}>{t('buddyThinking')}</AppText>
-              </View>
-            ) : (
-              <AppText variant="bodyStrong" color={c.text} center style={styles.bubbleText}>{greeting}</AppText>
-            )}
-            <View style={[styles.bubbleTail, { backgroundColor: c.surface }]} />
-          </Animated.View>
+          <View style={styles.bubbleSlot}>
+            <Animated.View key={thinking ? 'thinking' : greeting} entering={FadeIn.duration(220)} style={[styles.bubble, elevation.md]}>
+              {thinking ? (
+                <View style={styles.thinkingRow}>
+                  <ActivityIndicator size="small" color={c.primary} />
+                  <AppText variant="body" color={c.textSecondary}>{t('buddyThinking')}</AppText>
+                </View>
+              ) : (
+                <AppText
+                  variant="bodyStrong"
+                  color={c.text}
+                  center
+                  // Clamped so a long reply can't grow past the slot and start
+                  // pushing the buddy around again.
+                  numberOfLines={2}
+                  style={styles.bubbleText}
+                >
+                  {greeting}
+                </AppText>
+              )}
+              <View style={[styles.bubbleTail, { backgroundColor: c.surface }]} />
+            </Animated.View>
+          </View>
         )}
 
-        <View style={styles.buddyWrap}>
+        <View
+          style={styles.buddyWrap}
+          onLayout={(e) => setRoomH(e.nativeEvent.layout.height)}
+        >
           <Animated.View style={buddyStyle}>
             {/* 2D art shows until the GLB is on screen, then gives way to it —
                 the 3D canvas is transparent, so leaving both would overlap. */}
             {ready3d ? null : buddy?.avatarThumbUrl ? (
-              <AppImage source={{ uri: buddy.avatarThumbUrl }} width={230} style={styles.buddyImg} contentFit="contain" />
+              <AppImage
+                source={{ uri: buddy.avatarThumbUrl }}
+                width={Math.round(boxW)}
+                style={[styles.buddyImg, { width: boxW, height: boxH }]}
+                contentFit="contain"
+              />
             ) : (
               <AppText style={styles.buddyEmoji}>{buddy?.name?.charAt(0) ?? '?'}</AppText>
             )}
@@ -283,9 +356,11 @@ export function BuddyVoiceStage({
                 emotion={thinking ? 'thinking' : emotion}
                 speechText={speechText}
                 speechDurationMs={speechDurationMs}
+                visemes={visemes}
+                speechPositionMs={speechPositionMs}
                 lowPower={thinking}
                 onReady={setReady3d}
-                style={styles.buddy3d}
+                style={{ width: boxW, height: boxH }}
               />
             )}
           </Animated.View>
@@ -368,7 +443,8 @@ export function BuddyVoiceStage({
 }
 
 const makeStyles = (c: AppColors) => StyleSheet.create({
-  wrap: { flex: 1, alignItems: 'center', justifyContent: 'space-between', paddingBottom: spacing.lg, paddingTop: spacing.sm },
+  // No top padding: the stage below is the buddy's, and it needs the height.
+  wrap: { flex: 1, alignItems: 'center', justifyContent: 'space-between', paddingBottom: spacing.lg },
   topRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     width: '100%', paddingHorizontal: spacing.lg, minHeight: 30,
@@ -383,11 +459,18 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   },
   ccText: { letterSpacing: 0.5 },
   stage: { flex: 1, alignItems: 'center', justifyContent: 'center', width: '100%' },
-  buddyWrap: { alignItems: 'center', justifyContent: 'center' },
-  buddyImg: { width: ms(300), height: ms(300) },
+  buddyWrap: { flex: 1, width: '100%', alignItems: 'center', justifyContent: 'center' },
+  // Size is applied inline from the window width (see `boxW`/`boxH`).
+  buddyImg: {},
   /** The 3D canvas gets more room: the model is fitted with margin inside it. */
-  buddy3d: { width: ms(340), height: ms(340) },
   buddyEmoji: { fontSize: ms(156), lineHeight: ms(176) },
+  // Constant height, whatever the caption says — see the note at the stage.
+  // Bottom-aligned so the tail stays put and short text hangs from the buddy
+  // rather than floating in the middle of an obviously empty box.
+  bubbleSlot: {
+    height: BUBBLE_SLOT_H, width: '100%',
+    alignItems: 'center', justifyContent: 'flex-end',
+  },
   bubble: {
     maxWidth: '86%', backgroundColor: c.surface, borderRadius: radius.xl,
     paddingHorizontal: spacing.lg, paddingVertical: spacing.md, marginBottom: spacing.lg,
@@ -398,7 +481,8 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   },
   bubbleText: { lineHeight: 24 },
   thinkingRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  micZone: { alignItems: 'center', gap: spacing.md, marginBottom: spacing.xl, minHeight: 120, justifyContent: 'flex-end' },
+  // Tightened from spacing.xl — the buddy is the thing that should have the room.
+  micZone: { alignItems: 'center', gap: spacing.md, marginBottom: spacing.md, minHeight: 120, justifyContent: 'flex-end' },
   hintRow: { height: 20, textAlignVertical: 'center' },
   controlRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xl },
   edgeHint: { flexDirection: 'row', alignItems: 'center', gap: 2, width: 52, justifyContent: 'center' },

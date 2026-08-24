@@ -453,8 +453,9 @@ Controller-level: JWT. Realtime speaking companion (STT→LLM→TTS→avatar). �
 хийнэ; TTS-г `buddy_voice_cache`-аар кэшлэнэ.
 
 > ✅ **`AI_BUDDY_ENABLED` — НЭЭЛТТЭЙ (2026-08-17, эзний шийдвэр).**
-> ⚠️ `PAYMENTS_ENABLED` **хаалттай хэвээр** байхад нээсэн — turn нь ElevenLabs
-> (STT+TTS) ба Anthropic (LLM)-д дуудалт тутам төлдөг тул зардлыг бүхэлд нь
+> ⚠️ `PAYMENTS_ENABLED` **хаалттай хэвээр** байхад нээсэн — turn нь STT+TTS
+> (Gemini, эсвэл `TTS_PROVIDER=azure` үед Azure) ба Anthropic (LLM)-д
+> дуудалт тутам төлдөг тул зардлыг бүхэлд нь
 > эзэн өөрөө үүрнэ. Цорын ганц таг нь багцын limit (Redis `ai:limits:default`),
 > үнэгүй багцынх нь хамгийн сул. Provider-ийн dashboard-ыг ажигла; олон
 > хэрэглэгчид нээхийн өмнө үнэгүй багцын өдрийн turn хязгаарыг чангал.
@@ -475,6 +476,28 @@ Controller-level: JWT. Realtime speaking companion (STT→LLM→TTS→avatar). �
 | POST `/ai/buddy/sessions` | JWT | Session эхлүүлэх (зөвхөн DB, AI дуудалтгүй) | `{ buddySlug, mode?, topic? }` → `{ sessionId, buddy, usage }` |
 | ⛔ POST `/ai/buddy/sessions/:id/turn/audio` | JWT + flag | Дуут turn (multipart `file`, ≤2MB) | full pipeline → turn response |
 | ⛔ POST `/ai/buddy/sessions/:id/turn/text` | JWT + flag | Бичсэн turn (STT алгасна) | `{ text }` → turn response |
+
+**Turn response — `visemes` талбар (2026-08-21, заавал бус).**
+```jsonc
+{
+  "reply_text": "...", "audio_url": "https://.../reply.mp3",
+  "visemes": [ { "id": 0, "offset_ms": 0 }, { "id": 21, "offset_ms": 120 } ]
+}
+```
+- `id` = **Azure viseme id 0–21**, `offset_ms` = аудионы эхлэлээс тухайн амны
+  хэлбэр эхлэх агшин. Апп үүнийг `expo-audio`-гийн playback цагаар уншиж
+  жинхэнэ lip-sync хийнэ (`mobile/src/components/azureVisemes.ts`).
+- **Зөвхөн `TTS_PROVIDER=azure` үед ирнэ.** Gemini TTS цаг өгдөггүй тул талбар
+  бүрмөсөн **байхгүй** байх ба апп хариултын бичвэрээс амны хэлбэрийг таамаглах
+  хуучин замдаа буцна — тиймээс энэ нь эвдрэлгүй нэмэлт, **аппын шинэ bundle
+  шаардахгүй**.
+- `buddy_voice_cache.visemes`-д аудиотойгоо хамт кэшлэгдэнэ (migration
+  `AddVoiceCacheVisemes1787600000000`) — cache hit дээр lip-sync алдагдахгүй.
+- Хариултын урт нь **20 үгээр** таслагдана (`ai:limits:default` → `maxReplyWords`,
+  runtime-аас өөрчилж болно). Turn бүрийн шатны хугацаа
+  (`stt_ms`/`llm_ms`/`tts_ms`/`storage_ms`) нь assistant мессежийн
+  `metadata.latency`-д бичигдэнэ → p50/p95-ыг SQL-ээр гаргана.
+- Дэлгэрэнгүй: `docs/AZURE_VISEME_PLAN.md`
 | GET `/ai/buddy/sessions/:id/messages` | JWT | Яриа түүх | path `id` |
 | POST `/ai/buddy/text-session` | JWT | Бичгийн чат thread нээх + түүх (ChatGPT маягийн, апп дахин нээхэд хадгалагдана; voice-оос тусдаа). Body-оор thread сонгоно: `sessionId` (тодорхой хуучин thread), `new:true` (шинэ chat), эсвэл default (хамгийн сүүлийн) | `{ buddySlug, sessionId?, new? }` → `{ sessionId, messages: [{ id, role, content, correction, followUp, audioUrl }] }` |
 | GET `/ai/buddy/text-sessions` | JWT | Тухайн buddy-тэй хийсэн бичгийн чатны түүх (thread жагсаалт, ChatGPT-style history panel) | query `buddySlug` → `[{ sessionId, title, messageCount, updatedAt }]` |
