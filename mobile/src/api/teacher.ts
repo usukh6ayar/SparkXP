@@ -39,6 +39,13 @@ export interface StudentProgress {
     status: SubmissionStatus;
     scorePct: number | null;
     submittedAt: string | null;
+    /** Дасгал/хичээлийн гарчиг — **серверээс**; апп өөрөө олж чадахгүй. */
+    targetTitle: string | null;
+    /** Сорилын сэдэв (хавтасны нэр). */
+    targetTopic: string | null;
+    /** Нэг илгээлтийн багцуудыг бүлэглэх түлхүүр. */
+    createdAt: string | null;
+    dueAt: string | null;
   }[];
 }
 

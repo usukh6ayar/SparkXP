@@ -362,8 +362,11 @@ export default function ClassDetailScreen() {
                                 </AppText>
                               </View>
                               <View style={styles.partBody}>
+                                {/* Гарчиг — багцын нэр. Сэдэв нь хавтас тул
+                                    бүх багц дээр ижил байдаг (assignments.tsx
+                                    дахь `PartRow`-ийн тайлбарыг үз). */}
                                 <AppText variant="body" numberOfLines={1}>
-                                  {part.targetTopic || part.targetTitle || '—'}
+                                  {part.targetTitle || part.targetTopic || '—'}
                                 </AppText>
                               </View>
                               {part.questionCount ? (
@@ -392,7 +395,7 @@ export default function ClassDetailScreen() {
                       <SubmissionList
                         packs={g.parts.map((p) => ({
                           id: p.id,
-                          label: p.targetTopic || p.targetTitle || '—',
+                          label: p.targetTitle || p.targetTopic || '—',
                         }))}
                       />
                     </>

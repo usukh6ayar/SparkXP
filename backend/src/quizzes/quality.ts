@@ -218,6 +218,84 @@ function heardLike(heardWords: Set<string>, word: string): boolean {
 }
 
 /** Үг бүтнээрээ (дэд-мөр биш) текстэд байна уу. */
+/**
+ * **Үг эрэмбэлэх** асуулт уу — бүх сонголт яг ижил үгсээс бүтсэн үү?
+ *
+ *   A. A box Sophie opens.     C. Sophie opens a box.  ← зөв
+ *   B. Opens Sophie a box.     D. Sophie a box opens.
+ *
+ * Ийм асуултад зөв хариулт асуултын дотор байх нь ач холбогдолгүй: сонголт
+ * болгон ижил үгстэй тул сурагч **дарааллыг** мэдэхээс өөр аргагүй. Хариултыг
+ * нүдээр таних боломж алга.
+ *
+ * ⚠️ Гурваас цөөн сонголттой бол шалгахгүй — санамсаргүй таарах магадлал
+ * өндөр. Нэг үгтэй сонголтуудыг мөн алгасна (тэдгээрийн «эрэмбэ» гэж үгүй).
+ */
+function isWordOrderQuestion(options: string[]): boolean {
+  if (options.length < 3) return false;
+  const signature = (s: string) =>
+    norm(s).split(' ').filter(Boolean).sort().join(' ');
+  const first = signature(options[0]);
+  if (!first || first.split(' ').length < 2) return false;
+  return options.every((opt) => signature(opt) === first);
+}
+
+/**
+ * Асуултын доторх **шинжлэх материал** — ишлэл дэх хэсгүүд.
+ *
+ * `In "Tara carries boxes.", which word is the subject?` гэсэн асуултад
+ * хашилтан доторх өгүүлбэр нь сурагчийн ЗАДЛАН ШИНЖЛЭХ материал болохоос
+ * хариултын сануулга биш.
+ */
+function stimulusOf(question: string): string[] {
+  // Шулуун, буржгар, кирилл, өнцөгт — Word-ийн «ухаалаг хашилт» багтана.
+  const quoted = question.match(/["'“”„«»‘’]([^"'“”„«»‘’]{3,})["'“”„«»‘’]/g) ?? [];
+  // Хоёр цэгийн ард жагсаасан үгс ч мөн материал:
+  //   `Put these words in the correct order: guests / welcomes / Hannah`
+  const listed = question.match(/:\s*(.+)$/)?.[1] ?? '';
+  // ⚠️ Хэсгүүдийг НИЙЛҮҮЛЖ болохгүй: доор эдгээрийг асуултаас хасахдаа яг
+  // ийм мөр хайдаг тул нийлүүлсэн хувилбар хэзээ ч таарахгүй (нэгдсэн мөр
+  // нь эх текстэд байхгүй) — тэгээд бүх шалгуур чимээгүй унтардаг байв.
+  return [...quoted, listed].filter((part) => part.trim().length > 0);
+}
+
+/**
+ * Энэ бол **задлан шинжлэх** асуулт уу — зөв хариулт нь асуултын доторх
+ * өгүүлбэрээс гарах ёстой төрөл үү?
+ *
+ * ⚠️ Яагаад хэрэгтэй вэ (Choi, 2026-08-24): дүрмийн 5 тест (75 асуулт)
+ * импортлоход 40 гаруй ХУДАЛ дуулга гарсан. «In "Tara carries boxes.", which
+ * word is the subject?» гэсэн асуултын зөв хариулт «Tara» нь мэдээж асуултын
+ * дотор байна — сурагч түүнийг ХАРЖ байгаа ч, аль нь өгүүлэгдэхүүн болохыг
+ * мэдэх ёстой. Задлан шинжлэх дасгалын мөн чанар нь тэр.
+ *
+ * Ялгах шалгуур: зөв хариулт **зөвхөн** ишлэл дотроос олдож, БУСАД сонголтууд
+ * ч мөн тэндээс гарч байвал — энэ бол шинжлэх материал, бүх сонголт ижил
+ * эх сурвалжтай тул таамаглах давуу тал алга.
+ *
+ * Эсрэгээр `Which word means "at seven"?` дээр зөвхөн зөв хариулт нь ишлэлд
+ * байж, бусад нь (At six / At eight) байхгүй — тэр нь жинхэнэ задардаг
+ * дасгал тул анхааруулга хэвээр үлдэнэ.
+ */
+function isStimulusQuestion(
+  question: string,
+  options: string[],
+  correct: number,
+): boolean {
+  const parts = stimulusOf(question);
+  if (parts.length === 0) return false;
+  const stimulus = parts.join(' ');
+
+  // Зөв хариулт ишлэлээс ГАДУУР бас байвал — тэр нь жинхэнэ сануулга.
+  const outside = parts.reduce((rest, part) => rest.split(part).join(' '), question);
+  if (containsWord(outside, options[correct])) return false;
+
+  // Дор хаяж нэг өөр сонголт мөн тэр материалаас гарсан байх ёстой.
+  return options.some(
+    (opt, i) => i !== correct && norm(opt).length > 2 && containsWord(stimulus, opt),
+  );
+}
+
 function containsWord(haystack: string, needle: string): boolean {
   const words = new Set(norm(dropPossessive(haystack)).split(' '));
   return norm(dropPossessive(needle))
@@ -328,7 +406,13 @@ function checkQuestion(
     // ⚠️ Үгийн заагаар л шалгана: дэд-мөрөөр шалгахад «hat» нь «What» дотроос
     // олдож, хэдэн арван ХУДАЛ дуулга өгдөг байв.
     const key = options[correct];
-    if (key && norm(key).length > 2 && containsWord(question, key)) {
+    if (
+      key &&
+      norm(key).length > 2 &&
+      containsWord(question, key) &&
+      !isWordOrderQuestion(options) &&
+      !isStimulusQuestion(question, options, correct)
+    ) {
       add('warn', `Зөв хариулт «${key}» асуултын дотор шууд бичигдсэн байна.`);
     }
   }
