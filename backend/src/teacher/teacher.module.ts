@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { QuizAttempt } from '../entities/quiz-attempt.entity';
 import { Lesson } from '../entities/lesson.entity';
+import { Quiz } from '../entities/quiz.entity';
 import { WordReview } from '../entities/word-review.entity';
 import { AssignmentCompletion } from '../entities/assignment-completion.entity';
 import { Assignment } from '../entities/assignment.entity';
@@ -12,7 +13,15 @@ import { TeacherController } from './teacher.controller';
 /** Teacher-facing progress: persist quiz attempts + read views. */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([QuizAttempt, Lesson, WordReview, AssignmentCompletion, Assignment]),
+    TypeOrmModule.forFeature([
+      QuizAttempt,
+      Lesson,
+      WordReview,
+      AssignmentCompletion,
+      Assignment,
+      // Сурагчийн ахицын жагсаалтад даалгаврын ГАРЧИГ хэрэгтэй.
+      Quiz,
+    ]),
     ClassesModule,
   ],
   controllers: [TeacherController],

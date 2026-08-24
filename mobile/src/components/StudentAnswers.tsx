@@ -5,7 +5,7 @@ import { AppText } from './Text';
 import { getAssignmentAnswers, type AssignmentAnswers } from '../api/teacher';
 import { useAuth } from '../auth/AuthContext';
 import { Pill } from './Pill';
-import { t } from '../i18n';
+import { t, tf } from '../i18n';
 import { useColors } from '../settings/SettingsContext';
 import { spacing, radius } from '../theme/theme';
 
@@ -101,14 +101,25 @@ export function StudentAnswers({
               packIndex > 0 && { borderTopColor: c.border, ...styles.packDivider },
             ]}
           >
-            {answered.length > 1 ? (
-              <View style={styles.packHead}>
-                <AppText variant="bodyStrong" numberOfLines={1} style={styles.packName}>
-                  {pack.label}
-                </AppText>
-                <Pill label={`${score}%`} bg={tone + '22'} fg={tone} />
-              </View>
-            ) : null}
+            {/*
+              Толгой нь **үргэлж** гарна. Урьд нь `answered.length > 1` гэсэн
+              нөхцөлтэй байсан тул ганц багц хийсэн сурагчийн задаргаа нэр ч,
+              хувь ч үгүй, шууд асуултаар эхэлдэг байв — багш аль тестийн юуг
+              харж байгаагаа мэдэхгүй.
+            */}
+            <View style={styles.packHead}>
+              <AppText variant="bodyStrong" numberOfLines={1} style={styles.packName}>
+                {pack.label}
+              </AppText>
+              <Pill label={`${score}%`} bg={tone + '22'} fg={tone} />
+            </View>
+            {/* Хэдэн алдаа / хэдэн зөв — жагсаалтыг уншихаас өмнөх дүгнэлт. */}
+            <AppText variant="caption" color={c.textMuted} style={styles.packSub}>
+              {tf('answersSummary', {
+                wrong: rows.filter((q) => q.correct === false).length,
+                total: rows.length,
+              })}
+            </AppText>
             {rows.map((q, i) => (
               <View key={i} style={styles.row}>
                 <Ionicons
@@ -144,17 +155,23 @@ const styles = StyleSheet.create({
   wrap: {
     marginLeft: spacing.lg,
     paddingLeft: spacing.md,
-    paddingVertical: spacing.xs,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.md,
     borderLeftWidth: 2,
     borderRadius: radius.sm,
     gap: spacing.sm,
   },
   pad: { paddingVertical: spacing.sm, paddingLeft: spacing.lg },
-  pack: { gap: 4 },
-  packDivider: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: spacing.sm, marginTop: 2 },
-  packHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: 2 },
+  pack: { gap: 5 },
+  packDivider: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: spacing.md,
+    marginTop: spacing.xs,
+  },
+  packHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  packSub: { marginBottom: 4 },
   packName: { flex: 1 },
-  row: { flexDirection: 'row', gap: 6 },
+  row: { flexDirection: 'row', gap: 6, paddingVertical: 1 },
   icon: { marginTop: 1 },
   body: { flex: 1, gap: 2 },
   compare: { gap: 1 },

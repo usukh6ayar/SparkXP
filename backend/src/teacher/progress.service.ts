@@ -8,7 +8,7 @@ import { WordReview } from '../entities/word-review.entity';
 import { AssignmentCompletion } from '../entities/assignment-completion.entity';
 import { Assignment } from '../entities/assignment.entity';
 import { User } from '../entities/user.entity';
-import { SubmissionStatus } from '../common/enums';
+import { AssignmentType, SubmissionStatus } from '../common/enums';
 import { ClassesService } from '../classes/classes.service';
 import { resolveSkill } from './skill';
 
@@ -57,6 +57,8 @@ export class ProgressService {
     private readonly submissionRepo: Repository<AssignmentCompletion>,
     @InjectRepository(Assignment)
     private readonly assignmentRepo: Repository<Assignment>,
+    @InjectRepository(Quiz)
+    private readonly quizzes: Repository<Quiz>,
     private readonly classes: ClassesService,
   ) {}
 
@@ -131,12 +133,50 @@ export class ProgressService {
     }
     const skills = averageBySkill(await this.studentSkillRows(studentId));
     const vocab = await this.vocabMastery(studentId);
+    /*
+     * ⚠️ **Зөвхөн ЭНЭ ангийн даалгавар.** Урьд нь `where: { studentId }` гэж
+     * бүх ангиас татдаг байсан тул багш «9а анги»-ийн сурагчийг нээхэд өөр
+     * ангийн даалгавар холилдож ирдэг байв.
+     */
     const submissions = await this.submissionRepo.find({
-      where: { studentId },
+      where: { studentId, assignment: { classId } },
       relations: ['assignment'],
       order: { submittedAt: 'DESC' },
       take: 50,
     });
+
+    /*
+     * Гарчиг нь **серверээс** явна. Даалгаврын сангийн тест сурагчийн
+     * жагсаалтад огт харагддаггүй тул апп гарчгийг өөрөө олж чадахгүй —
+     * түүнгүйгээр мөр нь «? · Хийгээгүй · —» гэсэн танигдахгүй эгнээ болно.
+     */
+    const quizIds = submissions
+      .filter((s) => s.assignment?.type === AssignmentType.QUIZ)
+      .map((s) => s.assignment!.targetId);
+    const lessonIds = submissions
+      .filter((s) => s.assignment?.type === AssignmentType.LESSON)
+      .map((s) => s.assignment!.targetId);
+    const [quizzes, lessons] = await Promise.all([
+      quizIds.length
+        ? this.quizzes.find({
+            where: { id: In(quizIds) },
+            select: { id: true, title: true, topic: true },
+          })
+        : [],
+      lessonIds.length
+        ? this.lessons.find({
+            where: { id: In(lessonIds) },
+            select: { id: true, title: true },
+          })
+        : [],
+    ]);
+    const titleOf = new Map<string, { title: string; topic: string | null }>([
+      ...quizzes.map(
+        (q) => [q.id, { title: q.title, topic: q.topic ?? null }] as const,
+      ),
+      ...lessons.map((l) => [l.id, { title: l.title, topic: null }] as const),
+    ]);
+
     return {
       studentId,
       fullName: student.fullName,
@@ -144,13 +184,22 @@ export class ProgressService {
       xp: student.xp,
       currentStreak: student.currentStreak,
       skills: { ...skills, vocab },
-      assignments: submissions.map((s) => ({
-        assignmentId: s.assignmentId,
-        type: s.assignment?.type ?? null,
-        status: s.status,
-        scorePct: s.scorePct,
-        submittedAt: s.submittedAt,
-      })),
+      assignments: submissions.map((s) => {
+        const target = s.assignment ? titleOf.get(s.assignment.targetId) : undefined;
+        return {
+          assignmentId: s.assignmentId,
+          type: s.assignment?.type ?? null,
+          status: s.status,
+          scorePct: s.scorePct,
+          submittedAt: s.submittedAt,
+          targetTitle: target?.title ?? null,
+          targetTopic: target?.topic ?? null,
+          // Апп нэг илгээлтийн багцуудыг эдгээрээр бүлэглэнэ
+          // (`mobile/src/lib/assignmentGroups.ts`).
+          createdAt: s.assignment?.createdAt ?? null,
+          dueAt: s.assignment?.dueAt ?? null,
+        };
+      }),
     };
   }
 
