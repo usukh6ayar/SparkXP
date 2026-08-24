@@ -99,7 +99,9 @@ export function BuddyVoiceStage({
   const tx = useSharedValue(0);     // horizontal finger drag: ← cancel · → lock
   const active = useSharedValue(0); // 0 idle → 1 recording (drives mic scale/tint)
   const [ready3d, setReady3d] = useState(false);
-  const is3d = SHOW_3D_AVATAR && !!buddy?.avatarAssetUrl && ready3d;
+  /** This buddy HAS a 3D model — whether or not it has finished loading yet. */
+  const has3d = SHOW_3D_AVATAR && !!buddy?.avatarAssetUrl;
+  const is3d = has3d && ready3d;
 
   /**
    * The buddy is the screen — it spans the full display width, leaving only
@@ -303,8 +305,12 @@ export function BuddyVoiceStage({
           therefore re-fitted the model. The buddy visibly changed size every
           time it started or stopped thinking. A constant slot decouples them. */}
       <View style={styles.stage}>
-        {captions && (
-          <View style={styles.bubbleSlot}>
+        {/* The slot is ALWAYS here, captions or not. It only holds the bubble
+            when captions are on — but if it disappeared, the buddy's canvas
+            would grow by its height and the model would be re-fitted larger.
+            Toggling CC is a caption preference; it must not resize the buddy. */}
+        <View style={styles.bubbleSlot}>
+          {captions && (
             <Animated.View key={thinking ? 'thinking' : greeting} entering={FadeIn.duration(220)} style={[styles.bubble, elevation.md]}>
               {thinking ? (
                 <View style={styles.thinkingRow}>
@@ -326,17 +332,32 @@ export function BuddyVoiceStage({
               )}
               <View style={[styles.bubbleTail, { backgroundColor: c.surface }]} />
             </Animated.View>
-          </View>
-        )}
+          )}
+        </View>
 
         <View
           style={styles.buddyWrap}
           onLayout={(e) => setRoomH(e.nativeEvent.layout.height)}
         >
           <Animated.View style={buddyStyle}>
-            {/* 2D art shows until the GLB is on screen, then gives way to it —
-                the 3D canvas is transparent, so leaving both would overlap. */}
-            {ready3d ? null : buddy?.avatarThumbUrl ? (
+            {/* Waiting for the character. The admin thumbnail used to fill this
+                gap, but it is the PICKER's artwork — showing it here flashed a
+                flat 2D picture and then swapped it for the 3D character, two
+                different-looking buddies in a row. A plain "loading" state says
+                what is actually happening instead of pretending to be the buddy.
+
+                The GLB is tens of megabytes, so the first entry genuinely waits;
+                `modelCache` makes every later entry instant. */}
+            {has3d && !ready3d && (
+              <View style={[styles.avatarLoading, { width: boxW, height: boxH }]}>
+                <ActivityIndicator size="large" color={c.primary} />
+                <AppText variant="caption" color={c.textMuted}>{t('loading')}</AppText>
+              </View>
+            )}
+
+            {/* Only a buddy with NO 3D model at all falls back to its picture —
+                there is nothing else coming for it to wait for. */}
+            {!has3d && (buddy?.avatarThumbUrl ? (
               <AppImage
                 source={{ uri: buddy.avatarThumbUrl }}
                 width={Math.round(boxW)}
@@ -345,7 +366,7 @@ export function BuddyVoiceStage({
               />
             ) : (
               <AppText style={styles.buddyEmoji}>{buddy?.name?.charAt(0) ?? '?'}</AppText>
-            )}
+            ))}
             {SHOW_3D_AVATAR && !!buddy?.avatarAssetUrl && (
               <BuddyAvatar
                 assetUrl={buddy.avatarAssetUrl}
@@ -462,6 +483,7 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   buddyWrap: { flex: 1, width: '100%', alignItems: 'center', justifyContent: 'center' },
   // Size is applied inline from the window width (see `boxW`/`boxH`).
   buddyImg: {},
+  avatarLoading: { alignItems: 'center', justifyContent: 'center', gap: spacing.md },
   /** The 3D canvas gets more room: the model is fitted with margin inside it. */
   buddyEmoji: { fontSize: ms(156), lineHeight: ms(176) },
   // Constant height, whatever the caption says — see the note at the stage.
