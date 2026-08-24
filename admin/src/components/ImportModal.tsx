@@ -5,7 +5,10 @@ import { Button } from './Button';
 import { FormActions } from './FormActions';
 import { ErrorBox } from './ErrorBox';
 import { friendlyError } from '../lib/errors';
-import { parsePacks, templateCsv, readAnyFile, type Pack } from '../lib/importRows';
+import {
+  parsePacks, templateCsv, readAnyFile, isExamText, examMeta,
+  type Pack, type ImportMeta,
+} from '../lib/importRows';
 import type { QuestionType } from './QuizQuestionsEditor';
 
 /**
@@ -30,6 +33,7 @@ export function ImportModal({
   onMultiPack,
   onImport,
   onAi,
+  onMeta,
   onClose,
 }: {
   title: string;
@@ -49,10 +53,15 @@ export function ImportModal({
   onImport: (packs: Pack[]) => Promise<void>;
   /** «AI-аар үүсгэх» — буулгасан текстийг дамжуулна. */
   onAi: (text: string) => void;
+  /**
+   * Баримтаас уншсан сэдэв/түвшин. Хуудас нь **хоосон талбараа л** нөхнө —
+   * админы гараар бичсэн утгыг дарж бичихгүй.
+   */
+  onMeta?: (meta: ImportMeta) => void;
   onClose: () => void;
 }) {
   const [text, setText] = useState('');
-  const [fileName, setFileName] = useState('');
+  const [fileNames, setFileNames] = useState<string[]>([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const packs = useMemo<Pack[]>(() => {
@@ -63,12 +72,25 @@ export function ImportModal({
     }
   }, [text, questionType, multiPack]);
 
-  async function pickFile(file: File) {
+  /**
+   * Олон файлыг нэг дор. Word дээр бэлдсэн тест ихэвчлэн **файл тус бүрдээ**
+   * байдаг (Test 1.docx … Test 5.docx) тул 5 удаа импортлуулах нь утгагүй.
+   * Файл бүрийн өмнө нэрийг нь тэмдэглэж нийлүүлнэ — задлагч тэрхүү
+   * тэмдэглэгээгээр багцуудыг салгаж, нэрийг нь авна.
+   */
+  async function pickFiles(files: File[]) {
     setError('');
     setBusy(true);
     try {
-      setText(await readAnyFile(file));
-      setFileName(file.name);
+      const parts: string[] = [];
+      for (const file of files) {
+        parts.push(`----- FILE: ${file.name} -----\n${await readAnyFile(file)}`);
+      }
+      const joined = parts.join('\n\n');
+      setText(joined);
+      setFileNames(files.map((f) => f.name));
+      // Шалгалтын бичиг бол сэдэв/түвшинг нь толгой мөрөөс шууд уншина.
+      if (onMeta && isExamText(joined)) onMeta(examMeta(joined));
     } catch (e) {
       setError(friendlyError(e, 'Файлыг уншиж чадсангүй'));
     } finally {
@@ -121,20 +143,23 @@ export function ImportModal({
             <Upload className="mr-1 inline h-4 w-4" /> Файл сонгох
             <input
               type="file"
+              multiple
               accept=".xlsx,.xls,.docx,.csv,.tsv,.txt,.json"
               className="hidden"
               onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) void pickFile(f);
+                const list = [...(e.target.files ?? [])];
+                if (list.length) void pickFiles(list);
                 e.target.value = ''; // ижил файлыг дахин сонгож болно
               }}
             />
           </label>
           <span className="flex-1 text-xs text-gray-500">
-            {fileName ? (
-              <b className="text-gray-700">{fileName}</b>
+            {fileNames.length === 1 ? (
+              <b className="text-gray-700">{fileNames[0]}</b>
+            ) : fileNames.length > 1 ? (
+              <b className="text-gray-700">{fileNames.length} файл: {fileNames.join(' · ')}</b>
             ) : (
-              'Excel (.xlsx) · Word (.docx) · CSV · TSV · TXT · JSON'
+              'Excel (.xlsx) · Word (.docx) · CSV · TSV · TXT · JSON — олныг нэг дор сонгож болно'
             )}
           </span>
           <Button variant="secondary" size="sm" onClick={downloadTemplate}>
@@ -168,7 +193,7 @@ export function ImportModal({
             className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
             rows={8}
             value={text}
-            onChange={(e) => { setText(e.target.value); setFileName(''); }}
+            onChange={(e) => { setText(e.target.value); setFileNames([]); }}
             placeholder="Файл сонгох, эсвэл Excel-ээс нүднүүдээ хуулаад энд буулгана уу…"
           />
         </div>
@@ -176,6 +201,25 @@ export function ImportModal({
         {/* Урьдчилан харах: «Импортлох» дарахаас өмнө юу орохыг нь хэлнэ. */}
         {packs.length > 0 && (
           <div className="rounded-lg border border-primary/30 bg-primarySoft p-3 text-xs">
+            {isExamText(text) && (
+              <p className="mb-1 text-gray-600">
+                📄 <b>Шалгалтын бичиг танигдлаа</b> — асуулт, A–D сонголт,
+                «ANSWER KEY» гурвыг өөрөө уншиж байна. Доорх «багцын багана» ба
+                «асуултын төрөл» сонголтууд энэ хэлбэрт хамаарахгүй.
+                {(() => {
+                  const meta = examMeta(text);
+                  return meta.topic || meta.level ? (
+                    <>
+                      {' '}Толгой мөрөөс:{' '}
+                      {meta.topic && <b>сэдэв «{meta.topic}»</b>}
+                      {meta.topic && meta.level && ' · '}
+                      {meta.level && <b>түвшин {meta.level.toUpperCase()}</b>}
+                      {' '}— хоосон талбарууд автоматаар бөглөгдсөн.
+                    </>
+                  ) : null;
+                })()}
+              </p>
+            )}
             <p className="font-medium text-gray-700">
               {packs.length > 1
                 ? `${packs.length} багц · нийт ${totalQuestions} асуулт үүснэ`

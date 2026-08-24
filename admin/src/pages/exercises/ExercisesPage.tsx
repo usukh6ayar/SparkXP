@@ -352,7 +352,18 @@ export default function ExercisesPage() {
 
   // Шүүлт нь СЕРВЕР дээр хийгдэж байна (`assignOnly` query) — энд давхар
   // шүүхгүй, эс бөгөөс хоёр газарт хоёр өөр дүрэм үүснэ.
-  const visible = items;
+  //
+  // Санд **сэдэв нь хавтасны үүрэгтэй** («Present Simple» → 5 багц) тул
+  // мөрүүдийг хавтсаар нь бөөгнөрүүлж эрэмбэлнэ. Эс бөгөөс 10 сэдэв × 5 багц
+  // = 50 мөр нь эмх замбараагүй хана болж, аль багц алинд харьяалагдахыг
+  // нүдээр ялгах аргагүй болно.
+  const visible = bank
+    ? [...items].sort(
+        (a, b) =>
+          (a.topic ?? '').localeCompare(b.topic ?? '') ||
+          a.title.localeCompare(b.title),
+      )
+    : items;
   const total = visible.length;
   const paged = visible.slice((page - 1) * LIMIT, page * LIMIT);
   const hidden = items.filter((e) => !e.isPublished);
@@ -480,9 +491,11 @@ export default function ExercisesPage() {
         <p className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900">
           <b>Зөвхөн багш хардаг сан.</b> Сурагч эдгээрийг Дасгал/Сорил табаасаа
           ОГТ олохгүй — багш ангидаа даалгавар болгож өгсний дараа л нээгдэнэ.
-          Багш нэг тестээс дурын хэдэн асуултыг (ж: 15-аас 5) сонгож өгч чадна,
-          тиймээс энд <b>сэдэв</b> (Present Simple, Modal verbs…) нь хамгийн
-          чухал талбар.
+          Багш нэг тестээс дурын хэдэн асуултыг (ж: 15-аас 5) сонгож өгч чадна.
+          <br />
+          <b>Сэдэв = хавтас</b> («Present Simple») · <b>Гарчиг = багц</b>
+          («Present Simple 1 · Positive»). Нэг сэдэвтэй бүх дасгал хамт
+          бөөгнөрч, багш тэднийг нэг даалгавар болгож өгнө.
         </p>
       )}
 
@@ -545,6 +558,7 @@ export default function ExercisesPage() {
           <div className="space-y-4">
             <Input label="Гарчиг" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
             <TopicField
+              label={bank ? 'Сэдэв — хавтасны нэр' : 'Сэдэв'}
               listId="exercise-topics"
               options={exerciseCategoryOptions(cat)}
               value={form.topic}
@@ -625,6 +639,13 @@ export default function ExercisesPage() {
           onMultiPack={setImpMultiPack}
           onClose={() => setImportOpen(false)}
           onAi={(text) => { setAiBrief(text); setImportOpen(false); setAiOpen(true); }}
+          onMeta={(meta) => {
+            // Гараар бичсэн утгыг ХЭЗЭЭ Ч дарж бичихгүй — зөвхөн хоосныг нөхнө.
+            if (meta.topic && !impTopic.trim()) setImpTopic(meta.topic);
+            if (meta.level && LEVEL_OPTIONS.some((o) => o.value === meta.level)) {
+              setImpLevel((cur) => (cur === 'a1' ? meta.level! : cur));
+            }
+          }}
           note={
             bank
               ? '📋 Даалгаврын санд орно — сурагч өөрөө олохгүй, зөвхөн багш өгсний дараа нээгдэнэ.'
@@ -635,6 +656,7 @@ export default function ExercisesPage() {
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Input label="Гарчиг" value={impTitle} onChange={(e) => setImpTitle(e.target.value)} />
                 <TopicField
+                  label={bank ? 'Сэдэв — хавтасны нэр' : 'Сэдэв'}
                   listId="exercise-import-topics"
                   options={exerciseCategoryOptions(cat)}
                   value={impTopic}
