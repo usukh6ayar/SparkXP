@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { View, Pressable, ScrollView, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Pressable, ScrollView, StyleSheet } from 'react-native';
 import { SheetModal } from './SheetModal';
 import { AppText } from './Text';
 import { Avatar } from './Avatar';
+import { SelectMark } from './SelectMark';
 import { Button } from './Button';
 import { ActionButton } from './ActionButton';
 import { updateAssignmentStudents } from '../api/assignments';
@@ -11,7 +11,7 @@ import { useAuth } from '../auth/AuthContext';
 import type { ClassStudent } from '../api/classes';
 import { t } from '../i18n';
 import { useColors } from '../settings/SettingsContext';
-import { spacing } from '../theme/theme';
+import { spacing, radius } from '../theme/theme';
 
 /**
  * **Даалгаврын хүрээг засах** — хэнд оногдох вэ.
@@ -69,14 +69,21 @@ export function EditAssignmentStudents({
         {t('editStudentsHint')}
       </AppText>
 
-      <Pressable style={styles.allRow} onPress={() => setPicked(all ? [] : roster.map((s) => s.id))}>
-        <Ionicons
-          name={all ? 'checkbox' : 'square-outline'}
-          size={22}
-          color={all ? c.primary : c.textMuted}
+      {/* «Бүх анги» — жагсаалтын толгой. Хэсэгчилсэн төлөвтэй тул хэдэн
+          сурагч сонгогдсоныг задлан уншихгүйгээр мэдэгдэнэ. */}
+      <Pressable
+        style={[styles.allRow, { borderColor: all ? c.primary : c.border }]}
+        onPress={() => setPicked(all ? [] : roster.map((s) => s.id))}
+      >
+        <SelectMark
+          state={all ? 'on' : picked.length > 0 ? 'some' : 'off'}
+          emphasis
         />
-        <AppText variant="bodyStrong" color={all ? c.primary : undefined}>
+        <AppText variant="bodyStrong" color={all ? c.primary : undefined} style={styles.name}>
           {t('editStudentsAll')}
+        </AppText>
+        <AppText variant="label" color={c.textMuted}>
+          {picked.length}/{roster.length}
         </AppText>
       </Pressable>
 
@@ -84,14 +91,23 @@ export function EditAssignmentStudents({
         {roster.map((s) => {
           const on = picked.includes(s.id);
           return (
-            <Pressable key={s.id} style={styles.row} onPress={() => toggle(s.id)}>
-              <Ionicons
-                name={on ? 'checkbox' : 'square-outline'}
-                size={22}
-                color={on ? c.primary : c.textMuted}
-              />
-              <Avatar avatarUrl={s.avatarUrl} name={s.fullName} size={28} />
-              <AppText variant="body" numberOfLines={1} style={styles.name}>
+            <Pressable
+              key={s.id}
+              style={[
+                styles.row,
+                // Сонгогдсон мөр өөрөө тодрох — чагт нь ганцаараа жижиг тэмдэг
+                // тул хурдан гүйлгэхэд хэн сонгогдсоныг алдахад амархан байв.
+                on && { backgroundColor: c.primarySoft },
+              ]}
+              onPress={() => toggle(s.id)}
+            >
+              <SelectMark state={on ? 'on' : 'off'} size={22} />
+              <Avatar avatarUrl={s.avatarUrl} name={s.fullName} size={30} />
+              <AppText
+                variant={on ? 'bodyStrong' : 'body'}
+                numberOfLines={1}
+                style={styles.name}
+              >
                 {s.fullName}
               </AppText>
             </Pressable>
@@ -115,9 +131,14 @@ const styles = StyleSheet.create({
   hint: { marginTop: 4, marginBottom: spacing.md },
   allRow: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.sm, paddingHorizontal: spacing.sm,
+    borderWidth: 1, borderRadius: radius.md, marginBottom: spacing.xs,
   },
-  list: { maxHeight: 260 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: 6 },
+  list: { maxHeight: 280 },
+  row: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    paddingVertical: 7, paddingHorizontal: spacing.sm,
+    borderRadius: radius.md, marginBottom: 2,
+  },
   name: { flex: 1 },
 });

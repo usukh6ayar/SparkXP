@@ -16,6 +16,7 @@ import { SelectField } from '../../../../src/components/SelectField';
 import { TextField } from '../../../../src/components/TextField';
 import { FilterChips } from '../../../../src/components/FilterChips';
 import { ActionButton } from '../../../../src/components/ActionButton';
+import { SelectMark } from '../../../../src/components/SelectMark';
 import { EmptyState } from '../../../../src/components/EmptyState';
 import {
   QuestionPicker,
@@ -405,13 +406,13 @@ export default function AssignScreen() {
                 {students.map((s) => {
                   const on = selectedIds.includes(s.id);
                   return (
-                    <Pressable key={s.id} style={styles.rosterRow} onPress={() => toggleStudent(s.id)}>
-                      <Ionicons
-                        name={on ? 'checkbox' : 'square-outline'}
-                        size={22}
-                        color={on ? colors.primary : colors.textMuted}
-                      />
-                      <AppText variant="body">{s.fullName}</AppText>
+                    <Pressable
+                      key={s.id}
+                      style={[styles.rosterRow, on && { backgroundColor: colors.primarySoft }]}
+                      onPress={() => toggleStudent(s.id)}
+                    >
+                      <SelectMark state={on ? 'on' : 'off'} size={22} />
+                      <AppText variant={on ? 'bodyStrong' : 'body'}>{s.fullName}</AppText>
                     </Pressable>
                   );
                 })}
@@ -473,5 +474,8 @@ const makeStyles = (colors: AppColors) => StyleSheet.create({
     marginBottom: spacing.lg,
   },
   roster: { marginBottom: spacing.lg, gap: spacing.xs },
-  rosterRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xs },
+  rosterRow: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    paddingVertical: 7, paddingHorizontal: spacing.sm, borderRadius: radius.md,
+  },
 });

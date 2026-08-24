@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { AppText } from './Text';
 import { Card } from './Card';
 import { Pill } from './Pill';
+import { SelectMark } from './SelectMark';
 import { FilterChips } from './FilterChips';
 import { TextField } from './TextField';
 import { EmptyState } from './EmptyState';
@@ -89,15 +90,23 @@ export function QuestionPicker({
     ];
   }, [quizzes]);
 
+  /**
+   * Хайлт: гарчиг + сэдвийн аль алинаас, **үг бүрээр тусад нь**.
+   *
+   * Бүтэн мөрөөр нь хайвал «present positive» гэж бичихэд юу ч олдохгүй
+   * (тэр хос нь «Present Simple 1 · Positive» дотор зэрэгцэж байхгүй) — багш
+   * санасан хоёр үгээ бичих нь бодит зан үйл тул үг бүр тус тусдаа таарвал
+   * хангалттай гэж үзнэ. Үгийн ЭХЛЭЛ шаардахгүй: «simple» гэж бичихэд
+   * дундах үг ч олдоно.
+   */
   const visible = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return quizzes.filter(
-      (quiz) =>
-        (group === 'all' || groupOf(quiz) === group) &&
-        (!q ||
-          quiz.title.toLowerCase().includes(q) ||
-          (quiz.topic ?? '').toLowerCase().includes(q)),
-    );
+    const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    return quizzes.filter((quiz) => {
+      if (group !== 'all' && groupOf(quiz) !== group) return false;
+      if (words.length === 0) return true;
+      const hay = `${quiz.title} ${quiz.topic ?? ''}`.toLowerCase();
+      return words.every((w) => hay.includes(w));
+    });
   }, [quizzes, group, query]);
 
   function setFor(quizId: string, indexes: number[]) {
@@ -169,6 +178,22 @@ export function QuestionPicker({
               style={styles.header}
               onPress={() => setOpenId(open ? null : quiz.id)}
             >
+              {/*
+                Мөрөн дээрх чагт — **задлахгүйгээр** бүхэлд нь сонгоно.
+                Багш ихэвчлэн бүтэн тестээ өгдөг тул тэр түгээмэл тохиолдолд
+                нээгээд «Бүх асуултыг сонгох» дарах хоёр алхам илүүц байв.
+                Гурван төлөв: хоосон · хэсэгчилсэн (—) · бүгд.
+              */}
+              <Pressable
+                onPress={() => toggleAll(quiz)}
+                hitSlop={10}
+                style={styles.headCheck}
+              >
+                <SelectMark
+                  state={allOn ? 'on' : chosen.length > 0 ? 'some' : 'off'}
+                  emphasis
+                />
+              </Pressable>
               <View style={styles.headerText}>
                 <AppText variant="bodyStrong" numberOfLines={2}>
                   {quiz.title}
@@ -195,16 +220,8 @@ export function QuestionPicker({
 
             {open ? (
               <View style={styles.questions}>
-                <Pressable style={styles.row} onPress={() => toggleAll(quiz)}>
-                  <Ionicons
-                    name={allOn ? 'checkbox' : 'square-outline'}
-                    size={20}
-                    color={allOn ? c.primary : c.textMuted}
-                  />
-                  <AppText variant="caption" color={c.primary}>
-                    {t('assignAllQuestions')}
-                  </AppText>
-                </Pressable>
+                {/* «Бүх асуултыг сонгох» мөр ХАСАГДСАН — толгойн чагт
+                    яг үүнийг, задлахгүйгээр хийдэг болсон. */}
                 {quiz.questions.map((q, i) => {
                   const on = chosen.includes(i);
                   return (
@@ -213,11 +230,7 @@ export function QuestionPicker({
                       style={styles.row}
                       onPress={() => toggleQuestion(quiz.id, i)}
                     >
-                      <Ionicons
-                        name={on ? 'checkbox' : 'square-outline'}
-                        size={20}
-                        color={on ? c.primary : c.textMuted}
-                      />
+                      <SelectMark state={on ? 'on' : 'off'} size={20} />
                       <AppText
                         variant="caption"
                         color={on ? c.text : c.textSecondary}
@@ -242,7 +255,8 @@ const makeStyles = (c: AppColors) =>
   StyleSheet.create({
     note: { marginBottom: spacing.sm },
     card: { marginBottom: spacing.sm },
-    header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+    headCheck: { paddingRight: 2 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     headerText: { flex: 1, gap: spacing.xs },
     meta: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, flexWrap: 'wrap' },
     questions: {
