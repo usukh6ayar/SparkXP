@@ -65,6 +65,11 @@ function isNew(a: Assignment, lastSeen: string | null): boolean {
  * Багц бүр өөрийн `assignmentId`-тай тул нээхэд сервер яг тэр багцын
  * асуултуудыг л өгнө. Дугаар нь дараалал ЗААХГҮЙ (дурын дарааллаар хийнэ),
  * зөвхөн «хэд дэх нь вэ» гэдгийг хэлнэ.
+ *
+ * ⚠️ Мөрөнд **гарчиг** гарна, сэдэв биш. Сэдэв нь хавтасны нэр тул нэг
+ * даалгаврын бүх багц дээр ижил байдаг — түүгээр нэрлэвэл 5 мөр бүгд
+ * «Present Simple» гэж уншигдаж, аль нь аль болохыг ялгах аргагүй болно.
+ * Хавтасны нэр нь картын гарчиг дээр нэг удаа гарна (`groupTitle`).
  */
 function PartRow({
   part,
@@ -84,7 +89,7 @@ function PartRow({
       </View>
       <View style={styles.partBody}>
         <AppText variant="bodyStrong" numberOfLines={1}>
-          {part.targetTopic || part.targetTitle || '—'}
+          {part.targetTitle || part.targetTopic || '—'}
         </AppText>
         {part.questionCount ? (
           <AppText variant="caption" color={c.textMuted}>
