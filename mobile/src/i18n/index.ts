@@ -396,6 +396,8 @@ const mn = {
   assignSearch: 'Нэрээр хайх…',
   assignNoMatch: 'Энэ шүүлтэд тохирох контент алга.',
   assignFoundCount: '{n} олдлоо',
+  /** Даалгавар оноох дэлгэцийн сэдвийн шүүлт (түвшин нь `levelLabel`). */
+  topicLabel: 'Сэдэв',
   dueDate: 'Эцсийн хугацаа',
   noDueDate: 'Хугацаагүй',
   assign: 'Оноох',
@@ -1644,6 +1646,7 @@ const en: Record<TranslationKey, string> = {
   assignSearch: 'Search by name…',
   assignNoMatch: 'Nothing matches this filter.',
   assignFoundCount: '{n} found',
+  topicLabel: 'Topic',
   dueDate: 'Due date',
   noDueDate: 'No due date',
   assign: 'Assign',

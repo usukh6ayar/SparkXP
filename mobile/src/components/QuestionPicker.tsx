@@ -10,7 +10,7 @@ import { TextField } from './TextField';
 import { EmptyState } from './EmptyState';
 import { t, tf } from '../i18n';
 import { useColors } from '../settings/SettingsContext';
-import { spacing, radius, type AppColors } from '../theme/theme';
+import { spacing, radius, levelColor, type AppColors } from '../theme/theme';
 import type { Quiz } from '../api/quizzes';
 
 /**
@@ -28,12 +28,23 @@ import type { Quiz } from '../api/quizzes';
 /** `quizId` → сонгосон асуултын индексүүд. Хоосон массив = сонгоогүй. */
 export type PickedQuestions = Record<string, number[]>;
 
-/** Сэдэвгүй тестүүд ч ямар нэг бүлэгт харагдах ёстой. */
+/** Сэдэв/түвшингүй тестүүд ч ямар нэг бүлэгт харагдах ёстой. */
 const UNGROUPED = '—';
 
-/** Тестийн бүлэг: админы бичсэн сэдэв, байхгүй бол түвшин. */
+/**
+ * Тестийн **CEFR түвшин** (жижиг үсгээр — `levelColor` ийм түлхүүртэй).
+ *
+ * Түвшин нь сэдвээс тусдаа шүүлт: багш «9а анги маань A1» гэж боддог болохоос
+ * «Present Simple» гэж боддоггүй. Админ талд түвшин аль хэдийн ангилагдсан
+ * байдаг тул энд зөвхөн харуулах л үлдэнэ.
+ */
+function levelOf(quiz: Quiz): string {
+  return quiz.level?.trim().toLowerCase() || UNGROUPED;
+}
+
+/** Тестийн сэдэв (админы бичсэн). Түвшинд ЗАЛГАХГҮЙ — тэр нь өөрийн шүүлттэй. */
 function groupOf(quiz: Quiz): string {
-  return quiz.topic?.trim() || quiz.level?.toUpperCase() || UNGROUPED;
+  return quiz.topic?.trim() || UNGROUPED;
 }
 
 /**
@@ -77,18 +88,44 @@ export function QuestionPicker({
 }) {
   const c = useColors();
   const styles = useMemo(() => makeStyles(c), [c]);
+  const [level, setLevel] = useState('all');
   const [group, setGroup] = useState('all');
   const [query, setQuery] = useState('');
   const [openId, setOpenId] = useState<string | null>(null);
 
-  // Бүлгүүдийг байгаа контентоос үүсгэнэ — хоосон сэдвийн чип гаргахгүй.
+  // Чипсийг байгаа контентоос үүсгэнэ — хоосон түвшин/сэдвийн чип гаргахгүй.
+  const levelChips = useMemo(() => {
+    const seen = [...new Set(quizzes.map(levelOf))].sort();
+    return [
+      { key: 'all', label: t('filterAll') },
+      ...seen.map((l) => ({ key: l, label: l === UNGROUPED ? l : l.toUpperCase() })),
+    ];
+  }, [quizzes]);
+
+  /**
+   * Түвшнээр шүүсэн олонлог. Сэдвийн чипс ба жагсаалт хоёул **үүнээс** гарна:
+   * A1 сонгосон багшид зөвхөн A1-д байгаа сэдвүүд харагдах ёстой, эс бөгөөс
+   * тэр сэдэв дарж хоосон жагсаалт руу хөтлөгдөнө.
+   */
+  const atLevel = useMemo(
+    () => quizzes.filter((q) => level === 'all' || levelOf(q) === level),
+    [quizzes, level],
+  );
+
   const chips = useMemo(() => {
-    const seen = [...new Set(quizzes.map(groupOf))].sort();
+    const seen = [...new Set(atLevel.map(groupOf))].sort();
     return [
       { key: 'all', label: t('filterAll') },
       ...seen.map((g) => ({ key: g, label: g })),
     ];
-  }, [quizzes]);
+  }, [atLevel]);
+
+  /** Түвшин солиход сэдвийн сонголт хүчингүй болж болзошгүй тул цэвэрлэнэ. */
+  function pickLevel(next: string) {
+    setLevel(next);
+    setGroup('all');
+    setOpenId(null);
+  }
 
   /**
    * Хайлт: гарчиг + сэдвийн аль алинаас, **үг бүрээр тусад нь**.
@@ -101,13 +138,13 @@ export function QuestionPicker({
    */
   const visible = useMemo(() => {
     const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
-    return quizzes.filter((quiz) => {
+    return atLevel.filter((quiz) => {
       if (group !== 'all' && groupOf(quiz) !== group) return false;
       if (words.length === 0) return true;
       const hay = `${quiz.title} ${quiz.topic ?? ''}`.toLowerCase();
       return words.every((w) => hay.includes(w));
     });
-  }, [quizzes, group, query]);
+  }, [atLevel, group, query]);
 
   function setFor(quizId: string, indexes: number[]) {
     const next = { ...picked };
@@ -152,26 +189,55 @@ export function QuestionPicker({
         onChangeText={setQuery}
         autoCorrect={false}
       />
+      {/*
+        Түвшин нь **үргэлж** харагдана — ганц түвшинтэй байсан ч. Сэдвийн
+        мөрөөс ялгаатай нь энэ нь шүүлт төдийгүй тайлбар: багш «яагаад зөвхөн
+        A1 гарч байна вэ» гэдгээ нэг харцаар мэдэх ёстой.
+      */}
+      <AppText variant="label" color={c.textSecondary} style={styles.filterLabel}>
+        {t('levelLabel')}
+      </AppText>
+      <FilterChips
+        value={level}
+        options={levelChips}
+        onChange={pickLevel}
+        style={styles.chipRow}
+      />
+
       {/* Нэг бүлэг л байвал чипс сонголт биш чимэг болно. */}
       {chips.length > 2 ? (
-        <FilterChips
-          value={group}
-          options={chips}
-          onChange={setGroup}
-          style={{ marginBottom: spacing.sm }}
-        />
+        <>
+          <AppText variant="label" color={c.textSecondary} style={styles.filterLabel}>
+            {t('topicLabel')}
+          </AppText>
+          <FilterChips
+            value={group}
+            options={chips}
+            onChange={setGroup}
+            style={styles.chipRow}
+          />
+        </>
       ) : null}
 
       {visible.length === 0 ? (
         <AppText variant="caption" color={c.textSecondary} style={styles.note}>
           {t('assignNoMatch')}
         </AppText>
-      ) : null}
+      ) : (
+        /* Шүүлт үр дүнтэй байсан эсэхийг шууд хэлнэ («A1 → 12 олдлоо»). */
+        <AppText variant="caption" color={c.textMuted} style={styles.note}>
+          {tf('assignFoundCount', { n: visible.length })}
+        </AppText>
+      )}
 
       {visible.map((quiz) => {
         const chosen = picked[quiz.id] ?? [];
         const open = openId === quiz.id;
         const allOn = chosen.length === quiz.questions.length && chosen.length > 0;
+        const lvl = levelOf(quiz);
+        // Хичээлийн дэлгэцтэй ижил өнгө — A1 ногоон, B1 цэнхэр г.м.
+        const tint = levelColor[lvl] ?? { bg: c.surfaceAlt, fg: c.textSecondary };
+        const topic = groupOf(quiz);
         return (
           <Card key={quiz.id} variant="flat" padding="md" style={styles.card}>
             <Pressable
@@ -203,7 +269,12 @@ export function QuestionPicker({
                       энэ жагсаалтад одоо ЗӨВХӨН сангийн дасгал ирдэг тул мөр
                       болгон дээр давтагдаад мэдээлэл өгөхөө больсон. Тэр
                       баримтыг дэлгэцийн дээд талын нэг мөр тайлбар хэлнэ. */}
-                  <Pill label={groupOf(quiz)} />
+                  <Pill
+                    label={lvl === UNGROUPED ? lvl : lvl.toUpperCase()}
+                    bg={tint.bg}
+                    fg={tint.fg}
+                  />
+                  {topic === UNGROUPED ? null : <Pill label={topic} />}
                   <AppText variant="caption" color={c.textMuted}>
                     {chosen.length > 0
                       ? `${chosen.length}/${quiz.questions.length}`
@@ -254,6 +325,8 @@ export function QuestionPicker({
 const makeStyles = (c: AppColors) =>
   StyleSheet.create({
     note: { marginBottom: spacing.sm },
+    filterLabel: { marginBottom: spacing.xs },
+    chipRow: { marginBottom: spacing.sm },
     card: { marginBottom: spacing.sm },
     headCheck: { paddingRight: 2 },
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
