@@ -64,11 +64,16 @@ export function ImportModal({
   const [fileNames, setFileNames] = useState<string[]>([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const packs = useMemo<Pack[]>(() => {
+  /**
+   * Задлалтын үр дүн + алдаа хоёрыг **хамт** буцаана. Өмнө нь алдааг
+   * чимээгүй залгидаг байсан тул файлаа сонгосон админ юу ч болоогүй хоосон
+   * цонх хараад «Импортлох» дартал шалтгааныг мэддэггүй байв.
+   */
+  const { packs, parseError } = useMemo<{ packs: Pack[]; parseError: string }>(() => {
     try {
-      return parsePacks(text, questionType, !!multiPack);
-    } catch {
-      return [];
+      return { packs: parsePacks(text, questionType, !!multiPack), parseError: '' };
+    } catch (e) {
+      return { packs: [], parseError: friendlyError(e, 'Задлахад алдаа гарлаа') };
     }
   }, [text, questionType, multiPack]);
 
@@ -111,12 +116,7 @@ export function ImportModal({
   async function run() {
     if (packs.length === 0) {
       // Задлагчийн алдааг (ж: «Холбох төрөлд зөвхөн JSON») энд харуулна.
-      try {
-        parsePacks(text, questionType, !!multiPack);
-        setError('Асуулт олдсонгүй');
-      } catch (e) {
-        setError(friendlyError(e, 'Задлахад алдаа гарлаа'));
-      }
+      setError(parseError || 'Асуулт олдсонгүй');
       return;
     }
     setBusy(true);
@@ -249,7 +249,7 @@ export function ImportModal({
         </div>
 
         <p className="text-xs text-gray-500">{note}</p>
-        <ErrorBox message={error} />
+        <ErrorBox message={error || parseError} />
         <FormActions onCancel={onClose} onSave={run} saving={busy} saveLabel="Импортлох" />
       </div>
     </Modal>
