@@ -38,15 +38,38 @@ export interface ImportMeta {
   level?: string;
 }
 
-/** Шалгалтын бичгийн толгой мөрөөс сэдэв ба түвшинг уншина. */
+/**
+ * Шалгалтын бичгийн толгой мөрөөс сэдэв ба түвшинг уншина.
+ *
+ * Толгой мөрийг хүн бүр яг ижилхэн бичдэггүй тул хоёр хэлбэрийг хоёуланг нь
+ * хүлээж авна:
+ *
+ *   `Level: A1 | Lesson: Be — am / is / are | Test: 1`   ← талбар бүр нэрлэгдсэн
+ *   `A1 — Lesson 2 / Grammar lesson — TEST 1`             ← түвшин ганцаараа
+ *   `Lesson content: Be — am / is / are`
+ */
 export function examMeta(text: string): ImportMeta {
   const meta: ImportMeta = {};
   // `|` эсвэл мөрийн төгсгөл хүртэл — толгой мөр нэг мөрөнд хэд хэдэн талбартай.
-  const lesson = text.match(/\blesson\s*:\s*([^|\n\r]+)/i)?.[1]?.trim();
+  const lesson = text
+    .match(/\b(?:lesson(?:\s*content)?|topic|сэдэв|хичээл)\s*:\s*([^|\n\r]+)/i)?.[1]
+    ?.trim();
   if (lesson) meta.topic = lesson;
-  const level = text.match(/\blevel\s*:\s*([a-c][12])\b/i)?.[1];
+  const level =
+    text.match(/\blevel\s*:?\s*([a-c][12])\b/i)?.[1] ??
+    // Нэрлэгдээгүй бол зөвхөн **толгой хэсгээс** хайна — асуултын текст дотор
+    // санамсаргүй таарсан «B1» түвшин болж хувирах ёсгүй.
+    examHead(text).match(/\b([a-c][12])\b/i)?.[1];
   if (level) meta.level = level.toLowerCase();
   return meta;
+}
+
+/** Эхний дугаарласан асуулт хүртэлх мөрүүд = баримтын толгой (дээд тал нь 10). */
+function examHead(text: string): string {
+  const lines = text.split(/\r?\n/).map((l) => l.trim());
+  const firstQuestion = lines.findIndex((l) => Q_LINE.test(l));
+  const end = firstQuestion < 0 ? 10 : Math.min(firstQuestion, 10);
+  return lines.slice(0, end).join('\n');
 }
 
 /**
@@ -267,14 +290,44 @@ export async function readAnyFile(file: File): Promise<string> {
  * Өөрөөр хэлбэл нэг асуулт **таван мөрөнд** тархаж, зөв хариулт нь баримтын
  * төгсгөлд тусдаа хүснэгтэд байна. Мөр бүрийг нэг асуулт гэж үздэг задлагч
  * үүнийг хогоор дүүргэдэг тул хэлбэрийг нь таньж, тусад нь боловсруулна.
+ *
+ * ⚠️ **Гол дүрэм: агуулга нь ижил бол хэлбэр нь ялгаатай ч ажиллана.** Ижил
+ * тестийг хүн болгон өөрөөр бичдэг — доорх хувилбар яг дээрхтэй ижил
+ * үр дүн өгөх ёстой:
+ *
+ *   A1 — Lesson 2 / Grammar lesson — TEST 1     ← «Level:» гэж нэрлээгүй
+ *   Lesson content: Be — am / is / are          ← «Lesson:» биш
+ *   1. My sister ___ at home today.
+ *   A. are
+ *   …
+ *   ANSWER KEY — TEST 1                         ← гарчгийн ард нэмэлт үг
+ *   1. B                                        ← хүснэгт биш, нэг мөрөнд
+ *   2. C
+ *
+ * Тиймээс шинэ дүрэм нэмэхдээ **хатуу тэнцүүлэхээс зайлсхий** (`=== 'ANSWER
+ * KEY'` гэх мэт): бага зэрэг өөр бичигдсэн баримт «Асуулт олдсонгүй» гэж
+ * унах нь админд ойлгомжгүй бөгөөд буруутай мэт мэдрэгддэг.
  */
 
 /** `1.` / `1)` — асуултын эхлэл. */
 const Q_LINE = /^(\d{1,3})\s*[.)]\s*(.+)$/;
 /** `A.` / `A)` — сонголт. Кирилл А–Д-г мөн хүлээж авна. */
 const OPT_LINE = /^([A-DА-Д])\s*[.)]\s*(.+)$/i;
-/** Хариултын хүснэгтийн эхлэл. */
-const KEY_HEAD = /^(answer\s*key|хариулт(ын)?\s*(түлхүүр)?)\s*:?$/i;
+/**
+ * Хариултын хэсгийн эхлэл.
+ *
+ * Гарчгийн ард нэмэлт («ANSWER KEY — TEST 1», «Хариулт: Тест 2») байж болох ба
+ * тэр нэмэлт нь **цэг тэмдгээр** эхэлсэн байх ёстой. Ингэснээр «Answer keys are
+ * listed below» гэх мэт энгийн өгүүлбэр гарчиг гэж андуурагдахгүй.
+ */
+const KEY_HEAD = /^(answer\s*keys?|answers?|хариулт(ын)?(\s*түлхүүр)?)\s*([^\w\s].*)?$/i;
+/**
+ * `1. B` — хариултын нэг мөр. Агуулга нь ганц үсэг тул асуулт БИШ; `Q_LINE`-тай
+ * давхцдаг учир үүнийг эхэлж шалгана.
+ */
+const ANS_LINE = /^(\d{1,3})\s*[.):-]?\s*([A-DА-Д])$/i;
+/** `Test: 1` · `TEST 1` · `Test #2` — багцын нэр. Цэг заавал биш. */
+const TEST_LINE = /\btest\s*[:#№-]?\s*(\d{1,3})\b/i;
 /** Файл салгагч — олон файл нэг талбарт нийлүүлэхэд ашиглана. */
 export const FILE_MARK = /^-{5} FILE: (.+?) -{5}$/;
 
@@ -300,10 +353,15 @@ function looksLikeExam(lines: string[]): boolean {
 /**
  * Нэг эсвэл олон шалгалтын бичгийг багц болгон задална.
  *
- * Багцын нэр: баримтын `Test: N` мөр → байхгүй бол файлын нэр → эцэст нь
+ * Багцын нэр: баримтын `Test N` мөр → байхгүй бол файлын нэр → эцэст нь
  * «Багц N». Хариултын түлхүүргүй асуултыг **хаяхгүй**: зөв хариултыг нь `A`
  * гэж тавиад анхааруулга болгон үлдээвэл админ анзаарахгүй өнгөрөх эрсдэлтэй
  * тул тийм асуултыг алгасаад, тоо нь урьдчилан харах хэсэгт дутуу гарна.
+ * Хэрэв **юу ч үлдэхгүй** бол чимээгүй хоосон буцаахын оронд алдаа шиднэ —
+ * «Асуулт олдсонгүй» гэдэг нь яагаад гэдгийг хэлдэггүй.
+ *
+ * Нэг файлд олон тест дараалан байж болно: `Test N` толгой (эсвэл хариултын
+ * хэсгийн дараа дахин эхэлсэн асуулт) гарвал өмнөх багцыг хаана.
  */
 function parseExam(lines: string[]): Pack[] {
   const packs: Pack[] = [];
@@ -313,9 +371,11 @@ function parseExam(lines: string[]): Pack[] {
   let key = new Map<number, string>();
   let inKey = false;
   let pendingNo: number | null = null;
+  /** Асуулт олдсон мөртөө түлхүүргүйн улмаас бүгд хаягдсан уу. */
+  let droppedNoKey = false;
 
   const flush = () => {
-    if (questions.length === 0) return;
+    if (questions.length === 0) { inKey = false; pendingNo = null; name = ''; return; }
     const built = questions
       .map((q, i) => {
         const letter = key.get(i + 1);
@@ -331,9 +391,11 @@ function parseExam(lines: string[]): Pack[] {
       })
       .filter(Boolean) as Question[];
     if (built.length) packs.push({ name: name || fileName || `Багц ${packs.length + 1}`, questions: built });
+    else droppedNoKey = true;
     questions = [];
     key = new Map();
     inKey = false;
+    pendingNo = null;
     name = '';
   };
 
@@ -345,22 +407,43 @@ function parseExam(lines: string[]): Pack[] {
       continue;
     }
 
-    const testNo = line.match(/^.*\btest\s*:\s*(\S+)/i);
-    if (testNo && !inKey) name = `Test ${testNo[1]}`;
+    if (KEY_HEAD.test(line)) { inKey = true; pendingNo = null; continue; }
 
-    if (KEY_HEAD.test(line)) { inKey = true; continue; }
+    // Багцын нэр. Асуулт/сонголтын мөрийг хөндөхгүй — тэдгээрийн текст дотор
+    // санамсаргүй «test 2» таарвал багц хуваагдах ёсгүй.
+    if (!Q_LINE.test(line) && !OPT_LINE.test(line)) {
+      const testNo = line.match(TEST_LINE);
+      if (testNo) {
+        // Хариултын хэсгийн дараа шинэ «Test N» гарвал өмнөх тест дууссан.
+        if (inKey) flush();
+        name = `Test ${testNo[1]}`;
+      }
+    }
 
     if (inKey) {
-      // Хоёр хэлбэр: «1 B» нэг мөрөнд, эсвэл «1» / «B» ээлжлэн.
-      const pair = line.match(/^(\d{1,3})\s*[.):-]?\s*([A-DА-Д])$/i);
+      // Гурван хэлбэр: «1 B» / «1. B» нэг мөрөнд, эсвэл хүснэгтийн улмаас
+      // «1» / «B» гэж ээлжлэн.
+      const pair = line.match(ANS_LINE);
       if (pair) { key.set(Number(pair[1]), pair[2]); pendingNo = null; continue; }
       if (/^\d{1,3}$/.test(line)) { pendingNo = Number(line); continue; }
-      if (/^[A-DА-Д]$/i.test(line) && pendingNo != null) { key.set(pendingNo, line); pendingNo = null; }
-      continue;
+      if (/^[A-DА-Д]$/i.test(line) && pendingNo != null) { key.set(pendingNo, line); pendingNo = null; continue; }
+      // Жинхэнэ асуулт эргэж ирвэл энэ бол дараагийн тест — хаагаад цааш нь
+      // энгийнээр уншина. Бусад мөр (хүснэгтийн «Question» толгой г.м) хог.
+      if (!Q_LINE.test(line)) continue;
+      flush();
     }
 
     const opt = line.match(OPT_LINE);
     if (opt && questions.length) { questions[questions.length - 1].options.push(opt[2]); continue; }
+
+    // «1. B» — асуулт биш, хариулт. «ANSWER KEY» гарчиггүй бичигт хариултын
+    // хэсэг ингэж эхэлдэг тул түүгээр нь таана.
+    const ans = line.match(ANS_LINE);
+    if (ans && questions.length >= Number(ans[1])) {
+      inKey = true;
+      key.set(Number(ans[1]), ans[2]);
+      continue;
+    }
 
     const q = line.match(Q_LINE);
     if (q) { questions.push({ text: q[2], options: [] }); continue; }
@@ -369,5 +452,12 @@ function parseExam(lines: string[]): Pack[] {
     // Тайлбар/гарчгийн мөр — асуулт руу залгахгүй, зүгээр алгасна.
   }
   flush();
+
+  if (!packs.length && droppedNoKey) {
+    throw new Error(
+      'Асуултууд олдсон ч зөв хариулт нь олдсонгүй. Баримтын төгсгөлд ' +
+      '«ANSWER KEY» гэсэн мөр, доор нь «1. B» хэлбэрийн хариултууд байх ёстой.',
+    );
+  }
   return packs;
 }

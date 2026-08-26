@@ -307,15 +307,25 @@ export default function AssignScreen() {
                       onChangeText={(v) => narrow({ query: v })}
                       autoCorrect={false}
                     />
-                    {/* Only worth a chip row when there is more than one group. */}
-                    {groupChips.length > 2 ? (
-                      <FilterChips
-                        value={group}
-                        options={groupChips}
-                        onChange={(g) => narrow({ group: g })}
-                        style={{ marginBottom: spacing.sm }}
-                      />
-                    ) : null}
+                    {/*
+                      Түвшний шүүлт. `QuestionPicker`-тэй адилаар **үргэлж**
+                      харагдана (ганц түвшинтэй байсан ч): багш хичээл ба
+                      сорилын аль ч табад ижил байрлалд, ижил нэртэй шүүлт
+                      олох ёстой.
+                    */}
+                    <AppText
+                      variant="label"
+                      color={colors.textSecondary}
+                      style={styles.label}
+                    >
+                      {t('levelLabel')}
+                    </AppText>
+                    <FilterChips
+                      value={group}
+                      options={groupChips}
+                      onChange={(g) => narrow({ group: g })}
+                      style={{ marginBottom: spacing.sm }}
+                    />
                   </>
                 )}
 
