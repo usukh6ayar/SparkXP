@@ -31,7 +31,7 @@ import { XpService } from '../xp/xp.service';
 import { startOfUBDay } from '../xp/gamification';
 import { STT_ADAPTER, type SttAdapter } from './providers/stt.adapter';
 import { LLM_ADAPTER, type LlmAdapter, type LlmMessage } from './providers/llm.adapter';
-import { TTS_ADAPTER, type TtsAdapter } from './providers/tts.adapter';
+import { TTS_ADAPTER, type TtsAdapter, type VisemeCue } from './providers/tts.adapter';
 import {
   BuddyTurnResult,
   FALLBACK_TURN,
@@ -69,12 +69,48 @@ export interface TurnResponse {
   /** XP granted by THIS turn (0 if already awarded earlier this session). */
   xp_reward: number;
   audio_url: string | null;
+  /**
+   * Lip-sync timeline for `audio_url` — Azure viseme ids (0–21) with the ms
+   * offset each one starts at. Omitted when the TTS provider reports no timing
+   * (Gemini), in which case the app derives mouth shapes from `reply_text`.
+   */
+  visemes?: { id: number; offset_ms: number }[];
   avatar_instruction: { emotion: string; gesture: string; duration_ms: number };
   usage: {
     voice_seconds_used_this_month: number;
     voice_seconds_limit_this_month: number | null;
     warn_level: string;
   };
+}
+
+/**
+ * Per-stage stopwatch for one turn (Azure brief §7: "Latency-г таамгаар
+ * батлахгүй").
+ *
+ * The release gate is a number — T0 → first audible audio, median ≤ 2.5 s — and
+ * it can only be defended if every turn says where its time went. Marks are
+ * written onto the assistant message so p50/p95 come out of one SQL query over
+ * real traffic instead of a stopwatch and a guess.
+ *
+ * The client owns T0 (user stopped talking) and T6 (audio became audible); this
+ * covers everything the server can see in between.
+ */
+class TurnTimer {
+  private readonly startedAt = Date.now();
+  private last = this.startedAt;
+  private readonly stages: Record<string, number> = {};
+
+  /** Close the current stage and open the next one. */
+  mark(stage: string): void {
+    const now = Date.now();
+    this.stages[`${stage}_ms`] = now - this.last;
+    this.last = now;
+  }
+
+  /** Every stage plus the server-side total, ready to store or log. */
+  snapshot(): Record<string, number> {
+    return { ...this.stages, server_total_ms: Date.now() - this.startedAt };
+  }
 }
 
 /** One stored message flattened for the chat UI (resumeTextSession). */
@@ -346,7 +382,7 @@ export class BuddyService {
     const session = await this.ownedSession(userId, sessionId);
     const user = await this.loadUser(userId);
     await this.preCheckVoice(user);
-    return this.runTurn(user, session, text, text);
+    return this.runTurn(user, session, text, text, new TurnTimer());
   }
 
   /** Voice turn: pre-check → STT → (confidence gate) → shared pipeline. */
@@ -365,12 +401,14 @@ export class BuddyService {
     await this.preCheckVoice(user);
     await this.checkDailyTurns(userId, limits.dailyVoiceTurnLimit);
 
+    const timer = new TurnTimer();
     let transcript: string;
     let sttSeconds: number;
     try {
       const result = await this.stt.transcribe(file.buffer, file.mimetype);
       transcript = result.text;
       sttSeconds = result.seconds;
+      timer.mark('stt'); // T1 — transcript ready
       if (result.confidence < limits.sttMinConfidence || !transcript) {
         // Low confidence → ask to repeat, charge nothing, skip LLM/TTS.
         return this.staticTurn(session.id, transcript, 'curious', {
@@ -390,7 +428,7 @@ export class BuddyService {
       metadata: { sessionId: session.id, stage: 'stt' },
     });
 
-    return this.runTurn(user, session, transcript, transcript);
+    return this.runTurn(user, session, transcript, transcript, timer);
   }
 
   // ── Core pipeline (shared by text + voice) ───────────────────────────────
@@ -400,6 +438,7 @@ export class BuddyService {
     session: BuddySession,
     displayText: string,
     rawText: string,
+    timer?: TurnTimer,
   ): Promise<TurnResponse> {
     const buddy = await this.buddies.findOne({ where: { slug: session.buddySlug } });
     if (!buddy) throw new NotFoundException('Buddy олдсонгүй');
@@ -446,7 +485,9 @@ export class BuddyService {
     const { turn, promptTokens, completionTokens, model } = await this.completeTurn(
       system,
       llmMessages,
+      limits,
     );
+    timer?.mark('llm'); // T2 — reply ready
 
     // --- Safety gate ---
     let reply = turn.reply_text;
@@ -479,7 +520,7 @@ export class BuddyService {
 
     // --- TTS (cache-first) ---
     const spoken = `${reply} ${turn.follow_up_question}`.trim();
-    const { audioUrl, durationMs } = await this.speak(user.id, buddy, spoken, session.id);
+    const { audioUrl, durationMs, visemes } = await this.speak(user.id, buddy, spoken, session.id, timer);
 
     // --- Persist both turns ---
     await this.messages.save(
@@ -510,9 +551,18 @@ export class BuddyService {
           emotion,
           gesture: turn.gesture,
           cefr_level_used: turn.cefr_level_used,
+          latency: timer?.snapshot(),
         },
       }),
     );
+    if (timer) {
+      const stages = timer.snapshot();
+      this.logger.log(
+        `buddy turn ${session.id}: ` +
+          Object.entries(stages).map(([k, v]) => `${k}=${v}`).join(' ') +
+          ` visemes=${visemes?.length ?? 0}`,
+      );
+    }
 
     // --- Memory write (backend has final say) ---
     if (turn.memory_update.should_save) {
@@ -549,6 +599,11 @@ export class BuddyService {
       mistake_tags: turn.mistake_tags,
       xp_reward: awarded ? buddyXp : 0,
       audio_url: audioUrl,
+      // Only sent when the provider actually timed the speech; the app treats a
+      // missing list as "guess the mouth shapes from the text".
+      ...(visemes?.length
+        ? { visemes: visemes.map((v) => ({ id: v.id, offset_ms: v.offsetMs })) }
+        : {}),
       avatar_instruction: { emotion, gesture: turn.gesture, duration_ms: durationMs },
       usage: this.usageBlock(allowance),
     };
@@ -558,6 +613,7 @@ export class BuddyService {
   private async completeTurn(
     system: string,
     messages: LlmMessage[],
+    limits: { maxReplyChars: number; maxReplyWords: number },
   ): Promise<{
     turn: BuddyTurnResult;
     promptTokens: number;
@@ -565,8 +621,20 @@ export class BuddyService {
     model: string;
   }> {
     try {
-      const first = await this.llm.complete(system, messages, 500);
-      let turn = parseBuddyTurn(first.text);
+      // `maxTokens` stays generous on purpose. It is a truncation guard, not a
+      // length control: a model that would have stopped at 60 tokens doesn't get
+      // slower because 500 were allowed, but a budget too tight to fit the JSON
+      // envelope (correction + a Mongolian explanation, which tokenizes poorly)
+      // would cut the reply mid-object and force the retry below — paying for a
+      // whole second call. Reply length is controlled by the prompt and capped
+      // server-side in `parseBuddyTurn`.
+      const maxTokens = 500;
+      const first = await this.llm.complete(system, messages, maxTokens);
+      const parseOpts = {
+        maxChars: limits.maxReplyChars,
+        maxWords: limits.maxReplyWords,
+      };
+      let turn = parseBuddyTurn(first.text, parseOpts);
       let promptTokens = first.promptTokens;
       let completionTokens = first.completionTokens;
       if (!turn) {
@@ -579,9 +647,9 @@ export class BuddyService {
               content: 'Your previous output was not valid JSON. Return only valid JSON.',
             },
           ],
-          500,
+          maxTokens,
         );
-        turn = parseBuddyTurn(retry.text);
+        turn = parseBuddyTurn(retry.text, parseOpts);
         promptTokens += retry.promptTokens;
         completionTokens += retry.completionTokens;
       }
@@ -603,22 +671,35 @@ export class BuddyService {
     buddy: AiBuddy,
     text: string,
     sessionId: string,
-  ): Promise<{ audioUrl: string | null; durationMs: number }> {
+    timer?: TurnTimer,
+  ): Promise<{
+    audioUrl: string | null;
+    durationMs: number;
+    visemes: VisemeCue[] | null;
+  }> {
     const voiceId = buddy.voiceId ?? 'default';
     const textHash = createHash('sha256').update(`${voiceId}:${text}`).digest('hex');
 
     const cached = await this.voiceCache.findOne({ where: { textHash, voiceId } });
     if (cached) {
       await this.voiceCache.increment({ id: cached.id }, 'hitCount', 1);
-      return { audioUrl: cached.audioUrl, durationMs: cached.durationMs };
+      timer?.mark('tts_cache_hit');
+      return {
+        audioUrl: cached.audioUrl,
+        durationMs: cached.durationMs,
+        visemes: cached.visemes ?? null,
+      };
     }
 
     try {
       const result = await this.tts.synthesize(text, buddy.voiceId ?? undefined, buddy.ttsParams ?? undefined);
+      timer?.mark('tts'); // T3 → T4 — audio (and its visemes) in hand
       const audioUrl = await this.imageStorage.storeMedia({
         buffer: result.audio,
-        filename: `${textHash.slice(0, 24)}.mp3`,
-        mimeType: 'audio/mpeg',
+        // Extension and content type come from the adapter. They used to be
+        // hard-coded to mp3 while Gemini was returning WAV bytes.
+        filename: `${textHash.slice(0, 24)}.${result.fileExtension}`,
+        mimeType: result.mimeType,
         resourceType: 'audio', // → R2 when configured, else Cloudinary
         folder: 'buddy/voice',
         localSubdir: 'audio',
@@ -629,6 +710,7 @@ export class BuddyService {
           voiceId: result.voiceId,
           audioUrl,
           durationMs: result.durationMs,
+          visemes: result.visemes ?? null,
         }),
       );
       await this.logUsage(userId, AiUsageType.TTS, {
@@ -637,10 +719,15 @@ export class BuddyService {
         costMicroUsd: Math.round((text.length / 1000) * 0.05 * 1e6),
         metadata: { sessionId, stage: 'tts' },
       });
-      return { audioUrl, durationMs: result.durationMs };
+      timer?.mark('storage'); // upload + cache write — pure overhead on the user's wait
+      return {
+        audioUrl,
+        durationMs: result.durationMs,
+        visemes: result.visemes ?? null,
+      };
     } catch (err) {
       this.logger.error(`TTS failed: ${err instanceof Error ? err.message : err}`);
-      return { audioUrl: null, durationMs: 0 };
+      return { audioUrl: null, durationMs: 0, visemes: null };
     }
   }
 
@@ -791,11 +878,28 @@ export class BuddyService {
     adminUserId: string,
     buddySlug: string,
     text: string,
-  ): Promise<{ audio_url: string | null }> {
+  ): Promise<{
+    audio_url: string | null;
+    viseme_count: number;
+    visemes: { id: number; offset_ms: number }[];
+  }> {
     const buddy = await this.buddies.findOne({ where: { slug: buddySlug } });
     if (!buddy) throw new NotFoundException('Buddy олдсонгүй');
-    const { audioUrl } = await this.speak(adminUserId, buddy, text, `admin-test-${buddySlug}`);
-    return { audio_url: audioUrl };
+    const { audioUrl, visemes } = await this.speak(
+      adminUserId,
+      buddy,
+      text,
+      `admin-test-${buddySlug}`,
+    );
+    // `viseme_count` is the Go/No-Go answer from the engineering brief §4.1:
+    // an HD voice that returns audio but zero visemes cannot drive lip-sync and
+    // must be dropped. Only a real call can tell you which voices those are, so
+    // this endpoint is the tool for that check — hence the raw list too.
+    return {
+      audio_url: audioUrl,
+      viseme_count: visemes?.length ?? 0,
+      visemes: (visemes ?? []).map((v) => ({ id: v.id, offset_ms: v.offsetMs })),
+    };
   }
 
   /**

@@ -39,6 +39,13 @@ export interface StudentProgress {
     status: SubmissionStatus;
     scorePct: number | null;
     submittedAt: string | null;
+    /** Дасгал/хичээлийн гарчиг — **серверээс**; апп өөрөө олж чадахгүй. */
+    targetTitle: string | null;
+    /** Сорилын сэдэв (хавтасны нэр). */
+    targetTopic: string | null;
+    /** Нэг илгээлтийн багцуудыг бүлэглэх түлхүүр. */
+    createdAt: string | null;
+    dueAt: string | null;
   }[];
 }
 
@@ -69,6 +76,44 @@ export function getStudentProgress(
 ): Promise<StudentProgress> {
   return apiRequest<StudentProgress>(
     `/classes/${classId}/students/${studentId}/progress`,
+    { token },
+  );
+}
+
+/** Нэг асуултын хариу — багшийн «юун дээр алдав» харагдац. */
+export interface AnsweredQuestion {
+  question: string;
+  type: string;
+  /** Сонголтууд (`multiple_choice`), эс бөгөөс `null`. */
+  options: string[] | null;
+  /** Зөв хариулт **текстээр** (индекс биш). */
+  correctAnswer: string | null;
+  /** Сурагчийн өгсөн хариулт: сонголтын дугаар эсвэл бичсэн текст. */
+  studentAnswer: number | string | null;
+  /** `null` = тухайн асуултад хариулаагүй / хуучин илгээлт. */
+  correct: boolean | null;
+}
+
+export interface AssignmentAnswers {
+  studentId: string;
+  fullName: string | null;
+  scorePct: number | null;
+  submittedAt: string | null;
+  /** Хоосон = хийгээгүй, эсвэл хариулт хадгалагдаагүй хуучин илгээлт. */
+  questions: AnsweredQuestion[];
+}
+
+/**
+ * GET /assignments/:id/students/:studentId/answers — нэг сурагчийн сүүлийн
+ * илгээлт, асуулт тус бүрээр. Зөв хариулт нь энд ил ирнэ (багш дүн тавина).
+ */
+export function getAssignmentAnswers(
+  assignmentId: string,
+  studentId: string,
+  token: string,
+): Promise<AssignmentAnswers> {
+  return apiRequest<AssignmentAnswers>(
+    `/assignments/${assignmentId}/students/${studentId}/answers`,
     { token },
   );
 }

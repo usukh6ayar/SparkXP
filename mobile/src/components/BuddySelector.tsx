@@ -1,22 +1,18 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Dimensions, StyleSheet, Pressable, FlatList, ActivityIndicator, Platform } from 'react-native';
+import { useMemo, useRef, useState } from 'react';
+import { View, Dimensions, StyleSheet, Pressable, FlatList, ActivityIndicator } from 'react-native';
 import Animated, {
   useAnimatedStyle, useAnimatedScrollHandler, useSharedValue,
   interpolate, interpolateColor, Extrapolation, FadeIn, FadeOut, type SharedValue,
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import * as Speech from 'expo-speech';
 import { AppText } from './Text';
 import { AppImage } from './AppImage';
-import { BuddyAvatar } from './BuddyAvatar';
 import { Pill } from './Pill';
 import { Button } from './Button';
 import { PressableScale } from './PressableScale';
 import { BuddyUnlockSheet } from './BuddyUnlockSheet';
 import { haptics } from '../lib/haptics';
-import { SHOW_3D_AVATAR } from '../lib/buddyAvatarFlag';
 import { useAuth } from '../auth/AuthContext';
 import { useColors, useSettings } from '../settings/SettingsContext';
 import { tf } from '../i18n';
@@ -41,15 +37,19 @@ const BASE_W = Math.min(SCREEN_W, CONTENT_MAX_WIDTH);
 // enough on shorter phones, so the fixed-height card overflowed its flex slot and
 // punched down into the dots / name. Reserving a fixed budget keeps the card fit
 // and non-overlapping on every device. Width is derived back from the 1.46 ratio.
-const CARD_RESERVED_H = 500;
-const CARD_HEIGHT = Math.max(190, Math.min(Math.round(BASE_W * 0.6 * 1.46), SCREEN_H - CARD_RESERVED_H));
+const CARD_RESERVED_H = 400;
+const CARD_HEIGHT = Math.max(190, Math.min(Math.round(BASE_W * 0.78 * 1.46), SCREEN_H - CARD_RESERVED_H));
 const CARD_WIDTH = Math.round(CARD_HEIGHT / 1.46);
 const CARD_GAP = spacing.xs;
 const SNAP = CARD_WIDTH + CARD_GAP;
 const SIDE_PAD = (SCREEN_W - CARD_WIDTH) / 2;
 const MOTTO_LINE_HEIGHT = 23;
-/** Pill-soft corners — a plain rounded rect still read as "boxy". */
-const CARD_RADIUS = 38;
+/**
+ * Fewest buddies worth looping. With two, the strip is centre + one peek on each
+ * side — three slots drawn from two buddies, so one of them is always on screen
+ * twice and the carousel looks like it holds more buddies than it does.
+ */
+const LOOP_MIN = 3;
 /** Vertical breathing room inside the horizontal list so each card's shadow has
  *  space to fully fade before the list frame — otherwise the frame clips it into
  *  a hard line. Must exceed the shadow reach (offset + ~1.5×radius ≈ 30). The
@@ -57,11 +57,6 @@ const CARD_RADIUS = 38;
  *  surrounding layout is unchanged. */
 const SHADOW_PAD = 40;
 
-// Soft lavender card panels (match the reference mockup): the active buddy sits
-// on a brighter periwinkle→white gradient; the peek cards use a flatter, lighter
-// lavender so the centered one clearly reads as "spotlit".
-const CARD_BG_ACTIVE = ['#D8CBF3', '#F7F4FD'] as const;
-const CARD_BG_IDLE = ['#ECE6F9', '#F4F0FB'] as const;
 
 /** Placeholder unlock price until Usukhbayar's backend sends a real one. */
 const DEFAULT_UNLOCK_COST = 500;
@@ -82,32 +77,7 @@ const DEMO_LOCKING = false;
 /** Dark text on the gold Unlock button — white would have poor contrast on `colors.xp`. */
 const UNLOCK_TEXT_COLOR = '#402D00';
 
-// Shadows sit on each card and SCROLL WITH IT (no static element that swiping
-// would slide off of and expose). Two tiers so peek→center isn't an abrupt jump:
-// every card gets a gentle drop; the centered one a stronger glow. The COLOR is
-// set per-card (see HALO_COLORS) — these presets only carry radius/opacity/
-// offset, kept tight enough to fully fade within SHADOW_PAD (no clip line).
-const CARD_SHADOW = Platform.select({
-  ios: { shadowOpacity: 0.35, shadowRadius: 10, shadowOffset: { width: 0, height: 6 } },
-  android: { elevation: 5 },
-  default: {},
-});
-const CARD_HALO = Platform.select({
-  ios: { shadowOpacity: 0.6, shadowRadius: 18, shadowOffset: { width: 0, height: 6 } },
-  android: { elevation: 12 },
-  default: {},
-});
-/** Each buddy card gets its own glow colour, cycled by position. */
-const HALO_COLORS = ['#9D7BFF', '#4FC3F7', '#FF8A3D', '#34D399', '#F472B6', '#FFC93C'];
 
-/**
- * Buddy fields the backend doesn't send yet (personality/motto/lock/price —
- * see Buddy in src/api/ai.ts). Applied per-buddy so the screen works today
- * against the real `police` buddy and keeps working once real fields land —
- * at that point `buddy.xxx ?? default` just prefers the real value.
- * Takes `t` as a param (rather than the module import) so results re-derive
- * whenever the app language changes, not just once at import time.
- */
 function withDefaults(buddy: Buddy, index: number, t: (key: TranslationKey) => string) {
   return {
     ...buddy,
@@ -146,97 +116,33 @@ export function BuddySelector({
   // language internally), so `lang` — not `t` — is what must drive these
   // memos to recompute after a language switch.
   const display = useMemo(() => buddies.map((b, i) => withDefaults(b, i, t)), [buddies, lang]);
-  const traitIcons = useMemo<Record<string, keyof typeof Ionicons.glyphMap>>(() => ({
-    [t('traitFriendly')]: 'happy-outline',
-    [t('traitPatient')]: 'hourglass-outline',
-    [t('traitEncouraging')]: 'flame-outline',
-    [t('traitWise')]: 'bulb-outline',
-    [t('traitMotivating')]: 'trending-up-outline',
-    [t('traitFocused')]: 'locate-outline',
-    [t('traitCalm')]: 'leaf-outline',
-    [t('traitCaring')]: 'heart-outline',
-    [t('traitBrave')]: 'shield-outline',
-    [t('traitStrong')]: 'fitness-outline',
-  }), [lang]);
-  const traitTints = useMemo<Record<string, { bg: string; fg: string }>>(() => ({
-    [t('traitFriendly')]: tints.amber,
-    [t('traitPatient')]: tints.pink,
-    [t('traitEncouraging')]: tints.coral,
-    [t('traitWise')]: tints.blue,
-    [t('traitMotivating')]: tints.green,
-    [t('traitFocused')]: tints.teal,
-    [t('traitCalm')]: tints.green,
-    [t('traitCaring')]: tints.pink,
-    [t('traitBrave')]: tints.purple,
-    [t('traitStrong')]: tints.orange,
-  }), [lang]);
-  // Infinite loop: pad the real data with a clone of the last item up front
-  // and a clone of the first item at the end. Swiping past either edge lands
-  // on a clone that looks identical to the real item it mimics, so we can
-  // silently (unanimated) snap the scroll position back into the real range
-  // — the "wrap" is invisible to the user instead of a jarring hard cut.
+  /**
+   * Infinite loop: pad the real data with a clone of the last item up front and
+   * a clone of the first at the end. Swiping past either edge lands on a clone
+   * identical to the item it mimics, so the scroll can be snapped back into the
+   * real range unanimated and the wrap is invisible.
+   *
+   * **Only from three buddies up.** The carousel shows the neighbours peeking in
+   * on both sides, so with two buddies the left peek, the centre and the right
+   * peek are drawn from a set of two — the same two faces repeat across the
+   * strip and it reads as four or more buddies rather than two. Below the
+   * threshold the list is finite and the arrows clamp at the ends.
+   */
+  const looping = display.length >= LOOP_MIN;
   const loopData = useMemo(
-    () => (display.length > 1 ? [display[display.length - 1], ...display, display[0]] : display),
+    () => (display.length >= LOOP_MIN ? [display[display.length - 1], ...display, display[0]] : display),
     [display],
   );
   const [unlockedSlugs, setUnlockedSlugs] = useState<Set<string>>(new Set());
   const [centerIndex, setCenterIndex] = useState(0);
-  const [speakingSlug, setSpeakingSlug] = useState<string | null>(null);
   const [unlockTarget, setUnlockTarget] = useState<Buddy | null>(null);
   // Matches initialScrollIndex below (1 when looping) so the first frame's
   // card scale/opacity isn't computed against the wrong (pre-scroll) offset.
-  const scrollX = useSharedValue(display.length > 1 ? SNAP : 0);
+  const scrollX = useSharedValue(display.length >= LOOP_MIN ? SNAP : 0);
   const listRef = useRef<FlatList<ReturnType<typeof withDefaults>>>(null);
 
   const centerBuddy = display[centerIndex] ?? null;
   const isLocked = !!centerBuddy?.isLocked && !unlockedSlugs.has(centerBuddy.slug);
-
-  useEffect(() => () => { Speech.stop(); }, []);
-
-  /**
-   * Greet ONCE on arrival, then stay quiet while swiping.
-   *
-   * `aac2f54` removed auto-speak entirely because it fired on every centered
-   * buddy, so the carousel talked over itself on each swipe. The hello on entry
-   * was the half worth keeping — `greetedRef` is what separates the two.
-   */
-  const [focused, setFocused] = useState(false);
-  const greetedRef = useRef(false);
-
-  useFocusEffect(
-    useCallback(() => {
-      setFocused(true);
-      return () => {
-        // This tab stays mounted, so leaving it would otherwise keep talking.
-        // Re-arm the greeting too: coming back counts as arriving again.
-        setFocused(false);
-        greetedRef.current = false;
-        Speech.stop();
-        setSpeakingSlug(null);
-      };
-    }, []),
-  );
-
-  useEffect(() => {
-    if (!focused || greetedRef.current || !centerBuddy) return;
-    greetedRef.current = true;
-    speak(centerBuddy.motto);
-    // `speak` is a stable function declaration below; re-running this on every
-    // centered buddy is exactly what we are avoiding.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focused, centerBuddy]);
-
-  function speak(text: string) {
-    if (!centerBuddy) return;
-    Speech.stop();
-    setSpeakingSlug(centerBuddy.slug);
-    Speech.speak(text, {
-      language: lang === 'mn' ? 'mn-MN' : 'en-US',
-      onDone: () => setSpeakingSlug((s) => (s === centerBuddy.slug ? null : s)),
-      onStopped: () => setSpeakingSlug((s) => (s === centerBuddy.slug ? null : s)),
-      onError: () => setSpeakingSlug((s) => (s === centerBuddy.slug ? null : s)),
-    });
-  }
 
   const scrollHandler = useAnimatedScrollHandler((e) => {
     scrollX.value = e.contentOffset.x;
@@ -245,7 +151,7 @@ export function BuddySelector({
   function handleMomentumEnd(offsetX: number) {
     const loopIdx = Math.round(offsetX / SNAP);
 
-    if (display.length > 1) {
+    if (looping) {
       if (loopIdx <= 0) {
         // Landed on the prepended "last item" clone — snap to the real last,
         // no animation so the identical-looking clone/real swap is invisible.
@@ -270,13 +176,31 @@ export function BuddySelector({
     haptics.select();
   }
 
-  /** Scroll to a real-data index, wrapping around at either end (prev of first → last, next of last → first). */
-  function scrollToIndex(idx: number) {
+  /**
+   * Step one card left (−1) or right (+1).
+   *
+   * Moves by LOOP position, never by real index. That distinction is the whole
+   * bug this replaced: jumping straight to the wrapped real index meant that
+   * pressing → on the last buddy animated all the way back across every card —
+   * so the arrow visibly travelled the wrong way — and pressing ← on the first
+   * did the same in reverse. One step onto the neighbouring clone looks like a
+   * normal move, and `handleMomentumEnd` does the invisible swap on landing.
+   *
+   * It also does NOT set `centerIndex`. `handleMomentumEnd` is the single place
+   * that knows whether we came to rest on a clone; setting it here too made the
+   * two disagree mid-animation, which is what made the carousel judder and
+   * appear to change buddy on its own.
+   */
+  function step(delta: -1 | 1) {
     if (display.length === 0) return;
-    const wrapped = ((idx % display.length) + display.length) % display.length;
-    const loopPos = display.length > 1 ? wrapped + 1 : wrapped;
-    listRef.current?.scrollToOffset({ offset: loopPos * SNAP, animated: true });
-    setCenterIndex(wrapped);
+    if (!looping) {
+      // Finite list: clamp instead of wrapping, or we'd scroll into empty space.
+      const next = Math.min(display.length - 1, Math.max(0, centerIndex + delta));
+      if (next === centerIndex) return;
+      listRef.current?.scrollToOffset({ offset: next * SNAP, animated: true });
+      return;
+    }
+    listRef.current?.scrollToOffset({ offset: (centerIndex + 1 + delta) * SNAP, animated: true });
   }
 
   if (loading) {
@@ -306,20 +230,21 @@ export function BuddySelector({
 
   return (
     <View style={styles.wrap}>
+      {/* Нэр нь buddy-гийн ДЭЭР. Өмнө нь энд motto-ны бөмбөлөг, доор нь нэр +
+          чанга яригчийн товч + зан чанарын шошгууд байсан. Сонголт хийхэд аль
+          нь ч хэрэггүй бөгөөд гурвуулан картын босоо зайг иддэг байв. */}
       {centerBuddy && (
-        <Pressable onPress={() => speak(centerBuddy.motto)} style={styles.mottoBubbleWrap}>
-          <View style={[styles.mottoBubble, { backgroundColor: c.surface }, elevation.sm]}>
-            <View style={[styles.mottoIconCircle, { backgroundColor: c.primary }]}>
-              <Ionicons name={speakingSlug === centerBuddy.slug ? 'volume-high' : 'volume-medium'} size={14} color={c.white} />
-            </View>
-            <Animated.View key={centerBuddy.slug} entering={FadeIn.duration(220)} exiting={FadeOut.duration(120)} style={styles.mottoTextWrap}>
-              <AppText variant="bodyStrong" color={c.text} numberOfLines={2} style={styles.mottoBubbleText}>
-                {centerBuddy.motto}
-              </AppText>
-            </Animated.View>
-          </View>
-          <View style={[styles.mottoTail, { backgroundColor: c.surface }]} />
-        </Pressable>
+        <Animated.View
+          key={centerBuddy.slug}
+          entering={FadeIn.duration(220)}
+          exiting={FadeOut.duration(120)}
+          style={styles.nameRow}
+        >
+          <AppText variant="h1" numberOfLines={1} style={styles.nameText} center>{centerBuddy.name}</AppText>
+          {isLocked ? (
+            <Pill label={t('buddyLocked')} icon="lock-closed" bg={tints.amber.bg} fg={tints.amber.fg} />
+          ) : null}
+        </Animated.View>
       )}
 
       <View style={styles.carouselFlex}>
@@ -337,32 +262,26 @@ export function BuddySelector({
           onScroll={scrollHandler}
           scrollEventThrottle={16}
           getItemLayout={(_, index) => ({ length: SNAP, offset: SNAP * index, index })}
-          initialScrollIndex={display.length > 1 ? 1 : 0}
+          initialScrollIndex={looping ? 1 : 0}
           onMomentumScrollEnd={(e) => handleMomentumEnd(e.nativeEvent.contentOffset.x)}
           renderItem={({ item, index }) => {
-            // Map the loop index back to the real data index so each buddy keeps
-            // one stable glow colour (its front/back clones match it too).
-            const realIdx = display.length > 1 ? (index - 1 + display.length) % display.length : index;
             return (
               <BuddyCard
                 buddy={item}
                 index={index}
                 scrollX={scrollX}
-                haloColor={HALO_COLORS[realIdx % HALO_COLORS.length]}
-                isCenter={index === (display.length > 1 ? centerIndex + 1 : centerIndex)}
-                isSpeaking={speakingSlug === item.slug}
               />
             );
           }}
         />
 
         {display.length > 1 && (
-          <Pressable style={[styles.navBtn, styles.navBtnLeft, { backgroundColor: c.surface }]} onPress={() => scrollToIndex(centerIndex - 1)} hitSlop={8}>
+          <Pressable style={[styles.navBtn, styles.navBtnLeft, { backgroundColor: c.surface }]} onPress={() => step(-1)} hitSlop={8}>
             <Ionicons name="chevron-back" size={20} color={c.text} />
           </Pressable>
         )}
         {display.length > 1 && (
-          <Pressable style={[styles.navBtn, styles.navBtnRight, { backgroundColor: c.surface }]} onPress={() => scrollToIndex(centerIndex + 1)} hitSlop={8}>
+          <Pressable style={[styles.navBtn, styles.navBtnRight, { backgroundColor: c.surface }]} onPress={() => step(1)} hitSlop={8}>
             <Ionicons name="chevron-forward" size={20} color={c.text} />
           </Pressable>
         )}
@@ -372,49 +291,13 @@ export function BuddySelector({
       {display.length > 1 && (
         <View style={styles.dots}>
           {display.map((b, i) => (
-            <Dot key={b.slug} index={display.length > 1 ? i + 1 : i} scrollX={scrollX} colors={c} />
+            <Dot key={b.slug} index={looping ? i + 1 : i} scrollX={scrollX} colors={c} />
           ))}
         </View>
       )}
 
       {centerBuddy && (
-        // Keyed by slug so switching buddies crossfades the whole panel
-        // (name/tags/CTA) instead of the text hard-cutting the instant
-        // centerIndex updates — matches the smooth card scale/opacity above.
-        <Animated.View key={centerBuddy.slug} entering={FadeIn.duration(220)} exiting={FadeOut.duration(120)} style={styles.infoPanel}>
-          <View style={styles.nameRow}>
-            <AppText variant="h1" numberOfLines={1} style={styles.nameText} center>{centerBuddy.name}</AppText>
-            {isLocked ? (
-              <Pill label={t('buddyLocked')} icon="lock-closed" bg={tints.amber.bg} fg={tints.amber.fg} />
-            ) : null}
-            {/* Hide the play button while locked (nothing to preview yet); once
-                unlocked it fades cleanly back into the same spot. */}
-            {!isLocked && (
-              <Animated.View entering={FadeIn.duration(260)} exiting={FadeOut.duration(120)}>
-                <Pressable
-                  onPress={() => speak(centerBuddy.motto)}
-                  hitSlop={8}
-                  style={[styles.soundBtn, { backgroundColor: c.surface }, elevation.sm]}
-                >
-                  <Ionicons
-                    name={speakingSlug === centerBuddy.slug ? 'volume-high' : 'volume-medium-outline'}
-                    size={24}
-                    color={c.primary}
-                  />
-                </Pressable>
-              </Animated.View>
-            )}
-          </View>
-
-          <View style={styles.tagsRow}>
-            {centerBuddy.personalityTags.map((tag) => {
-              const tint = traitTints[tag] ?? tints.purple;
-              return (
-                <TraitChip key={tag} label={tag} icon={traitIcons[tag] ?? 'sparkles-outline'} tint={tint} />
-              );
-            })}
-          </View>
-
+        <View style={styles.infoPanel}>
           {isLocked ? (
             <UnlockCTAButton
               label={tf('buddyUnlockFor', { n: centerBuddy.unlockCostSparks ?? DEFAULT_UNLOCK_COST })}
@@ -423,7 +306,7 @@ export function BuddySelector({
           ) : (
             <ApplyBuddyButton label={t('buddyApply')} onPress={() => onApply(centerBuddy)} colors={c} />
           )}
-        </Animated.View>
+        </View>
       )}
 
       <BuddyUnlockSheet
@@ -457,20 +340,16 @@ const dotStyles = StyleSheet.create({
 });
 
 function BuddyCard({
-  buddy, index, scrollX, haloColor, isCenter, isSpeaking,
+  buddy, index, scrollX,
 }: {
   buddy: ReturnType<typeof withDefaults>;
   index: number;
   scrollX: SharedValue<number>;
-  haloColor: string;
-  isCenter: boolean;
-  isSpeaking: boolean;
 }) {
   const [imgFailed, setImgFailed] = useState(false);
   // The 3D canvas is transparent, so leaving the 2D art underneath makes a
   // rendering problem invisible (the PNG just shows through). Show the art only
   // until the GLB is actually on screen.
-  const [ready3d, setReady3d] = useState(false);
   const cardStyle = useAnimatedStyle(() => {
     const pos = scrollX.value / SNAP - index;
     const scale = interpolate(pos, [-1, 0, 1], [0.82, 1, 0.82], Extrapolation.CLAMP);
@@ -489,30 +368,20 @@ function BuddyCard({
   // GLB streams in and decodes. When SHOW_3D_AVATAR is off (see
   // buddyAvatarFlag.ts) the thumbnail (or a name-initial placeholder) is the
   // primary rendering until the GLB texture pipeline is fixed and verified.
-  const show3d = SHOW_3D_AVATAR && isCenter && !!buddy.avatarAssetUrl;
-  // The #1 cause of "3D never appears" is the buddy simply having no
-  // avatarAssetUrl (admin filled only the thumbnail) — on screen that is
-  // indistinguishable from a GLB that failed to load, so name it in DEV.
-  const missingAsset = __DEV__ && isCenter && SHOW_3D_AVATAR && !buddy.avatarAssetUrl;
-
+  const c = useColors();
   return (
     <Animated.View style={[styles.cardSlot, cardStyle]}>
-      {/* Two nested views on purpose: the shadow lives on cardGlow (a plain view
-          with NO overflow — iOS clips a view's own shadow when overflow:hidden),
-          while the inner card clips the gradient/art to the rounded corners. */}
-      <View style={[styles.cardGlow, isCenter && styles.cardGlowActive, { shadowColor: haloColor }]}>
-        <View style={styles.card}>
-          <LinearGradient
-            colors={isCenter ? CARD_BG_ACTIVE : CARD_BG_IDLE}
-            start={{ x: 0.5, y: 0 }}
-            end={{ x: 0.5, y: 1 }}
-            style={StyleSheet.absoluteFill}
-          />
-          {ready3d ? null : buddy.avatarThumbUrl && !imgFailed ? (
-            // `contain` so the character stands on the lavender panel with the
-            // gradient showing around it (like the reference), instead of the
-            // art being cropped edge-to-edge. Falls back to a name initial if the
-            // remote asset is broken/unreachable.
+      {/* No panel, no gradient, no shadow — just the character.
+          The card used to sit on a lavender gradient plate with a coloured
+          halo. That frame was most of the card's area, so the buddy the student
+          is actually choosing between was the smallest thing on screen.
+
+          No 3D here either: the picker shows the ADMIN THUMBNAIL. Mounting a
+          live GL canvas meant streaming and decoding tens of megabytes for a
+          card that gets swiped past, paid again on every visit to the tab. The
+          3D character belongs to the conversation screen. */}
+      <View style={styles.card}>
+          {buddy.avatarThumbUrl && !imgFailed ? (
             <AppImage
               source={{ uri: buddy.avatarThumbUrl }}
               width={CARD_WIDTH}
@@ -524,23 +393,14 @@ function BuddyCard({
               }}
             />
           ) : (
-            <AppText style={styles.cardEmoji}>{buddy.name?.charAt(0) ?? '?'}</AppText>
-          )}
-          {missingAsset && (
-            <AppText style={styles.debug3d}>3D: avatarAssetUrl хоосон ({buddy.slug})</AppText>
-          )}
-          {show3d && (
-            <BuddyAvatar
-              assetUrl={buddy.avatarAssetUrl}
-              emotionMap={buddy.emotionMap}
-              isSpeaking={isSpeaking}
-              // The card reads the motto aloud (expo-speech), so the mouth
-              // shapes come from that text.
-              speechText={buddy.motto}
-              emotion="happy"
-              onReady={setReady3d}
-              style={styles.cardAvatarFill}
-            />
+            // No artwork for this buddy yet. A bare letter at 110px read as a
+            // rendering fault rather than a placeholder, so it is set in a soft
+            // disc — the same shape an avatar would occupy.
+            <View style={[styles.cardMonogram, { backgroundColor: c.surface }]}>
+              <AppText style={[styles.cardMonogramText, { color: c.primary }]}>
+                {buddy.name?.charAt(0)?.toUpperCase() ?? '?'}
+              </AppText>
+            </View>
           )}
           {buddy.isLocked && (
             // Centered translucent lock disc with a thin white ring (reference).
@@ -548,7 +408,6 @@ function BuddyCard({
               <Ionicons name="lock-closed" size={24} color="#FFFFFF" />
             </View>
           )}
-        </View>
       </View>
     </Animated.View>
   );
@@ -583,30 +442,6 @@ function UnlockCTAButton({ label, onPress }: { label: string; onPress: () => voi
 }
 
 /** Big, colorful personality tag — bolder than the shared `Pill` (used for CEFR/state tags elsewhere). */
-function TraitChip({ label, icon, tint }: { label: string; icon: keyof typeof Ionicons.glyphMap; tint: { bg: string; fg: string } }) {
-  return (
-    <View style={[chipStyles.chip, { backgroundColor: tint.bg }]}>
-      <View style={[chipStyles.iconCircle, { backgroundColor: tint.fg }]}>
-        <Ionicons name={icon} size={12} color="#FFFFFF" />
-      </View>
-      <AppText variant="label" color={tint.fg} numberOfLines={1} style={chipStyles.label}>{label}</AppText>
-    </View>
-  );
-}
-
-const chipStyles = StyleSheet.create({
-  chip: {
-    flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 1, minWidth: 0,
-    paddingLeft: 3, paddingRight: spacing.sm, paddingVertical: 3, borderRadius: radius.full,
-  },
-  iconCircle: {
-    width: 20, height: 20, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center',
-  },
-  label: { flexShrink: 1 },
-});
-
-// No themed values in here (colours are applied inline from `useColors`), so
-// these are plain constants — no per-render rebuild in four components.
 const styles = StyleSheet.create({
   // No `justifyContent: 'center'`: on short phones that lets the centered group
   // overflow (RN default overflow is visible) and the Apply CTA renders below
@@ -645,24 +480,30 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   // Shadow-only wrapper (no overflow, so iOS doesn't clip its own shadow).
-  cardGlow: { width: CARD_WIDTH, height: CARD_HEIGHT, borderRadius: CARD_RADIUS, ...CARD_SHADOW },
-  cardGlowActive: CARD_HALO,
+  // No background, no radius, no clipping — the character IS the card now.
   card: {
-    width: CARD_WIDTH, height: CARD_HEIGHT, borderRadius: CARD_RADIUS,
-    alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+    width: CARD_WIDTH, height: CARD_HEIGHT,
+    alignItems: 'center', justifyContent: 'center',
   },
   cardAvatarFill: { ...StyleSheet.absoluteFillObject },
-  /** DEV-only overlay explaining a missing 3D avatar (see `missingAsset`). */
-  debug3d: { position: 'absolute', bottom: 6, left: 6, right: 6, color: '#FF5A5A', fontSize: 10 },
-  cardEmoji: { fontSize: CARD_WIDTH * 0.42, lineHeight: CARD_WIDTH * 0.48 },
+  cardMonogram: {
+    width: CARD_WIDTH * 0.46, height: CARD_WIDTH * 0.46, borderRadius: radius.full,
+    alignItems: 'center', justifyContent: 'center', opacity: 0.9,
+  },
+  cardMonogramText: { fontSize: CARD_WIDTH * 0.2, lineHeight: CARD_WIDTH * 0.26 },
   cardLockBadge: {
     position: 'absolute', width: 62, height: 62, borderRadius: radius.full,
     backgroundColor: 'rgba(35,20,70,0.42)', borderWidth: 2, borderColor: 'rgba(255,255,255,0.92)',
     alignItems: 'center', justifyContent: 'center',
   },
   dots: { flexDirection: 'row', gap: 6, alignSelf: 'center', marginTop: spacing.sm },
-  infoPanel: { paddingHorizontal: spacing.lg, marginTop: spacing.md },
-  nameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, marginBottom: spacing.sm },
+  infoPanel: { paddingHorizontal: spacing.lg, marginTop: spacing.lg },
+  // Sits ABOVE the carousel now, so it names the buddy you are looking at
+  // before you look at it rather than after.
+  nameRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: spacing.sm, marginBottom: spacing.sm, paddingHorizontal: spacing.lg,
+  },
   nameText: { flexShrink: 1 },
   soundBtn: {
     width: 44, height: 44, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center',
@@ -670,7 +511,13 @@ const styles = StyleSheet.create({
   // One single row, no wrap, no scroll — all chips visible side by side. Chips
   // are small (see chipStyles) and may shrink so they always fit on one line
   // (a 2nd wrapped row used to punch the card down into the name/dots).
-  tagsRow: { flexDirection: 'row', flexWrap: 'nowrap', justifyContent: 'center', gap: spacing.xs, marginBottom: spacing.md, paddingHorizontal: spacing.sm },
+  tagsRow: {
+    flexDirection: 'row', flexWrap: 'nowrap', justifyContent: 'center',
+    gap: spacing.xs, marginBottom: spacing.md,
+    // Inset well clear of the screen edge — at spacing.sm the outer chips ran
+    // right up against it and the row read as cut off rather than centred.
+    paddingHorizontal: spacing.lg,
+  },
   applyBtn: {
     height: 56, borderRadius: radius.full, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     marginBottom: spacing.lg,

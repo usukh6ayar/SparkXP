@@ -1,0 +1,345 @@
+import { useMemo, useState } from 'react';
+import { View, Pressable, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { AppText } from './Text';
+import { Card } from './Card';
+import { Pill } from './Pill';
+import { SelectMark } from './SelectMark';
+import { FilterChips } from './FilterChips';
+import { TextField } from './TextField';
+import { EmptyState } from './EmptyState';
+import { t, tf } from '../i18n';
+import { useColors } from '../settings/SettingsContext';
+import { spacing, radius, levelColor, type AppColors } from '../theme/theme';
+import type { Quiz } from '../api/quizzes';
+
+/**
+ * Багш даалгаварт өгөх **асуултуудаа сонгох** самбар.
+ *
+ * Яагаад сонголт нь асуултын түвшинд байдаг вэ: даалгаврын сангийн нэг тест
+ * 15 асуулттай байж болох ба багш нэг хичээлд 5-ыг л өгнө. Тестийг 15 тусдаа
+ * дасгал болгож хуваах нь сан зохиох ажлыг 3 дахин нэмэгдүүлнэ.
+ *
+ * **Хоёр сэдэв нэг дор.** Сонголт нь `quizId → индексүүд` гэсэн газрын зурагт
+ * хуримтлагддаг тул багш «Present Simple»-ээс 3, «Modal verbs»-ээс 2 сонгоод
+ * нэг дор явуулж болно (сэдэв солиход өмнөх сонголт хэвээр үлдэнэ).
+ */
+
+/** `quizId` → сонгосон асуултын индексүүд. Хоосон массив = сонгоогүй. */
+export type PickedQuestions = Record<string, number[]>;
+
+/** Сэдэв/түвшингүй тестүүд ч ямар нэг бүлэгт харагдах ёстой. */
+const UNGROUPED = '—';
+
+/**
+ * Тестийн **CEFR түвшин** (жижиг үсгээр — `levelColor` ийм түлхүүртэй).
+ *
+ * Түвшин нь сэдвээс тусдаа шүүлт: багш «9а анги маань A1» гэж боддог болохоос
+ * «Present Simple» гэж боддоггүй. Админ талд түвшин аль хэдийн ангилагдсан
+ * байдаг тул энд зөвхөн харуулах л үлдэнэ.
+ */
+function levelOf(quiz: Quiz): string {
+  return quiz.level?.trim().toLowerCase() || UNGROUPED;
+}
+
+/** Тестийн сэдэв (админы бичсэн). Түвшинд ЗАЛГАХГҮЙ — тэр нь өөрийн шүүлттэй. */
+function groupOf(quiz: Quiz): string {
+  return quiz.topic?.trim() || UNGROUPED;
+}
+
+/**
+ * Асуултын мөрөнд харуулах текст.
+ *
+ * `word_match`-д асуултын өгүүлбэр гэж байхгүй (зөвхөн үгийн хосууд) тул
+ * хосын тоогоор нь тайлбарлана — эс бөгөөс жагсаалтад хоосон мөр гарна.
+ */
+function questionLabel(q: Quiz['questions'][number]): string {
+  if (q.question?.trim()) return q.question.trim();
+  if (q.prompt?.trim()) return q.prompt.trim();
+  if (q.pairs?.length) return tf('pickerMatchPairs', { n: q.pairs.length });
+  return t('pickerQuestion');
+}
+
+/** Нийт хэдэн асуулт, хэдэн сэдвээс сонгогдсоныг тоолно. */
+export function countPicked(
+  picked: PickedQuestions,
+  quizzes: Quiz[],
+): { questions: number; topics: number } {
+  const byId = new Map(quizzes.map((q) => [q.id, q]));
+  const topics = new Set<string>();
+  let questions = 0;
+  for (const [quizId, indexes] of Object.entries(picked)) {
+    if (!indexes.length) continue;
+    questions += indexes.length;
+    const quiz = byId.get(quizId);
+    if (quiz) topics.add(groupOf(quiz));
+  }
+  return { questions, topics: topics.size };
+}
+
+export function QuestionPicker({
+  quizzes,
+  picked,
+  onChange,
+}: {
+  quizzes: Quiz[];
+  picked: PickedQuestions;
+  onChange: (next: PickedQuestions) => void;
+}) {
+  const c = useColors();
+  const styles = useMemo(() => makeStyles(c), [c]);
+  const [level, setLevel] = useState('all');
+  const [group, setGroup] = useState('all');
+  const [query, setQuery] = useState('');
+  const [openId, setOpenId] = useState<string | null>(null);
+
+  // Чипсийг байгаа контентоос үүсгэнэ — хоосон түвшин/сэдвийн чип гаргахгүй.
+  const levelChips = useMemo(() => {
+    const seen = [...new Set(quizzes.map(levelOf))].sort();
+    return [
+      { key: 'all', label: t('filterAll') },
+      ...seen.map((l) => ({ key: l, label: l === UNGROUPED ? l : l.toUpperCase() })),
+    ];
+  }, [quizzes]);
+
+  /**
+   * Түвшнээр шүүсэн олонлог. Сэдвийн чипс ба жагсаалт хоёул **үүнээс** гарна:
+   * A1 сонгосон багшид зөвхөн A1-д байгаа сэдвүүд харагдах ёстой, эс бөгөөс
+   * тэр сэдэв дарж хоосон жагсаалт руу хөтлөгдөнө.
+   */
+  const atLevel = useMemo(
+    () => quizzes.filter((q) => level === 'all' || levelOf(q) === level),
+    [quizzes, level],
+  );
+
+  const chips = useMemo(() => {
+    const seen = [...new Set(atLevel.map(groupOf))].sort();
+    return [
+      { key: 'all', label: t('filterAll') },
+      ...seen.map((g) => ({ key: g, label: g })),
+    ];
+  }, [atLevel]);
+
+  /** Түвшин солиход сэдвийн сонголт хүчингүй болж болзошгүй тул цэвэрлэнэ. */
+  function pickLevel(next: string) {
+    setLevel(next);
+    setGroup('all');
+    setOpenId(null);
+  }
+
+  /**
+   * Хайлт: гарчиг + сэдвийн аль алинаас, **үг бүрээр тусад нь**.
+   *
+   * Бүтэн мөрөөр нь хайвал «present positive» гэж бичихэд юу ч олдохгүй
+   * (тэр хос нь «Present Simple 1 · Positive» дотор зэрэгцэж байхгүй) — багш
+   * санасан хоёр үгээ бичих нь бодит зан үйл тул үг бүр тус тусдаа таарвал
+   * хангалттай гэж үзнэ. Үгийн ЭХЛЭЛ шаардахгүй: «simple» гэж бичихэд
+   * дундах үг ч олдоно.
+   */
+  const visible = useMemo(() => {
+    const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    return atLevel.filter((quiz) => {
+      if (group !== 'all' && groupOf(quiz) !== group) return false;
+      if (words.length === 0) return true;
+      const hay = `${quiz.title} ${quiz.topic ?? ''}`.toLowerCase();
+      return words.every((w) => hay.includes(w));
+    });
+  }, [atLevel, group, query]);
+
+  function setFor(quizId: string, indexes: number[]) {
+    const next = { ...picked };
+    // Хоосон сонголтыг хадгалах шаардлагагүй — оноох үед шүүх нэг алхам хэмнэнэ.
+    if (indexes.length) next[quizId] = indexes;
+    else delete next[quizId];
+    onChange(next);
+  }
+
+  function toggleQuestion(quizId: string, index: number) {
+    const current = picked[quizId] ?? [];
+    setFor(
+      quizId,
+      current.includes(index)
+        ? current.filter((i) => i !== index)
+        : [...current, index].sort((a, b) => a - b),
+    );
+  }
+
+  function toggleAll(quiz: Quiz) {
+    const all = quiz.questions.map((_, i) => i);
+    const isAll = (picked[quiz.id]?.length ?? 0) === all.length;
+    setFor(quiz.id, isAll ? [] : all);
+  }
+
+  if (quizzes.length === 0) {
+    return (
+      <EmptyState
+        icon="clipboard-outline"
+        title={t('pickerEmpty')}
+        hint={t('pickerEmptyHint')}
+      />
+    );
+  }
+
+  return (
+    <View>
+      <TextField
+        label={t('assignSearch')}
+        placeholder={t('assignSearch')}
+        value={query}
+        onChangeText={setQuery}
+        autoCorrect={false}
+      />
+      {/*
+        Түвшин нь **үргэлж** харагдана — ганц түвшинтэй байсан ч. Сэдвийн
+        мөрөөс ялгаатай нь энэ нь шүүлт төдийгүй тайлбар: багш «яагаад зөвхөн
+        A1 гарч байна вэ» гэдгээ нэг харцаар мэдэх ёстой.
+      */}
+      <AppText variant="label" color={c.textSecondary} style={styles.filterLabel}>
+        {t('levelLabel')}
+      </AppText>
+      <FilterChips
+        value={level}
+        options={levelChips}
+        onChange={pickLevel}
+        style={styles.chipRow}
+      />
+
+      {/* Нэг бүлэг л байвал чипс сонголт биш чимэг болно. */}
+      {chips.length > 2 ? (
+        <>
+          <AppText variant="label" color={c.textSecondary} style={styles.filterLabel}>
+            {t('topicLabel')}
+          </AppText>
+          <FilterChips
+            value={group}
+            options={chips}
+            onChange={setGroup}
+            style={styles.chipRow}
+          />
+        </>
+      ) : null}
+
+      {visible.length === 0 ? (
+        <AppText variant="caption" color={c.textSecondary} style={styles.note}>
+          {t('assignNoMatch')}
+        </AppText>
+      ) : (
+        /* Шүүлт үр дүнтэй байсан эсэхийг шууд хэлнэ («A1 → 12 олдлоо»). */
+        <AppText variant="caption" color={c.textMuted} style={styles.note}>
+          {tf('assignFoundCount', { n: visible.length })}
+        </AppText>
+      )}
+
+      {visible.map((quiz) => {
+        const chosen = picked[quiz.id] ?? [];
+        const open = openId === quiz.id;
+        const allOn = chosen.length === quiz.questions.length && chosen.length > 0;
+        const lvl = levelOf(quiz);
+        // Хичээлийн дэлгэцтэй ижил өнгө — A1 ногоон, B1 цэнхэр г.м.
+        const tint = levelColor[lvl] ?? { bg: c.surfaceAlt, fg: c.textSecondary };
+        const topic = groupOf(quiz);
+        return (
+          <Card key={quiz.id} variant="flat" padding="md" style={styles.card}>
+            <Pressable
+              style={styles.header}
+              onPress={() => setOpenId(open ? null : quiz.id)}
+            >
+              {/*
+                Мөрөн дээрх чагт — **задлахгүйгээр** бүхэлд нь сонгоно.
+                Багш ихэвчлэн бүтэн тестээ өгдөг тул тэр түгээмэл тохиолдолд
+                нээгээд «Бүх асуултыг сонгох» дарах хоёр алхам илүүц байв.
+                Гурван төлөв: хоосон · хэсэгчилсэн (—) · бүгд.
+              */}
+              <Pressable
+                onPress={() => toggleAll(quiz)}
+                hitSlop={10}
+                style={styles.headCheck}
+              >
+                <SelectMark
+                  state={allOn ? 'on' : chosen.length > 0 ? 'some' : 'off'}
+                  emphasis
+                />
+              </Pressable>
+              <View style={styles.headerText}>
+                <AppText variant="bodyStrong" numberOfLines={2}>
+                  {quiz.title}
+                </AppText>
+                <View style={styles.meta}>
+                  {/* «Даалгаврын сан» гэсэн түгжээтэй шошго байсныг хассан:
+                      энэ жагсаалтад одоо ЗӨВХӨН сангийн дасгал ирдэг тул мөр
+                      болгон дээр давтагдаад мэдээлэл өгөхөө больсон. Тэр
+                      баримтыг дэлгэцийн дээд талын нэг мөр тайлбар хэлнэ. */}
+                  <Pill
+                    label={lvl === UNGROUPED ? lvl : lvl.toUpperCase()}
+                    bg={tint.bg}
+                    fg={tint.fg}
+                  />
+                  {topic === UNGROUPED ? null : <Pill label={topic} />}
+                  <AppText variant="caption" color={c.textMuted}>
+                    {chosen.length > 0
+                      ? `${chosen.length}/${quiz.questions.length}`
+                      : tf('questionCount', { n: quiz.questions.length })}
+                  </AppText>
+                </View>
+              </View>
+              <Ionicons
+                name={open ? 'chevron-up' : 'chevron-down'}
+                size={20}
+                color={c.textMuted}
+              />
+            </Pressable>
+
+            {open ? (
+              <View style={styles.questions}>
+                {/* «Бүх асуултыг сонгох» мөр ХАСАГДСАН — толгойн чагт
+                    яг үүнийг, задлахгүйгээр хийдэг болсон. */}
+                {quiz.questions.map((q, i) => {
+                  const on = chosen.includes(i);
+                  return (
+                    <Pressable
+                      key={i}
+                      style={styles.row}
+                      onPress={() => toggleQuestion(quiz.id, i)}
+                    >
+                      <SelectMark state={on ? 'on' : 'off'} size={20} />
+                      <AppText
+                        variant="caption"
+                        color={on ? c.text : c.textSecondary}
+                        style={styles.qText}
+                        numberOfLines={2}
+                      >
+                        {i + 1}. {questionLabel(q)}
+                      </AppText>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ) : null}
+          </Card>
+        );
+      })}
+    </View>
+  );
+}
+
+const makeStyles = (c: AppColors) =>
+  StyleSheet.create({
+    note: { marginBottom: spacing.sm },
+    filterLabel: { marginBottom: spacing.xs },
+    chipRow: { marginBottom: spacing.sm },
+    card: { marginBottom: spacing.sm },
+    headCheck: { paddingRight: 2 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+    headerText: { flex: 1, gap: spacing.xs },
+    meta: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, flexWrap: 'wrap' },
+    questions: {
+      marginTop: spacing.sm,
+      paddingTop: spacing.sm,
+      borderTopWidth: 1,
+      borderTopColor: c.border,
+      gap: spacing.xs,
+      borderRadius: radius.sm,
+    },
+    row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: 4 },
+    qText: { flex: 1 },
+  });

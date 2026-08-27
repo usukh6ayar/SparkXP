@@ -13,8 +13,22 @@ export interface Lesson {
   priceSparks: number;
 }
 
+/**
+ * Whether this student may watch a lesson, and why.
+ *
+ * The server owns the rule — the app only renders it. `freeRemaining` /
+ * `freeQuota` are `null` while the free-lesson quota is switched off
+ * (`FREE_LESSON_QUOTA_ENABLED`), which is the case until QPay ships; the UI
+ * must show no counter at all then rather than guessing a number.
+ */
 export interface LessonAccess {
   hasAccess: boolean;
+  /** 'plan' | 'unlocked' | 'assignment' | 'free_lesson' | 'locked' */
+  reason?: string;
+  /** True when `openLesson()` would succeed — homework, or a right to spend. */
+  canOpen?: boolean;
+  freeRemaining?: number | null;
+  freeQuota?: number | null;
 }
 
 export interface LessonUnlock {
@@ -23,11 +37,20 @@ export interface LessonUnlock {
   sparksSpent: number;
 }
 
-export function getLessons(token: string, params?: { level?: string; type?: string }): Promise<{ items: Lesson[]; total: number }> {
+/**
+ * GET /api/lessons — нийтэлсэн хичээлүүд.
+ *
+ * ⚠️ `limit` нь серверийн DTO дээр **дээд тал нь 100** (`@Max(100)`). Түүнээс
+ * их бичвэл 400 «limit must not be greater than 100» ирнэ, жагсаалт огт
+ * ирэхгүй — тиймээс олон хичээл хэрэгтэй бол `page`-ээр давт.
+ */
+export function getLessons(token: string, params?: { level?: string; type?: string; page?: number; limit?: number }): Promise<{ items: Lesson[]; total: number }> {
   // Plain query string — React Native's URLSearchParams is unreliable.
   let url = '/lessons?isPublished=true';
   if (params?.level) url += `&level=${params.level}`;
   if (params?.type) url += `&type=${params.type}`;
+  if (params?.page) url += `&page=${params.page}`;
+  if (params?.limit) url += `&limit=${params.limit}`;
   return apiRequest<{ items: Lesson[]; total: number }>(url, { token });
 }
 
@@ -37,6 +60,18 @@ export function getLesson(id: string, token: string): Promise<Lesson> {
 
 export function checkAccess(id: string, token: string): Promise<LessonAccess> {
   return apiRequest<LessonAccess>(`/lessons/${id}/access`, { token });
+}
+
+/**
+ * POST /lessons/:id/open — the "Эхлэх" tap. Grants access, spending one of the
+ * three free rights unless the lesson is teacher-assigned homework (always
+ * free). Idempotent on the server, so a double tap cannot cost two rights.
+ */
+export function openLesson(id: string, token: string): Promise<LessonAccess> {
+  return apiRequest<LessonAccess>(`/lessons/${id}/open`, {
+    method: 'POST',
+    token,
+  });
 }
 
 export function unlockLesson(id: string, token: string): Promise<LessonUnlock> {

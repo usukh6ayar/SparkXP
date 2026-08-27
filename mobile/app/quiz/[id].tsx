@@ -321,7 +321,18 @@ function gradeKey(percentage: number): TranslationKey {
 }
 
 export default function QuizScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  /**
+   * `assignmentId` — багшийн даалгавраас нээгдсэн бол ирнэ (`/assignments`).
+   *
+   * Гурван дуудлага бүрд дамжина: сервер үүгээр л багшийн сонгосон
+   * асуултуудыг шүүж, гүйцэтгэлийг багшийн самбарт бүртгэдэг. Дамжуулахгүй
+   * бол сурагч 15 асуултын бүгдийг харах ба «хийсэн» гэж хэзээ ч
+   * тэмдэглэгдэхгүй.
+   */
+  const { id, assignmentId } = useLocalSearchParams<{
+    id: string;
+    assignmentId?: string;
+  }>();
   const { token } = useAuth();
   const c = useColors();
   const styles = useMemo(() => makeStyles(c), [c]);
@@ -422,7 +433,7 @@ export default function QuizScreen() {
 
   const load = useCallback(() => {
     setPhase('loading');
-    return quizzesApi.getQuiz(id!, token!)
+    return quizzesApi.getQuiz(id!, token!, assignmentId)
       .then((q) => {
         setQuiz(q);
         setQueue(q.questions.map((_, i) => i));
@@ -430,7 +441,7 @@ export default function QuizScreen() {
         setPhase('quiz');
       })
       .catch(() => setPhase('error'));
-  }, [id, token]);
+  }, [id, token, assignmentId]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -911,7 +922,13 @@ export default function QuizScreen() {
       }
       setChecking(true);
       try {
-        const fb = await quizzesApi.checkAnswer(id!, currentIndex, currentAnswer(), token!);
+        const fb = await quizzesApi.checkAnswer(
+          id!,
+          currentIndex,
+          currentAnswer(),
+          token!,
+          assignmentId,
+        );
         setFeedback(fb);
         // A wrong answer costs a heart, charged by the server — this is the
         // authoritative count (an older backend simply omits it).
@@ -1010,7 +1027,7 @@ export default function QuizScreen() {
   async function submit(all: AnswerItem[]) {
     setSubmitting(true);
     try {
-      const res = await quizzesApi.submitQuiz(id!, all, token!);
+      const res = await quizzesApi.submitQuiz(id!, all, token!, assignmentId);
       if (id) {
         markExerciseCompleted(id); // local mirror → checkmark on the list
         markDailyTask(); // feeds the Soril daily path (Өнөөдрийн зам)

@@ -17,23 +17,64 @@ export interface Assignment {
   /** Present on GET /assignments/mine rows (the student's own submission state). */
   status?: SubmissionStatus;
   scorePct?: number | null;
+  /**
+   * Present on GET /assignments?classId= (the teacher's view): how many of the
+   * targeted students have actually handed it in. Counts submitted rows only —
+   * the still-pending `assigned` ones are excluded server-side.
+   */
+  completedCount?: number;
+  /** Who it was set for. `null` = the whole class. */
+  studentIds?: string[] | null;
+  /**
+   * Сорилын аль асуултууд оногдсон бэ. `null` = бүгд.
+   * Багш нэг тестээс 5 асуулт сонгож өгөх зам.
+   */
+  questionIndexes?: number[] | null;
+  /**
+   * Хичээл/сорилын гарчиг — **серверээс** ирнэ.
+   *
+   * Даалгаврын сангийн тест сурагчийн `GET /quizzes` жагсаалтад огт
+   * харагдахгүй тул апп гарчгийг өөрөө олж чадахгүй.
+   */
+  targetTitle?: string | null;
+  /** Сорилын сэдэв — нэг дор ирсэн 2 сэдвийн даалгаврыг ялгахад. */
+  targetTopic?: string | null;
+  /** Сурагчийн үнэхээр хийх асуултын тоо (хичээлд `null`). */
+  questionCount?: number | null;
+}
+
+/** Нэг илгээлтийн доторх нэг сэдвийн даалгавар. */
+export interface AssignmentTarget {
+  targetId: string;
+  /** Тухайн тестээс сонгосон асуултууд. Хоосон = бүгд. */
+  questionIndexes?: number[];
 }
 
 export interface CreateAssignmentInput {
   classId: string;
   type: AssignmentType;
-  targetId: string;
+  /** Ганц зүйл оноох богино хэлбэр. `targets`-тэй хамт илгээж болохгүй. */
+  targetId?: string;
+  /**
+   * Нэг дор оноох олон зүйл — сэдэв тус бүрд нэг мөр. Багш Present Simple ба
+   * Modal verbs хоёрыг нэг илгээлтээр өгөхөд ингэж явна (мэдэгдэл нэг очно).
+   */
+  targets?: AssignmentTarget[];
   dueAt?: string; // ISO date
   note?: string;
   studentIds?: string[]; // omit = whole class
 }
 
-/** POST /assignments — teacher assigns a lesson/quiz to a class. */
+/**
+ * POST /assignments — багш ангид хичээл/сорил оноох.
+ *
+ * Нэг илгээлт олон даалгавар үүсгэж болох тул **массив** буцаана.
+ */
 export function createAssignment(
   input: CreateAssignmentInput,
   token: string,
-): Promise<Assignment> {
-  return apiRequest<Assignment>('/assignments', {
+): Promise<Assignment[]> {
+  return apiRequest<Assignment[]>('/assignments', {
     method: 'POST',
     body: input,
     token,
@@ -48,6 +89,24 @@ export function getClassAssignments(classId: string, token: string): Promise<Ass
 /** GET /assignments/mine — assignments across the student's enrolled classes. */
 export function getMyAssignments(token: string): Promise<Assignment[]> {
   return apiRequest<Assignment[]>('/assignments/mine', { token });
+}
+
+/**
+ * PATCH /assignments/:id — даалгаврын **хүрээг засах** (хэнд оногдох вэ).
+ *
+ * Хоосон массив = **бүх анги**. Багц даалгаварт багц бүрд нь дуудна — нэг
+ * даалгаврын бүх багц ижил бүрэлдэхүүнтэй байх ёстой.
+ */
+export function updateAssignmentStudents(
+  id: string,
+  studentIds: string[],
+  token: string,
+): Promise<Assignment> {
+  return apiRequest<Assignment>(`/assignments/${id}`, {
+    method: 'PATCH',
+    body: { studentIds },
+    token,
+  });
 }
 
 /** DELETE /assignments/:id — teacher removes an assignment. */

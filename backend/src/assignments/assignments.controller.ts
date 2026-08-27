@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Delete,
   Body,
   Param,
@@ -12,6 +13,7 @@ import {
 } from '@nestjs/common';
 import { AssignmentsService } from './assignments.service';
 import { CreateAssignmentDto } from './dto/create-assignment.dto';
+import { UpdateAssignmentDto } from './dto/update-assignment.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -62,8 +64,41 @@ export class AssignmentsController {
   @Get(':id/submissions')
   @UseGuards(RolesGuard)
   @Roles(UserRole.TEACHER, UserRole.ADMIN, UserRole.SUPER_ADMIN)
-  submissions(@CurrentUser() user: User, @Param('id', ParseUUIDPipe) id: string) {
+  submissions(
+    @CurrentUser() user: User,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
     return this.assignmentsService.submissionsFor(id, user);
+  }
+
+  /**
+   * Багш **юун дээр алдсаныг** харах — нэг сурагчийн сүүлийн илгээлт,
+   * асуулт тус бүрээр. Зөв хариулт нь энд ил (багш дүн тавьдаг хүн).
+   */
+  @Get(':id/students/:studentId/answers')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.TEACHER, UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  answers(
+    @CurrentUser() user: User,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('studentId', ParseUUIDPipe) studentId: string,
+  ) {
+    return this.assignmentsService.answersFor(id, studentId, user);
+  }
+
+  /**
+   * Даалгаврын **хүрээг засах** — шинэ сурагч нэмэх / буруу сонголт залруулах.
+   * Багц даалгаварт багц бүрд нь дуудна.
+   */
+  @Patch(':id')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.TEACHER, UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  update(
+    @CurrentUser() user: User,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateAssignmentDto,
+  ) {
+    return this.assignmentsService.updateTargets(id, dto, user);
   }
 
   /** Teacher (or admin) removes an assignment. */

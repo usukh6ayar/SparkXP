@@ -822,11 +822,25 @@ export class QuizzesService {
     return this.quizzes.save(quiz);
   }
 
-  async findAll(query: QueryQuizzesDto): Promise<PaginatedQuizzes> {
+  /**
+   * @param canSeeBank Дуудагч нь **даалгаврын санг** харах эрхтэй эсэх
+   *   (багш/админ). Сурагчид `false` ирдэг тул сангийн мөрүүд SQL түвшинд
+   *   огт сонгогдохгүй — өөрөөр хэлбэл дурын шүүлтүүр бичсэн ч задрахгүй.
+   */
+  async findAll(
+    query: QueryQuizzesDto,
+    canSeeBank = false,
+  ): Promise<PaginatedQuizzes> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
 
     const qb = this.quizzes.createQueryBuilder('q');
+    // ⚠️ Аюулгүй байдлын хил. Сурагч сангийн дасгалыг бие даан хийж болохгүй —
+    // зөвхөн багш даалгавар болгож өгсний дараа, тэр ч тусдаа замаар нээгдэнэ.
+    if (!canSeeBank) qb.andWhere('q.assignOnly = false');
+    else if (query.assignOnly !== undefined) {
+      qb.andWhere('q.assignOnly = :assignOnly', { assignOnly: query.assignOnly });
+    }
     if (query.level) qb.andWhere('q.level = :level', { level: query.level });
     if (query.isPublished !== undefined) {
       qb.andWhere('q.isPublished = :isPublished', {
@@ -954,7 +968,19 @@ export class QuizzesService {
    * дэлгэц эмх замбараагүй болдог байв.
    */
   async findOneForStudent(id: string): Promise<Quiz & { wordBank?: string[] }> {
-    const quiz = await this.findOne(id);
+    return this.toStudentQuiz(await this.findOne(id));
+  }
+
+  /**
+   * Аль хэдийн уншсан quiz-ийг сурагчийн хэлбэрт оруулна.
+   *
+   * `findOneForStudent`-аас тусад нь гаргасан шалтгаан: даалгаврын асуултын
+   * дэд олонлогийг **энэ хувиргалтаас ӨМНӨ** хийх ёстой. Багш 15-аас 5
+   * асуулт өгсөн бол үгийн сан нь тэр 5-ынх байх ёстой — эс бөгөөс сурагч
+   * хийхгүй байгаа 10 асуултын хариултууд чипс болж гарч ирнэ (сонголтыг
+   * утгагүй болгож, бас нууц задруулна).
+   */
+  toStudentQuiz(quiz: Quiz): Quiz & { wordBank?: string[] } {
     const questions = withFillChoices(quiz.questions) as Quiz['questions'];
     const wordBank = buildWordBank(questions);
     // Шинэ объект — entity-г мутацлавал дараагийн хадгалалтад нөлөөлж болзошгүй.

@@ -361,6 +361,79 @@ describe('checkQuiz — multiple_choice', () => {
     ).toBe(true);
   });
 
+  /*
+   * ⚠️ Задлан шинжлэх асуултад зөв хариулт нь асуултын доторх өгүүлбэрээс
+   * гарах нь ХЭВИЙН — дүрмийн 5 тест (75 асуулт) импортлоход энэ дүрэм 40
+   * гаруй худал дуулга өгсөн (Choi, 2026-08-24).
+   */
+  it('задлан шинжлэх асуултыг анхааруулахгүй (бүх сонголт нэг өгүүлбэрээс)', () => {
+    const quiz = {
+      category: 'grammar',
+      questions: [
+        mc({
+          question: 'In "Tara carries boxes.", which word is the subject?',
+          options: ['carries', 'boxes', 'carries boxes', 'Tara'],
+          correct: 3,
+        }),
+      ],
+    };
+    expect(messages(quiz)).not.toContain('шууд бичигдсэн');
+  });
+
+  it('үг эрэмбэлэх асуултыг анхааруулахгүй', () => {
+    const quiz = {
+      category: 'grammar',
+      questions: [
+        mc({
+          question: 'Put these words in the correct order: "guests / welcomes / Hannah"',
+          options: [
+            'Guests Hannah welcomes.',
+            'Hannah welcomes guests.',
+            'Welcomes guests Hannah.',
+            'Hannah guests welcomes.',
+          ],
+          correct: 1,
+        }),
+      ],
+    };
+    expect(messages(quiz)).not.toContain('шууд бичигдсэн');
+  });
+
+  it('үг эрэмбийн асуултыг ишлэлгүй ч анхааруулахгүй', () => {
+    const quiz = {
+      category: 'grammar',
+      questions: [
+        mc({
+          // Ишлэл алга — гэхдээ бүх сонголт ижил үгсээс бүтсэн.
+          question:
+            'Sophie wants to say that she opens a box. Which sentence has the correct English word order?',
+          options: [
+            'A box Sophie opens.',
+            'Opens Sophie a box.',
+            'Sophie opens a box.',
+            'Sophie a box opens.',
+          ],
+          correct: 2,
+        }),
+      ],
+    };
+    expect(messages(quiz)).not.toContain('шууд бичигдсэн');
+  });
+
+  it('зөвхөн зөв хариулт нь ишлэлд байвал анхааруулсаар байна', () => {
+    const quiz = {
+      category: 'grammar',
+      questions: [
+        mc({
+          question: 'Which sentence is correct: "Vincent reads emails."?',
+          options: ['Vincent reads emails.', 'Paris', 'Tokyo', 'Berlin'],
+          correct: 0,
+        }),
+      ],
+    };
+    expect(messages(quiz)).toContain('шууд бичигдсэн');
+  });
+
   it('хариулт асуултын дотор шууд бичигдсэн бол анхааруулна', () => {
     const quiz = {
       category: 'grammar',

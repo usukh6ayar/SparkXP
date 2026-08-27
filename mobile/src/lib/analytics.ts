@@ -47,6 +47,9 @@ export type AnalyticsEvent =
   | 'onboarding_step_completed'
   | 'onboarding_buddy_demo_completed'
   | 'onboarding_finished'
+  // AI Buddy — the release gate is a latency target, so it has to be measured
+  // on real devices and real networks, not guessed (Azure brief §7).
+  | 'buddy_turn_latency'
   // Account lifecycle.
   | 'signed_up'
   | 'logged_in'

@@ -1,14 +1,15 @@
 import { useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import { StyleSheet, Alert } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from 'expo-router';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect, useNavigation } from 'expo-router';
 import * as Speech from 'expo-speech';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { BuddySelector } from '../../src/components/BuddySelector';
-import { BuddyStatsRow } from '../../src/components/BuddyStatsRow';
 import { BuddyShopEntry } from '../../src/components/BuddyShopEntry';
 import { getEquippedBackground } from '../../src/api/buddyBackgrounds';
 import { BuddyVoiceStage } from '../../src/components/BuddyVoiceStage';
+import { toVisemeTimeline, type VisemeCue } from '../../src/components/azureVisemes';
+import { tabBarHeight } from '../../src/components/tabbar/geometry';
 import { BuddyChatSheet, type ChatMessage } from '../../src/components/BuddyChatSheet';
 import { BuddyHistorySheet } from '../../src/components/BuddyHistorySheet';
 import { EmptyState } from '../../src/components/EmptyState';
@@ -25,6 +26,7 @@ import { ApiError } from '../../src/api/client';
 import { TopBar } from '../../src/components/TopBar';
 import { useColors, useSettings } from '../../src/settings/SettingsContext';
 import { t, tf } from '../../src/i18n';
+import { track } from '../../src/lib/analytics';
 import { type AppColors } from '../../src/theme/theme';
 
 /**
@@ -74,8 +76,6 @@ export default function ChatScreen() {
   const [realSlugs, setRealSlugs] = useState<Set<string>>(new Set());
   const [fallbackSlug, setFallbackSlug] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  // AI Buddy practice stats (minutes today / all-time) — shown on the picker.
-  const [stats, setStats] = useState<aiApi.BuddyStatistics | null>(null);
   // Equipped background (shop) shown behind the buddy on the voice stage.
   const [bgUrl, setBgUrl] = useState<string | null>(null);
   // Persistent typed-chat thread (ChatGPT-style history), separate from voice.
@@ -83,6 +83,9 @@ export default function ChatScreen() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   // The voice screen's latest spoken reply (kept apart from the text `messages`).
   const [voiceReply, setVoiceReply] = useState<string | null>(null);
+  // Timed mouth-shape cues for the reply currently playing. Empty until the
+  // backend ships Azure visemes — the avatar then guesses from `voiceReply`.
+  const [voiceVisemes, setVoiceVisemes] = useState<VisemeCue[]>([]);
   // What the LLM asked the avatar's face to do on the last turn (emotion + gesture).
   const [avatarEmotion, setAvatarEmotion] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(false);
@@ -100,7 +103,30 @@ export default function ChatScreen() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historySessions, setHistorySessions] = useState<BuddyTextSessionSummary[]>([]);
 
+  const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
+
+  /**
+   * The conversation takes the whole screen: no bottom tabs, so the buddy can
+   * be as big as the display allows and the only way out is the back button.
+   * `CustomTabBar` reads this option off the focused route.
+   *
+   * Restored on unmount as well as on leaving voice mode — navigating away
+   * mid-conversation must not leave the other four tabs unreachable.
+   */
+  useEffect(() => {
+    navigation.setOptions({ tabBarStyle: { display: mode === 'voice' ? 'none' : 'flex' } });
+    return () => navigation.setOptions({ tabBarStyle: { display: 'flex' } });
+  }, [navigation, mode]);
+
   const holdRef = useRef(false); // synchronous "mic is held" flag (see startRecording)
+  /**
+   * Voice-turn stopwatch (Azure brief §7). `t0` is the moment the user stopped
+   * talking; `responseAt` is when the turn came back. The number that matters —
+   * T0 → first audible audio — is only known when the player actually starts,
+   * so it is reported from the effect below rather than here.
+   */
+  const turnClock = useRef<{ t0: number; responseAt?: number } | null>(null);
   const player = useAudioPlayer();
   const playerStatus = useAudioPlayerStatus(player);
   const recorder = useAudioRecorder(SPEECH_RECORDING);
@@ -117,6 +143,21 @@ export default function ChatScreen() {
       audioUrl: m.audioUrl,
     })));
   }, []);
+
+  /**
+   * Silence the buddy, whichever way it is speaking, and forget its lip-sync
+   * timeline. Used when the user interrupts, leaves the screen, or backs out —
+   * all three used to stop the audio but leave the mouth animating.
+   */
+  const stopSpeaking = useCallback(() => {
+    Speech.stop();
+    try {
+      player.pause();
+    } catch {
+      // best-effort — never break navigation over playback
+    }
+    setVoiceVisemes([]);
+  }, [player]);
 
   // Play speech both here (replay a chat bubble) and after a voice turn.
   //
@@ -146,6 +187,27 @@ export default function ChatScreen() {
       Alert.alert(t('error'), t('audioPlayError'));
     }
   }
+
+  /**
+   * T0 → first audible audio, reported once per voice turn.
+   *
+   * `playing` flipping true is the closest the client gets to "the user can now
+   * hear the buddy": it fires after the download, the decode and the buffer
+   * fill, which is exactly the wait the release target is about. Clearing the
+   * clock right after makes this fire once, never on a replayed chat bubble.
+   */
+  useEffect(() => {
+    const clock = turnClock.current;
+    if (!playerStatus.playing || !clock) return;
+    turnClock.current = null;
+    track('buddy_turn_latency', {
+      t0_to_audible_ms: Date.now() - clock.t0,
+      t0_to_reply_ms: clock.responseAt ? clock.responseAt - clock.t0 : null,
+      // Real cues vs shapes guessed from text — the two can't be compared as
+      // one number, so keep them apart in the report.
+      had_visemes: voiceVisemes.length > 0,
+    });
+  }, [playerStatus.playing, voiceVisemes.length]);
 
   // Load the buddy list; the user picks + Applies one on the selector screen
   // before any session is started (see BuddySelector / mode === 'select').
@@ -200,10 +262,16 @@ export default function ChatScreen() {
 
   useEffect(() => { loadBuddies(); }, [loadBuddies]);
 
-  /** Refresh the practice-time stats + equipped background on focus. */
+  /**
+   * Refresh the equipped background on focus.
+   *
+   * The practice-time stats used to be fetched here for a row above the picker.
+   * That row is gone, and the request went with it — a screen should not call an
+   * endpoint whose answer it never shows. Minutes are still counted server-side
+   * (`endBuddySession`); nothing about the session accounting changed.
+   */
   const loadStats = useCallback(() => {
     if (!token || buddyEnabled !== true) return;
-    aiApi.getBuddyStatistics(token).then(setStats).catch(() => {});
     getEquippedBackground(token).then((b) => setBgUrl(b?.imageUrl ?? null)).catch(() => {});
   }, [token, buddyEnabled]);
 
@@ -218,12 +286,7 @@ export default function ChatScreen() {
     useCallback(() => {
       loadStats();
       return () => {
-      Speech.stop();
-      try {
-        player.pause();
-      } catch {
-        // best-effort — never break navigation over playback
-      }
+      stopSpeaking();
       // Hand the audio session back in playback mode. `startRecording` puts the
       // WHOLE app into `allowsRecording: true`, and only `playAudio` ever clears
       // it — so walking away after holding the mic left every other screen
@@ -231,7 +294,7 @@ export default function ChatScreen() {
       // faded out (read-along, saved words, flashcards, all of it).
       setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(() => {});
       };
-    }, [player, loadStats]),
+    }, [stopSpeaking, loadStats]),
   );
 
   const selectBuddy = useCallback(async (buddy: Buddy) => {
@@ -239,6 +302,7 @@ export default function ChatScreen() {
     setSelected(buddy);
     setMessages([]);
     setVoiceReply(null);
+    setVoiceVisemes([]);
     setSessionId(null);
     setTextSessionId(null);
     setChatOpen(false);
@@ -340,7 +404,11 @@ export default function ChatScreen() {
    * to the text `messages` list, so the two sections stay separate.
    */
   function renderVoiceTurn(res: aiApi.TurnResponse) {
+    if (turnClock.current) turnClock.current.responseAt = Date.now();
     setVoiceReply(res.reply_text);
+    // Set the timeline BEFORE playback starts, so the very first frame of audio
+    // already has a mouth shape to hit.
+    setVoiceVisemes(toVisemeTimeline(res.visemes));
     setAvatarEmotion(res.avatar_instruction?.emotion);
     setUsage(res.usage);
     playAudio(res.audio_url);
@@ -389,6 +457,10 @@ export default function ChatScreen() {
   async function startRecording() {
     if (loading || !sessionId || voiceLimited) return;
     if (holdRef.current) return;
+    // Interrupt (Azure brief §9): the moment the user talks over the buddy, cut
+    // the audio AND drop the viseme timeline in the same tick. Leaving the cues
+    // behind would keep the mouth miming a reply nobody can hear any more.
+    stopSpeaking();
     // Synchronous intent flag: startRecording is async (permissions + prepare),
     // so a quick tap's release can fire before it finishes. The ref lets
     // stop/cancel signal "the finger is already up" and abort cleanly, instead
@@ -417,17 +489,20 @@ export default function ChatScreen() {
     if (!recording) return; // recorder never actually started (too-quick press)
     setRecording(false);
     setLoading(true);
+    // T0 — the user has stopped talking. Everything after this is wait.
+    const startedAt = Date.now();
+    turnClock.current = { t0: startedAt };
     try {
       await recorder.stop();
       const uri = recorder.uri;
       if (!uri || !sessionId) throw new Error('no audio');
-      const startedAt = Date.now();
       const res = await sendBuddyAudioTurnSmart(sessionId, uri, token!);
       // The turn is STT + LLM + TTS on the server; log it so a slow reply can be
       // pinned on the pipeline rather than guessed at.
       if (__DEV__) console.log(`[buddy] voice turn took ${Date.now() - startedAt} ms`);
       renderVoiceTurn(res);
     } catch (err) {
+      turnClock.current = null; // a failed turn is not a latency sample
       handleTurnError(err, { voice: true });
     } finally {
       setLoading(false);
@@ -437,6 +512,7 @@ export default function ChatScreen() {
   /** Stop capturing but discard — no turn is sent (slide-to-cancel / quick tap). */
   async function cancelRecording() {
     holdRef.current = false;
+    turnClock.current = null; // nothing was sent → nothing to time
     if (!recording) return; // never started; startRecording will bail on its own
     setRecording(false);
     try { await recorder.stop(); } catch { /* discard */ }
@@ -475,7 +551,6 @@ export default function ChatScreen() {
           showDictionary
           onAddSparks={() => Alert.alert(t('buddyUnlockComingSoon'))}
         />
-        <BuddyStatsRow stats={stats} />
         <BuddyShopEntry />
         <BuddySelector
           buddies={buddies}
@@ -490,17 +565,24 @@ export default function ChatScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView
+      // `app/(tabs)/_layout.tsx` pads every scene by the tab bar's height. With
+      // the bar hidden that padding is just dead space at the bottom, so pull
+      // it back — this is what lets the avatar actually reach the screen edges.
+      style={[styles.safe, { marginBottom: -tabBarHeight(insets.bottom) }]}
+      edges={['top']}
+    >
       <TopBar
         title={selected?.name ?? t('aiBuddyShort')}
         subtitle={t('buddyOnline')}
-        showDictionary
+        // In conversation the header carries nothing but the way out: no
+        // dictionary, no streak/Sparks badges. The buddy is the screen.
+        showBadges={false}
         back
         onBack={() => {
           // Same rule as leaving the tab: the reply must not follow you back to
           // the buddy carousel, which is about to speak its own greeting.
-          Speech.stop();
-          try { player.pause(); } catch { /* best-effort */ }
+          stopSpeaking();
           endActiveSession(); // close the session → its minutes count in stats
           setMode('select');
         }}
@@ -516,6 +598,10 @@ export default function ChatScreen() {
           // expo-audio reports seconds; the avatar stretches its mouth-shape
           // sequence over this so the lips keep pace with the actual voice.
           speechDurationMs={playerStatus.duration ? playerStatus.duration * 1000 : null}
+          visemes={voiceVisemes}
+          // The lip-sync master clock. expo-audio reports seconds; the avatar
+          // advances its own clock between reports and re-syncs to each one.
+          speechPositionMs={playerStatus.currentTime * 1000}
           thinking={loading}
           voiceLimited={voiceLimited}
           usageLabel={usageLabel}

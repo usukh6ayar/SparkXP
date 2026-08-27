@@ -55,11 +55,21 @@ const ICONS: Record<string, AppIconName> = {
  * In the row the buddy leaves a fixed-width gap behind, so the four flat tabs
  * space themselves around it.
  */
-export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
+export function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const { t } = useSettings();
   const reduce = useReduceMotion();
+
+  // A screen can take the whole display for itself by setting
+  // `tabBarStyle: { display: 'none' }` (the AI buddy does this once a
+  // conversation starts — see app/(tabs)/chat.tsx). Read from the FOCUSED
+  // route only: the option belongs to the screen you are looking at.
+  const focusedRoute = state.routes[state.index];
+  const focusedStyle = descriptors[focusedRoute.key]?.options.tabBarStyle as
+    | { display?: string }
+    | undefined;
+  const hidden = focusedStyle?.display === 'none';
 
   const labels: Record<string, string> = {
     index: t('home'),
@@ -98,6 +108,9 @@ export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   // The strip of safe area the card sits on. Every band below measures from
   // the card's bottom edge, so they all read this one value.
   const bottom = cardBottom(insets.bottom);
+
+  // Hooks above run unconditionally — bail only at render time.
+  if (hidden) return null;
 
   return (
     <Animated.View

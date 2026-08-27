@@ -1,7 +1,9 @@
+import { useEffect } from 'react';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
+import { useRouter, type Href } from 'expo-router';
 import { registerPushToken, deletePushToken, EXPO_PUSH_TOKEN_RE } from '../api/notifications';
 import { captureError } from './monitoring';
 
@@ -99,6 +101,57 @@ export async function registerForPush(authToken: string): Promise<string | null>
     captureError(err, { where: 'registerForPush' });
     return null;
   }
+}
+
+/**
+ * Route a notification tap to the screen it points at (`data.url`).
+ *
+ * Without this, tapping "Шинэ даалгавар" just opens the app wherever it was
+ * last — the student is told homework arrived and then has to go hunt for it.
+ *
+ * Covers both entry paths: a tap while the app is already running (listener),
+ * and a tap that cold-starts it (`getLastNotificationResponseAsync`, since the
+ * listener is mounted too late to catch that one).
+ *
+ * ⚠️ Untestable in Expo Go — remote push has been unavailable there since SDK
+ * 53, so this only does anything in a dev/production build.
+ */
+export function usePushTapRouting(enabled: boolean): void {
+  const router = useRouter();
+
+  useEffect(() => {
+    // `enabled` is the logged-in check: routing a signed-out user to
+    // /assignments only makes the auth gate bounce them straight to login.
+    if (inExpoGo || !enabled) return;
+
+    // Only the FIRST navigation of a session comes from the cold-start check:
+    // Expo keeps returning the same "last response" on later launches, which
+    // would otherwise re-open that screen every time the app starts.
+    let coldStartHandled = false;
+
+    const go = (response: Notifications.NotificationResponse | null) => {
+      const url = response?.notification?.request?.content?.data?.url;
+      // Only in-app hrefs — never hand an arbitrary string to the router.
+      if (typeof url !== 'string' || !url.startsWith('/')) return;
+      router.push(url as Href);
+    };
+
+    Notifications.getLastNotificationResponseAsync()
+      .then((response) => {
+        if (coldStartHandled) return;
+        coldStartHandled = true;
+        go(response);
+      })
+      .catch(() => {
+        // A missing launch response is the normal case; nothing to report.
+      });
+
+    const sub = Notifications.addNotificationResponseReceivedListener((r) => {
+      coldStartHandled = true; // a live tap supersedes the launch response
+      go(r);
+    });
+    return () => sub.remove();
+  }, [router, enabled]);
 }
 
 /**

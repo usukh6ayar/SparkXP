@@ -45,6 +45,12 @@ const DEFAULT_LIMITS = {
   dailyVoiceTurnLimit: 60,
   /** Max spoken reply length in characters (~15s of audio). */
   maxReplyChars: 280,
+  /**
+   * Max spoken reply length in WORDS (Azure brief §1: 6–12 normal, 20 max).
+   * The tighter of the two caps wins. This is the single most effective knob on
+   * both turn latency and TTS cost, and it is runtime-tunable on purpose.
+   */
+  maxReplyWords: 20,
 };
 
 /** Runtime-configurable AI limits (see DEFAULT_LIMITS). */

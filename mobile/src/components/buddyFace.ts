@@ -7,11 +7,14 @@
  * "open and close the mouth at random" jabber we can drive real mouth shapes
  * from the reply text and real expressions from the LLM's `emotion` tag.
  *
- * Lip-sync approach: the TTS provider returns audio only — no phoneme
- * timestamps — so we derive the mouth shapes from the text we already have and
- * stretch that sequence over the audio's duration. It is not frame-accurate
- * phonetics, but every syllable lands on a shape that matches the letters being
- * spoken, which is what reads as "it is actually saying this" on screen.
+ * Lip-sync has two sources and this file is the **fallback** one: when the TTS
+ * provider returns audio without phoneme timestamps, the mouth shapes are
+ * derived from the reply text and stretched over the audio's duration. Not
+ * frame-accurate phonetics, but every syllable lands on a plausible shape.
+ *
+ * When the provider *does* send timing (Azure HD Voice `VisemeReceived`), those
+ * cues win — see `azureVisemes.ts`. `composeFace` below is shared by both: it
+ * is what decides how a mouth shape, an emotion and a blink coexist on one face.
  */
 
 /** blendshape name → weight (0–1). Names must match the ARKit rig exactly. */
@@ -126,33 +129,109 @@ export function visemePoseAt(visemes: Viseme[], timeMs: number, totalMs?: number
   return {};
 }
 
-/** Expression per LLM `emotion` tag (see BUDDY_EMOTIONS in the backend). */
+/**
+ * Expression per LLM `emotion` tag — all seven of `BUDDY_EMOTIONS` (backend
+ * `src/common/enums`). An unknown tag falls back to `calm`.
+ *
+ * Written against the shapes the current buddy rigs actually ship (34 of the
+ * ARKit 52 — the GLBs are exported without `cheekPuff`, `noseSneer*`,
+ * `mouthDimple*`, `jaw` sideways, `eyeLook` other than up, and a few more).
+ * Weights for shapes a rig does not have are silently written nowhere, so
+ * nothing here is wasted — but nothing here can bring a missing shape back
+ * either. `BuddyAvatar` logs what a rig is missing on load.
+ */
 export const EMOTION_POSES: Record<string, Pose> = {
   happy: {
-    mouthSmileLeft: 0.62, mouthSmileRight: 0.62, cheekSquintLeft: 0.35, cheekSquintRight: 0.35,
-    eyeSquintLeft: 0.25, eyeSquintRight: 0.25, browOuterUpLeft: 0.2, browOuterUpRight: 0.2,
+    mouthSmileLeft: 0.7, mouthSmileRight: 0.7,
+    // The cheeks are what separate a real smile from a stretched mouth.
+    cheekSquintLeft: 0.45, cheekSquintRight: 0.45,
+    eyeSquintLeft: 0.32, eyeSquintRight: 0.32,
+    browOuterUpLeft: 0.22, browOuterUpRight: 0.22,
+    // A hint of upper lip and jaw so the smile shows teeth rather than a seam.
+    mouthUpperUpLeft: 0.18, mouthUpperUpRight: 0.18, jawOpen: 0.08,
   },
   encouraging: {
-    mouthSmileLeft: 0.45, mouthSmileRight: 0.45, browInnerUp: 0.3,
-    browOuterUpLeft: 0.25, browOuterUpRight: 0.25,
+    mouthSmileLeft: 0.5, mouthSmileRight: 0.5,
+    browInnerUp: 0.34, browOuterUpLeft: 0.28, browOuterUpRight: 0.28,
+    cheekSquintLeft: 0.22, cheekSquintRight: 0.22,
+    eyeWideLeft: 0.12, eyeWideRight: 0.12,
   },
   curious: {
-    browInnerUp: 0.45, browOuterUpLeft: 0.35, browOuterUpRight: 0.15,
-    eyeWideLeft: 0.3, eyeWideRight: 0.3, mouthSmileLeft: 0.15, mouthSmileRight: 0.15,
+    // Deliberately asymmetric: one brow higher is what reads as a question.
+    browInnerUp: 0.45, browOuterUpLeft: 0.4, browOuterUpRight: 0.15,
+    eyeWideLeft: 0.34, eyeWideRight: 0.34,
+    mouthSmileLeft: 0.18, mouthSmileRight: 0.12,
+    mouthPressLeft: 0.12, mouthPressRight: 0.12,
   },
   thinking: {
-    browDownLeft: 0.35, browDownRight: 0.35, mouthPucker: 0.25, mouthShrugUpper: 0.2,
-    eyeLookUpLeft: 0.3, eyeLookUpRight: 0.3, eyeSquintLeft: 0.2, eyeSquintRight: 0.2,
+    browDownLeft: 0.38, browDownRight: 0.38,
+    eyeLookUpLeft: 0.38, eyeLookUpRight: 0.38,
+    eyeSquintLeft: 0.24, eyeSquintRight: 0.24,
+    mouthPucker: 0.26, mouthShrugUpper: 0.24,
+    mouthPressLeft: 0.2, mouthPressRight: 0.2,
   },
   surprised: {
-    browInnerUp: 0.7, browOuterUpLeft: 0.6, browOuterUpRight: 0.6,
-    eyeWideLeft: 0.7, eyeWideRight: 0.7, jawOpen: 0.3,
+    browInnerUp: 0.75, browOuterUpLeft: 0.65, browOuterUpRight: 0.65,
+    eyeWideLeft: 0.75, eyeWideRight: 0.75,
+    jawOpen: 0.34, mouthFunnel: 0.22,
+    mouthStretchLeft: 0.1, mouthStretchRight: 0.1,
   },
   confused: {
-    browDownLeft: 0.5, browOuterUpRight: 0.45, mouthFrownLeft: 0.25,
-    mouthPucker: 0.2, eyeSquintLeft: 0.25,
+    // One brow down, the other up — the classic lopsided "I don't follow".
+    browDownLeft: 0.5, browOuterUpRight: 0.48,
+    mouthFrownLeft: 0.3, mouthFrownRight: 0.16,
+    mouthPucker: 0.2, mouthShrugUpper: 0.15, mouthRollLower: 0.14,
+    eyeSquintLeft: 0.3, eyeSquintRight: 0.1,
   },
-  calm: { mouthSmileLeft: 0.12, mouthSmileRight: 0.12 },
+  calm: {
+    mouthSmileLeft: 0.14, mouthSmileRight: 0.14,
+    mouthPressLeft: 0.06, mouthPressRight: 0.06,
+  },
+};
+
+/**
+ * Expression per LLM `gesture` tag — all six of `BUDDY_GESTURES`.
+ *
+ * These exist because gestures were, until now, **invisible**: the avatar looked
+ * for an animation clip named after the tag and these GLBs ship with no clips at
+ * all, so every gesture the LLM asked for did nothing. A face can carry most of
+ * a gesture on its own; `small_nod` additionally moves the head (see
+ * `BuddyAvatar`), which is the one that genuinely needs motion.
+ *
+ * `wave` and `thumbs_up` are arm gestures and these rigs have no controllable
+ * arms, so they are played as the FACE that goes with them — bright and direct.
+ * That is honest: it reads as the buddy greeting you, not as a broken wave.
+ */
+export const GESTURE_POSES: Record<string, Pose> = {
+  small_nod: {
+    mouthSmileLeft: 0.34, mouthSmileRight: 0.34,
+    eyeSquintLeft: 0.2, eyeSquintRight: 0.2,
+    browOuterUpLeft: 0.15, browOuterUpRight: 0.15,
+  },
+  wave: {
+    mouthSmileLeft: 0.62, mouthSmileRight: 0.62,
+    cheekSquintLeft: 0.4, cheekSquintRight: 0.4,
+    browInnerUp: 0.3, browOuterUpLeft: 0.35, browOuterUpRight: 0.35,
+    eyeWideLeft: 0.2, eyeWideRight: 0.2, jawOpen: 0.12,
+  },
+  thumbs_up: {
+    mouthSmileLeft: 0.55, mouthSmileRight: 0.55,
+    cheekSquintLeft: 0.38, cheekSquintRight: 0.38,
+    eyeSquintLeft: 0.34, eyeSquintRight: 0.34,
+    browOuterUpLeft: 0.25, browOuterUpRight: 0.25,
+  },
+  think_pose: {
+    browDownLeft: 0.42, browDownRight: 0.3,
+    eyeLookUpLeft: 0.45, eyeLookUpRight: 0.45,
+    mouthPucker: 0.3, mouthShrugUpper: 0.26,
+    mouthPressLeft: 0.24, mouthPressRight: 0.24,
+  },
+  smile: {
+    mouthSmileLeft: 0.5, mouthSmileRight: 0.5,
+    cheekSquintLeft: 0.3, cheekSquintRight: 0.3,
+    eyeSquintLeft: 0.22, eyeSquintRight: 0.22,
+  },
+  idle: {},
 };
 
 /** Linear interpolation between two poses; missing shapes count as 0. */
@@ -164,14 +243,71 @@ export function blend(a: Pose, b: Pose, t: number): Pose {
   return out;
 }
 
-/** Merge poses, keeping the strongest weight per shape (speech beats expression). */
-export function maxPose(...poses: Pose[]): Pose {
+/**
+ * Shapes the mouth owns. While the buddy is speaking these belong to the
+ * viseme layer, because a held expression fighting a mouth shape is what makes
+ * an avatar look like a puppet ("oo" spoken through a wide smile).
+ */
+const MOUTH_SHAPE = /^(mouth|jaw|cheekPuff|tongue)/;
+
+/** How much of the emotion's own mouth weight survives while speaking (§6). */
+const SPEAKING_MOUTH_DAMP = 0.25;
+
+/**
+ * Hard ceiling on that surviving weight. The damp alone is not enough: a strong
+ * expression (a 0.9 smile) would still leave enough behind to fight an "oo".
+ * A fixed ceiling makes the rule "while speaking, an emotion may only *tint* the
+ * mouth" hold no matter how strongly a future emotion is authored.
+ */
+const SPEAKING_MOUTH_CEILING = 0.12;
+
+/**
+ * Compose the final face from its layers (Azure brief §6).
+ *
+ * The layers are NOT a simple max: they have different authority.
+ *   - `emotion`    — owns the eyes and brows; its mouth weights are damped to a
+ *                    hint while speech is running.
+ *   - `mouth`      — the speech viseme, driven by the audio clock. It *replaces*
+ *                    the mouth rather than competing with it.
+ *   - `procedural` — blink / gaze / head. Rides on top and must never move the
+ *                    mouth, so it is merged by max and applied last.
+ *
+ * Everything is clamped to 0–1: ARKit weights outside that range tear the mesh
+ * on most rigs instead of exaggerating the shape.
+ */
+export function composeFace(
+  emotion: Pose,
+  mouth: Pose,
+  procedural: Pose,
+  speaking: boolean,
+): Pose {
   const out: Pose = {};
-  for (const pose of poses) {
-    for (const [key, value] of Object.entries(pose)) {
-      if (value > (out[key] ?? 0)) out[key] = value;
+
+  for (const [key, value] of Object.entries(emotion)) {
+    out[key] = speaking && MOUTH_SHAPE.test(key)
+      ? Math.min(value * SPEAKING_MOUTH_DAMP, SPEAKING_MOUTH_CEILING)
+      : value;
+  }
+  // Speech wins outright on the shapes it sets — assignment, not max.
+  for (const [key, value] of Object.entries(mouth)) out[key] = value;
+
+  // Lips pressed shut (p/b/m) can't coexist with a dropped jaw, and a damped
+  // emotion jaw is exactly what would keep them apart.
+  if ((out.mouthClose ?? 0) > 0.4) out.jawOpen = Math.min(out.jawOpen ?? 0, 0.05);
+
+  // A blink has to actually close the eye: `eyeWide`/`eyeSquint` hold the lid
+  // open, so fade them out in proportion to how shut the eye should be.
+  const blink = Math.max(procedural.eyeBlinkLeft ?? 0, procedural.eyeBlinkRight ?? 0);
+  if (blink > 0) {
+    for (const key of ['eyeWideLeft', 'eyeWideRight', 'eyeSquintLeft', 'eyeSquintRight']) {
+      if (out[key]) out[key] *= 1 - blink;
     }
   }
+  for (const [key, value] of Object.entries(procedural)) {
+    out[key] = Math.max(out[key] ?? 0, value);
+  }
+
+  for (const key of Object.keys(out)) out[key] = Math.min(1, Math.max(0, out[key]));
   return out;
 }
 
@@ -183,4 +319,40 @@ export function blinkPose(amount: number): Pose {
 /** Rough speech duration (ms) when the audio length isn't known yet. */
 export function estimateSpeechMs(text: string): number {
   return Math.max(800, text.trim().length * 62); // ~16 characters per second
+}
+
+/**
+ * The 52 standard ARKit blendshapes, in Apple's order.
+ *
+ * Kept here so a rig can be checked against it at load time (Azure brief §5:
+ * "52 ARKit blendshape байгаа нь дангаараа хангалтгүй"). A model that is
+ * missing shapes doesn't crash — those weights are simply written nowhere —
+ * which is exactly why it needs to be reported rather than discovered by
+ * noticing that the buddy never closes its lips.
+ */
+export const ARKIT_52: readonly string[] = [
+  'eyeBlinkLeft', 'eyeLookDownLeft', 'eyeLookInLeft', 'eyeLookOutLeft', 'eyeLookUpLeft',
+  'eyeSquintLeft', 'eyeWideLeft',
+  'eyeBlinkRight', 'eyeLookDownRight', 'eyeLookInRight', 'eyeLookOutRight', 'eyeLookUpRight',
+  'eyeSquintRight', 'eyeWideRight',
+  'jawForward', 'jawLeft', 'jawRight', 'jawOpen',
+  'mouthClose', 'mouthFunnel', 'mouthPucker', 'mouthLeft', 'mouthRight',
+  'mouthSmileLeft', 'mouthSmileRight', 'mouthFrownLeft', 'mouthFrownRight',
+  'mouthDimpleLeft', 'mouthDimpleRight', 'mouthStretchLeft', 'mouthStretchRight',
+  'mouthRollLower', 'mouthRollUpper', 'mouthShrugLower', 'mouthShrugUpper',
+  'mouthPressLeft', 'mouthPressRight', 'mouthLowerDownLeft', 'mouthLowerDownRight',
+  'mouthUpperUpLeft', 'mouthUpperUpRight',
+  'browDownLeft', 'browDownRight', 'browInnerUp', 'browOuterUpLeft', 'browOuterUpRight',
+  'cheekPuff', 'cheekSquintLeft', 'cheekSquintRight',
+  'noseSneerLeft', 'noseSneerRight', 'tongueOut',
+];
+
+/**
+ * ARKit shapes the rig does NOT have. Compared lowercased, the same way
+ * `BuddyAvatar` looks shapes up, so casing differences never show up as a
+ * false "missing".
+ */
+export function missingArkitShapes(rigShapeNames: Iterable<string>): string[] {
+  const have = new Set([...rigShapeNames].map((n) => n.toLowerCase()));
+  return ARKIT_52.filter((name) => !have.has(name.toLowerCase()));
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useCallback, useEffect, useState, useMemo } from 'react';
 import { View, Pressable, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -9,12 +9,20 @@ import type { AssignmentType } from '../../../../src/api/assignments';
 import * as classesApi from '../../../../src/api/classes';
 import type { ClassStudent } from '../../../../src/api/classes';
 import { getLessons } from '../../../../src/api/lessons';
-import { getQuizzes } from '../../../../src/api/quizzes';
-import { t, type TranslationKey } from '../../../../src/i18n';
+import { getAssignmentBank, type Quiz } from '../../../../src/api/quizzes';
+import { t, tf, type TranslationKey } from '../../../../src/i18n';
 import { AppText } from '../../../../src/components/Text';
 import { SelectField } from '../../../../src/components/SelectField';
 import { TextField } from '../../../../src/components/TextField';
+import { FilterChips } from '../../../../src/components/FilterChips';
 import { ActionButton } from '../../../../src/components/ActionButton';
+import { SelectMark } from '../../../../src/components/SelectMark';
+import { EmptyState } from '../../../../src/components/EmptyState';
+import {
+  QuestionPicker,
+  countPicked,
+  type PickedQuestions,
+} from '../../../../src/components/QuestionPicker';
 import { spacing, radius, type AppColors } from '../../../../src/theme/theme';
 import { bounded } from '../../../../src/theme/responsive';
 import { useColors } from '../../../../src/settings/SettingsContext';
@@ -28,6 +36,62 @@ const DUE_PRESETS: { labelKey: TranslationKey; days: number | null }[] = [
   { labelKey: 'due7Days', days: 7 },
 ];
 
+/**
+ * Нэг хүсэлтэд авах мөрийн тоо. Багшийн жагсаалтад бүх контент багтах ёстой
+ * (серверийн анхдагч нь ердөө 20), гэхдээ **100-аас хэтэрч болохгүй**:
+ * `QueryLessonsDto.limit` дээр `@Max(100)` байгаа тул 200 гэж бичихэд сервер
+ * 400 «limit must not be greater than 100» буцаадаг байв. Тэр алдаа нь
+ * `Promise.all`-ийн дотор баригдалгүй унаж, дэлгэц нээмэгц «Uncaught (in
+ * promise) API Error: limit …» болж гарч ирдэг байсан.
+ */
+const PAGE_LIMIT = 100;
+
+/** Хамгийн ихдээ татах хуудас (500 мөр). Түүнээс цааш багш хайлтаа ашиглана. */
+const MAX_PAGES = 5;
+
+/**
+ * Хуудаслаж бүгдийг татна — сервер нэг удаад `PAGE_LIMIT`-ээс илүүг өгдөггүй
+ * тул «бүх контент» гэдэг нь хэд хэдэн хүсэлт гэсэн үг.
+ */
+async function fetchAll<T>(
+  fetchPage: (page: number, limit: number) => Promise<{ items: T[]; total: number }>,
+): Promise<T[]> {
+  const out: T[] = [];
+  for (let page = 1; page <= MAX_PAGES; page++) {
+    const { items, total } = await fetchPage(page, PAGE_LIMIT);
+    out.push(...items);
+    if (items.length < PAGE_LIMIT || out.length >= total) break;
+  }
+  return out;
+}
+
+/**
+ * Оноож болох нэг хичээл. `group` дээр чипс шүүнэ — CEFR түвшин.
+ */
+type Pickable = { id: string; title: string; group: string };
+
+/** Түвшингүй хичээл ч ямар нэг чипсэд харагдах ёстой. */
+const UNGROUPED = '—';
+
+/**
+ * The dropdown label. The group is appended because two lessons can share a
+ * title (e.g. "Present Simple" at A1 and B1) and the picker matches on the
+ * label — without it the teacher could assign the wrong one.
+ */
+function labelOf(item: Pickable): string {
+  return item.group === UNGROUPED
+    ? item.title
+    : `${item.title} · ${item.group.toUpperCase()}`;
+}
+
+/**
+ * Даалгавар оноох дэлгэц.
+ *
+ * **Хичээл** нь бүхлээрээ оногддог тул нэгийг нь сонгоно. **Сорил** нь
+ * асуултын түвшинд оногддог (`QuestionPicker`): багш «Present Simple»-ээс 3,
+ * «Modal verbs»-ээс 2 асуулт сонгоод нэг дор явуулж чадна — сэдэв бүр өөрийн
+ * даалгаврын мөр болно, харин сурагч руу мэдэгдэл нэг л очно.
+ */
 export default function AssignScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { token } = useAuth();
@@ -36,12 +100,15 @@ export default function AssignScreen() {
   const router = useRouter();
 
   const [type, setType] = useState<AssignmentType>('lesson');
-  const [items, setItems] = useState<Record<AssignmentType, { id: string; title: string }[]>>({
-    lesson: [],
-    quiz: [],
-  });
+  const [lessons, setLessons] = useState<Pickable[]>([]);
+  const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [loading, setLoading] = useState(true);
+  // Хичээлийн сонголт (нэг зүйл).
   const [selectedTitle, setSelectedTitle] = useState<string | undefined>();
+  const [group, setGroup] = useState('all');
+  const [query, setQuery] = useState('');
+  // Сорилын сонголт (олон тест, тест бүрээс олон асуулт).
+  const [picked, setPicked] = useState<PickedQuestions>({});
   const [dueIdx, setDueIdx] = useState(0);
   const dueLabels = DUE_PRESETS.map((p) => t(p.labelKey));
   const [note, setNote] = useState('');
@@ -50,25 +117,50 @@ export default function AssignScreen() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!token || !id) return;
-    (async () => {
-      try {
-        const [lessons, quizzes, roster] = await Promise.all([
-          getLessons(token),
-          getQuizzes(token),
-          classesApi.getClassStudents(id, token),
-        ]);
-        setItems({
-          lesson: lessons.items.map((l) => ({ id: l.id, title: l.title })),
-          quiz: quizzes.items.map((q) => ({ id: q.id, title: q.title })),
-        });
-        setStudents(roster);
-      } finally {
-        setLoading(false);
-      }
-    })();
+    setLoading(true);
+    setError(null);
+    try {
+      /*
+       * ⚠️ Сорил нь **зөвхөн даалгаврын сангаас** (`?assignOnly=true`) ирнэ.
+       * Сурагчид нээлттэй дасгалуудыг ЗОРИУД татахаа больсон: даалгавар гэдэг
+       * нь сурагч өөрөө хийж чадахгүй, зөвхөн багшаар дамжин нээгддэг зүйл
+       * байх ёстой. Нээлттэй дасгалыг оноох нь тэр гэрээг эвдэнэ — сурагч
+       * Дасгал табаасаа тэр дасгалыг ямар ч даалгаваргүйгээр хийчихнэ.
+       *
+       * Сангийн мөрүүдийг сурагчийн token-оор дуудвал сервер хоосон буцаадаг
+       * (`canSeeBank`), тиймээс энэ жагсаалт багшийн эрхээр л дүүрнэ.
+       */
+      const [lessonItems, bankItems, roster] = await Promise.all([
+        fetchAll((page, limit) => getLessons(token, { page, limit })),
+        fetchAll((page, limit) => getAssignmentBank(token, { page, limit })),
+        classesApi.getClassStudents(id, token),
+      ]);
+      setLessons(
+        lessonItems.map((l) => ({
+          id: l.id,
+          title: l.title,
+          group: l.level || UNGROUPED,
+        })),
+      );
+      setQuizzes(bankItems);
+      setStudents(roster);
+    } catch (e) {
+      /*
+       * Аль нэг хүсэлт унавал өмнө нь `catch` огт байхгүй тул промис
+       * баригдалгүй унаж, Expo улаан дэлгэц гаргадаг байв. Одоо дэлгэц
+       * дахин оролдох боломжтой алдааны төлөвт орно.
+       */
+      setError(e instanceof Error ? e.message : t('errorGeneric'));
+    } finally {
+      setLoading(false);
+    }
   }, [token, id]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   function toggleStudent(sid: string) {
     setSelectedIds((prev) =>
@@ -76,12 +168,43 @@ export default function AssignScreen() {
     );
   }
 
-  const list = items[type];
-  const selected = list.find((i) => i.title === selectedTitle);
+  // Chips are built from what actually exists, not a hardcoded level list — a
+  // school that only has A1/A2 content should not see four dead chips.
+  const groupChips = useMemo(() => {
+    const seen = [...new Set(lessons.map((i) => i.group))].sort();
+    return [
+      { key: 'all', label: t('filterAll') },
+      ...seen.map((g) => ({ key: g, label: g.toUpperCase() })),
+    ];
+  }, [lessons]);
 
-  function pickType(next: AssignmentType) {
-    setType(next);
-    setSelectedTitle(undefined); // reset selection when switching type
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return lessons.filter(
+      (i) =>
+        (group === 'all' || i.group === group) &&
+        (!q || i.title.toLowerCase().includes(q)),
+    );
+  }, [lessons, group, query]);
+
+  // Label → item, so the picker resolves back to an id rather than a title.
+  const byLabel = useMemo(
+    () => new Map(filtered.map((i) => [labelOf(i), i])),
+    [filtered],
+  );
+  const selectedLesson = selectedTitle ? byLabel.get(selectedTitle) : undefined;
+  const summary = useMemo(() => countPicked(picked, quizzes), [picked, quizzes]);
+
+  /**
+   * Narrowing the list can hide whatever was already picked. Clearing the
+   * selection alongside keeps the field honest — otherwise it keeps showing a
+   * lesson that is no longer selectable while the Assign button sits disabled
+   * with no visible reason.
+   */
+  function narrow(next: { group?: string; query?: string }) {
+    if (next.group !== undefined) setGroup(next.group);
+    if (next.query !== undefined) setQuery(next.query);
+    setSelectedTitle(undefined);
   }
 
   function computeDueAt(): string | undefined {
@@ -94,18 +217,33 @@ export default function AssignScreen() {
 
   function onAssign() {
     setError(null);
+    const common = {
+      classId: id!,
+      type,
+      dueAt: computeDueAt(),
+      note: note.trim() || undefined,
+      studentIds: targetMode === 'select' ? selectedIds : undefined,
+    };
     return assignmentsApi.createAssignment(
-      {
-        classId: id!,
-        type,
-        targetId: selected!.id,
-        dueAt: computeDueAt(),
-        note: note.trim() || undefined,
-        studentIds: targetMode === 'select' ? selectedIds : undefined,
-      },
+      type === 'lesson'
+        ? { ...common, targetId: selectedLesson!.id }
+        : {
+            ...common,
+            // Тест бүр = нэг даалгавар, өөрийн сонгосон асуултуудтай.
+            targets: Object.entries(picked).map(([targetId, questionIndexes]) => ({
+              targetId,
+              questionIndexes,
+            })),
+          },
       token!,
     );
   }
+
+  const canAssign =
+    !!token &&
+    !!id &&
+    (type === 'lesson' ? !!selectedLesson : summary.questions > 0) &&
+    (targetMode !== 'select' || selectedIds.length > 0);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -131,7 +269,7 @@ export default function AssignScreen() {
               <Pressable
                 key={tp}
                 style={[styles.toggleBtn, active && styles.toggleOn]}
-                onPress={() => pickType(tp)}
+                onPress={() => setType(tp)}
               >
                 <AppText variant="bodyStrong" color={active ? colors.white : colors.textSecondary}>
                   {tp === 'lesson' ? t('assignLesson') : t('assignQuiz')}
@@ -143,20 +281,101 @@ export default function AssignScreen() {
 
         {loading ? (
           <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.xl }} />
+        ) : error && lessons.length === 0 && quizzes.length === 0 ? (
+          /* Татаж чадаагүй — сонгох юу ч алга. Хоосон талбарууд харуулахын
+             оронд шалтгааныг хэлээд дахин оролдох товч өгнө. */
+          <EmptyState
+            icon="alert-circle-outline"
+            title={t('error')}
+            hint={error}
+            action={{ label: t('retry'), onPress: () => void load() }}
+          />
         ) : (
           <>
-            {list.length === 0 ? (
-              <AppText variant="caption" color={colors.textSecondary} style={{ marginBottom: spacing.sm }}>
-                {t('noContentToAssign')}
-              </AppText>
-            ) : null}
-            <SelectField
-              label={t('selectContent')}
-              placeholder={t('selectContent')}
-              value={selectedTitle}
-              options={list.map((i) => i.title)}
-              onSelect={setSelectedTitle}
-            />
+            {type === 'lesson' ? (
+              <>
+                {lessons.length === 0 ? (
+                  <AppText variant="caption" color={colors.textSecondary} style={styles.note}>
+                    {t('noContentToAssign')}
+                  </AppText>
+                ) : (
+                  <>
+                    <TextField
+                      label={t('assignSearch')}
+                      placeholder={t('assignSearch')}
+                      value={query}
+                      onChangeText={(v) => narrow({ query: v })}
+                      autoCorrect={false}
+                    />
+                    {/*
+                      Түвшний шүүлт. `QuestionPicker`-тэй адилаар **үргэлж**
+                      харагдана (ганц түвшинтэй байсан ч): багш хичээл ба
+                      сорилын аль ч табад ижил байрлалд, ижил нэртэй шүүлт
+                      олох ёстой.
+                    */}
+                    <AppText
+                      variant="label"
+                      color={colors.textSecondary}
+                      style={styles.label}
+                    >
+                      {t('levelLabel')}
+                    </AppText>
+                    <FilterChips
+                      value={group}
+                      options={groupChips}
+                      onChange={(g) => narrow({ group: g })}
+                      style={{ marginBottom: spacing.sm }}
+                    />
+                  </>
+                )}
+
+                {lessons.length > 0 && filtered.length === 0 ? (
+                  <AppText variant="caption" color={colors.textSecondary} style={styles.note}>
+                    {t('assignNoMatch')}
+                  </AppText>
+                ) : null}
+
+                <SelectField
+                  label={t('selectContent')}
+                  placeholder={t('selectContent')}
+                  value={selectedTitle}
+                  options={[...byLabel.keys()]}
+                  onSelect={setSelectedTitle}
+                />
+                {filtered.length > 0 ? (
+                  <AppText
+                    variant="caption"
+                    color={colors.textMuted}
+                    style={styles.foundCount}
+                  >
+                    {tf('assignFoundCount', { n: filtered.length })}
+                  </AppText>
+                ) : null}
+              </>
+            ) : (
+              <>
+                <AppText variant="caption" color={colors.textSecondary} style={styles.note}>
+                  {t('assignPickHint')}
+                </AppText>
+                <QuestionPicker
+                  quizzes={quizzes}
+                  picked={picked}
+                  onChange={setPicked}
+                />
+                {summary.questions > 0 ? (
+                  <View style={styles.summary}>
+                    <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
+                    <AppText variant="bodyStrong" color={colors.primary}>
+                      {tf('assignPickedSummary', {
+                        q: summary.questions,
+                        t: summary.topics,
+                      })}
+                    </AppText>
+                  </View>
+                ) : null}
+              </>
+            )}
+
             <SelectField
               label={t('dueDate')}
               placeholder={t('noDueDate')}
@@ -197,13 +416,13 @@ export default function AssignScreen() {
                 {students.map((s) => {
                   const on = selectedIds.includes(s.id);
                   return (
-                    <Pressable key={s.id} style={styles.rosterRow} onPress={() => toggleStudent(s.id)}>
-                      <Ionicons
-                        name={on ? 'checkbox' : 'square-outline'}
-                        size={22}
-                        color={on ? colors.primary : colors.textMuted}
-                      />
-                      <AppText variant="body">{s.fullName}</AppText>
+                    <Pressable
+                      key={s.id}
+                      style={[styles.rosterRow, on && { backgroundColor: colors.primarySoft }]}
+                      onPress={() => toggleStudent(s.id)}
+                    >
+                      <SelectMark state={on ? 'on' : 'off'} size={22} />
+                      <AppText variant={on ? 'bodyStrong' : 'body'}>{s.fullName}</AppText>
                     </Pressable>
                   );
                 })}
@@ -211,7 +430,7 @@ export default function AssignScreen() {
             ) : null}
 
             {error ? (
-              <AppText variant="caption" color={colors.danger} style={{ marginBottom: spacing.sm }}>
+              <AppText variant="caption" color={colors.danger} style={styles.note}>
                 {error}
               </AppText>
             ) : null}
@@ -221,9 +440,7 @@ export default function AssignScreen() {
               action={onAssign}
               onSuccess={() => router.back()} // class detail refetches on focus
               onError={setError}
-              disabled={
-                !selected || !token || !id || (targetMode === 'select' && selectedIds.length === 0)
-              }
+              disabled={!canAssign}
             />
           </>
         )}
@@ -244,6 +461,8 @@ const makeStyles = (colors: AppColors) => StyleSheet.create({
   topTitle: { flex: 1, textAlign: 'center' },
   body: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.xxl },
   label: { marginBottom: spacing.xs },
+  note: { marginBottom: spacing.sm },
+  foundCount: { marginTop: -spacing.sm, marginBottom: spacing.sm },
   toggle: {
     flexDirection: 'row',
     backgroundColor: colors.surfaceAlt,
@@ -258,6 +477,15 @@ const makeStyles = (colors: AppColors) => StyleSheet.create({
     borderRadius: radius.sm,
   },
   toggleOn: { backgroundColor: colors.primary },
+  summary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
   roster: { marginBottom: spacing.lg, gap: spacing.xs },
-  rosterRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xs },
+  rosterRow: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    paddingVertical: 7, paddingHorizontal: spacing.sm, borderRadius: radius.md,
+  },
 });

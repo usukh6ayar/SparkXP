@@ -8,14 +8,22 @@ import { WordReview } from '../entities/word-review.entity';
 import { AssignmentCompletion } from '../entities/assignment-completion.entity';
 import { Assignment } from '../entities/assignment.entity';
 import { User } from '../entities/user.entity';
-import { SubmissionStatus } from '../common/enums';
+import { AssignmentType, SubmissionStatus } from '../common/enums';
 import { ClassesService } from '../classes/classes.service';
 import { resolveSkill } from './skill';
 
 // ── Pure aggregation helpers (module-level, testable without DI) ──────────────
 
-export const SKILL_DIMENSIONS = ['listening', 'reading', 'writing', 'fill'] as const;
-export type SkillBreakdown = Record<(typeof SKILL_DIMENSIONS)[number], number | null>;
+export const SKILL_DIMENSIONS = [
+  'listening',
+  'reading',
+  'writing',
+  'fill',
+] as const;
+export type SkillBreakdown = Record<
+  (typeof SKILL_DIMENSIONS)[number],
+  number | null
+>;
 
 /** Average score_pct per mapped skill; unseen dimensions → null; 'other' dropped. */
 export function averageBySkill(
@@ -49,6 +57,8 @@ export class ProgressService {
     private readonly submissionRepo: Repository<AssignmentCompletion>,
     @InjectRepository(Assignment)
     private readonly assignmentRepo: Repository<Assignment>,
+    @InjectRepository(Quiz)
+    private readonly quizzes: Repository<Quiz>,
     private readonly classes: ClassesService,
   ) {}
 
@@ -64,6 +74,8 @@ export class ProgressService {
     totalCount: number;
     scorePct: number;
     assignmentId?: string | null;
+    /** Асуулт тус бүрийн хариулт — багшийн «юун дээр алдав» харагдац. */
+    answers?: { i: number; a: number | string | null; ok: boolean }[];
   }): Promise<QuizAttempt> {
     let lessonType = null as Lesson['type'] | null;
     // Only pay for the lookup when the category can't answer it on its own.
@@ -83,6 +95,7 @@ export class ProgressService {
       totalCount: params.totalCount,
       scorePct: params.scorePct,
       assignmentId: params.assignmentId ?? null,
+      answers: params.answers ?? null,
     });
     return this.attempts.save(attempt);
   }
@@ -98,7 +111,9 @@ export class ProgressService {
   }
 
   /** Raw skill rows for a user, for averageBySkill(). */
-  studentSkillRows(userId: string): Promise<{ skill: string; scorePct: number }[]> {
+  studentSkillRows(
+    userId: string,
+  ): Promise<{ skill: string; scorePct: number }[]> {
     return this.attempts.find({
       where: { userId },
       select: { skill: true, scorePct: true },
@@ -118,12 +133,50 @@ export class ProgressService {
     }
     const skills = averageBySkill(await this.studentSkillRows(studentId));
     const vocab = await this.vocabMastery(studentId);
+    /*
+     * ⚠️ **Зөвхөн ЭНЭ ангийн даалгавар.** Урьд нь `where: { studentId }` гэж
+     * бүх ангиас татдаг байсан тул багш «9а анги»-ийн сурагчийг нээхэд өөр
+     * ангийн даалгавар холилдож ирдэг байв.
+     */
     const submissions = await this.submissionRepo.find({
-      where: { studentId },
+      where: { studentId, assignment: { classId } },
       relations: ['assignment'],
       order: { submittedAt: 'DESC' },
       take: 50,
     });
+
+    /*
+     * Гарчиг нь **серверээс** явна. Даалгаврын сангийн тест сурагчийн
+     * жагсаалтад огт харагддаггүй тул апп гарчгийг өөрөө олж чадахгүй —
+     * түүнгүйгээр мөр нь «? · Хийгээгүй · —» гэсэн танигдахгүй эгнээ болно.
+     */
+    const quizIds = submissions
+      .filter((s) => s.assignment?.type === AssignmentType.QUIZ)
+      .map((s) => s.assignment!.targetId);
+    const lessonIds = submissions
+      .filter((s) => s.assignment?.type === AssignmentType.LESSON)
+      .map((s) => s.assignment!.targetId);
+    const [quizzes, lessons] = await Promise.all([
+      quizIds.length
+        ? this.quizzes.find({
+            where: { id: In(quizIds) },
+            select: { id: true, title: true, topic: true },
+          })
+        : [],
+      lessonIds.length
+        ? this.lessons.find({
+            where: { id: In(lessonIds) },
+            select: { id: true, title: true },
+          })
+        : [],
+    ]);
+    const titleOf = new Map<string, { title: string; topic: string | null }>([
+      ...quizzes.map(
+        (q) => [q.id, { title: q.title, topic: q.topic ?? null }] as const,
+      ),
+      ...lessons.map((l) => [l.id, { title: l.title, topic: null }] as const),
+    ]);
+
     return {
       studentId,
       fullName: student.fullName,
@@ -131,13 +184,22 @@ export class ProgressService {
       xp: student.xp,
       currentStreak: student.currentStreak,
       skills: { ...skills, vocab },
-      assignments: submissions.map((s) => ({
-        assignmentId: s.assignmentId,
-        type: s.assignment?.type ?? null,
-        status: s.status,
-        scorePct: s.scorePct,
-        submittedAt: s.submittedAt,
-      })),
+      assignments: submissions.map((s) => {
+        const target = s.assignment ? titleOf.get(s.assignment.targetId) : undefined;
+        return {
+          assignmentId: s.assignmentId,
+          type: s.assignment?.type ?? null,
+          status: s.status,
+          scorePct: s.scorePct,
+          submittedAt: s.submittedAt,
+          targetTitle: target?.title ?? null,
+          targetTopic: target?.topic ?? null,
+          // Апп нэг илгээлтийн багцуудыг эдгээрээр бүлэглэнэ
+          // (`mobile/src/lib/assignmentGroups.ts`).
+          createdAt: s.assignment?.createdAt ?? null,
+          dueAt: s.assignment?.dueAt ?? null,
+        };
+      }),
     };
   }
 
@@ -170,11 +232,15 @@ export class ProgressService {
       : [];
     const students = roster.map((s) => {
       const mine = subs.filter((x) => x.studentId === s.id);
-      const done = mine.filter((x) => x.status !== SubmissionStatus.ASSIGNED).length;
+      const done = mine.filter(
+        (x) => x.status !== SubmissionStatus.ASSIGNED,
+      ).length;
       return {
         studentId: s.id,
         fullName: s.fullName,
-        completionPct: mine.length ? Math.round((done / mine.length) * 100) : null,
+        completionPct: mine.length
+          ? Math.round((done / mine.length) * 100)
+          : null,
       };
     });
 
@@ -190,7 +256,14 @@ export class ProgressService {
     const { teaching } = await this.classes.findForUser(teacher);
     const classIds = teaching.map((c) => c.id);
     if (classIds.length === 0) {
-      return { classCount: 0, studentCount: 0, activeStudents: 0, pending: 0, overdue: 0, classes: [] };
+      return {
+        classCount: 0,
+        studentCount: 0,
+        activeStudents: 0,
+        pending: 0,
+        overdue: 0,
+        classes: [],
+      };
     }
 
     const students = await this.classes.getStudentsForClasses(classIds);
@@ -207,13 +280,22 @@ export class ProgressService {
       : 0;
 
     const assignmentIds = (
-      await this.assignmentRepo.find({ where: { classId: In(classIds) }, select: { id: true } })
+      await this.assignmentRepo.find({
+        where: { classId: In(classIds) },
+        select: { id: true },
+      })
     ).map((a) => a.id);
     const subs = assignmentIds.length
-      ? await this.submissionRepo.find({ where: { assignmentId: In(assignmentIds) } })
+      ? await this.submissionRepo.find({
+          where: { assignmentId: In(assignmentIds) },
+        })
       : [];
-    const pending = subs.filter((s) => s.status === SubmissionStatus.ASSIGNED).length;
-    const overdue = subs.filter((s) => s.status === SubmissionStatus.LATE).length;
+    const pending = subs.filter(
+      (s) => s.status === SubmissionStatus.ASSIGNED,
+    ).length;
+    const overdue = subs.filter(
+      (s) => s.status === SubmissionStatus.LATE,
+    ).length;
 
     return {
       classCount: teaching.length,

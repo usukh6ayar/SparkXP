@@ -91,6 +91,24 @@ export const EXERCISE_CATEGORIES: Record<string, string[]> = {
   ],
   // Reading uses ReadingPassage (its own сэдэв), but keep it here for symmetry.
   reading: [...READING_CATEGORIES],
+  /**
+   * **Даалгаврын сан** (`Quiz.assignOnly`) — багш ангидаа өгдөг дасгалууд.
+   * Багшийн оноох дэлгэц эдгээрийг `topic`-оор нь бүлэглэдэг тул сэдэв нь
+   * дүрмийн нэрээр явна («Present Simple»-ээс 5 асуулт өг).
+   */
+  assignment: [
+    'Present Simple',
+    'Present Continuous',
+    'Past Simple',
+    'Future',
+    'Modal verbs',
+    'Prepositions',
+    'Articles',
+    'Comparatives',
+    'Conditionals',
+    'Passive voice',
+    'Үгийн сан',
+  ],
 };
 
 /** Сэдэв <select> options for one skill's exercise form (incl. empty option). */

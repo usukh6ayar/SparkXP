@@ -170,7 +170,44 @@ Controller-level: JWT.
 | Method + Path | Auth | Зорилго | Params / Body |
 | --- | --- | --- | --- |
 | POST `/lessons/:id/unlock` | JWT | Төлбөртэй хичээлийг Sparks-аар нээх | path `id` |
-| GET `/lessons/:id/access` | JWT | Хандах эрхтэй эсэх → `{hasAccess}` | path `id` |
+| GET `/lessons/:id/access` | JWT | Хандах эрхтэй эсэх → `{ hasAccess, reason, canOpen, freeRemaining, freeQuota }`. **2026-08-19-нд `SparksController`-оос `LessonsController` рүү шилжсэн** (зам өөрчлөгдөөгүй) | path `id` |
+| POST `/lessons/:id/open` | JWT | **🆕 (2026-08-19)** «Эхлэх» — үнэгүй 3 эрхийн 1-ийг зарцуулж хичээл нээнэ. Багшийн даалгавар бол **эрх идэхгүй**. Idempotent (2 удаа дарахад 2 эрх алдагдахгүй). Эрх дууссан бол **403** | path `id` |
+
+### 5a. Хичээлийн хандалт — үнэгүй 3 хичээлийн квот (2026-08-19)
+
+**Дүрэм нь зөвхөн серверт байна.** Апп шийддэггүй — `GET /lessons/:id` нь эрхгүй
+хүнд `content`-ыг **хоосон объектоор** буцаана (видеоны URL гарахгүй). Тиймээс
+paywall-ыг апп талаас алгасах, эсвэл token-гүй `curl`-дэх боломжгүй. Тэр зам нь
+`OptionalJwtAuthGuard`-тай — нэвтрээгүй хүн ч гарчиг/тайлбарыг уншиж чадна.
+
+Дараалал: **1)** идэвхтэй багц → бүх хичээл · **2)** `lesson_unlocks` мөр →
+тухайн хичээл үүрд · **3)** багшийн даалгавар → үнэгүй, **квотод тооцогдохгүй** ·
+**4)** үнэгүй эрх үлдсэн → `canOpen: true` · **5)** үгүй бол түгжээтэй.
+
+| `reason` | Утга |
+| --- | --- |
+| `plan` | Идэвхтэй багцтай |
+| `unlocked` | Өмнө нь нээсэн (аль ч замаар) |
+| `assignment` | Багшийн даалгавар — `canOpen: true`, эрх идэхгүй |
+| `free_lesson` | Квот унтраалттай, хичээл үнэгүй |
+| `locked` | Багц эсвэл үнэгүй эрх хэрэгтэй |
+
+- **`FREE_LESSON_QUOTA_ENABLED` анхдагчаар `false`** — QPay бэлэн болтол
+  **хэвээр байх ёстой**. `PAYMENTS_ENABLED` мөн хаалттай тул асаавал сурагчийг
+  хааж байгаад мөнгө авах боломжгүй болно. Guard нь fail-closed (яг `'true'`).
+  Унтраалттай үед `freeRemaining`/`freeQuota` нь **`null`** ирнэ — апп тоолуур
+  огт харуулахгүй.
+- **Квот зөвхөн ХИЧЭЭЛД.** Дасгал · Сорил · Унших · Хэлц · Толь · SRS давталт
+  бүгд үнэгүй хэвээр.
+- **Хуучин хэрэглэгч хамгаалагдсан:** `AddLessonUnlockSource1787700000000`
+  migration нь `xp_logs`-оос дуусгасан хичээл бүрд `source='legacy'` мөр үүсгэнэ
+  → өмнө үзсэн хичээл үүрд нээлттэй, дээр нь 3 шинэ эрх. ⚠️ Railway дээр
+  `DB_MIGRATIONS_RUN=true` эсэхийг шалгаж байж deploy хий — эс бөгөөс хуучин
+  хэрэглэгчид үзсэн хичээлээ алдана.
+- `lesson_unlocks.source` = `sparks` · `free` · `assignment` · `legacy`;
+  `sparks_spent` одоо **nullable** (Sparks-аас бусад эх сурвалжид утгагүй).
+  Үнэгүй эрхэнд **зөвхөн `free`** тоологдоно.
+- Тест: `src/lessons/lesson-access.spec.ts` (16 тест).
 
 ## 6. Quizzes — `/api/quizzes`
 Controller-level: JWT. Бичилт admin-баг. (Хичээлийн тест ба бие даасан Дасгал хоёулаа.)
@@ -416,8 +453,9 @@ Controller-level: JWT. Realtime speaking companion (STT→LLM→TTS→avatar). �
 хийнэ; TTS-г `buddy_voice_cache`-аар кэшлэнэ.
 
 > ✅ **`AI_BUDDY_ENABLED` — НЭЭЛТТЭЙ (2026-08-17, эзний шийдвэр).**
-> ⚠️ `PAYMENTS_ENABLED` **хаалттай хэвээр** байхад нээсэн — turn нь ElevenLabs
-> (STT+TTS) ба Anthropic (LLM)-д дуудалт тутам төлдөг тул зардлыг бүхэлд нь
+> ⚠️ `PAYMENTS_ENABLED` **хаалттай хэвээр** байхад нээсэн — turn нь STT+TTS
+> (Gemini, эсвэл `TTS_PROVIDER=azure` үед Azure) ба Anthropic (LLM)-д
+> дуудалт тутам төлдөг тул зардлыг бүхэлд нь
 > эзэн өөрөө үүрнэ. Цорын ганц таг нь багцын limit (Redis `ai:limits:default`),
 > үнэгүй багцынх нь хамгийн сул. Provider-ийн dashboard-ыг ажигла; олон
 > хэрэглэгчид нээхийн өмнө үнэгүй багцын өдрийн turn хязгаарыг чангал.
@@ -438,6 +476,28 @@ Controller-level: JWT. Realtime speaking companion (STT→LLM→TTS→avatar). �
 | POST `/ai/buddy/sessions` | JWT | Session эхлүүлэх (зөвхөн DB, AI дуудалтгүй) | `{ buddySlug, mode?, topic? }` → `{ sessionId, buddy, usage }` |
 | ⛔ POST `/ai/buddy/sessions/:id/turn/audio` | JWT + flag | Дуут turn (multipart `file`, ≤2MB) | full pipeline → turn response |
 | ⛔ POST `/ai/buddy/sessions/:id/turn/text` | JWT + flag | Бичсэн turn (STT алгасна) | `{ text }` → turn response |
+
+**Turn response — `visemes` талбар (2026-08-21, заавал бус).**
+```jsonc
+{
+  "reply_text": "...", "audio_url": "https://.../reply.mp3",
+  "visemes": [ { "id": 0, "offset_ms": 0 }, { "id": 21, "offset_ms": 120 } ]
+}
+```
+- `id` = **Azure viseme id 0–21**, `offset_ms` = аудионы эхлэлээс тухайн амны
+  хэлбэр эхлэх агшин. Апп үүнийг `expo-audio`-гийн playback цагаар уншиж
+  жинхэнэ lip-sync хийнэ (`mobile/src/components/azureVisemes.ts`).
+- **Зөвхөн `TTS_PROVIDER=azure` үед ирнэ.** Gemini TTS цаг өгдөггүй тул талбар
+  бүрмөсөн **байхгүй** байх ба апп хариултын бичвэрээс амны хэлбэрийг таамаглах
+  хуучин замдаа буцна — тиймээс энэ нь эвдрэлгүй нэмэлт, **аппын шинэ bundle
+  шаардахгүй**.
+- `buddy_voice_cache.visemes`-д аудиотойгоо хамт кэшлэгдэнэ (migration
+  `AddVoiceCacheVisemes1787600000000`) — cache hit дээр lip-sync алдагдахгүй.
+- Хариултын урт нь **20 үгээр** таслагдана (`ai:limits:default` → `maxReplyWords`,
+  runtime-аас өөрчилж болно). Turn бүрийн шатны хугацаа
+  (`stt_ms`/`llm_ms`/`tts_ms`/`storage_ms`) нь assistant мессежийн
+  `metadata.latency`-д бичигдэнэ → p50/p95-ыг SQL-ээр гаргана.
+- Дэлгэрэнгүй: `docs/AZURE_VISEME_PLAN.md`
 | GET `/ai/buddy/sessions/:id/messages` | JWT | Яриа түүх | path `id` |
 | POST `/ai/buddy/text-session` | JWT | Бичгийн чат thread нээх + түүх (ChatGPT маягийн, апп дахин нээхэд хадгалагдана; voice-оос тусдаа). Body-оор thread сонгоно: `sessionId` (тодорхой хуучин thread), `new:true` (шинэ chat), эсвэл default (хамгийн сүүлийн) | `{ buddySlug, sessionId?, new? }` → `{ sessionId, messages: [{ id, role, content, correction, followUp, audioUrl }] }` |
 | GET `/ai/buddy/text-sessions` | JWT | Тухайн buddy-тэй хийсэн бичгийн чатны түүх (thread жагсаалт, ChatGPT-style history panel) | query `buddySlug` → `[{ sessionId, title, messageCount, updatedAt }]` |
@@ -613,8 +673,24 @@ Controller-level: JWT. Бүгд student-ийн өөрийн давталтын �
 | POST `/notifications/token` | JWT | Төхөөрөмжийн Expo token бүртгэх (idempotent). Хэлбэр буруу бол **400** | `{ token: "ExponentPushToken[...]" }` |
 | DELETE `/notifications/token` | JWT | Гарах/зөвшөөрөл цуцлахад token устгах | — |
 | POST `/notifications/prefs` | JWT | Сануулга асаах/унтраах (token хэвээр үлдэнэ) | `{ enabled: boolean }` |
+| GET `/notifications/me` | JWT | **🆕 (2026-08-19)** Мэдэгдлийн төвийн жагсаалт: тухайн хүний **хувийн** мөрүүд + түүнд чиглэсэн broadcast (`target_role` тааруулсан эсвэл бүх хүнд). Шинэ нь эхэнд, дээд тал нь 50 | — |
 | POST `/notifications/broadcast` | admin | Бүх (эсвэл роль тус бүрийн) хэрэглэгчид push илгээх — **одоо бодитоор илгээнэ** (өмнө нь `console.log` stub байсан) | `BroadcastNotificationDto` |
 | GET `/notifications` | admin | Илгээсэн мэдэгдлийн түүх | — |
+
+> ⚠️ **`GET /notifications/me` нь 2026-08-19 хүртэл БАЙХГҮЙ байсан** атлаа апп
+> түүнийг дуудсаар байсан (`mobile/src/api/notifications.ts`). Мэдэгдлийн төв
+> 404 иддэг байсныг `__DEV__` mock дата нуусан тул хэн ч анзаараагүй. Mock
+> одоо **устгагдсан** — алдаа дахин нуугдахгүй.
+
+**Хувийн мэдэгдэл (2026-08-19).** `notifications` хүснэгт хоёр хэлбэр агуулна:
+- `user_id IS NULL` → **broadcast** (хуучин зан төлөв, `target_role`-оор нарийсна)
+- `user_id` дүүрсэн → **хувь хүнийх** (ж: багш даалгавар өглөө), хүлээн авагч
+  бүрд нэг мөр.
+
+`data` (jsonb) нь deep link агуулна — апп мэдэгдэл дээр дарахад хаашаа очихыг
+үүгээр шийднэ: `{ type: 'assignment', url: '/assignments', assignmentId }`.
+**Дүрэм:** шинэ төрлийн мэдэгдэл нэмэхдээ `data.type`-ыг заавал бич —
+аппын `categorize()` эхлээд түүнийг харна, түлхүүр үг таамаглах нь нөөц зам.
 
 **Өдөр тутмын давтлагын сануулга (cron).** UB цагаар **20:00**-д ажиллана
 (`scheduler.service.ts`). Сонгох дүрэм:
@@ -717,12 +793,50 @@ Controller-level: JWT.
 
 | Method + Path | Auth | Зорилго | Params / Body |
 | --- | --- | --- | --- |
-| POST `/assignments` | teacher, admin, super_admin | Хичээл/quiz-ийг ангид оноох. `note` + `studentIds` (сонгосон сурагчид, хоосон = бүх анги) дэмжинэ; оноох үед target сурагч бүрд `assigned` submission урьдчилж үүснэ | `CreateAssignmentDto` (`note?`, `studentIds?`) |
-| GET `/assignments/mine` | JWT | Элссэн ангиудын даалгаврууд | — |
-| GET `/assignments` | JWT (гишүүнчлэл шалгана) | Ангийн даалгаврууд | `classId` (required) |
+| POST `/assignments` | teacher, admin, super_admin | Хичээл/quiz-ийг ангид оноох. `note` + `studentIds` (сонгосон сурагчид, хоосон = бүх анги) дэмжинэ; оноох үед target сурагч бүрд `assigned` submission урьдчилж үүснэ. **Массив буцаана** (доорх «олон сэдэв»-ийг үз) | `CreateAssignmentDto` (`targetId?` **эсвэл** `targets[]`, `questionIndexes?`, `note?`, `studentIds?`) |
+| GET `/assignments/mine` | JWT | Элссэн ангиудын даалгаврууд (+`targetTitle`, `targetTopic`, `questionCount`) | — |
+| GET `/assignments` | JWT (гишүүнчлэл шалгана) | Ангийн даалгаврууд (+`targetTitle`, `targetTopic`, `questionCount`) | `classId` (required) |
 | GET `/assignments/:id/submissions` | teacher, admin, super_admin | Даалгаврын submission-ууд (сурагч бүрийн status/оноо/оролдлого) | path `id` |
 | POST `/assignments/:id/complete` | JWT | Сурагч даалгавар дуусгах (idempotent; `late`/`completed` тэмдэглэнэ) | path `id` |
+
+> 🆕 **`POST /assignments` одоо сурагч руу мэдэгдэл илгээнэ (2026-08-19).**
+> Зорилтот сурагч бүрд мэдэгдлийн төвийн мөр + push (`{ type: 'assignment',
+> url: '/assignments' }`). Илгээлт **best-effort** — push унасан ч даалгавар
+> үүсгэх нь амжилттай хэвээр (`notifyUsers` алдаагаа өөрөө залгидаг).
+> Push-ийн текст deadline-ыг нэрлэнэ: «Багш "X" даалгавар өглөө. 3 хоногийн
+> дараа дуусна.»
 | DELETE `/assignments/:id` | teacher, admin, super_admin | Даалгавар устгах | path `id` |
+
+> 🆕 **Даалгаврын сан + асуултаар сонгох (2026-08-20).** Хоёр шинэ багана:
+> - **`quizzes.assign_only`** — `true` бол **зөвхөн багш** хардаг. Сурагчийн
+>   бүх зам хаагдана: `GET /quizzes` (SQL түвшинд шүүгдэнэ), `GET /quizzes/:id`,
+>   `/check`, `/submit`. Цорын ганц орох хаалга нь тухайн сурагчид оногдсон
+>   `assignments` мөр. Багш `?assignOnly=true`-гаар санг жагсаана
+>   (`canSeeAssignmentBank` = admin · super_admin · moderator · **teacher**;
+>   `canSeeAnswers`-т багш ОРООГҮЙ — зөв хариулт багшид ч явахгүй).
+> - **`assignments.question_indexes`** — багшийн сонгосон асуултын индексүүд
+>   (`NULL` = бүгд). 15 асуулттай тестээс 5-ыг өгөх зам. Сервер сурагч руу
+>   явахдаа тэр асуултуудаар **шүүж, 0..n-1 болгон дахин дугаарлана**
+>   (`assignments/question-subset.ts`) — тиймээс `/check` ба `/submit` рүү
+>   **`assignmentId` заавал дамжуулна**, эс бөгөөс индекс зөрнө.
+>
+> **Олон сэдэв нэг дор.** Багш «Present Simple»-ээс 3, «Modal verbs»-ээс 2
+> асуулт сонгож нэг илгээлтээр өгч болно: `targets: [{ targetId,
+> questionIndexes }]`. Сэдэв бүр **өөрийн даалгаврын мөр** болно (сурагч ч,
+> багш ч ялгаж харна) — харин **мэдэгдэл нэг л** очно. Хуучин `targetId`
+> (ганц) хэлбэр хэвээр ажиллана; хоёуланг нь хамт илгээвэл 400.
+>
+> ⚠️ **`assignmentId` бол итгэмжлэл БИШ.** Сервер бүр удаад «энэ мөр үнэхээр
+> энэ сурагчийнх мөн үү, энэ quiz руу заасан уу» гэж шалгана
+> (`findStudentAssignment`) — тиймээс өөр ангийн даалгаврын id хавчуулж
+> нуугдсан контент нээх, эсвэл өөр даалгаварт гүйцэтгэлийн мөр үүсгэх
+> боломжгүй. Зүрх/XP-ийн шийдвэр урьдын адил `isAssignedWork()`-оос гарна.
+>
+> ⚠️ **Prod migration `AddAssignmentBank1787800000000`.** Хоёулаа шинэ багана,
+> backfill байхгүй (анхдагч нь `false`/`NULL` тул байгаа бүх контент, байгаа
+> бүх даалгавар яг хэвээрээ). Railway дээр `DB_MIGRATIONS_RUN=true` эсэхийг
+> шалгаж байж deploy хий — эс бөгөөс админы «Зөвхөн даалгавраар» checkbox
+> байхгүй багана руу бичих гэж оролдоод 500 өгнө.
 
 > 🔴 **Даалгавар = гамификацийн ГАДНА (2026-07-31).** Багшийн оноосон сорил
 > дээр **XP олгохгүй**, **зүрх хасахгүй** — энэ бол энгийн сургуулийн даалгавар.
@@ -870,7 +984,7 @@ Admin dashboard энэ endpoint-уудыг дараа ашиглаж болно 
 | `gamification.ts` | `getGamification`→GET `/gamification` |
 | **`analytics.ts`** 🆕 | `getAnalyticsOverview`→GET `/analytics/overview` · `getAnalyticsHistory`→GET `/analytics/history?range=`. Хэрэглэгч: **`src/components/AnalyticsSection.tsx`** (профайлын "Статистик" блок — метрик tile-ууд + 7/30 хоногийн идэвхийн график), **`app/(tabs)/profile.tsx`**-д суусан |
 | **`achievements.ts`** 🆕 | `getAchievements`→GET `/achievements` · `markTrophiesSeen`→POST `/achievements/seen` · `setPinnedTrophies`→POST `/achievements/pinned`. Хэрэглэгч: **`app/trophies.tsx`** (100 цомын бүрэн дэлгэц, tier тус бүрээр, шүүлтүүр Бүгд/Авсан/Аваагүй, дэлгэрэнгүй sheet) · **`app/(tabs)/profile.tsx`** (**онцолсон** цомын хэвтээ мөр — онцлоогүй бол эзэмшсэн/түгжээтэй нь + `Бүгдийг харах` → `/trophies`) · **`src/lib/useCelebrations.ts`** (`unseen` трофей **+** `streakCelebration` → `AchievementModal` баяр хүргэл → `POST /seen` / `POST /gamification/streak-seen`; нэг дараалал — streak эхэлж, трофей дараа нь; host нь `src/components/CelebrationHost.tsx`, `app/_layout.tsx`-д суусан; дуусгах дэлгэцүүд (хичээл · сорил · унших · swipe · game) `checkCelebrations()` дуудна). Түгжээтэй цомын нөхцөлийг `src/lib/trophyCondition.ts` монголоор бичнэ |
-| `lessons.ts` | `getLessons`→GET `/lessons?isPublished=true` · `getLesson`→GET `/lessons/:id` · `checkAccess`→GET `/lessons/:id/access` · `unlockLesson`→POST `/lessons/:id/unlock` · `completeLesson`→POST `/lessons/:id/complete` · **`getContinue`→GET `/lessons/continue`** (C1 ✅ Home hero — Choi, 2026-07-22) · **`getCompletedLessonIds`→GET `/lessons/completed`** (түвшний замын ✓ — 2026-08-04) |
+| `lessons.ts` | `getLessons`→GET `/lessons?isPublished=true` · `getLesson`→GET `/lessons/:id` · `checkAccess`→GET `/lessons/:id/access` · **`openLesson`→POST `/lessons/:id/open`** (үнэгүй квот — 2026-08-19) · `unlockLesson`→POST `/lessons/:id/unlock` · `completeLesson`→POST `/lessons/:id/complete` · **`getContinue`→GET `/lessons/continue`** (C1 ✅ Home hero — Choi, 2026-07-22) · **`getCompletedLessonIds`→GET `/lessons/completed`** (түвшний замын ✓ — 2026-08-04) |
 | `quizzes.ts` | `getQuiz`→GET `/quizzes/:id` · `getQuizzes`→GET `/quizzes?isPublished=true[&lessonId=]` · `getExercises`→GET `/quizzes?standalone=true&isPublished=true&category=` · `submitQuiz`→POST `/quizzes/:id/submit` · **`checkAnswer`→POST `/quizzes/:id/check`** (C2 — Boju нэмнэ). **IELTS 3a ✅** (Choi, 2026-07-22): `getExercises`-ийг `category=ielts_listening\|ielts_reading`-аар дуудаж `/ielts` hub + `/skill/ielts_*` жагсаалт; runner нь `passageText`/`audioUrl`-ыг үзүүлж, `submit`-ийн `band`-ыг үр дүнд харуулна |
 | `quiz.ts` (vocab) | `getQuiz`→GET `/words/quiz?count=` · `submitQuiz`→POST `/words/quiz/submit` |
 | `reading.ts` | `getReadingList`→GET `/reading?limit=50` · `getReadingPassage`→GET `/reading/:id` · `completeReading`→POST `/reading/:id/complete` |
@@ -907,7 +1021,7 @@ Token автоматаар залгагдана. Зураг байршуулал
 | AI Buddy | GET `/ai/buddies` · GET `/ai/buddy-stats` · POST/PATCH/DELETE `/ai/buddies` |
 | Settings | GET/PATCH `/ai/limits` |
 | Monitor | GET `/payments/plans` · GET `/payments` · POST `/payments/plans` |
-| Notifications | GET `/notifications` |
+| Notifications | GET `/notifications` · **GET `/notifications/me`** (сурагчийн мэдэгдлийн төв — 2026-08-19) |
 
 ---
 

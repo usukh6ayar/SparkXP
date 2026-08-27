@@ -55,6 +55,21 @@ export class QueryQuizzesDto {
   @IsBoolean()
   includeUnanswerable?: boolean;
 
+  /**
+   * Даалгаврын сангийн мөрүүд.
+   *
+   * `true` = зөвхөн сан, `false` = зөвхөн нээлттэй, өгөөгүй = хоёулаа.
+   *
+   * ⚠️ Энэ бол зөвхөн **тохь тухын шүүлтүүр** — харагдах эрхийг ХЭЗЭЭ Ч
+   * шийддэггүй. Сурагчид сангийн мөр огт очихгүй нь `findAll`-д дүрээр
+   * шийдэгддэг (`canSeeBank`), эс бөгөөс `?assignOnly=true` гэж бичсэн сурагч
+   * бүх нуусан контентыг татаж авах байлаа.
+   */
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean()
+  assignOnly?: boolean;
+
   @IsOptional()
   @Type(() => Number)
   @IsInt()

@@ -1,11 +1,16 @@
-import { useMemo } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Pressable, StyleSheet } from 'react-native';
 import { AppText } from './Text';
-import { radius, spacing, type AppColors } from '../theme/theme';
+import { SelectMark } from './SelectMark';
+import { spacing } from '../theme/theme';
 import { useColors } from '../settings/SettingsContext';
 
-/** Small labeled checkbox (e.g. "Remember me"). */
+/**
+ * Шошготой чагт (ж: «Сануулах»).
+ *
+ * Тэмдэг нь `SelectMark` — апп даяар нэг л хэлбэртэй байхын тулд. Урьд нь
+ * энэ файл өөрийн дөрвөлжин хайрцгийг зурдаг байсан тул жагсаалтын чагтууд
+ * (`QuestionPicker`, сурагч сонгох) шинэчлэгдэхэд ганцаараа хоцордог байв.
+ */
 export function Checkbox({
   checked,
   onToggle,
@@ -16,14 +21,9 @@ export function Checkbox({
   label: string;
 }) {
   const colors = useColors();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <Pressable style={styles.row} onPress={onToggle} hitSlop={6}>
-      <View style={[styles.box, checked && styles.boxOn]}>
-        {checked ? (
-          <Ionicons name="checkmark" size={14} color={colors.white} />
-        ) : null}
-      </View>
+      <SelectMark state={checked ? 'on' : 'off'} size={20} />
       <AppText variant="caption" color={colors.textSecondary}>
         {label}
       </AppText>
@@ -31,17 +31,6 @@ export function Checkbox({
   );
 }
 
-const makeStyles = (colors: AppColors) => StyleSheet.create({
+const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  box: {
-    width: 20,
-    height: 20,
-    borderRadius: radius.sm - 6,
-    borderWidth: 1.5,
-    borderColor: colors.borderStrong,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surface,
-  },
-  boxOn: { backgroundColor: colors.primary, borderColor: colors.primary },
 });
