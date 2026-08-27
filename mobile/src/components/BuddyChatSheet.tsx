@@ -35,6 +35,15 @@ import type { Correction } from '../api/ai';
 const BRAND_NAME = 'SparkXP';
 const brandAvatar = require('../../assets/buddy-menu.webp');
 
+/**
+ * Tells a real (server-stored) message id from a locally minted one.
+ *
+ * Optimistic bubbles use `${Date.now()}a` style ids, which the report endpoint
+ * cannot resolve. Matching the shape is enough here — this only decides whether
+ * to SHOW the flag, and the server still authorises the report.
+ */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -54,7 +63,7 @@ export interface ChatMessage {
 export function BuddyChatSheet({
   // `open` is accepted but unused on purpose — the parent only mounts this
   // while open (see the note below), so there is nothing to gate on here.
-  open: _open, onClose, messages, loading, onSend, onReplay, onOpenHistory,
+  open: _open, onClose, messages, loading, onSend, onReplay, onOpenHistory, onReport,
 }: {
   open: boolean;
   onClose: () => void;
@@ -64,6 +73,8 @@ export function BuddyChatSheet({
   /** Speak a reply: its recorded audio when there is one, else its text via device TTS. */
   onReplay: (url?: string | null, text?: string | null) => void;
   onOpenHistory: () => void;
+  /** Flag one AI reply as offensive/inappropriate (Google Play Generative AI policy). */
+  onReport: (messageId: string) => void;
 }) {
   const c = useColors();
   const { theme } = useSettings();
@@ -159,7 +170,9 @@ export function BuddyChatSheet({
         ListEmptyComponent={<EmptyState onStart={handleSend} />}
         ListFooterComponent={loading ? <TypingBubble styles={styles} c={c} /> : null}
         onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
-        renderItem={({ item }) => <MessageBubble message={item} onReplay={onReplay} />}
+        renderItem={({ item }) => (
+          <MessageBubble message={item} onReplay={onReplay} onReport={onReport} />
+        )}
       />
     </BottomSheetModal>
   );
@@ -242,11 +255,20 @@ function TypingBubble({ styles, c }: { styles: any; c: AppColors }) {
 }
 
 function MessageBubble({
-  message, onReplay,
-}: { message: ChatMessage; onReplay: (url?: string | null, text?: string | null) => void }) {
+  message, onReplay, onReport,
+}: {
+  message: ChatMessage;
+  onReplay: (url?: string | null, text?: string | null) => void;
+  onReport: (messageId: string) => void;
+}) {
   const c = useColors();
   const styles = useMemo(() => makeStyles(c, false), [c]);
   const isUser = message.role === 'user';
+  // Only a reply the SERVER stored can be reported — the endpoint looks the row
+  // up by UUID. Locally minted ids (the offline error bubble, and any reply sent
+  // by an older app build) are not reportable, so the flag is hidden rather than
+  // offered as a button that 404s.
+  const canReport = !isUser && UUID_RE.test(message.id);
 
   return (
     <Animated.View
@@ -278,17 +300,30 @@ function MessageBubble({
                 {message.followUp}
               </TappableText>
             )}
-            {/* Always tappable: with an audio_url it replays the ElevenLabs
-                take, without one the screen reads the text out with the device
-                voice — so the speaker is never a dead button. */}
-            <Pressable
-              style={styles.replayBtn}
-              onPress={() => onReplay(message.audioUrl, message.content)}
-              accessibilityRole="button"
-              accessibilityLabel={t('swipeListen')}
-            >
-              <Ionicons name="volume-medium-outline" size={16} color={c.primary} />
-            </Pressable>
+            <View style={styles.bubbleActions}>
+              {/* Always tappable: with an audio_url it replays the ElevenLabs
+                  take, without one the screen reads the text out with the device
+                  voice — so the speaker is never a dead button. */}
+              <Pressable
+                style={styles.replayBtn}
+                onPress={() => onReplay(message.audioUrl, message.content)}
+                accessibilityRole="button"
+                accessibilityLabel={t('swipeListen')}
+              >
+                <Ionicons name="volume-medium-outline" size={16} color={c.primary} />
+              </Pressable>
+              {canReport && (
+                <Pressable
+                  style={styles.replayBtn}
+                  onPress={() => onReport(message.id)}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('reportReply')}
+                >
+                  <Ionicons name="flag-outline" size={15} color={c.textMuted} />
+                </Pressable>
+              )}
+            </View>
           </>
         )}
       </View>
@@ -427,6 +462,7 @@ const makeStyles = (c: AppColors, isLight: boolean) => StyleSheet.create({
   correctedText: { fontWeight: '700' },
   followUp: { marginTop: spacing.xs, fontStyle: 'italic' },
   replayBtn: { marginTop: spacing.xs, alignSelf: 'flex-start' },
+  bubbleActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   typingBubble: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: spacing.md, paddingHorizontal: spacing.md },
   inputBar: {
     flexDirection: 'row', alignItems: 'flex-end', padding: spacing.md, gap: spacing.sm,

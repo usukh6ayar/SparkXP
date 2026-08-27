@@ -266,3 +266,26 @@ export function getBuddyMemory(token: string): Promise<BuddyMemory[]> {
 export function clearBuddyMemory(token: string): Promise<void> {
   return apiRequest('/ai/buddy/memory', { method: 'DELETE', token });
 }
+
+/**
+ * Rate or report one AI reply.
+ *
+ * `report` is the channel Google Play's Generative AI policy requires for
+ * AI-generated content — the server also files it in the admin safety log.
+ *
+ * ⚠️ `messageId` must be the SERVER's message id (`TurnResponse.message_id` or
+ * `BuddyHistoryMessage.id`), never a locally minted one — the endpoint looks
+ * the row up by UUID and 404s otherwise.
+ */
+export function sendBuddyFeedback(
+  messageId: string,
+  rating: 'up' | 'down' | 'report',
+  token: string,
+  reason?: string,
+): Promise<{ ok: true }> {
+  return apiRequest('/ai/buddy/feedback', {
+    method: 'POST',
+    token,
+    body: { messageId, rating, reason },
+  });
+}

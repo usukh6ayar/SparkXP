@@ -52,13 +52,22 @@ export class TestVoiceDto {
   text: string;
 }
 
-/** User feedback (👍/👎 + optional reason) on one AI Buddy reply. */
+/**
+ * User feedback on one AI Buddy reply.
+ *
+ * `up`/`down` are quality signals. **`report` is different**: it is the
+ * "this reply was offensive/harmful" channel that Google Play's Generative AI
+ * policy requires an app to offer for AI-generated content, so it additionally
+ * raises a `safety_events` row for the admin audit log. Keeping it in the same
+ * endpoint (rather than a second one) means the client sends the same payload
+ * either way and the message is looked up + ownership-checked once.
+ */
 export class FeedbackDto {
   @IsUUID()
   messageId: string;
 
-  @IsIn(['up', 'down'])
-  rating: 'up' | 'down';
+  @IsIn(['up', 'down', 'report'])
+  rating: 'up' | 'down' | 'report';
 
   @IsOptional()
   @IsString()
