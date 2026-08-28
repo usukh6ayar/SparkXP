@@ -928,6 +928,17 @@ const mn = {
   voiceEndedTitle: 'Дуут яриа дууслаа',
   voiceLimitReached: 'Энэ сарын дуут ярианы хязгаар дууслаа. Бичгээр үргэлжлүүлж болно.',
   chatReplyError: 'Уучлаарай, алдаа гарлаа. Дахин оролдоорой.',
+
+  // AI хариуг мэдээлэх (Google Play-ийн Generative AI бодлого шаарддаг)
+  reportReply: 'Мэдээлэх',
+  reportReplyTitle: 'Энэ хариуг мэдээлэх үү?',
+  reportReplyBody:
+    'Хариу нь доромжилсон, буруу эсвэл тохиромжгүй бол бидэнд мэдэгдээрэй. '
+    + 'Манай баг шалгана.',
+  reportReplyConfirm: 'Мэдээлэх',
+  reportReplyDone: 'Баярлалаа — мэдээлэл хүлээн авлаа.',
+  reportReplyError: 'Мэдээлэл илгээж чадсангүй. Дахин оролдоно уу.',
+
   permissionTitle: 'Зөвшөөрөл',
   micPermission: 'Микрофон ашиглах зөвшөөрөл шаардлагатай.',
   recordStartError: 'Бичлэг эхлүүлж чадсангүй.',
@@ -2146,6 +2157,16 @@ const en: Record<TranslationKey, string> = {
   voiceEndedTitle: 'Voice chat ended',
   voiceLimitReached: "You've reached this month's voice limit. You can keep going in text.",
   chatReplyError: 'Sorry, something went wrong. Please try again.',
+
+  // Reporting an AI reply (required by Google Play's Generative AI policy)
+  reportReply: 'Report',
+  reportReplyTitle: 'Report this reply?',
+  reportReplyBody:
+    'Tell us if a reply is offensive, wrong or inappropriate. Our team will review it.',
+  reportReplyConfirm: 'Report',
+  reportReplyDone: 'Thanks — we got your report.',
+  reportReplyError: "Couldn't send the report. Please try again.",
+
   permissionTitle: 'Permission',
   micPermission: 'Microphone permission is required.',
   recordStartError: "Couldn't start recording.",

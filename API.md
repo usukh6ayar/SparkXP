@@ -521,7 +521,7 @@ Buddy-ийн ард харагдах дэвсгэрийг Sparks-аар авч �
 | DELETE `/buddy/backgrounds/:id` | admin-баг | Устгах | — |
 | GET `/ai/buddy/memory` | JWT | Buddy-гийн санах ой | — |
 | DELETE `/ai/buddy/memory` | JWT | Санах ой цэвэрлэх | — |
-| POST `/ai/buddy/feedback` | JWT | Buddy хариултад 👍/👎 өгөх (мессежийн metadata-д хадгална) | `FeedbackDto` `{ messageId, rating:'up'\|'down', reason? }` → `{ ok }` |
+| POST `/ai/buddy/feedback` | JWT | Buddy хариултад 👍/👎 өгөх **эсвэл мэдээлэх** (мессежийн metadata-д хадгална; `report` бол нэмээд `safety_events`-д `user_report` мөр үүсгэнэ) | `FeedbackDto` `{ messageId, rating:'up'\|'down'\|'report', reason? }` → `{ ok }` |
 | GET `/ai/buddy/admin/feedback` | admin, super_admin | Хэрэглэгчийн 👍/👎 санал (хуудаслалттай, message metadata-аас) | `page?` |
 | POST `/ai/buddy/admin/test-voice` | admin, super_admin | Buddy-гийн дуу хоолойг жишээ текстээр сонсох (preview) | `TestVoiceDto` `{ buddySlug, text }` |
 | GET `/ai/buddy/admin/safety-events` | admin, super_admin | Аюулгүй байдлын үйл явдлын audit log (хуудаслалттай) | `page?` |

@@ -428,6 +428,36 @@ export default function ChatScreen() {
     ]);
   }
 
+  /**
+   * Flag one AI reply as offensive/inappropriate.
+   *
+   * Google Play's Generative AI policy requires this to be reachable from
+   * inside the app, without leaving it. Confirm first (a stray tap on a flag
+   * should not silently file a report), then hand it to the server, which
+   * records it in the admin safety log.
+   */
+  const reportReply = useCallback((messageId: string) => {
+    Alert.alert(
+      t('reportReplyTitle'),
+      t('reportReplyBody'),
+      [
+        { text: t('cancel'), style: 'cancel' },
+        {
+          text: t('reportReplyConfirm'),
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await aiApi.sendBuddyFeedback(messageId, 'report', token!);
+              Alert.alert(t('reportReplyDone'));
+            } catch {
+              Alert.alert(t('reportReplyError'));
+            }
+          },
+        },
+      ],
+    );
+  }, [token]);
+
   /** Send a typed message (the chat sheet owns the draft input + clears it). */
   async function sendMessage(text: string) {
     if (loading || !textSessionId) return;
@@ -440,7 +470,9 @@ export default function ChatScreen() {
       setMessages((prev) => [
         ...prev,
         {
-          id: `${Date.now()}a`, role: 'assistant',
+          // The SERVER's id, not a local one: reporting a reply looks the row up
+          // by UUID, so a locally minted id would make the flag un-actionable.
+          id: res.message_id, role: 'assistant',
           content: res.reply_text, correction: res.correction,
           followUp: res.follow_up_question, audioUrl: res.audio_url,
         },
@@ -624,6 +656,7 @@ export default function ChatScreen() {
           onSend={sendMessage}
           onReplay={playAudio}
           onOpenHistory={openHistory}
+          onReport={reportReply}
         />
       )}
 

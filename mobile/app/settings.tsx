@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Application from 'expo-application';
 import { useAuth } from '../src/auth/AuthContext';
 import { useSettings, type ThemePref } from '../src/settings/SettingsContext';
 import { loadSoundEnabled, setSoundEnabled } from '../src/lib/sound';
@@ -25,7 +26,19 @@ type IconName = keyof typeof Ionicons.glyphMap;
 type Tint = { bg: string; fg: string };
 
 const avatarImg = require('../assets/buddy-menu.webp');
-const APP_VERSION = '1.0.0';
+
+/**
+ * Version shown at the bottom of Settings, read from the running build rather
+ * than typed here — a hand-maintained constant silently goes stale the first
+ * time someone bumps `app.json` and forgets this file, and then every support
+ * conversation is about the wrong build.
+ *
+ * `nativeBuildVersion` is the store build number (iOS `CFBundleVersion` /
+ * Android `versionCode`), which is what actually distinguishes two uploads of
+ * the same `1.0.0`. It is null in Expo Go, so it is only appended when present.
+ */
+const APP_VERSION = Application.nativeApplicationVersion ?? '1.0.0';
+const BUILD_NUMBER = Application.nativeBuildVersion;
 
 // Locally-persisted switch prefs (UI-only — nothing else reacts to them yet).
 // Sound is NOT here: it lives in `lib/sound.ts` (default OFF) so the audio layer
@@ -305,8 +318,12 @@ export default function SettingsScreen() {
           {/* Support */}
           <SectionLabel p={p}>{t('support').toUpperCase()}</SectionLabel>
           <Card p={p}>
-            <Row p={p} icon="help-circle" tint={tints.blue} label={t('helpFaq')} onPress={soon} />
-            <Row p={p} icon="chatbubble-ellipses" tint={tints.pink} label={t('sendFeedback')} onPress={soon} />
+            {/* Both open the published support page, which carries the contact
+                address. Keeping the address on the web page (not in the app)
+                means changing it never needs a release — and both stores are
+                given this same URL as the Support URL. */}
+            <Row p={p} icon="help-circle" tint={tints.blue} label={t('helpFaq')} onPress={() => openLegal('support')} />
+            <Row p={p} icon="chatbubble-ellipses" tint={tints.pink} label={t('sendFeedback')} onPress={() => openLegal('support')} />
             <Row p={p} icon="star" tint={tints.amber} label={t('rateApp')} onPress={soon} />
             {/* Sharing the app IS the referral flow — `/invite` already carries
                 the code + reward copy, so this points there instead of the
@@ -358,7 +375,9 @@ export default function SettingsScreen() {
 
           {/* Footer */}
           <View style={styles.footer}>
-            <AppText variant="caption" color={p.textMuted}>SparkXP v{APP_VERSION}</AppText>
+            <AppText variant="caption" color={p.textMuted}>
+              SparkXP v{APP_VERSION}{BUILD_NUMBER ? ` (${BUILD_NUMBER})` : ''}
+            </AppText>
             <AppText variant="caption" color={p.textMuted}>© Aether Tech Core LLC</AppText>
           </View>
         </ScrollView>

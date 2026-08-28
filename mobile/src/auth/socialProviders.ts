@@ -1,5 +1,26 @@
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 import * as AppleAuthentication from 'expo-apple-authentication';
+
+/**
+ * Expo Go has no `RNGoogleSignin` native module, so the Google SDK cannot run
+ * there at all — `require`-ing it throws. The same rule as `pushRegistration.ts`
+ * and `_layout.tsx`, which is why it is spelled the same way.
+ */
+const IN_EXPO_GO = Constants.appOwnership === 'expo';
+
+/**
+ * Can the native Google SDK actually run on THIS build?
+ *
+ * The server's `GET /auth/social/providers` only answers "is Google configured
+ * on the backend", which says nothing about the client. Once
+ * `GOOGLE_CLIENT_IDS` was set on Railway the button appeared in Expo Go too,
+ * and pressing it crashed in `require('@react-native-google-signin/…')`
+ * (2026-08-17). Both halves must be true before the button is offered.
+ */
+export function isGoogleAvailable(): boolean {
+  return !IN_EXPO_GO;
+}
 
 /**
  * Lazily load the Google native module.
@@ -12,6 +33,14 @@ import * as AppleAuthentication from 'expo-apple-authentication';
  * there, so this is never called and the native module is never touched.
  */
 function googleModule(): typeof import('@react-native-google-signin/google-signin') {
+  if (IN_EXPO_GO) {
+    // Reachable only if a caller skipped `isGoogleAvailable()`. Fail with a
+    // sentence a developer can act on instead of the SDK's native-module stack.
+    throw new Error(
+      'Google нэвтрэлт Expo Go дээр ажиллахгүй (native модуль байхгүй). ' +
+        'Dev build эсвэл store build дээр туршина уу.',
+    );
+  }
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   return require('@react-native-google-signin/google-signin');
 }

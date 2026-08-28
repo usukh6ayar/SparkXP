@@ -850,13 +850,21 @@ export class BuddyService {
   }
 
   /**
-   * User feedback on a buddy reply (👍/👎 + optional reason). Stored on the AI
-   * message's metadata (no separate table), so it's queryable alongside the turn.
+   * User feedback on a buddy reply (👍/👎/report + optional reason). Stored on
+   * the AI message's metadata (no separate table), so it's queryable alongside
+   * the turn.
+   *
+   * A `report` ALSO writes a `safety_events` row. Google Play's Generative AI
+   * policy requires an in-app way to report offensive AI output, and a reviewer
+   * has to be able to see that the report went somewhere — metadata on a
+   * message nobody lists is not an answer. `user_report` lands in the same
+   * admin audit log as the model's own safety flags, so both arrive in one
+   * place. `eventType` is a free-text column, so no migration is needed.
    */
   async submitFeedback(
     userId: string,
     messageId: string,
-    rating: 'up' | 'down',
+    rating: 'up' | 'down' | 'report',
     reason?: string,
   ): Promise<{ ok: true }> {
     const message = await this.messages.findOne({
@@ -868,6 +876,27 @@ export class BuddyService {
       feedback: { rating, reason: reason ?? null, at: new Date().toISOString() },
     };
     await this.messages.save(message);
+
+    if (rating === 'report') {
+      await this.safetyEvents.save(
+        this.safetyEvents.create({
+          userId,
+          sessionId: message.sessionId ?? null,
+          eventType: 'user_report',
+          // A human deliberately flagged this, so it outranks the model's own
+          // low-confidence guesses in the admin list.
+          severity: 'high',
+          details: {
+            messageId,
+            reason: reason ?? null,
+            // The reported text itself — otherwise the admin has to go dig it
+            // out of `messages` to judge the report.
+            replyText: message.content,
+          },
+        }),
+      );
+    }
+
     return { ok: true };
   }
 

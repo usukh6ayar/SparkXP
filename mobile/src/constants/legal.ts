@@ -38,6 +38,13 @@ const BASE =
 export const LEGAL_URLS = {
   privacy: `${BASE}/privacy.html`,
   terms: `${BASE}/terms.html`,
+  /**
+   * Help / contact. This is the SAME page pasted into App Store Connect as the
+   * Support URL, and it carries the support mailto — so the address lives in
+   * exactly one place (the web page) instead of being duplicated into the app,
+   * where changing it would need a release. Verified 200 on 2026-08-27.
+   */
+  support: `${BASE}/support.html`,
 } as const;
 
 /**
