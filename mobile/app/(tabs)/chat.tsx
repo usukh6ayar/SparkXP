@@ -9,6 +9,11 @@ import { BuddyShopEntry } from '../../src/components/BuddyShopEntry';
 import { getEquippedBackground } from '../../src/api/buddyBackgrounds';
 import { BuddyVoiceStage } from '../../src/components/BuddyVoiceStage';
 import { toVisemeTimeline, type VisemeCue } from '../../src/components/azureVisemes';
+import {
+  newStreamId,
+  startChunkQueue,
+  type ChunkQueue,
+} from '../../src/lib/buddyChunkQueue';
 import { tabBarHeight } from '../../src/components/tabbar/geometry';
 import { BuddyChatSheet, type ChatMessage } from '../../src/components/BuddyChatSheet';
 import { BuddyHistorySheet } from '../../src/components/BuddyHistorySheet';
@@ -126,7 +131,17 @@ export default function ChatScreen() {
    * T0 → first audible audio — is only known when the player actually starts,
    * so it is reported from the effect below rather than here.
    */
-  const turnClock = useRef<{ t0: number; responseAt?: number } | null>(null);
+  const turnClock = useRef<{
+    t0: number;
+    responseAt?: number;
+    turnId?: string;
+  } | null>(null);
+  /**
+   * The in-flight streaming reply, if any. Held so a barge-in (the user talking
+   * over the buddy) can stop playback AND tell the server to stop synthesizing
+   * the rest — otherwise we keep paying for audio nobody will hear.
+   */
+  const chunkQueue = useRef<ChunkQueue | null>(null);
   const player = useAudioPlayer();
   const playerStatus = useAudioPlayerStatus(player);
   const recorder = useAudioRecorder(SPEECH_RECORDING);
@@ -150,6 +165,10 @@ export default function ChatScreen() {
    * all three used to stop the audio but leave the mouth animating.
    */
   const stopSpeaking = useCallback(() => {
+    // Barge-in: drop the rest of a streamed reply before silencing the player,
+    // so the server stops synthesizing pieces that will never be played.
+    chunkQueue.current?.cancel();
+    chunkQueue.current = null;
     Speech.stop();
     try {
       player.pause();
@@ -200,14 +219,34 @@ export default function ChatScreen() {
     const clock = turnClock.current;
     if (!playerStatus.playing || !clock) return;
     turnClock.current = null;
+    const audibleMs = Date.now() - clock.t0;
     track('buddy_turn_latency', {
-      t0_to_audible_ms: Date.now() - clock.t0,
+      t0_to_audible_ms: audibleMs,
       t0_to_reply_ms: clock.responseAt ? clock.responseAt - clock.t0 : null,
       // Real cues vs shapes guessed from text — the two can't be compared as
       // one number, so keep them apart in the report.
       had_visemes: voiceVisemes.length > 0,
     });
-  }, [playerStatus.playing, voiceVisemes.length]);
+    // Also send it back to the server, keyed by turn id, so one row holds the
+    // whole t0→t9 picture. Analytics alone cannot be joined to the server marks.
+    if (clock.turnId && token) {
+      void aiApi.reportBuddyTurnLatency(
+        {
+          turnId: clock.turnId,
+          t0ToAudibleMs: audibleMs,
+          // t8 — first viseme applied. In this architecture the mouth is driven
+          // by the player's own clock (`speechPositionMs`), so cue #1 lands on
+          // the first frame after playback starts: t8 == t7 by construction,
+          // not by measurement. It is reported anyway because a future
+          // streaming player could separate them, and a silently missing field
+          // is worse than one that is equal for a stated reason. Omitted when
+          // the shapes are guessed from text — that is a different thing.
+          ...(voiceVisemes.length ? { t0ToFirstVisemeMs: audibleMs } : {}),
+        },
+        token,
+      );
+    }
+  }, [playerStatus.playing, voiceVisemes.length, token]);
 
   // Load the buddy list; the user picks + Applies one on the selector screen
   // before any session is started (see BuddySelector / mode === 'select').
@@ -403,14 +442,26 @@ export default function ChatScreen() {
    * shows just the latest spoken reply (in the buddy's bubble) and never writes
    * to the text `messages` list, so the two sections stay separate.
    */
-  function renderVoiceTurn(res: aiApi.TurnResponse) {
-    if (turnClock.current) turnClock.current.responseAt = Date.now();
+  function renderVoiceTurn(
+    res: aiApi.TurnResponse,
+    opts?: { alreadySpeaking?: boolean },
+  ) {
+    if (turnClock.current) {
+      turnClock.current.responseAt = Date.now();
+      // Binds the device-side half of the latency picture to the server's marks.
+      turnClock.current.turnId = res.turn_id ?? turnClock.current.turnId;
+    }
     setVoiceReply(res.reply_text);
+    setUsage(res.usage);
+    // When the streamed pieces are already playing, leave playback and the
+    // mouth alone: `res.visemes` is the whole reply on one timeline, but the
+    // player's clock restarts per piece, so applying it here would desync the
+    // mouth from the audio it is meant to match.
+    if (opts?.alreadySpeaking) return;
     // Set the timeline BEFORE playback starts, so the very first frame of audio
     // already has a mouth shape to hit.
     setVoiceVisemes(toVisemeTimeline(res.visemes));
     setAvatarEmotion(res.avatar_instruction?.emotion);
-    setUsage(res.usage);
     playAudio(res.audio_url);
   }
 
@@ -465,7 +516,10 @@ export default function ChatScreen() {
     setLoading(true);
     try {
       const startedAt = Date.now();
-      const res = await sendBuddyTextTurnSmart(textSessionId, text, token!);
+      turnClock.current = { t0: startedAt };
+      const res = await sendBuddyTextTurnSmart(
+        textSessionId, text, token!, undefined, startedAt,
+      );
       if (__DEV__) console.log(`[buddy] text turn took ${Date.now() - startedAt} ms`);
       setMessages((prev) => [
         ...prev,
@@ -478,6 +532,10 @@ export default function ChatScreen() {
         },
       ]);
       setUsage(res.usage);
+      if (turnClock.current) {
+        turnClock.current.responseAt = Date.now();
+        turnClock.current.turnId = res.turn_id;
+      }
       playAudio(res.audio_url);
     } catch (err) {
       handleTurnError(err);
@@ -524,16 +582,40 @@ export default function ChatScreen() {
     // T0 — the user has stopped talking. Everything after this is wait.
     const startedAt = Date.now();
     turnClock.current = { t0: startedAt };
+    const streamId = newStreamId();
     try {
       await recorder.stop();
       const uri = recorder.uri;
       if (!uri || !sessionId) throw new Error('no audio');
-      const res = await sendBuddyAudioTurnSmart(sessionId, uri, token!);
+      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
+
+      // Start pulling reply audio NOW, in parallel with the turn request. The
+      // server publishes each piece as it is synthesized, so the buddy starts
+      // speaking about a second before the turn response arrives. If the server
+      // never streams (older build, or the provider has no streaming), the
+      // queue simply yields nothing and `renderVoiceTurn` plays `audio_url`.
+      chunkQueue.current = startChunkQueue(player, streamId, token!, {
+        onFirstAudio: () => {
+          if (turnClock.current) turnClock.current.turnId ??= streamId;
+        },
+        onChunk: (chunk: aiApi.TurnAudioChunk) => {
+          // Cues are per-piece and the player's clock restarts with each piece,
+          // so the timeline is REPLACED, not appended.
+          if (chunk.visemes?.length) setVoiceVisemes(toVisemeTimeline(chunk.visemes));
+          if (chunk.emotion) setAvatarEmotion(chunk.emotion);
+        },
+      });
+
+      const res = await sendBuddyAudioTurnSmart(
+        sessionId, uri, token!, undefined, startedAt, streamId,
+      );
       // The turn is STT + LLM + TTS on the server; log it so a slow reply can be
       // pinned on the pipeline rather than guessed at.
       if (__DEV__) console.log(`[buddy] voice turn took ${Date.now() - startedAt} ms`);
-      renderVoiceTurn(res);
+      renderVoiceTurn(res, { alreadySpeaking: chunkQueue.current?.didPlay() ?? false });
     } catch (err) {
+      chunkQueue.current?.cancel();
+      chunkQueue.current = null;
       turnClock.current = null; // a failed turn is not a latency sample
       handleTurnError(err, { voice: true });
     } finally {

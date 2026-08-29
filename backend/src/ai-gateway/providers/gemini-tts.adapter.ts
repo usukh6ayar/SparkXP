@@ -86,6 +86,17 @@ export class GeminiTtsAdapter implements TtsAdapter {
 
   constructor(private readonly config: ConfigService) {}
 
+  /**
+   * Gemini-гийн prebuilt voice мөн эсэхийг шалгана. Өөр провайдерын үлдэгдэл
+   * (хуучин ElevenLabs id, Azure-ийн `en-US-…Neural`) бол анхдагч руу буцаана —
+   * ингэснээр провайдер солиход одоо байгаа buddy-гийн дуу хоолой эвдрэхгүй.
+   */
+  resolveVoice(voiceId?: string | null): string {
+    const requested =
+      voiceId ?? this.config.get<string>('GEMINI_TTS_VOICE', DEFAULT_VOICE);
+    return GEMINI_VOICES.has(requested) ? requested : DEFAULT_VOICE;
+  }
+
   async synthesize(text: string, voiceId?: string): Promise<TtsResult> {
     const apiKey = this.config.get<string>('GEMINI_API_KEY');
     if (!apiKey) {
@@ -94,10 +105,7 @@ export class GeminiTtsAdapter implements TtsAdapter {
       );
     }
     const model = this.config.get<string>('GEMINI_TTS_MODEL', DEFAULT_MODEL);
-    const requested =
-      voiceId ?? this.config.get<string>('GEMINI_TTS_VOICE', DEFAULT_VOICE);
-    // Fall back if it's not a Gemini voice (e.g. a leftover ElevenLabs id).
-    const voice = GEMINI_VOICES.has(requested) ? requested : DEFAULT_VOICE;
+    const voice = this.resolveVoice(voiceId);
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
     const response = await fetch(url, {

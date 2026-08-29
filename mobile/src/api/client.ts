@@ -194,10 +194,15 @@ export async function apiUpload<T>(
   path: string,
   file: { uri: string; name: string; type: string },
   token: string,
+  /** Extra text fields sent alongside the file (e.g. a latency timestamp). */
+  fields?: Record<string, string | number>,
 ): Promise<T> {
   const form = new FormData();
   // RN FormData accepts this {uri,name,type} shape for file parts.
   form.append('file', file as unknown as Blob);
+  for (const [key, value] of Object.entries(fields ?? {})) {
+    form.append(key, String(value));
+  }
 
   const res = await fetch(`${BASE_URL}${path}`, {
     method: 'POST',

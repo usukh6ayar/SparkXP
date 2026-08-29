@@ -13,7 +13,7 @@ import { Translation } from '../entities/translation.entity';
 import { DictionaryEntry } from '../entities/dictionary-entry.entity';
 import { UserDictionarySave } from '../entities/user-dictionary-save.entity';
 import { AiUsageType } from '../common/enums';
-import { runGeminiText } from './gemini-text';
+import { runGeminiText } from '../common/gemini/gemini-text';
 import { DictionaryService } from './dictionary.service';
 import {
   parseEntry,

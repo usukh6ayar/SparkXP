@@ -8,7 +8,36 @@ import { Select } from '../../components/Select';
 import { Modal } from '../../components/Modal';
 import { FormActions } from '../../components/FormActions';
 
-/** Gemini prebuilt TTS voices (voiceName). Stored in the buddy's `voiceId`. */
+/**
+ * Дуу хоолойн сонголт. Хоосон = серверийн `AZURE_TTS_VOICE` / `GEMINI_TTS_VOICE`
+ * ашиглана — ихэнх тохиолдолд зөв сонголт нь энэ.
+ *
+ * ⚠️ Backend нь `TTS_PROVIDER` env-ээр провайдераа сонгодог тул энд буруу
+ * провайдерын нэр сонгож болзошгүй. Adapter бүр танихгүй нэрийг шүүж
+ * анхдагчаараа солино (Azure нь locale угтвараар, Gemini нь жагсаалтаар), тиймээс
+ * буруу сонголт нь дуу хоолойг өөрчилнө — синтезийг унагаахгүй.
+ */
+const AZURE_VOICES = [
+  'en-US-AvaMultilingualNeural',
+  'en-US-AndrewMultilingualNeural',
+  'en-US-EmmaMultilingualNeural',
+  'en-US-BrianMultilingualNeural',
+  'en-US-JennyNeural',
+  'en-US-AriaNeural',
+  'en-US-GuyNeural',
+  'en-GB-SoniaNeural',
+  'en-GB-RyanNeural',
+  'en-AU-NatashaNeural',
+];
+
+// ⚠️ Azure HD (Dragon) voice-ууд ЭНД БАЙХГҮЙ. 2026-08-28-нд `koreacentral`
+// бүсэд en-US-Tyler:DragonHDFlashLatestNeural, Ava/Andrew/Emma2 DragonHD
+// дөрвүүлэн "Unsupported voice … 1007"-оор татгалзсан. Тэднийг сонговол
+// synthesis ~3 секунд унаж байж fallback voice руу шилждэг — өөрөөр хэлбэл
+// сонголт бүр turn бүрд шууд 3 сек нэмнэ. Бүс нь HD voice дэмждэг болбол
+// эхлээд «Дуу сонсох»-оор viseme_count > 0 эсэхийг шалгаад дараа нь нэм.
+
+/** Gemini prebuilt TTS voices (voiceName) — TTS_PROVIDER=gemini үед. */
 const GEMINI_VOICES = [
   'Zephyr', 'Puck', 'Charon', 'Kore', 'Fenrir', 'Leda', 'Orus', 'Aoede',
   'Callirrhoe', 'Autonoe', 'Enceladus', 'Iapetus', 'Umbriel', 'Algieba',
@@ -88,6 +117,8 @@ export default function AiBuddyPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [testing, setTesting] = useState(false);
+  /** Сүүлийн «Дуу сонсох» тестийн үр дүн — viseme өгөх эсэх нь гол хариулт. */
+  const [voiceTest, setVoiceTest] = useState<{ visemes: number; ok: boolean } | null>(null);
   const [uploadingGlb, setUploadingGlb] = useState(false);
   const [uploadingThumb, setUploadingThumb] = useState(false);
 
@@ -215,18 +246,29 @@ export default function AiBuddyPage() {
     setForm(prev => ({ ...prev, emotionMap: { ...prev.emotionMap, [tag]: clip } }));
   }
 
-  /** Save current voice settings first (so the preview uses them), then play. */
+  /**
+   * Save current voice settings first (so the preview uses them), then play.
+   *
+   * `viseme_count` нь энэ товчны гол үр дүн: аудио гарсан ч viseme 0 бол тэр
+   * voice уруул уншихыг ЖОЛООДОЖ ЧАДАХГҮЙ (Azure-ийн HD/Dragon voice-ууд
+   * ихэвчлэн ийм). Backend нь тест бүрд cache тойрдог тул тоо нь үргэлж
+   * тухайн voice-ийн ЯГ ОДООГИЙН зан төлөв.
+   */
   async function testVoice() {
     if (!editing) { setError('Эхлээд buddy-г хадгална'); return; }
-    setTesting(true); setError('');
+    setTesting(true); setError(''); setVoiceTest(null);
     try {
       await save(true);
-      const res = await api.post<{ audio_url: string | null }>('/ai/buddy/admin/test-voice', {
-        buddySlug: editing.slug,
-        text: 'Hello! I am your English speaking buddy. What would you like to talk about today?',
-      });
+      const res = await api.post<{ audio_url: string | null; viseme_count: number }>(
+        '/ai/buddy/admin/test-voice',
+        {
+          buddySlug: editing.slug,
+          text: 'Hello! I am your English speaking buddy. What would you like to talk about today?',
+        },
+      );
+      setVoiceTest({ visemes: res.viseme_count, ok: Boolean(res.audio_url) });
       if (res.audio_url) new Audio(res.audio_url).play().catch(() => {});
-      else setError('Аудио үүсгэж чадсангүй (ELEVENLABS_API_KEY шалгана уу)');
+      else setError('Аудио үүсгэж чадсангүй — серверийн TTS тохиргоог шалгана уу');
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Дуут тест амжилтгүй');
     } finally { setTesting(false); }
@@ -406,10 +448,22 @@ export default function AiBuddyPage() {
                 )}
               </div>
 
-              <Select label="Gemini дуу хоолой (voice)"
+              <Select label="Дуу хоолой (voice)"
                 value={form.voiceId}
                 onChange={(e) => f('voiceId', e.target.value)}
-                options={[{ value: '', label: 'Өгөгдмөл (Kore)' }, ...GEMINI_VOICES.map((v) => ({ value: v, label: v }))]} />
+                options={[
+                  { value: '', label: 'Өгөгдмөл (серверийн тохиргоо)' },
+                  ...AZURE_VOICES.map((v) => ({ value: v, label: `Azure · ${v}` })),
+                  ...GEMINI_VOICES.map((v) => ({ value: v, label: `Gemini · ${v}` })),
+                ]} />
+
+              {voiceTest && (
+                <p className={`text-xs ${voiceTest.visemes > 0 ? 'text-green-700' : 'text-amber-700'}`}>
+                  {voiceTest.visemes > 0
+                    ? `✓ Уруул унших ажиллана — ${voiceTest.visemes} viseme ирлээ.`
+                    : '⚠ Энэ voice viseme ӨГӨХГҮЙ байна. Аудио гарсан ч уруул нь бичвэрээс таамагласан хөдөлгөөнөөр явна — уруул унших шаардлагатай бол өөр voice сонго.'}
+                </p>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>

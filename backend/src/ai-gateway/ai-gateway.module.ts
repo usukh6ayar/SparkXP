@@ -19,6 +19,7 @@ import { STT_ADAPTER } from './providers/stt.adapter';
 import { BuddyUsageService } from './buddy-usage.service';
 import { BuddyMemoryService } from './buddy-memory.service';
 import { BuddyService } from './buddy.service';
+import { BuddyTurnStreamService } from './buddy-turn-stream.service';
 import { BuddyRealtimeService } from './buddy-realtime.service';
 import { AiBuddyEnabledGuard } from './guards/ai-buddy-enabled.guard';
 import { XpModule } from '../xp/xp.module';
@@ -45,6 +46,7 @@ import { XpModule } from '../xp/xp.module';
     BuddyUsageService,
     BuddyMemoryService,
     BuddyService,
+    BuddyTurnStreamService,
     BuddyRealtimeService,
     AiBuddyEnabledGuard,
   ],

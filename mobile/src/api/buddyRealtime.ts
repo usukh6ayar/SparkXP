@@ -143,6 +143,7 @@ export async function sendBuddyTextTurnSmart(
   text: string,
   token: string,
   handlers?: RealtimeHandlers,
+  t0?: number,
 ): Promise<TurnResponse> {
   if (await realtimeUsable(token)) {
     try {
@@ -152,7 +153,7 @@ export async function sendBuddyTextTurnSmart(
       // fall through to the classic endpoint
     }
   }
-  return sendBuddyTextTurn(sessionId, text, token);
+  return sendBuddyTextTurn(sessionId, text, token, t0);
 }
 
 /** Voice turn with realtime streaming when available, else the plain endpoint. */
@@ -161,14 +162,21 @@ export async function sendBuddyAudioTurnSmart(
   fileUri: string,
   token: string,
   handlers?: RealtimeHandlers,
+  t0?: number,
+  /** Chunked-audio stream id — see `buddyChunkQueue`. */
+  streamId?: string,
 ): Promise<TurnResponse> {
-  if (await realtimeUsable(token)) {
+  // The SSE path delivers the ALREADY-COMPLETE turn progressively; it cannot
+  // start audio early, and RN cannot read its body incrementally anyway. When
+  // the caller is consuming chunked audio, go straight to the plain endpoint —
+  // that is the path the server streams from.
+  if (!streamId && (await realtimeUsable(token))) {
     try {
-      const { streamId } = await startAudioTurn(sessionId, fileUri, token);
-      return await consumeStream(streamId, token, handlers);
+      const { streamId: id } = await startAudioTurn(sessionId, fileUri, token);
+      return await consumeStream(id, token, handlers);
     } catch {
       // fall through to the classic endpoint
     }
   }
-  return sendBuddyAudioTurn(sessionId, fileUri, token);
+  return sendBuddyAudioTurn(sessionId, fileUri, token, t0, streamId);
 }

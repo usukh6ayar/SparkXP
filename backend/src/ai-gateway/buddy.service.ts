@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
-import { createHash } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import type Redis from 'ioredis';
 import { REDIS_CLIENT } from '../redis/redis.module';
 import { BuddySession } from '../entities/buddy-session.entity';
@@ -30,8 +30,21 @@ import { BuddyMemoryService } from './buddy-memory.service';
 import { XpService } from '../xp/xp.service';
 import { startOfUBDay } from '../xp/gamification';
 import { STT_ADAPTER, type SttAdapter } from './providers/stt.adapter';
-import { LLM_ADAPTER, type LlmAdapter, type LlmMessage } from './providers/llm.adapter';
-import { TTS_ADAPTER, type TtsAdapter, type VisemeCue } from './providers/tts.adapter';
+import {
+  LLM_ADAPTER,
+  type LlmAdapter,
+  type LlmMessage,
+} from './providers/llm.adapter';
+import { llmCostMicroUsd } from './providers/llm-pricing';
+import { isTranscribePromptEcho } from './providers/gemini-stt.adapter';
+import {
+  TTS_ADAPTER,
+  type TtsAdapter,
+  type TtsResult,
+  type VisemeCue,
+} from './providers/tts.adapter';
+import { BuddyTurnStreamService } from './buddy-turn-stream.service';
+import { readJsonStringField, takeSpeakableChunks } from './streaming-reply';
 import {
   BuddyTurnResult,
   FALLBACK_TURN,
@@ -60,9 +73,20 @@ const SAFE_REDIRECT = "Let's keep practicing English! What did you do today?";
 export interface TurnResponse {
   session_id: string;
   message_id: string;
+  /**
+   * Энэ turn-ийн латенсийн бүртгэлийн богино id (серверийн лог, хадгалагдсан
+   * `metadata.latency`, клиентийн буцаах тайлан гурвуулаа үүгээр холбогдоно).
+   *
+   * Нэмэлт талбар: хуучин апп үүнийг үл тоомсорлоно.
+   */
+  turn_id?: string;
   user_transcript: string;
   reply_text: string;
-  correction: { original: string; corrected: string; short_explanation: string } | null;
+  correction: {
+    original: string;
+    corrected: string;
+    short_explanation: string;
+  } | null;
   follow_up_question: string;
   /** Grammar/vocab tags for this turn's mistake; [] when none. */
   mistake_tags: string[];
@@ -84,21 +108,39 @@ export interface TurnResponse {
 }
 
 /**
- * Per-stage stopwatch for one turn (Azure brief §7: "Latency-г таамгаар
- * батлахгүй").
+ * Нэг turn-ийн латенсийн бүртгэл (латенсийн төлөвлөгөө §1: t0–t9).
  *
- * The release gate is a number — T0 → first audible audio, median ≤ 2.5 s — and
- * it can only be defended if every turn says where its time went. Marks are
- * written onto the assistant message so p50/p95 come out of one SQL query over
- * real traffic instead of a stopwatch and a guess.
+ * Гаргах ёстой тоо нь **t0 → эхний сонсогдох аудио**, түүнийг зөвхөн шат бүрийн
+ * цагийг тэмдэглэж байж хамгаалж чадна. Тэмдэглэгээ нь assistant мессежийн
+ * `metadata.latency`-д бичигдэнэ → p50/p95 нь секундомер, таамаг биш нэг SQL
+ * асуулгаас гарна.
  *
- * The client owns T0 (user stopped talking) and T6 (audio became audible); this
- * covers everything the server can see in between.
+ * Цагийн эзэмшил хуваарилагдсан:
+ *  - **Клиент** t0 (хэрэглэгч ярихаа болив), t7 (аудио сонсогдов),
+ *    t8 (эхний viseme), t9 (тоглуулалт дуусав) — `reportClientLatency`-аар
+ *    буцаж ирнэ;
+ *  - **Сервер** t1–t6 ба хадгалалт.
+ *
+ * `t0`-г клиент epoch-оор илгээдэг тул `upload_ms` нь сүлжээ + файл байршуулах
+ * хугацааг агуулна. Цагийн зөрүү (clock skew) сөрөг тоо өгвөл хаяна —
+ * хэрэглэгчийн утасны цагийг найдвартай гэж үзэх аргагүй.
  */
-class TurnTimer {
+export class TurnTimer {
+  /** Нэг turn-ийг бүх лог/хэмжигдэхүүн дундуур холбох id. */
+  readonly turnId = randomUUID().slice(0, 8);
   private readonly startedAt = Date.now();
   private last = this.startedAt;
   private readonly stages: Record<string, number> = {};
+
+  /**
+   * @param clientT0 хэрэглэгч ярихаа больсон агшин (клиентийн epoch, ms).
+   */
+  constructor(private readonly clientT0?: number) {
+    if (clientT0 && this.startedAt > clientT0) {
+      // t0 → сервер хүсэлтийг хүлээж авав: сүлжээ + аудио байршуулалт.
+      this.stages.upload_ms = this.startedAt - clientT0;
+    }
+  }
 
   /** Close the current stage and open the next one. */
   mark(stage: string): void {
@@ -107,18 +149,72 @@ class TurnTimer {
     this.last = now;
   }
 
-  /** Every stage plus the server-side total, ready to store or log. */
-  snapshot(): Record<string, number> {
-    return { ...this.stages, server_total_ms: Date.now() - this.startedAt };
+  /**
+   * Шатны дарааллаас гадуурх хэмжилт (ж: провайдерын эхний байт хүртэлх хугацаа
+   * нь `tts` шатны ДОТОР байдаг тул `mark` түүнийг илэрхийлж чадахгүй).
+   */
+  set(stage: string, ms: number | null | undefined): void {
+    if (typeof ms === 'number' && ms >= 0) this.stages[`${stage}_ms`] = ms;
+  }
+
+  /** Turn эхэлснээс хойшхи ms — урсгал доторх цэгүүдийг тэмдэглэхэд. */
+  sinceStart(): number {
+    return Date.now() - this.startedAt;
+  }
+
+  /** Тухайн цэг аль хэдийн тэмдэглэгдсэн эсэх (эхнийхийг л барихад). */
+  has(stage: string): boolean {
+    return this.stages[`${stage}_ms`] !== undefined;
+  }
+
+  /**
+   * Сервер талын нийт хугацаа. `upload_ms` мэдэгдэж байвал t0-оос эхэлж
+   * тоолсон нийлбэрийг мөн өгнө — энэ нь клиентийн t7 ирэхээс өмнөх хамгийн
+   * ойрын E2E тооцоо.
+   */
+  snapshot(): Record<string, number | string> {
+    const serverTotal = Date.now() - this.startedAt;
+    return {
+      turn_id: this.turnId,
+      ...this.stages,
+      server_total_ms: serverTotal,
+      ...(this.stages.upload_ms !== undefined
+        ? { t0_to_response_ms: this.stages.upload_ms + serverTotal }
+        : {}),
+    };
   }
 }
+
+/**
+ * Урсгалт turn-д бодитоор ярьсан нэг хэсэг.
+ *
+ * Тоглуулах аудио нь `BuddyTurnStreamService`-ийн санах ойд байна; энд зөвхөн
+ * turn-ийг хадгалах/буцаахад хэрэгтэй мета үлдэнэ.
+ */
+interface SpokenChunk {
+  index: number;
+  text: string;
+  durationMs: number;
+  visemes: VisemeCue[] | null;
+}
+
+/**
+ * LLM-ийн гаралтын дээд хязгаар. Урт хяналт БИШ, тасралтаас хамгаалах хаалт:
+ * JSON дугтуйд (засвар + монгол тайлбар) багтаах ёстой. Урт нь prompt болон
+ * `parseBuddyTurn`-ээр хянагдана.
+ */
+const LLM_MAX_TOKENS = 500;
 
 /** One stored message flattened for the chat UI (resumeTextSession). */
 export interface SerializedBuddyMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
-  correction: { original: string; corrected: string; short_explanation: string } | null;
+  correction: {
+    original: string;
+    corrected: string;
+    short_explanation: string;
+  } | null;
   followUp: string | null;
   audioUrl: string | null;
 }
@@ -133,7 +229,11 @@ export interface TextSessionSummary {
 
 function serializeBuddyMessage(m: Message): SerializedBuddyMessage {
   const meta = (m.metadata ?? {}) as {
-    correction?: { original?: string; corrected?: string; short_explanation?: string } | null;
+    correction?: {
+      original?: string;
+      corrected?: string;
+      short_explanation?: string;
+    } | null;
     follow_up_question?: string;
   };
   return {
@@ -152,23 +252,55 @@ function serializeBuddyMessage(m: Message): SerializedBuddyMessage {
   };
 }
 
+/**
+ * Урсгалаар ярьсан хэсгүүдийг нэг turn-ийн хариу болгон нийлүүлнэ.
+ *
+ * Viseme-ийн `offsetMs` нь **хэсэг бүрийн дотор** 0-ээс эхэлдэг тул хуримтлагдсан
+ * үргэлжлэх хугацаагаар шилжүүлэхгүй бол бүх хэсгийн уруул эхний хэсэг дээр
+ * давхарлан хөдөлнө.
+ */
+function mergeSpokenChunks(chunks: SpokenChunk[]): {
+  audioUrl: string | null;
+  durationMs: number;
+  visemes: VisemeCue[] | null;
+} {
+  const ordered = [...chunks].sort((a, b) => a.index - b.index);
+  const visemes: VisemeCue[] = [];
+  let durationMs = 0;
+  for (const chunk of ordered) {
+    for (const cue of chunk.visemes ?? []) {
+      visemes.push({ id: cue.id, offsetMs: cue.offsetMs + durationMs });
+    }
+    durationMs += chunk.durationMs;
+  }
+  return {
+    audioUrl: null,
+    durationMs,
+    visemes: visemes.length ? visemes : null,
+  };
+}
+
 @Injectable()
 export class BuddyService {
   private readonly logger = new Logger(BuddyService.name);
 
   constructor(
-    @InjectRepository(BuddySession) private readonly sessions: Repository<BuddySession>,
+    @InjectRepository(BuddySession)
+    private readonly sessions: Repository<BuddySession>,
     @InjectRepository(Message) private readonly messages: Repository<Message>,
     @InjectRepository(AiUsage) private readonly aiUsages: Repository<AiUsage>,
     @InjectRepository(AiBuddy) private readonly buddies: Repository<AiBuddy>,
     @InjectRepository(User) private readonly users: Repository<User>,
-    @InjectRepository(BuddyVoiceCache) private readonly voiceCache: Repository<BuddyVoiceCache>,
-    @InjectRepository(SafetyEvent) private readonly safetyEvents: Repository<SafetyEvent>,
+    @InjectRepository(BuddyVoiceCache)
+    private readonly voiceCache: Repository<BuddyVoiceCache>,
+    @InjectRepository(SafetyEvent)
+    private readonly safetyEvents: Repository<SafetyEvent>,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     @Inject(STT_ADAPTER) private readonly stt: SttAdapter,
     @Inject(LLM_ADAPTER) private readonly llm: LlmAdapter,
     @Inject(TTS_ADAPTER) private readonly tts: TtsAdapter,
     private readonly imageStorage: ImageStorageService,
+    private readonly turnStreams: BuddyTurnStreamService,
     private readonly gateway: AiGatewayService,
     private readonly usage: BuddyUsageService,
     private readonly memory: BuddyMemoryService,
@@ -177,12 +309,17 @@ export class BuddyService {
 
   // ── Sessions ────────────────────────────────────────────────────────────
 
-  async startSession(userId: string, dto: StartSessionDto): Promise<{
+  async startSession(
+    userId: string,
+    dto: StartSessionDto,
+  ): Promise<{
     sessionId: string;
     buddy: AiBuddy;
     usage: TurnResponse['usage'];
   }> {
-    const buddy = await this.buddies.findOne({ where: { slug: dto.buddySlug, isActive: true } });
+    const buddy = await this.buddies.findOne({
+      where: { slug: dto.buddySlug, isActive: true },
+    });
     if (!buddy) throw new NotFoundException('Buddy олдсонгүй');
 
     const session = await this.sessions.save(
@@ -208,7 +345,9 @@ export class BuddyService {
     userId: string,
     sessionId: string,
   ): Promise<{ sessionId: string; durationSeconds: number; endedAt: string }> {
-    const session = await this.sessions.findOne({ where: { id: sessionId, userId } });
+    const session = await this.sessions.findOne({
+      where: { id: sessionId, userId },
+    });
     if (!session) throw new NotFoundException('Session олдсонгүй');
     if (!session.endedAt) {
       session.endedAt = new Date();
@@ -216,9 +355,15 @@ export class BuddyService {
     }
     const durationSeconds = Math.max(
       0,
-      Math.round((session.endedAt.getTime() - session.createdAt.getTime()) / 1000),
+      Math.round(
+        (session.endedAt.getTime() - session.createdAt.getTime()) / 1000,
+      ),
     );
-    return { sessionId: session.id, durationSeconds, endedAt: session.endedAt.toISOString() };
+    return {
+      sessionId: session.id,
+      durationSeconds,
+      endedAt: session.endedAt.toISOString(),
+    };
   }
 
   /**
@@ -282,7 +427,9 @@ export class BuddyService {
     buddySlug: string,
     opts?: { sessionId?: string; create?: boolean },
   ): Promise<{ sessionId: string; messages: SerializedBuddyMessage[] }> {
-    const buddy = await this.buddies.findOne({ where: { slug: buddySlug, isActive: true } });
+    const buddy = await this.buddies.findOne({
+      where: { slug: buddySlug, isActive: true },
+    });
     if (!buddy) throw new NotFoundException('Buddy олдсонгүй');
 
     let session: BuddySession | null = null;
@@ -299,7 +446,12 @@ export class BuddyService {
     }
     if (!session) {
       session = await this.sessions.save(
-        this.sessions.create({ userId, buddySlug, mode: BuddySessionMode.TEXT, topic: null }),
+        this.sessions.create({
+          userId,
+          buddySlug,
+          mode: BuddySessionMode.TEXT,
+          topic: null,
+        }),
       );
     }
 
@@ -307,7 +459,10 @@ export class BuddyService {
       where: { userId, sessionId: session.id },
       order: { createdAt: 'ASC' },
     });
-    return { sessionId: session.id, messages: rows.map((m) => serializeBuddyMessage(m)) };
+    return {
+      sessionId: session.id,
+      messages: rows.map((m) => serializeBuddyMessage(m)),
+    };
   }
 
   /**
@@ -315,7 +470,10 @@ export class BuddyService {
    * activity first) for the ChatGPT-style history panel. Empty threads (no
    * messages yet) are omitted so a fresh "New chat" doesn't clutter the list.
    */
-  async listTextSessions(userId: string, buddySlug: string): Promise<TextSessionSummary[]> {
+  async listTextSessions(
+    userId: string,
+    buddySlug: string,
+  ): Promise<TextSessionSummary[]> {
     const sessions = await this.sessions.find({
       where: { userId, buddySlug, mode: BuddySessionMode.TEXT },
     });
@@ -353,7 +511,10 @@ export class BuddyService {
    * Delete a past TEXT chat thread (history panel → trash). Only the owner's own
    * text session can be removed; its messages go with it.
    */
-  async deleteTextSession(userId: string, sessionId: string): Promise<{ ok: true }> {
+  async deleteTextSession(
+    userId: string,
+    sessionId: string,
+  ): Promise<{ ok: true }> {
     const session = await this.sessions.findOne({
       where: { id: sessionId, userId, mode: BuddySessionMode.TEXT },
     });
@@ -378,11 +539,25 @@ export class BuddyService {
   // ── Turns ───────────────────────────────────────────────────────────────
 
   /** Typed turn: skip STT, run the shared pipeline, buddy still speaks. */
-  async textTurn(userId: string, sessionId: string, text: string): Promise<TurnResponse> {
+  async textTurn(
+    userId: string,
+    sessionId: string,
+    text: string,
+    clientT0?: number,
+    streamId?: string,
+  ): Promise<TurnResponse> {
     const session = await this.ownedSession(userId, sessionId);
     const user = await this.loadUser(userId);
     await this.preCheckVoice(user);
-    return this.runTurn(user, session, text, text, new TurnTimer());
+    if (streamId) this.turnStreams.open(streamId, userId);
+    return this.runTurn(
+      user,
+      session,
+      text,
+      text,
+      new TurnTimer(clientT0),
+      streamId,
+    );
   }
 
   /** Voice turn: pre-check → STT → (confidence gate) → shared pipeline. */
@@ -390,6 +565,8 @@ export class BuddyService {
     userId: string,
     sessionId: string,
     file: { buffer: Buffer; mimetype: string },
+    clientT0?: number,
+    streamId?: string,
   ): Promise<TurnResponse> {
     const session = await this.ownedSession(userId, sessionId);
     const user = await this.loadUser(userId);
@@ -401,7 +578,10 @@ export class BuddyService {
     await this.preCheckVoice(user);
     await this.checkDailyTurns(userId, limits.dailyVoiceTurnLimit);
 
-    const timer = new TurnTimer();
+    const timer = new TurnTimer(clientT0);
+    // Клиент хэсгүүдийг зэрэгцээд гуйж эхэлсэн байж болзошгүй тул STT-ийн
+    // өмнө бүртгэнэ — эс бөгөөс эхний хүсэлт нь "мэдэгдэхгүй turn" гэж унана.
+    if (streamId) this.turnStreams.open(streamId, userId);
     let transcript: string;
     let sttSeconds: number;
     try {
@@ -412,11 +592,14 @@ export class BuddyService {
       if (result.confidence < limits.sttMinConfidence || !transcript) {
         // Low confidence → ask to repeat, charge nothing, skip LLM/TTS.
         return this.staticTurn(session.id, transcript, 'curious', {
-          reply_text: "I didn't catch that clearly. Can you say it again slowly?",
+          reply_text:
+            "I didn't catch that clearly. Can you say it again slowly?",
         });
       }
     } catch (err) {
-      this.logger.error(`STT failed: ${err instanceof Error ? err.message : err}`);
+      this.logger.error(
+        `STT failed: ${err instanceof Error ? err.message : err}`,
+      );
       return this.staticTurn(session.id, '', 'curious', {
         reply_text: "I didn't catch that clearly. Can you say it again slowly?",
       });
@@ -428,7 +611,7 @@ export class BuddyService {
       metadata: { sessionId: session.id, stage: 'stt' },
     });
 
-    return this.runTurn(user, session, transcript, transcript, timer);
+    return this.runTurn(user, session, transcript, transcript, timer, streamId);
   }
 
   // ── Core pipeline (shared by text + voice) ───────────────────────────────
@@ -439,8 +622,11 @@ export class BuddyService {
     displayText: string,
     rawText: string,
     timer?: TurnTimer,
+    streamId?: string,
   ): Promise<TurnResponse> {
-    const buddy = await this.buddies.findOne({ where: { slug: session.buddySlug } });
+    const buddy = await this.buddies.findOne({
+      where: { slug: session.buddySlug },
+    });
     if (!buddy) throw new NotFoundException('Buddy олдсонгүй');
 
     // Audit-only: flag obvious prompt-injection attempts (no blocking).
@@ -473,20 +659,57 @@ export class BuddyService {
       session.topic ?? undefined,
     );
     const llmMessages: LlmMessage[] = [
-      ...history.map((m) => ({
-        role: m.role === MessageRole.USER ? ('user' as const) : ('assistant' as const),
-        // User turns replay the RAW (uncorrected) transcript.
-        content: m.role === MessageRole.USER ? m.rawText ?? m.content : m.content,
-      })),
+      ...history
+        .map((m) => ({
+          role:
+            m.role === MessageRole.USER
+              ? ('user' as const)
+              : ('assistant' as const),
+          // User turns replay the RAW (uncorrected) transcript.
+          content:
+            m.role === MessageRole.USER ? (m.rawText ?? m.content) : m.content,
+        }))
+        // Цуурайтсан STT prompt нь `raw_text`-д хадгалагдсан **хуучин** мөрүүдэд
+        // үлдсэн (засварын өмнө үүссэн). Тэдгээрийг дахин тоглуулбал LLM
+        // хөрвүүлэх хүсэлт хүлээж авсаар байх тул яриа эдгэрэхгүй — түүхээс
+        // шүүнэ. Шинэ turn-д ийм мөр огт үүсэхгүй
+        // (`GeminiSttAdapter` цуурайг эх үүсвэр дээр нь таслана).
+        .filter(
+          (m) => !(m.role === 'user' && isTranscribePromptEcho(m.content)),
+        ),
       { role: 'user', content: rawText },
     ];
 
-    // --- LLM with one retry, then fallback (never throws) ---
-    const { turn, promptTokens, completionTokens, model } = await this.completeTurn(
-      system,
-      llmMessages,
-      limits,
-    );
+    // t2 — контекст бэлэн, LLM руу хүсэлт явахын өмнөх агшин. Тусад нь
+    // тэмдэглэхгүй бол buddy/limits/memory/history-ийн DB+Redis дуудлагууд
+    // `llm_ms` дотор нуугдаж, LLM-ийг байгаагаасаа удаан харагдуулна.
+    timer?.mark('context');
+
+    // --- LLM + TTS ---
+    //
+    // Хоёр зам байна. Урсгалт зам нь `reply_text`-ийг бүтэн JSON ирэхээс өмнө
+    // гаргаж аваад ярьж эхэлдэг (хэмжилтээр ~1.3 сек эрт); клиент хэсгүүдийг
+    // зэрэгцээд татна. Клиент turnId илгээгээгүй, эсвэл провайдер урсгал
+    // дэмжихгүй бол хуучин зам яг хэвээрээ ажиллана.
+    const streaming =
+      Boolean(streamId) && typeof this.llm.completeStream === 'function';
+
+    const { turn, promptTokens, completionTokens, model, spokenChunks } =
+      streaming
+        ? await this.streamTurn(
+            system,
+            llmMessages,
+            limits,
+            buddy,
+            session.id,
+            streamId!,
+            user.id,
+            timer,
+          )
+        : {
+            ...(await this.completeTurn(system, llmMessages, limits)),
+            spokenChunks: null,
+          };
     timer?.mark('llm'); // T2 — reply ready
 
     // --- Safety gate ---
@@ -512,15 +735,28 @@ export class BuddyService {
       model,
       promptTokens,
       completionTokens,
-      costMicroUsd: Math.round(promptTokens * 0.0008) + Math.round(completionTokens * 0.004),
+      costMicroUsd: llmCostMicroUsd(model, promptTokens, completionTokens),
       metadata: { sessionId: session.id, buddySlug: buddy.slug, stage: 'llm' },
     });
     await this.users.increment({ id: user.id }, 'aiInputTokens', promptTokens);
-    await this.users.increment({ id: user.id }, 'aiOutputTokens', completionTokens);
+    await this.users.increment(
+      { id: user.id },
+      'aiOutputTokens',
+      completionTokens,
+    );
+    // Гурван DB бичилт — цэвэр бүртгэл, гэвч TTS эхлэхийг хойшлуулж байна.
+    timer?.mark('llm_bookkeeping');
 
-    // --- TTS (cache-first) ---
-    const spoken = `${reply} ${turn.follow_up_question}`.trim();
-    const { audioUrl, durationMs, visemes } = await this.speak(user.id, buddy, spoken, session.id, timer);
+    // --- TTS ---
+    //
+    // Урсгалт зам аль хэдийн ярьсан бол ДАХИН синтез хийхгүй: хэсгүүдийг
+    // нийлүүлээд мета өгөгдлийг нь угсарна. `audio_url` нь энэ тохиолдолд
+    // хоосон — аудио нь хэсэг бүрийн URL-аар очсон; кэшлэгдсэн R2 хувилбар нь
+    // ард талд бичигдэж, `speak()` дараагийн ижил өгүүлбэрт түүнийг олно.
+    const spokenText = `${reply} ${turn.follow_up_question}`.trim();
+    const { audioUrl, durationMs, visemes } = spokenChunks
+      ? mergeSpokenChunks(spokenChunks)
+      : await this.speak(user.id, buddy, spokenText, session.id, timer);
 
     // --- Persist both turns ---
     await this.messages.save(
@@ -555,15 +791,6 @@ export class BuddyService {
         },
       }),
     );
-    if (timer) {
-      const stages = timer.snapshot();
-      this.logger.log(
-        `buddy turn ${session.id}: ` +
-          Object.entries(stages).map(([k, v]) => `${k}=${v}`).join(' ') +
-          ` visemes=${visemes?.length ?? 0}`,
-      );
-    }
-
     // --- Memory write (backend has final say) ---
     if (turn.memory_update.should_save) {
       await this.memory.maybeSave(user.id, {
@@ -583,9 +810,32 @@ export class BuddyService {
     });
 
     const allowance = await this.usage.checkVoice(await this.loadUser(user.id));
+
+    // Аудио бэлэн болсны ДАРАА хийгдсэн бүхэн: 2 мессеж хадгалах, санах ой, XP,
+    // хэрэглээг дахин унших. Хэрэглэгч эдгээрийн аль нэгийг ч хүлээх ёсгүй —
+    // энэ тоо хэр их үрэгдэж байгааг харуулна.
+    timer?.mark('persist');
+    if (timer) {
+      const stages = timer.snapshot();
+      this.logger.log(
+        `buddy turn ${session.id}: ` +
+          Object.entries(stages)
+            .map(([k, v]) => `${k}=${v}`)
+            .join(' ') +
+          ` visemes=${visemes?.length ?? 0}`,
+      );
+      // Мессеж дээр аль хэдийн бичигдсэн хувилбар нь `persist_ms`-гүй (тэр үед
+      // хараахан мэдэгдээгүй байсан). Бүрэн зургийг нөхнө — гэхдээ
+      // **хүлээхгүйгээр**: телеметр хэзээ ч хариуг хойшлуулах ёсгүй.
+      void this.messages
+        .update(aiMsg.id, { metadata: { ...aiMsg.metadata, latency: stages } })
+        .catch(() => undefined);
+    }
+
     return {
       session_id: session.id,
       message_id: aiMsg.id,
+      turn_id: timer?.turnId,
       user_transcript: displayText,
       reply_text: reply,
       correction: hasCorrection
@@ -604,7 +854,11 @@ export class BuddyService {
       ...(visemes?.length
         ? { visemes: visemes.map((v) => ({ id: v.id, offset_ms: v.offsetMs })) }
         : {}),
-      avatar_instruction: { emotion, gesture: turn.gesture, duration_ms: durationMs },
+      avatar_instruction: {
+        emotion,
+        gesture: turn.gesture,
+        duration_ms: durationMs,
+      },
       usage: this.usageBlock(allowance),
     };
   }
@@ -628,7 +882,7 @@ export class BuddyService {
       // would cut the reply mid-object and force the retry below — paying for a
       // whole second call. Reply length is controlled by the prompt and capped
       // server-side in `parseBuddyTurn`.
-      const maxTokens = 500;
+      const maxTokens = LLM_MAX_TOKENS;
       const first = await this.llm.complete(system, messages, maxTokens);
       const parseOpts = {
         maxChars: limits.maxReplyChars,
@@ -644,7 +898,8 @@ export class BuddyService {
             ...messages,
             {
               role: 'assistant',
-              content: 'Your previous output was not valid JSON. Return only valid JSON.',
+              content:
+                'Your previous output was not valid JSON. Return only valid JSON.',
             },
           ],
           maxTokens,
@@ -660,47 +915,241 @@ export class BuddyService {
         model: first.model,
       };
     } catch (err) {
-      this.logger.error(`LLM failed: ${err instanceof Error ? err.message : err}`);
-      return { turn: FALLBACK_TURN, promptTokens: 0, completionTokens: 0, model: 'fallback' };
+      this.logger.error(
+        `LLM failed: ${err instanceof Error ? err.message : err}`,
+      );
+      return {
+        turn: FALLBACK_TURN,
+        promptTokens: 0,
+        completionTokens: 0,
+        model: 'fallback',
+      };
     }
   }
 
-  /** TTS with voice cache. On failure returns null audio (turn still succeeds). */
-  private async speak(
+  /**
+   * Урсгалт turn: `reply_text` ирэх тусам нь хэсэглэн ярьж эхэлнэ.
+   *
+   * Дараалал (гэрээний талбарын дараалал үүнийг зориудаар боломжтой болгосон —
+   * `buddy-contract.ts`-ийн анхааруулгыг үз):
+   *
+   *  1. `safety` эхлээд ирнэ → хаалт **ярихаас өмнө** шалгагдана. Тэмдэглэгдсэн
+   *     бол нэг ч хэсэг ярихгүй; бүтэн зам найдвартай чиглүүлэлтийг хийнэ.
+   *  2. `emotion` дараа нь → эхний аудио хэсэгтэй хамт царай тавигдана.
+   *  3. `reply_text` ирэх тусам ярих боломжтой хэсгүүдэд хуваагдана.
+   *  4. JSON бүрэн ирсний дараа `follow_up_question` сүүлийн хэсэг болно.
+   *
+   * TTS нь **цуваа**: аудионы дараалал эвдэрч болохгүй тул зэрэг синтез
+   * хийхгүй. Дараагийн хэсгийн синтез өмнөхийг нь тоглуулж байх зуур явна —
+   * pipeline-ийн хожил ердөө эндээс гарна.
+   *
+   * Ямар ч алдаа гарвал хуучин, батлагдсан зам руу бүрэн буцна.
+   */
+  private async streamTurn(
+    system: string,
+    messages: LlmMessage[],
+    limits: { maxReplyChars: number; maxReplyWords: number },
+    buddy: AiBuddy,
+    sessionId: string,
+    streamId: string,
+    userId: string,
+    timer?: TurnTimer,
+  ): Promise<{
+    turn: BuddyTurnResult;
+    promptTokens: number;
+    completionTokens: number;
+    model: string;
+    spokenChunks: SpokenChunk[] | null;
+  }> {
+    const parseOpts = {
+      maxChars: limits.maxReplyChars,
+      maxWords: limits.maxReplyWords,
+    };
+    const abort = new AbortController();
+    const spoken: SpokenChunk[] = [];
+    let consumed = 0;
+    let index = 0;
+    let safetyFlagged: boolean | null = null;
+    let emotion: string | undefined;
+    /** Цуваа дараалал: бүх синтез нэг гинжинд дараалан орно. */
+    let queue: Promise<void> = Promise.resolve();
+
+    const enqueue = (text: string, last: boolean) => {
+      const at = index++;
+      queue = queue.then(async () => {
+        if (this.turnStreams.isAborted(streamId)) return;
+        const chunk = await this.synthesizeChunk(
+          userId,
+          buddy,
+          text,
+          sessionId,
+          streamId,
+          at,
+          last,
+          emotion,
+          timer,
+        );
+        if (chunk) spoken.push(chunk);
+      });
+    };
+
+    try {
+      const result = await this.llm.completeStream!(
+        system,
+        messages,
+        LLM_MAX_TOKENS,
+        (_delta, full) => {
+          if (this.turnStreams.isAborted(streamId)) {
+            abort.abort();
+            return;
+          }
+          if (!timer?.has('llm_first_token')) {
+            timer?.set('llm_first_token', timer.sinceStart());
+          }
+          // (1) Аюулгүй байдал — үүнийг мэдэхээс өмнө нэг ч үг ярихгүй.
+          if (safetyFlagged === null) {
+            const flag =
+              /"safety"\s*:\s*\{[^}]*"flagged"\s*:\s*(true|false)/.exec(full);
+            if (!flag) return;
+            safetyFlagged = flag[1] === 'true';
+          }
+          if (safetyFlagged) return;
+          // (2) Царай — эхний хэсэгтэй хамт явна.
+          if (!emotion) {
+            const m = /"emotion"\s*:\s*"([a-z_]+)"/.exec(full);
+            if (m) emotion = m[1];
+          }
+          // (3) Ярих боломжтой хэсгүүд.
+          const field = readJsonStringField(full, 'reply_text');
+          if (!field) return;
+          const next = takeSpeakableChunks(
+            field.value,
+            consumed,
+            field.complete,
+          );
+          consumed = next.consumed;
+          for (const text of next.chunks) {
+            if (!timer?.has('llm_first_speakable')) {
+              timer?.set('llm_first_speakable', timer.sinceStart());
+            }
+            enqueue(text, false);
+          }
+        },
+        abort.signal,
+      );
+
+      const turn = parseBuddyTurn(result.text, parseOpts) ?? FALLBACK_TURN;
+      // (4) Дагах асуулт — сүүлчийн хэсэг. Ярих текст нь хуучин замтай ижил
+      // (`reply + follow_up`) тул сонсогдох үр дүн өөрчлөгдөхгүй.
+      const followUp = turn.safety.flagged
+        ? ''
+        : turn.follow_up_question.trim();
+      if (followUp && spoken.length + index > 0 && !turn.safety.flagged) {
+        enqueue(followUp, true);
+      }
+      await queue;
+      this.turnStreams.finish(streamId);
+      return {
+        turn,
+        promptTokens: result.promptTokens,
+        completionTokens: result.completionTokens,
+        model: result.model,
+        spokenChunks: spoken.length ? spoken : null,
+      };
+    } catch (err) {
+      this.logger.error(
+        `LLM stream failed: ${err instanceof Error ? err.message : err}`,
+      );
+      this.turnStreams.finish(streamId, true);
+      const fallback = await this.completeTurn(system, messages, limits);
+      return { ...fallback, spokenChunks: null };
+    }
+  }
+
+  /**
+   * Нэг ярианы хэсгийг синтез хийж, шууд нийтэлнэ.
+   *
+   * R2 руу байршуулах нь **энд байхгүй**: байт нь санах ойгоос шууд үйлчилж,
+   * байршуулалт ард талд кэш дүүргэнэ. Энэ бол "storage-ийг тоглуулалтын
+   * урьдчилсан нөхцөл болгохгүй" гэсэн шаардлагын биелэл.
+   */
+  private async synthesizeChunk(
     userId: string,
     buddy: AiBuddy,
     text: string,
     sessionId: string,
+    streamId: string,
+    index: number,
+    last: boolean,
+    emotion: string | undefined,
     timer?: TurnTimer,
-  ): Promise<{
-    audioUrl: string | null;
-    durationMs: number;
-    visemes: VisemeCue[] | null;
-  }> {
-    const voiceId = buddy.voiceId ?? 'default';
-    const textHash = createHash('sha256').update(`${voiceId}:${text}`).digest('hex');
-
-    const cached = await this.voiceCache.findOne({ where: { textHash, voiceId } });
-    if (cached) {
-      await this.voiceCache.increment({ id: cached.id }, 'hitCount', 1);
-      timer?.mark('tts_cache_hit');
-      return {
-        audioUrl: cached.audioUrl,
-        durationMs: cached.durationMs,
-        visemes: cached.visemes ?? null,
-      };
-    }
-
+  ): Promise<SpokenChunk | null> {
     try {
-      const result = await this.tts.synthesize(text, buddy.voiceId ?? undefined, buddy.ttsParams ?? undefined);
-      timer?.mark('tts'); // T3 → T4 — audio (and its visemes) in hand
+      const result = await this.tts.synthesize(
+        text,
+        buddy.voiceId ?? undefined,
+        buddy.ttsParams ?? undefined,
+      );
+      if (index === 0) {
+        timer?.set('tts_first_chunk', timer.sinceStart());
+        timer?.set('tts_first_chunk_provider', result.firstAudioMs);
+      }
+      this.turnStreams.publish(
+        streamId,
+        {
+          index,
+          text,
+          mimeType: result.mimeType,
+          durationMs: result.durationMs,
+          visemes:
+            result.visemes?.map((v) => ({ id: v.id, offset_ms: v.offsetMs })) ??
+            null,
+          last,
+          emotion: emotion ?? null,
+        },
+        result.audio,
+      );
+      // Кэш + R2 нь хэрэглэгчийн хүлээлтээс гадуур.
+      void this.cacheChunkAudio(userId, buddy, text, sessionId, result);
+      return {
+        index,
+        text,
+        durationMs: result.durationMs,
+        visemes: result.visemes ?? null,
+      };
+    } catch (err) {
+      this.logger.error(
+        `TTS chunk ${index} failed: ${err instanceof Error ? err.message : err}`,
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Ярьсан хэсгийг R2 + дуут кэш рүү **ард талд** бичнэ.
+   *
+   * Хэзээ ч `await` хийгддэггүй тул алдаа нь turn-д хүрэхгүй; хамгийн муудаа
+   * тэр хэсэг дараа дахин синтез хийгдэнэ.
+   */
+  private async cacheChunkAudio(
+    userId: string,
+    buddy: AiBuddy,
+    text: string,
+    sessionId: string,
+    result: TtsResult,
+  ): Promise<void> {
+    try {
+      const voiceId = this.tts.resolveVoice(buddy.voiceId);
+      const textHash = createHash('sha256')
+        .update(`${voiceId}:${text}`)
+        .digest('hex');
+      if (await this.voiceCache.findOne({ where: { textHash, voiceId } }))
+        return;
       const audioUrl = await this.imageStorage.storeMedia({
         buffer: result.audio,
-        // Extension and content type come from the adapter. They used to be
-        // hard-coded to mp3 while Gemini was returning WAV bytes.
         filename: `${textHash.slice(0, 24)}.${result.fileExtension}`,
         mimeType: result.mimeType,
-        resourceType: 'audio', // → R2 when configured, else Cloudinary
+        resourceType: 'audio',
         folder: 'buddy/voice',
         localSubdir: 'audio',
       });
@@ -719,29 +1168,134 @@ export class BuddyService {
         costMicroUsd: Math.round((text.length / 1000) * 0.05 * 1e6),
         metadata: { sessionId, stage: 'tts' },
       });
-      timer?.mark('storage'); // upload + cache write — pure overhead on the user's wait
+    } catch (err) {
+      this.logger.warn(
+        `chunk audio cache failed: ${err instanceof Error ? err.message : err}`,
+      );
+    }
+  }
+
+  /**
+   * TTS with voice cache. On failure returns null audio (turn still succeeds).
+   *
+   * `skipCache` нь админы voice тестэд зориулагдсан: тэр тестийн ганц зорилго
+   * нь тухайн voice **яг одоо** юу буцаахыг (ялангуяа viseme өгөх эсэхийг)
+   * харах явдал тул cache-ээс хариулах нь тестийг утгагүй болгоно.
+   */
+  private async speak(
+    userId: string,
+    buddy: AiBuddy,
+    text: string,
+    sessionId: string,
+    timer?: TurnTimer,
+    skipCache = false,
+  ): Promise<{
+    audioUrl: string | null;
+    durationMs: number;
+    visemes: VisemeCue[] | null;
+  }> {
+    // Cache түлхүүрт **шийдэгдсэн** voice-ыг хэрэглэнэ, хүсэлтийнхийг биш.
+    // `buddy.voiceId` хоосон үед энэ нь `AZURE_TTS_VOICE`/`GEMINI_TTS_VOICE`
+    // болно — эс бөгөөс бүх buddy `'default'` гэсэн нэг түлхүүрийг хуваалцаж,
+    // env-ийн voice сольсны дараа ч хуучин клип үүрд эргэж гарна.
+    const voiceId = this.tts.resolveVoice(buddy.voiceId);
+    const textHash = createHash('sha256')
+      .update(`${voiceId}:${text}`)
+      .digest('hex');
+
+    const cached = skipCache
+      ? null
+      : await this.voiceCache.findOne({ where: { textHash, voiceId } });
+    if (cached) {
+      await this.voiceCache.increment({ id: cached.id }, 'hitCount', 1);
+      timer?.mark('tts_cache_hit');
+      return {
+        audioUrl: cached.audioUrl,
+        durationMs: cached.durationMs,
+        visemes: cached.visemes ?? null,
+      };
+    }
+
+    try {
+      const result = await this.tts.synthesize(
+        text,
+        buddy.voiceId ?? undefined,
+        buddy.ttsParams ?? undefined,
+      );
+      timer?.mark('tts'); // t5 → синтез бүрэн дуусав
+      // t5 → t6: провайдер эхний аудио хэсгээ хэзээ өгсөн. `tts_ms`-ээс
+      // хамаагүй бага байх ёстой; зөрүү нь streaming-ээс хожих хугацаа.
+      timer?.set('tts_first_audio', result.firstAudioMs);
+      const audioUrl = await this.imageStorage.storeMedia({
+        buffer: result.audio,
+        // Extension and content type come from the adapter. They used to be
+        // hard-coded to mp3 while Gemini was returning WAV bytes.
+        filename: `${textHash.slice(0, 24)}.${result.fileExtension}`,
+        mimeType: result.mimeType,
+        resourceType: 'audio', // → R2 when configured, else Cloudinary
+        folder: 'buddy/voice',
+        localSubdir: 'audio',
+      });
+      // t6 → аудио бодитоор татаж авах боломжтой болов. Энэ шат нь ОДООГООР
+      // хэрэглэгчийн хүлээлт дээр бүтнээрээ сууж байна: байт нь аль хэдийн
+      // санах ойд байхад R2 руу байршуулж дуустал хариу явдаггүй.
+      // Нэр нь `audio_upload`, `upload` БИШ: `upload_ms` нь аль хэдийн
+      // клиентийн t0 → сервер хүлээж авах хугацааг эзэлсэн бөгөөд ижил
+      // түлхүүрт бичвэл түүнийг чимээгүй дарж бичнэ.
+      timer?.mark('audio_upload');
+      // `skipCache` нь бичихийг ч алгасана, зөвхөн уншихыг биш: (textHash,
+      // voiceId) нь unique тул хоёр дахь тест давхардсан түлхүүрээр уначихаад
+      // `catch`-д баригдаж "аудио үүсгэж чадсангүй" мэт харагдана.
+      if (!skipCache) {
+        await this.voiceCache.save(
+          this.voiceCache.create({
+            textHash,
+            voiceId: result.voiceId,
+            audioUrl,
+            durationMs: result.durationMs,
+            visemes: result.visemes ?? null,
+          }),
+        );
+      }
+      await this.logUsage(userId, AiUsageType.TTS, {
+        model: result.model,
+        voiceSeconds: Math.ceil(result.durationMs / 1000),
+        costMicroUsd: Math.round((text.length / 1000) * 0.05 * 1e6),
+        metadata: { sessionId, stage: 'tts' },
+      });
+      timer?.mark('tts_persist'); // дуут cache + хэрэглээний бүртгэл (DB)
       return {
         audioUrl,
         durationMs: result.durationMs,
         visemes: result.visemes ?? null,
       };
     } catch (err) {
-      this.logger.error(`TTS failed: ${err instanceof Error ? err.message : err}`);
+      this.logger.error(
+        `TTS failed: ${err instanceof Error ? err.message : err}`,
+      );
       return { audioUrl: null, durationMs: 0, visemes: null };
     }
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────
 
-  private async ownedSession(userId: string, sessionId: string): Promise<BuddySession> {
-    const session = await this.sessions.findOne({ where: { id: sessionId, userId } });
+  private async ownedSession(
+    userId: string,
+    sessionId: string,
+  ): Promise<BuddySession> {
+    const session = await this.sessions.findOne({
+      where: { id: sessionId, userId },
+    });
     if (!session) throw new NotFoundException('Session олдсонгүй');
     if (session.endedAt) throw new ForbiddenException('Session хаагдсан байна');
     return session;
   }
 
   private async loadUser(userId: string): Promise<User> {
-    const user = await this.users.findOne({ where: { id: userId }, relations: ['plan'] });
+    const user = await this.users.findOne({
+      where: { id: userId },
+      relations: ['plan'],
+    });
     if (!user) throw new NotFoundException('Хэрэглэгч олдсонгүй');
     return user;
   }
@@ -837,7 +1391,11 @@ export class BuddyService {
       xp_reward: 0,
       audio_url: null,
       avatar_instruction: { emotion, gesture: 'idle', duration_ms: 0 },
-      usage: { voice_seconds_used_this_month: 0, voice_seconds_limit_this_month: null, warn_level: 'none' },
+      usage: {
+        voice_seconds_used_this_month: 0,
+        voice_seconds_limit_this_month: null,
+        warn_level: 'none',
+      },
     };
   }
 
@@ -873,7 +1431,11 @@ export class BuddyService {
     if (!message) throw new NotFoundException('Мессеж олдсонгүй');
     message.metadata = {
       ...(message.metadata ?? {}),
-      feedback: { rating, reason: reason ?? null, at: new Date().toISOString() },
+      feedback: {
+        rating,
+        reason: reason ?? null,
+        at: new Date().toISOString(),
+      },
     };
     await this.messages.save(message);
 
@@ -900,6 +1462,72 @@ export class BuddyService {
     return { ok: true };
   }
 
+  /**
+   * Клиентийн латенсийн цэгүүдийг (t7/t8/t9) хадгалагдсан turn дээр нэгтгэнэ.
+   *
+   * Энэ нь тухайн turn-ийн зургийг бүрэн болгодог цорын ганц зам:
+   * `t0_to_audible_ms` бол бүтээгдэхүүний зорилтын тоо (хэрэглэгчийн бодит
+   * хүлээлт) бөгөөд серверийн хэмжилтээс аудио татах/декодлох хугацаагаар
+   * ялгаатай. Хоёрын зөрүү = `playback_overhead`.
+   *
+   * Хамгийн сүүлийн turn-ийг **turn_id-гаар** олно (id нь `metadata.latency`-д
+   * байгаа тул хайлт нь jsonb-ээр явна). Олдохгүй бол чимээгүй өнгөрнө —
+   * телеметрийн тайлан хэзээ ч аппад алдаа үзүүлэх ёсгүй.
+   */
+  async reportClientLatency(
+    userId: string,
+    dto: {
+      turnId: string;
+      t0ToAudibleMs?: number;
+      t0ToFirstVisemeMs?: number;
+      t0ToReplyDoneMs?: number;
+    },
+  ): Promise<{ ok: true }> {
+    const message = await this.messages
+      .createQueryBuilder('m')
+      .where('m.user_id = :userId', { userId })
+      .andWhere("m.metadata -> 'latency' ->> 'turn_id' = :turnId", {
+        turnId: dto.turnId,
+      })
+      .orderBy('m.created_at', 'DESC')
+      .getOne();
+    if (!message) return { ok: true };
+
+    const metadata = (message.metadata ?? {}) as Record<string, unknown>;
+    const latency = (metadata.latency ?? {}) as Record<string, unknown>;
+    const client = {
+      ...(dto.t0ToAudibleMs !== undefined
+        ? { t0_to_audible_ms: dto.t0ToAudibleMs }
+        : {}),
+      ...(dto.t0ToFirstVisemeMs !== undefined
+        ? { t0_to_first_viseme_ms: dto.t0ToFirstVisemeMs }
+        : {}),
+      ...(dto.t0ToReplyDoneMs !== undefined
+        ? { t0_to_reply_done_ms: dto.t0ToReplyDoneMs }
+        : {}),
+    };
+    // Тоглуулалтын нэмэлт зардал: хариу гар дээр ирснээс хойш дуу гарах хүртэл
+    // (татах + декод + UI). Төлөвлөгөөний хүлээн авах шалгуур нь ≤ 0.3 сек.
+    const responseMs = Number(latency.t0_to_response_ms);
+    if (dto.t0ToAudibleMs !== undefined && Number.isFinite(responseMs)) {
+      (client as Record<string, number>).playback_overhead_ms = Math.max(
+        0,
+        dto.t0ToAudibleMs - responseMs,
+      );
+    }
+
+    await this.messages.update(message.id, {
+      metadata: { ...metadata, latency: { ...latency, ...client } },
+    });
+    this.logger.log(
+      `buddy turn ${dto.turnId} client: ` +
+        Object.entries(client)
+          .map(([k, v]) => `${k}=${v}`)
+          .join(' '),
+    );
+    return { ok: true };
+  }
+
   // ── Admin ─────────────────────────────────────────────────────────────────
 
   /** Admin: synthesize a sample line in a buddy's voice (reuses the TTS cache). */
@@ -919,6 +1547,8 @@ export class BuddyService {
       buddy,
       text,
       `admin-test-${buddySlug}`,
+      undefined,
+      true, // skipCache — тестийн зорилго нь voice-ыг ЯГ ОДОО дуудаж шалгах
     );
     // `viseme_count` is the Go/No-Go answer from the engineering brief §4.1:
     // an HD voice that returns audio but zero visemes cannot drive lip-sync and
@@ -927,7 +1557,10 @@ export class BuddyService {
     return {
       audio_url: audioUrl,
       viseme_count: visemes?.length ?? 0,
-      visemes: (visemes ?? []).map((v) => ({ id: v.id, offset_ms: v.offsetMs })),
+      visemes: (visemes ?? []).map((v) => ({
+        id: v.id,
+        offset_ms: v.offsetMs,
+      })),
     };
   }
 
@@ -935,7 +1568,10 @@ export class BuddyService {
    * Admin: paginated user feedback on buddy replies (newest first). Reads the
    * `feedback` blob stored on AI messages — no separate table.
    */
-  async getFeedback(page = 1, limit = 20): Promise<{
+  async getFeedback(
+    page = 1,
+    limit = 20,
+  ): Promise<{
     items: {
       messageId: string;
       userId: string;
@@ -980,7 +1616,10 @@ export class BuddyService {
   }
 
   /** Admin: paginated safety-event audit log (newest first). */
-  async getSafetyEvents(page = 1, limit = 20): Promise<{
+  async getSafetyEvents(
+    page = 1,
+    limit = 20,
+  ): Promise<{
     items: SafetyEvent[];
     total: number;
     page: number;

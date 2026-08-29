@@ -13,7 +13,7 @@ import { CreateIdiomDto } from './dto/create-idiom.dto';
 import { UpdateIdiomDto } from './dto/update-idiom.dto';
 import { QueryIdiomDto } from './dto/query-idiom.dto';
 import { AiGatewayService } from '../ai-gateway/ai-gateway.service';
-import { geminiRetryDelayMs } from '../words/words.service';
+import { geminiRetryDelayMs } from '../common/gemini/gemini-text';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 

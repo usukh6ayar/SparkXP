@@ -170,17 +170,24 @@ export function buildBuddySystemPrompt(
     'Mongolian, still answer in simple English at their CEFR level.',
     'Return valid JSON only. No markdown, no extra text outside JSON.',
     '',
-    'Output exactly this JSON shape:',
+    // ⚠️ ТАЛБАРЫН ДАРААЛАЛ НЬ УТГАТАЙ — цагаан толгойн эрэмбэ ч, санамсаргүй ч
+    // биш. Урсгалт turn нь `reply_text`-ийг бүтэн JSON ирэхээс өмнө ярьж
+    // эхэлдэг тул `safety` нь түүнээс ӨМНӨ ирэх ёстой; эс бөгөөс хүүхэд
+    // аюулгүй байдлын хаалтаар шалгагдаагүй өгүүлбэрийг сонсоно.
+    // `emotion` мөн өмнө нь: эхний аудио хэсэгтэй хамт царайны илэрхийлэл
+    // явуулахад хэрэгтэй. Дарааллыг өөрчлөхөөс өмнө `streaming-reply.ts`-ийг
+    // ба `buddy-contract.spec.ts`-ийн дарааллын тестийг үз.
+    'Output exactly this JSON shape, with the keys in exactly this order:',
     '{',
-    '  "reply_text": "short natural reply (goes to text-to-speech)",',
-    '  "correction": { "has_correction": bool, "original": "", "corrected": "", "short_explanation": "" },',
-    '  "follow_up_question": "one short question",',
-    '  "mistake_tags": ["past_simple"],',
+    '  "safety": { "flagged": bool, "reason": null },',
     `  "emotion": "one of: ${BUDDY_EMOTIONS.join('|')}",`,
+    '  "reply_text": "short natural reply (goes to text-to-speech)",',
+    '  "follow_up_question": "one short question",',
+    '  "correction": { "has_correction": bool, "original": "", "corrected": "", "short_explanation": "" },',
+    '  "mistake_tags": ["past_simple"],',
     `  "gesture": "one of: ${BUDDY_GESTURES.join('|')}",`,
     '  "cefr_level_used": "A1|A2|B1|B2|C1|C2",',
-    '  "memory_update": { "should_save": bool, "memory_type": "interest|goal|mistake_pattern|preference|level", "value": "" },',
-    '  "safety": { "flagged": bool, "reason": null }',
+    '  "memory_update": { "should_save": bool, "memory_type": "interest|goal|mistake_pattern|preference|level", "value": "" }',
     '}',
     topicLine + memoryBlock,
   ].join('\n');

@@ -9,7 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
 import { Repository } from 'typeorm';
 import { Quiz } from '../entities/quiz.entity';
-import { runGeminiText } from '../dictionary/gemini-text';
+import { runGeminiText } from '../common/gemini/gemini-text';
 import {
   buildPrompt,
   buildSchema,

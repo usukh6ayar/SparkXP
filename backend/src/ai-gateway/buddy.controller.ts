@@ -11,9 +11,13 @@ import {
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  NotFoundException,
+  ParseIntPipe,
+  Res,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -24,6 +28,7 @@ import { UserRole } from '../common/enums';
 import { User } from '../entities/user.entity';
 import { ConfigService } from '@nestjs/config';
 import { BuddyService } from './buddy.service';
+import { BuddyTurnStreamService } from './buddy-turn-stream.service';
 import {
   AiBuddyEnabledGuard,
   isAiBuddyEnabled,
@@ -32,6 +37,7 @@ import {
   StartSessionDto,
   ResumeTextSessionDto,
   TextTurnDto,
+  ClientLatencyDto,
   TestVoiceDto,
   FeedbackDto,
 } from './dto/buddy-turn.dto';
@@ -45,6 +51,7 @@ export class BuddyController {
   constructor(
     private readonly buddy: BuddyService,
     private readonly config: ConfigService,
+    private readonly turnStreams: BuddyTurnStreamService,
   ) {}
 
   /**
@@ -98,9 +105,20 @@ export class BuddyController {
     @Param('id', ParseUUIDPipe) sessionId: string,
     @UploadedFile() file: { buffer: Buffer; mimetype: string } | undefined,
     @CurrentUser() user: User,
+    @Body('t0') t0?: string,
+    @Body('streamId') streamId?: string,
   ) {
     if (!file) throw new BadRequestException('Аудио файл дутуу байна');
-    return this.buddy.audioTurn(user.id, sessionId, file);
+    // multipart тул `t0` нь мөр болж ирнэ (DTO validation multipart дээр
+    // ажиллахгүй). Утгагүй бол зүгээр л телеметргүй turn болно.
+    const startedAt = Number(t0);
+    return this.buddy.audioTurn(
+      user.id,
+      sessionId,
+      file,
+      Number.isFinite(startedAt) && startedAt > 0 ? startedAt : undefined,
+      streamId,
+    );
   }
 
   /** Text turn: same pipeline, STT skipped. Still spends LLM + TTS → gated. */
@@ -111,7 +129,60 @@ export class BuddyController {
     @Body() dto: TextTurnDto,
     @CurrentUser() user: User,
   ) {
-    return this.buddy.textTurn(user.id, sessionId, dto.text);
+    return this.buddy.textTurn(user.id, sessionId, dto.text, dto.t0, dto.streamId);
+  }
+
+  /**
+   * Аудионы дараагийн хэсгийг ХҮЛЭЭНЭ (урт-хүлээлт).
+   *
+   * Клиент үүнийг turn-ийн хүсэлттэй **зэрэгцүүлэн** дуудна: хэсэг бэлэн
+   * болмогц шууд буцна тул хэрэглэгч бүтэн хариуг хүлээлгүй сонсож эхэлнэ.
+   * Хэсэг байхгүй бол `{ chunk: null }` — клиент ердийн `audio_url` руу шилжинэ.
+   */
+  @Get('turns/:streamId/chunk/:index')
+  chunk(
+    @Param('streamId') streamId: string,
+    @Param('index', ParseIntPipe) index: number,
+    @CurrentUser() user: User,
+  ) {
+    return this.turnStreams.waitFor(streamId, index, user.id);
+  }
+
+  /** Тухайн хэсгийн аудио байт — санах ойгоос шууд, R2-г хүлээхгүй. */
+  @Get('turns/:streamId/audio/:index')
+  async chunkAudio(
+    @Param('streamId') streamId: string,
+    @Param('index', ParseIntPipe) index: number,
+    @CurrentUser() user: User,
+    @Res() res: Response,
+  ) {
+    const audio = this.turnStreams.audioFor(streamId, index, user.id);
+    if (!audio) throw new NotFoundException('Аудио хэсэг олдсонгүй');
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Content-Length', String(audio.length));
+    // Санах ойд түр байдаг тул кэшлүүлэхгүй — URL дахин ашиглагдахгүй.
+    res.setHeader('Cache-Control', 'no-store');
+    res.end(audio);
+  }
+
+  /**
+   * Barge-in: хэрэглэгч дундуур нь ярьж эхлэв. Үлдсэн хэсгүүдийг хаяна;
+   * ажиллаж буй LLM урсгал дараагийн багц дээрээ өөрөө таслагдана.
+   */
+  @Post('turns/:streamId/cancel')
+  cancelTurn(@Param('streamId') streamId: string, @CurrentUser() user: User) {
+    this.turnStreams.abort(streamId, user.id);
+    return { ok: true };
+  }
+
+  /**
+   * Клиентийн латенсийн тайлан (t7/t8/t9) — хэрэглэгчийн бодит хүлээлтийг
+   * зөвхөн төхөөрөмж мэднэ. Хариу нь үргэлж `{ ok: true }`: телеметр аппын
+   * урсгалыг хэзээ ч зогсоох ёсгүй.
+   */
+  @Post('turns/client-latency')
+  clientLatency(@Body() dto: ClientLatencyDto, @CurrentUser() user: User) {
+    return this.buddy.reportClientLatency(user.id, dto);
   }
 
   /** Conversation history for the UI. */
