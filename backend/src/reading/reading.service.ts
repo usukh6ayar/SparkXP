@@ -20,7 +20,7 @@ import { QueryReadingDto } from './dto/query-reading.dto';
 import { AiGatewayService } from '../ai-gateway/ai-gateway.service';
 import { XpService } from '../xp/xp.service';
 import { XpSource } from '../common/enums';
-import { geminiRetryDelayMs } from '../words/words.service';
+import { geminiRetryDelayMs } from '../common/gemini/gemini-text';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 

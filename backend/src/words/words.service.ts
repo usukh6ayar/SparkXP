@@ -20,6 +20,7 @@ import { WordStatus, XpSource, SparksSource, ContentLevel } from '../common/enum
 import { XpService } from '../xp/xp.service';
 import { SparksService } from '../sparks/sparks.service';
 import { AiGatewayService } from '../ai-gateway/ai-gateway.service';
+import { geminiRetryDelayMs } from '../common/gemini/gemini-text';
 import { CreateWordDto } from './dto/create-word.dto';
 import { UpdateWordDto } from './dto/update-word.dto';
 import { QueryWordsDto } from './dto/query-words.dto';
@@ -196,18 +197,6 @@ export function stripJsonFences(raw: string): string {
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-/**
- * How long to wait before retrying a Gemini call. Gemini's 429 body often
- * carries a RetryInfo ("retryDelay":"6s" / "Please retry in 6.2s"); honour it,
- * otherwise fall back to exponential backoff (2s, 4s, 8s…) capped at 30s.
- */
-export function geminiRetryDelayMs(body: string, attempt: number): number {
-  const m = body.match(/retry(?:Delay)?["\s:]+["']?(\d+(?:\.\d+)?)s/i);
-  const suggested = m ? Math.ceil(parseFloat(m[1]) * 1000) : 0;
-  const backoff = Math.min(2000 * 2 ** (attempt - 1), 30000);
-  return Math.max(suggested, backoff);
-}
 
 @Injectable()
 export class WordsService {

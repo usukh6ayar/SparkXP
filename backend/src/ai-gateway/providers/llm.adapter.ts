@@ -25,6 +25,23 @@ export interface LlmAdapter {
     messages: LlmMessage[],
     maxTokens: number,
   ): Promise<LlmResult>;
+
+  /**
+   * Ижил дуудлага, гэхдээ текстийг ирэх тусам нь дамжуулна.
+   *
+   * **Заавал биш**: дэмждэггүй провайдер дээр дуудагч нь `complete`-руу буцна.
+   * Buddy-гийн хувьд энэ нь бүтэн JSON гэрээг хүлээхгүйгээр `reply_text`-ийг
+   * гаргаж аваад ярьж эхлэх боломж өгдөг (хэмжилтээр ~1.3 сек хожино).
+   *
+   * `signal` нь barge-in: хэрэглэгч дахин ярьж эхэлбэл урсгалыг таслана.
+   */
+  completeStream?(
+    system: string,
+    messages: LlmMessage[],
+    maxTokens: number,
+    onDelta: (delta: string, fullSoFar: string) => void,
+    signal?: AbortSignal,
+  ): Promise<LlmResult>;
 }
 
 /** DI token for the active LLM adapter. */

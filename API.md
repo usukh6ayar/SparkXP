@@ -453,8 +453,8 @@ Controller-level: JWT. Realtime speaking companion (STT→LLM→TTS→avatar). �
 хийнэ; TTS-г `buddy_voice_cache`-аар кэшлэнэ.
 
 > ✅ **`AI_BUDDY_ENABLED` — НЭЭЛТТЭЙ (2026-08-17, эзний шийдвэр).**
-> ⚠️ `PAYMENTS_ENABLED` **хаалттай хэвээр** байхад нээсэн — turn нь STT+TTS
-> (Gemini, эсвэл `TTS_PROVIDER=azure` үед Azure) ба Anthropic (LLM)-д
+> ⚠️ `PAYMENTS_ENABLED` **хаалттай хэвээр** байхад нээсэн — turn нь STT (Gemini),
+> LLM (`LLM_PROVIDER`, одоо **Gemini**) ба TTS (`TTS_PROVIDER`, одоо **Azure**)-д
 > дуудалт тутам төлдөг тул зардлыг бүхэлд нь
 > эзэн өөрөө үүрнэ. Цорын ганц таг нь багцын limit (Redis `ai:limits:default`),
 > үнэгүй багцынх нь хамгийн сул. Provider-ийн dashboard-ыг ажигла; олон
@@ -487,7 +487,7 @@ Controller-level: JWT. Realtime speaking companion (STT→LLM→TTS→avatar). �
 - `id` = **Azure viseme id 0–21**, `offset_ms` = аудионы эхлэлээс тухайн амны
   хэлбэр эхлэх агшин. Апп үүнийг `expo-audio`-гийн playback цагаар уншиж
   жинхэнэ lip-sync хийнэ (`mobile/src/components/azureVisemes.ts`).
-- **Зөвхөн `TTS_PROVIDER=azure` үед ирнэ.** Gemini TTS цаг өгдөггүй тул талбар
+- **`TTS_PROVIDER=azure` (2026-08-28-наас prod-ын анхдагч) үед ирнэ.** Gemini TTS цаг өгдөггүй тул талбар
   бүрмөсөн **байхгүй** байх ба апп хариултын бичвэрээс амны хэлбэрийг таамаглах
   хуучин замдаа буцна — тиймээс энэ нь эвдрэлгүй нэмэлт, **аппын шинэ bundle
   шаардахгүй**.

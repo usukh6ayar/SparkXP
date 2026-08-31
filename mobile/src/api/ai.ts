@@ -1,4 +1,4 @@
-import { apiRequest, apiUpload } from './client';
+import { apiRequest, apiUpload, BASE_URL } from './client';
 
 export interface ChatMessage {
   id: string;
@@ -71,6 +71,8 @@ export interface BuddyUsageBlock {
 export interface TurnResponse {
   session_id: string;
   message_id: string;
+  /** Latency-record id for this turn; echoed back with the client-side marks. */
+  turn_id?: string;
   user_transcript: string;
   reply_text: string;
   correction: Correction | null;
@@ -226,10 +228,12 @@ export function sendBuddyTextTurn(
   sessionId: string,
   text: string,
   token: string,
+  /** t0 — when the user finished their input (epoch ms). Telemetry only. */
+  t0?: number,
 ): Promise<TurnResponse> {
   return apiRequest<TurnResponse>(`/ai/buddy/sessions/${sessionId}/turn/text`, {
     method: 'POST',
-    body: { text },
+    body: t0 ? { text, t0 } : { text },
     token,
   });
 }
@@ -238,12 +242,42 @@ export function sendBuddyAudioTurn(
   sessionId: string,
   fileUri: string,
   token: string,
+  /** t0 — when the user stopped talking (epoch ms). Telemetry only. */
+  t0?: number,
+  /** Opt into chunked reply audio under this id (see `buddyChunkQueue`). */
+  streamId?: string,
 ): Promise<TurnResponse> {
   return apiUpload<TurnResponse>(
     `/ai/buddy/sessions/${sessionId}/turn/audio`,
     { uri: fileUri, name: 'turn.m4a', type: 'audio/m4a' },
     token,
+    { ...(t0 ? { t0 } : {}), ...(streamId ? { streamId } : {}) },
   );
+}
+
+/**
+ * Report the client-owned half of the latency picture (t7/t8/t9).
+ *
+ * The server cannot see when audio actually became audible — that is the number
+ * the product target is written against — so the device sends it back after the
+ * fact. Fire-and-forget: a failed report must never surface to the user.
+ */
+export function reportBuddyTurnLatency(
+  body: {
+    turnId: string;
+    t0ToAudibleMs?: number;
+    t0ToFirstVisemeMs?: number;
+    t0ToReplyDoneMs?: number;
+  },
+  token: string,
+): Promise<void> {
+  return apiRequest('/ai/buddy/turns/client-latency', {
+    method: 'POST',
+    body,
+    token,
+  })
+    .then(() => undefined)
+    .catch(() => undefined);
 }
 
 export function getBuddyUsage(
@@ -288,4 +322,53 @@ export function sendBuddyFeedback(
     token,
     body: { messageId, rating, reason },
   });
+}
+
+// ─── Streaming turn audio (Phase 2) ──────────────────────────────────────────
+
+/** One ready-to-play piece of a buddy reply. */
+export interface TurnAudioChunk {
+  index: number;
+  text: string;
+  mimeType: string;
+  durationMs: number;
+  /** Same shape as `TurnResponse.visemes`, so one parser handles both. */
+  visemes: { id: number; offset_ms: number }[] | null;
+  emotion: string | null;
+  last: boolean;
+}
+
+/**
+ * Wait for the next piece of a reply's audio.
+ *
+ * Called **in parallel with the turn request**, not after it: the server
+ * publishes each piece the moment its audio exists, so the buddy starts
+ * speaking well before the full reply (and its JSON envelope) is finished.
+ * This is a long-poll — it resolves as soon as the piece is ready, so there is
+ * no polling interval to pay for.
+ *
+ * `chunk: null` means "no more" (or the server never streamed this turn) and
+ * the caller falls back to the single `audio_url` from the turn response.
+ */
+export function waitForTurnChunk(
+  streamId: string,
+  index: number,
+  token: string,
+): Promise<{ chunk: TurnAudioChunk | null; aborted: boolean }> {
+  return apiRequest<{ chunk: TurnAudioChunk | null; aborted: boolean }>(
+    `/ai/buddy/turns/${streamId}/chunk/${index}`,
+    { token },
+  ).catch(() => ({ chunk: null, aborted: false }));
+}
+
+/** URL for a chunk's audio bytes. Needs the auth header (see `audioHeaders`). */
+export function turnChunkAudioUrl(streamId: string, index: number): string {
+  return `${BASE_URL}/ai/buddy/turns/${streamId}/audio/${index}`;
+}
+
+/** Tell the server to stop producing the rest of this turn (barge-in). */
+export function cancelTurnStream(streamId: string, token: string): Promise<void> {
+  return apiRequest(`/ai/buddy/turns/${streamId}/cancel`, { method: 'POST', token })
+    .then(() => undefined)
+    .catch(() => undefined);
 }

@@ -13,7 +13,7 @@ import { Translation } from '../entities/translation.entity';
 import { AiUsageType } from '../common/enums';
 import type { WordSense } from '../common/types/word-sense';
 import { AiGatewayService } from '../ai-gateway/ai-gateway.service';
-import { runGeminiText } from './gemini-text';
+import { runGeminiText } from '../common/gemini/gemini-text';
 
 export interface WordLookup {
   word: string;

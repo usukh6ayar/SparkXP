@@ -6,6 +6,23 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { SttAdapter, SttResult, sttErrorMessage } from './stt.adapter';
 
+/**
+ * STT загвар.
+ *
+ * `gemini-2.5-flash`-аас **`gemini-3.5-flash-lite`** руу шилжсэн (2026-08-28).
+ * Ижил аудио, ижил prompt дээр 20 дуудлагын хэмжилт:
+ *
+ * | загвар                 | p50    | p90    | p95    | WER  |
+ * |------------------------|--------|--------|--------|------|
+ * | gemini-2.5-flash       | 2811ms | 3203ms | 3446ms | 0.02 |
+ * | **gemini-3.5-flash-lite** | **1694ms** | **2394ms** | **2517ms** | 0.02 |
+ * | gemini-flash-lite-latest  | 2319ms | 3230ms | 3664ms | 0.02 |
+ *
+ * Нэрийг нь тогтоосон (`-latest` alias биш): alias нь чимээгүй шилждэг ба
+ * хэмжилтэд p95 нь мэдэгдэхүйц муу байсан.
+ */
+const DEFAULT_MODEL = 'gemini-3.5-flash-lite';
+
 /** Inline audio must stay under Gemini's request limit (~20MB); we guard a touch below. */
 const MAX_INLINE_BYTES = 18 * 1024 * 1024;
 /** Rough speaking rate — Gemini gives no timestamps, so bill by word count. */
@@ -15,6 +32,32 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const TRANSCRIBE_PROMPT =
   'Transcribe the speech in this audio verbatim. Return ONLY the spoken words as ' +
   'plain text — no timestamps, no speaker labels, no commentary, no quotation marks.';
+
+/**
+ * Яриагүй аудио дээр Gemini transcript буцаахын оронд **өөрийн prompt-оо
+ * цуурайтуулдаг** (хэмжсэн 2026-08-29: чимээгүй бичлэг →
+ * `"Transcribe the speech in this audio verbatim."`).
+ *
+ * Тэр текст цааш урсвал buddy LLM түүнийг хэрэглэгчийн үг гэж үзээд
+ * *"I can't help with audio transcription…"* гэж татгалздаг. Улмаар
+ * `messages.raw_text`-д хадгалагдаж, дараагийн turn бүрийн түүхэнд дахин
+ * тоглогддог тул session бүхэлдээ хордоно.
+ *
+ * Тиймээс цуурайг "яриа олдсонгүй" гэж үзнэ. Дуудагч тал
+ * (`BuddyService.audioTurn`) хоосон transcript дээр аль хэдийн зөв аашилдаг:
+ * хэрэглэгчээс дахин хэлэхийг гуйж, LLM/TTS хүртэл огт очихгүй.
+ */
+export function isTranscribePromptEcho(text: string): boolean {
+  const norm = (s: string) =>
+    s
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim();
+  const t = norm(text);
+  // Дор хаяж 4 үг шаардана — богино жинхэнэ хариултыг санамсаргүй таслахгүйн тулд.
+  if (t.split(' ').filter(Boolean).length < 4) return false;
+  return norm(TRANSCRIBE_PROMPT).startsWith(t);
+}
 
 /**
  * Gemini speech-to-text (multimodal). Sends the audio inline to
@@ -84,27 +127,32 @@ export class GeminiSttAdapter implements SttAdapter {
         'GEMINI_API_KEY тохируулаагүй байна',
       );
     }
-    const model = this.config.get<string>(
-      'GEMINI_STT_MODEL',
-      'gemini-2.5-flash',
-    );
+    const model = this.config.get<string>('GEMINI_STT_MODEL', DEFAULT_MODEL);
     const urlEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-    const body = JSON.stringify({
-      contents: [{ parts: [audioPart, { text: TRANSCRIBE_PROMPT }] }],
-      // No "thinking" — a transcript is verbatim, not a reasoning task.
-      generationConfig: {
-        temperature: 0,
-        thinkingConfig: { thinkingBudget: 0 },
-      },
-    });
+
+    /**
+     * `thinkingConfig`-ийг зөвхөн 2.5 цуврал хүлээж авдаг; шинэ flash-lite
+     * загварууд хүсэлтийг бүхэлд нь **400**-аар татгалздаг. Тэдгээр нь
+     * анхдагчаараа "бодохгүй" тул алдагдах зүйл алга.
+     */
+    let sendThinking = model.startsWith('gemini-2.5');
+    const buildBody = () =>
+      JSON.stringify({
+        contents: [{ parts: [audioPart, { text: TRANSCRIBE_PROMPT }] }],
+        generationConfig: {
+          temperature: 0,
+          // No "thinking" — a transcript is verbatim, not a reasoning task.
+          ...(sendThinking ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
+        },
+      });
 
     let lastStatus = 0;
     let lastBody = '';
-    for (let attempt = 0; attempt < 2; attempt++) {
+    for (let attempt = 0; attempt < 3; attempt++) {
       const response = await fetch(urlEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body,
+        body: buildBody(),
       });
       if (response.ok) {
         const data = (await response.json()) as {
@@ -113,6 +161,15 @@ export class GeminiSttAdapter implements SttAdapter {
         const text = (
           data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
         ).trim();
+        // Prompt-ийн цуурай = яриа олдсонгүй. `confidence: 0` буцаавал
+        // дуудагчийн доод итгэлийн шалгуур ажиллана (доор `confidence` нь
+        // үргэлж 1 тул өөр ямар ч хамгаалалт энэ кейсийг барихгүй).
+        if (isTranscribePromptEcho(text)) {
+          this.logger.warn(
+            `Gemini STT (${label}): prompt echo — яриагүй бичлэг гэж үзэв`,
+          );
+          return { text: '', confidence: 0, seconds: 0 };
+        }
         const words = text ? text.split(/\s+/).length : 0;
         return {
           text,
@@ -122,6 +179,16 @@ export class GeminiSttAdapter implements SttAdapter {
       }
       lastStatus = response.status;
       lastBody = await response.text().catch(() => '');
+      // Загварын нэр өөрчлөгдөж `thinkingConfig`-ийг татгалзвал дуу хоолой
+      // БҮХЭЛДЭЭ унана. Нэг удаа түүнгүйгээр дахин оролдоно — дээрх угтварын
+      // шалгуур нь хэзээ нэгэн цагт хоцрох нь тодорхой.
+      if (response.status === 400 && sendThinking) {
+        this.logger.warn(
+          `Gemini STT: "${model}" rejected thinkingConfig — retrying without it`,
+        );
+        sendThinking = false;
+        continue;
+      }
       if (response.status < 500) break;
       await sleep(1000);
     }
