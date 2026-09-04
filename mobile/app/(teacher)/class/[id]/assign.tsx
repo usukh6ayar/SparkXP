@@ -5,9 +5,9 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../../src/auth/AuthContext';
 import * as assignmentsApi from '../../../../src/api/assignments';
-import type { AssignmentType } from '../../../../src/api/assignments';
+import type { Assignment, AssignmentType } from '../../../../src/api/assignments';
 import * as classesApi from '../../../../src/api/classes';
-import type { ClassStudent } from '../../../../src/api/classes';
+import type { ClassStudent, ClassSummary } from '../../../../src/api/classes';
 import { getLessons } from '../../../../src/api/lessons';
 import { getAssignmentBank, type Quiz } from '../../../../src/api/quizzes';
 import { t, tf, type TranslationKey } from '../../../../src/i18n';
@@ -112,8 +112,20 @@ export default function AssignScreen() {
   const [dueIdx, setDueIdx] = useState(0);
   const dueLabels = DUE_PRESETS.map((p) => t(p.labelKey));
   const [note, setNote] = useState('');
+  // Багшийн ангиуд + аль нь сонгогдсон. Анхдагч нь дэлгэцийг нээсэн анги.
+  const [classes, setClasses] = useState<ClassSummary[]>([]);
+  const [classIds, setClassIds] = useState<string[]>(id ? [id] : []);
   const [targetMode, setTargetMode] = useState<'all' | 'select'>('all');
-  const [students, setStudents] = useState<ClassStudent[]>([]);
+  /** `classId` → тухайн ангийн нэрс. Сонгосон анги бүрд нэг. */
+  const [rosters, setRosters] = useState<Record<string, ClassStudent[]>>({});
+  /**
+   * «Хэнд оноох» эгнээнд аль товч идэвхтэй байна вэ.
+   *
+   * `targetMode`-оос **тусдаа**: «Аль ангид» руу орсон ч даалгавар бүх
+   * сурагчид уу, сонгосон хэдэд үү гэдэг нь өмнөх сонголтоороо хэвээр
+   * үлдэнэ (анги солих нь хэнд өгөхийг өөрчлөх ёсгүй).
+   */
+  const [panel, setPanel] = useState<'classes' | 'all' | 'select'>('all');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -132,10 +144,10 @@ export default function AssignScreen() {
        * Сангийн мөрүүдийг сурагчийн token-оор дуудвал сервер хоосон буцаадаг
        * (`canSeeBank`), тиймээс энэ жагсаалт багшийн эрхээр л дүүрнэ.
        */
-      const [lessonItems, bankItems, roster] = await Promise.all([
+      const [lessonItems, bankItems, mine] = await Promise.all([
         fetchAll((page, limit) => getLessons(token, { page, limit })),
         fetchAll((page, limit) => getAssignmentBank(token, { page, limit })),
-        classesApi.getClassStudents(id, token),
+        classesApi.getMyClasses(token),
       ]);
       setLessons(
         lessonItems.map((l) => ({
@@ -145,7 +157,7 @@ export default function AssignScreen() {
         })),
       );
       setQuizzes(bankItems);
-      setStudents(roster);
+      setClasses(mine.teaching);
     } catch (e) {
       /*
        * Аль нэг хүсэлт унавал өмнө нь `catch` огт байхгүй тул промис
@@ -162,9 +174,69 @@ export default function AssignScreen() {
     void load();
   }, [load]);
 
+  /** Route-ийн анги хожуу ирвэл (эхний render дээр `id` хоосон) нөхнө. */
+  useEffect(() => {
+    if (id) setClassIds((prev) => (prev.length ? prev : [id]));
+  }, [id]);
+
+  /**
+   * Сонгосон анги бүрийн нэрсийг татна — «Сурагч сонгох» нь олон ангид ч
+   * ажиллах ёстой (сурагч бүр өөрийн ангидаа хамаарна, тиймээс нэрс нь
+   * ангиараа бүлэглэгдэнэ). Аль хэдийн татсан ангийг дахин татахгүй.
+   */
+  useEffect(() => {
+    if (!token) return;
+    const missing = classIds.filter((cid) => !rosters[cid]);
+    if (!missing.length) return;
+    let alive = true;
+    void Promise.all(
+      missing.map(async (cid) => {
+        try {
+          return [cid, await classesApi.getClassStudents(cid, token)] as const;
+        } catch {
+          // Нэрс татагдахгүй бол тэр анги «Бүх сурагч» замаар л явна.
+          return [cid, [] as ClassStudent[]] as const;
+        }
+      }),
+    ).then((pairs) => {
+      if (alive) setRosters((prev) => ({ ...prev, ...Object.fromEntries(pairs) }));
+    });
+    return () => {
+      alive = false;
+    };
+  }, [token, classIds, rosters]);
+
+  function toggleClass(cid: string) {
+    const off = classIds.includes(cid);
+    setClassIds(off ? classIds.filter((x) => x !== cid) : [...classIds, cid]);
+    if (off) {
+      // Ангиа хаявал түүний сурагчид сонголтод үлдэж болохгүй.
+      const gone = new Set((rosters[cid] ?? []).map((st) => st.id));
+      setSelectedIds((prev) => prev.filter((sid) => !gone.has(sid)));
+    }
+  }
+
   function toggleStudent(sid: string) {
     setSelectedIds((prev) =>
       prev.includes(sid) ? prev.filter((x) => x !== sid) : [...prev, sid],
+    );
+  }
+
+  /** Тухайн ангиас сонгогдсон сурагчид (нэрс нь ангиараа тусдаа). */
+  function pickedInClass(cid: string): string[] {
+    const ids = new Set(selectedIds);
+    return (rosters[cid] ?? []).filter((st) => ids.has(st.id)).map((st) => st.id);
+  }
+
+  /** Ангийн толгой дээрх чагт — тэр ангийг бүхэлд нь сонгоно/цуцална. */
+  function toggleClassStudents(cid: string) {
+    const roster = rosters[cid] ?? [];
+    const all = roster.length > 0 && pickedInClass(cid).length === roster.length;
+    const ids = roster.map((st) => st.id);
+    setSelectedIds((prev) =>
+      all
+        ? prev.filter((sid) => !ids.includes(sid))
+        : [...new Set([...prev, ...ids])],
     );
   }
 
@@ -215,33 +287,91 @@ export default function AssignScreen() {
     return d.toISOString();
   }
 
-  function onAssign() {
+  /**
+   * Сонгосон **анги бүрд** нэг даалгавар үүсгэнэ.
+   *
+   * Сервер нэг хүсэлтэд нэг л `classId` авдаг тул давталт хийж байна. Мөрүүд
+   * ангиудад тусдаа үүсэх нь зөв: анги бүр өөрийн гүйцэтгэлээ хардаг ба
+   * мэдэгдэл зөвхөн тухайн ангийн сурагчид руу очно.
+   */
+  async function onAssign() {
     setError(null);
-    const common = {
-      classId: id!,
+    const base = {
       type,
       dueAt: computeDueAt(),
       note: note.trim() || undefined,
-      studentIds: targetMode === 'select' ? selectedIds : undefined,
     };
-    return assignmentsApi.createAssignment(
-      type === 'lesson'
-        ? { ...common, targetId: selectedLesson!.id }
-        : {
-            ...common,
-            // Тест бүр = нэг даалгавар, өөрийн сонгосон асуултуудтай.
-            targets: Object.entries(picked).map(([targetId, questionIndexes]) => ({
-              targetId,
-              questionIndexes,
-            })),
-          },
-      token!,
-    );
+    const created: Assignment[] = [];
+    let doneClasses = 0;
+    for (const classId of classIds) {
+      /*
+       * Сонгосон нэрсээс **энэ ангийнхыг** нь л явуулна — сервер
+       * `studentIds`-ыг тухайн ангийн бүрэлдэхүүнтэй тулгаж шалгадаг тул
+       * хөрш ангийн сурагчийн id орвол 400 болно. Энэ ангиас нэг ч сурагч
+       * сонгоогүй бол тэр ангид даалгавар үүсгэх шаардлагагүй.
+       */
+      const studentIds =
+        targetMode === 'select' ? pickedInClass(classId) : undefined;
+      if (targetMode === 'select' && !studentIds?.length) continue;
+      try {
+        const rows = await assignmentsApi.createAssignment(
+          type === 'lesson'
+            ? { ...base, classId, studentIds, targetId: selectedLesson!.id }
+            : {
+                ...base,
+                classId,
+                studentIds,
+                // Тест бүр = нэг даалгавар, өөрийн сонгосон асуултуудтай.
+                targets: Object.entries(picked).map(([targetId, questionIndexes]) => ({
+                  targetId,
+                  questionIndexes,
+                })),
+              },
+          token!,
+        );
+        created.push(...rows);
+        doneClasses++;
+      } catch (e) {
+        /*
+         * Хэсэгчилсэн амжилт: өмнөх ангиудад үүссэн даалгаврыг буцаах
+         * боломжгүй тул хаана зогссоныг нэрээр нь хэлнэ — багш үлдсэн
+         * ангиудаа дахин сонгоод явуулна.
+         */
+        const name = classes.find((c) => c.id === classId)?.name ?? '';
+        if (doneClasses > 0) {
+          throw new Error(tf('assignPartialFail', { name, n: doneClasses }));
+        }
+        throw e;
+      }
+    }
+    return created;
   }
+
+  /** «Бүх анги» мөрийн төлөв. */
+  const allClassesOn =
+    classes.length > 0 && classIds.length === classes.length;
+
+  /** Эгнээний товчнууд. Ганц ангитай багшид «Аль ангид» гарахгүй. */
+  const segments = (
+    classes.length > 1 ? ['classes', 'all', 'select'] : ['all', 'select']
+  ) as ('classes' | 'all' | 'select')[];
+
+  function segmentLabel(seg: 'classes' | 'all' | 'select'): string {
+    if (seg === 'classes') return t('assignClasses');
+    return seg === 'all' ? t('allStudents') : t('selectStudents');
+  }
+
+  /** «Аль ангид» самбарын тайлбар — «Бүх анги» эсвэл сонгосон ангиудын нэр. */
+  const classSummary = allClassesOn
+    ? t('selectAllClasses')
+    : classes
+        .filter((c) => classIds.includes(c.id))
+        .map((c) => c.name)
+        .join(', ') || t('assignNoneChosen');
 
   const canAssign =
     !!token &&
-    !!id &&
+    classIds.length > 0 &&
     (type === 'lesson' ? !!selectedLesson : summary.questions > 0) &&
     (targetMode !== 'select' || selectedIds.length > 0);
 
@@ -392,41 +522,166 @@ export default function AssignScreen() {
               multiline
             />
 
-            {/* Assign to: whole class or a chosen subset */}
+            {/*
+              Хэнд оноох вэ: сонгосон ангиудын **бүх сурагч**, эсвэл нэр
+              заасан хэсэг нь. Олон анги сонгосон үед ч сурагчаа сонгож
+              болно — нэрс нь ангиараа бүлэглэгдэн харагдана.
+            */}
             <AppText variant="label" style={styles.label}>{t('assignTo')}</AppText>
+
+            {/*
+              Нэг эгнээнд 3 товч: аль ангид · бүх сурагч · сурагч сонгох.
+              Дарсан товчны самбар нь доор задарна. «Аль ангид» нь ганцхан
+              анги заадаг багшид нэмүү зүйл өгөхгүй тул харагдахгүй.
+            */}
             <View style={styles.toggle}>
-              {(['all', 'select'] as const).map((m) => {
-                const active = targetMode === m;
+              {segments.map((seg) => {
+                const active = panel === seg;
                 return (
                   <Pressable
-                    key={m}
+                    key={seg}
                     style={[styles.toggleBtn, active && styles.toggleOn]}
-                    onPress={() => setTargetMode(m)}
+                    onPress={() => {
+                      setPanel(seg);
+                      // «Аль ангид» нь хэнд өгөхийг өөрчлөхгүй — зөвхөн самбар.
+                      if (seg !== 'classes') setTargetMode(seg);
+                    }}
                   >
-                    <AppText variant="bodyStrong" color={active ? colors.white : colors.textSecondary}>
-                      {m === 'all' ? t('wholeClass') : t('selectStudents')}
+                    <AppText
+                      variant="bodyStrong"
+                      color={active ? colors.white : colors.textSecondary}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                    >
+                      {segmentLabel(seg)}
                     </AppText>
                   </Pressable>
                 );
               })}
             </View>
 
-            {targetMode === 'select' ? (
-              <View style={styles.roster}>
-                {students.map((s) => {
-                  const on = selectedIds.includes(s.id);
-                  return (
+            {panel === 'classes' ? (
+              <>
+                {/* Эвхээстэй үед ч аль анги сонгогдсоныг нэрээр нь хэлнэ. */}
+                <AppText variant="caption" color={colors.textSecondary} style={styles.note}>
+                  {classSummary}
+                </AppText>
+                <View style={styles.roster}>
+                    {/*
+                      «Бүх анги» нь жагсаалтын **эхний мөр** — булан дахь жижиг
+                      текст холбоос байхад багш нар олдоггүй байв. Бусад мөртэй
+                      ижил чагттай тул «дарж болно» гэдэг нь өөрөө харагдана.
+                    */}
                     <Pressable
-                      key={s.id}
-                      style={[styles.rosterRow, on && { backgroundColor: colors.primarySoft }]}
-                      onPress={() => toggleStudent(s.id)}
+                      style={[
+                        styles.rosterRow,
+                        allClassesOn && { backgroundColor: colors.primarySoft },
+                      ]}
+                      onPress={() =>
+                        setClassIds(allClassesOn ? [] : classes.map((c) => c.id))
+                      }
                     >
-                      <SelectMark state={on ? 'on' : 'off'} size={22} />
-                      <AppText variant={on ? 'bodyStrong' : 'body'}>{s.fullName}</AppText>
+                      <SelectMark
+                        state={
+                          classIds.length === 0
+                            ? 'off'
+                            : allClassesOn
+                              ? 'on'
+                              : 'some'
+                        }
+                        size={22}
+                        emphasis
+                      />
+                      <AppText variant="bodyStrong">{t('selectAllClasses')}</AppText>
+                      <AppText variant="caption" color={colors.textMuted}>
+                        {tf('assignChosenCount', {
+                          n: classIds.length,
+                          total: classes.length,
+                        })}
+                      </AppText>
                     </Pressable>
+                    {classes.map((c) => {
+                      const on = classIds.includes(c.id);
+                      return (
+                        <Pressable
+                          key={c.id}
+                          style={[styles.rosterRow, on && { backgroundColor: colors.primarySoft }]}
+                          onPress={() => toggleClass(c.id)}
+                        >
+                          <SelectMark state={on ? 'on' : 'off'} size={22} />
+                          <AppText variant={on ? 'bodyStrong' : 'body'}>{c.name}</AppText>
+                        </Pressable>
+                      );
+                  })}
+                </View>
+              </>
+            ) : null}
+
+            {classIds.length === 0 ? (
+              <AppText variant="caption" color={colors.textSecondary} style={styles.note}>
+                {t('assignPickClass')}
+              </AppText>
+            ) : panel === 'select' ? (
+              <View style={styles.roster}>
+                {classIds.map((cid) => {
+                  const roster = rosters[cid] ?? [];
+                  const klass = classes.find((c) => c.id === cid);
+                  const chosen = pickedInClass(cid).length;
+                  return (
+                    <View key={cid}>
+                      {/* Ангийн толгой — нэг дор 2 анги нээлттэй байхад
+                          «энэ Болд аль ангийнх вэ» гэдгийг хэлнэ. Бүлгийн
+                          чагт нь тухайн ангийг бүхэлд нь сонгоно. */}
+                      {classes.length > 1 ? (
+                        <Pressable
+                          style={styles.groupRow}
+                          onPress={() => toggleClassStudents(cid)}
+                        >
+                          <SelectMark
+                            state={
+                              chosen === 0
+                                ? 'off'
+                                : chosen === roster.length
+                                  ? 'on'
+                                  : 'some'
+                            }
+                            size={22}
+                            emphasis
+                          />
+                          <AppText variant="bodyStrong">{klass?.name ?? ''}</AppText>
+                          <AppText variant="caption" color={colors.textMuted}>
+                            {tf('assignChosenCount', { n: chosen, total: roster.length })}
+                          </AppText>
+                        </Pressable>
+                      ) : null}
+                      {roster.map((s) => {
+                        const on = selectedIds.includes(s.id);
+                        return (
+                          <Pressable
+                            key={s.id}
+                            style={[styles.rosterRow, on && { backgroundColor: colors.primarySoft }]}
+                            onPress={() => toggleStudent(s.id)}
+                          >
+                            <SelectMark state={on ? 'on' : 'off'} size={22} />
+                            <AppText variant={on ? 'bodyStrong' : 'body'}>{s.fullName}</AppText>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
                   );
                 })}
               </View>
+            ) : null}
+
+            {/*
+              «Аль ангид» самбар нээлттэй үед сурагчийн сонголт нүднээс далд
+              байдаг тул товч яагаад унтарсныг эндээс хэлнэ — эс бөгөөс багш
+              шалтгаангүй унтарсан товч руу ширтэнэ.
+            */}
+            {targetMode === 'select' && classIds.length > 0 && selectedIds.length === 0 ? (
+              <AppText variant="caption" color={colors.textSecondary} style={styles.note}>
+                {t('assignPickStudent')}
+              </AppText>
             ) : null}
 
             {error ? (
@@ -482,6 +737,14 @@ const makeStyles = (colors: AppColors) => StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
     marginBottom: spacing.lg,
+  },
+  groupRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: 9,
+    paddingHorizontal: spacing.sm,
+    marginTop: spacing.xs,
   },
   roster: { marginBottom: spacing.lg, gap: spacing.xs },
   rosterRow: {

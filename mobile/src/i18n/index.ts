@@ -1292,8 +1292,17 @@ const mn = {
   avgProgress: 'Дундаж ахиц',
   studentProgress: 'Сурагчийн ахиц',
   assignTo: 'Хэнд оноох',
-  wholeClass: 'Бүх анги',
+  /** Сонгосон анги(уудын) бүх сурагч. Ангийг өөрийг нь сонгох нь дээд хэсэгт. */
+  allStudents: 'Бүх сурагч',
   selectStudents: 'Сурагч сонгох',
+  // Олон анги — багш ижил даалгаврыг ордог бүх ангидаа нэг дор өгнө.
+  assignClasses: 'Аль ангид',
+  selectAllClasses: 'Бүх анги',
+  assignPickClass: 'Дор хаяж нэг анги сонгоно уу.',
+  assignNoneChosen: 'Сонгоогүй',
+  assignPickStudent: 'Дор хаяж нэг сурагч сонгоно уу.',
+  assignChosenCount: '{n}/{total}',
+  assignPartialFail: '«{name}» ангид оноож чадсангүй. Өмнөх {n} ангид даалгавар үүссэн — үлдсэнийг нь дахин илгээнэ үү.',
   taskNote: 'Тэмдэглэл',
 
   // Network / generic
@@ -2517,8 +2526,15 @@ const en: Record<TranslationKey, string> = {
   avgProgress: 'Avg progress',
   studentProgress: 'Student progress',
   assignTo: 'Assign to',
-  wholeClass: 'Whole class',
+  allStudents: 'All students',
   selectStudents: 'Select students',
+  assignClasses: 'Which classes',
+  selectAllClasses: 'All classes',
+  assignPickClass: 'Pick at least one class.',
+  assignNoneChosen: 'None',
+  assignPickStudent: 'Pick at least one student.',
+  assignChosenCount: '{n}/{total}',
+  assignPartialFail: 'Could not assign to “{name}”. It was created for the {n} class(es) before it — send the rest again.',
   taskNote: 'Note',
 
   // Network / generic
