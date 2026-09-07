@@ -21,6 +21,16 @@ import { BuddyService } from './buddy.service';
 describe('BuddyService.speak', () => {
   const BUDDY = { voiceId: null, ttsParams: null } as never;
 
+  /**
+   * The private helpers `speak` leans on, lifted off the prototype so the fake
+   * `this` below can run the REAL ones. Stubbing them out instead would let the
+   * logging path rot unnoticed — and it runs on literally every spoken turn.
+   */
+  const proto = BuddyService.prototype as never as {
+    providerName: (adapter: object) => string;
+    logVoice: (stage: string, requested: string | null, info: unknown) => void;
+  };
+
   function harness(cached: Record<string, unknown> | null = null) {
     const saves: Record<string, unknown>[] = [];
     const lookups: Record<string, unknown>[] = [];
@@ -51,7 +61,9 @@ describe('BuddyService.speak', () => {
         },
         imageStorage: { storeMedia: jest.fn(async () => 'https://cdn/clip.mp3') },
         logUsage: jest.fn(async () => undefined),
-        logger: { error: jest.fn() },
+        logger: { error: jest.fn(), log: jest.fn(), warn: jest.fn() },
+        providerName: proto.providerName,
+        logVoice: proto.logVoice,
       },
     };
   }
@@ -76,6 +88,26 @@ describe('BuddyService.speak', () => {
     const result = await call(h.ctx);
     expect(h.ctx.tts.synthesize).not.toHaveBeenCalled();
     expect(result.audioUrl).toBe('https://cdn/old.mp3');
+  });
+
+  it('names the voice it spoke with, on both the fresh and the cached path', async () => {
+    // The one question the logs could not answer before: which voice actually
+    // spoke. A cached clip needs it just as much — it may have been made by a
+    // voice that is no longer configured.
+    const fresh = harness();
+    await call(fresh.ctx);
+    expect(fresh.ctx.logger.log).toHaveBeenCalledWith(
+      expect.stringContaining('voice=en-US-AvaMultilingualNeural'),
+    );
+    expect(fresh.ctx.logger.log).toHaveBeenCalledWith(
+      expect.stringContaining('cache=miss'),
+    );
+
+    const hit = harness({ id: 'c1', audioUrl: 'https://cdn/old.mp3', durationMs: 900, visemes: [] });
+    await call(hit.ctx);
+    expect(hit.ctx.logger.log).toHaveBeenCalledWith(
+      expect.stringContaining('cache=hit'),
+    );
   });
 
   it('skipCache bypasses the cached clip and calls the provider', async () => {
