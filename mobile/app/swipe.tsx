@@ -417,7 +417,7 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   deck: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: spacing.lg },
   stack: { width: SCREEN_W - spacing.lg * 2, height: CARD_H },
   press: { flex: 1 },
-  tint: { ...StyleSheet.absoluteFillObject, borderRadius: 30 },
+  tint: { ...StyleSheet.absoluteFill, borderRadius: 30 },
   stamp: {
     position: 'absolute',
     // Row, because the mark is now a real icon beside the word rather than a

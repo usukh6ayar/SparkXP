@@ -373,6 +373,6 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   },
   // absoluteFill (not width/height:'100%') so the picture reliably fills the
   // 48×48 tile even though the tile centers its content for the letter fallback.
-  thumbImg: { ...StyleSheet.absoluteFillObject },
+  thumbImg: { ...StyleSheet.absoluteFill },
   info: { flex: 1 },
 });

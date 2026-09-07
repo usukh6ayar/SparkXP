@@ -250,7 +250,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.20)',
   },
-  glassFill: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255,255,255,0.10)' },
+  glassFill: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(255,255,255,0.10)' },
 
   xpRow: { alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.lg },
   xpHalo: { position: 'absolute', width: ms(200), height: ms(64), borderRadius: radius.full },

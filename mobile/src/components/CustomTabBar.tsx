@@ -7,7 +7,8 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import type { Tabs } from 'expo-router';
+import type { ComponentProps } from 'react';
 import { useSettings } from '../settings/SettingsContext';
 import { haptics } from '../lib/haptics';
 import { DURATION, SPRING, useReduceMotion } from '../lib/motion';
@@ -17,6 +18,19 @@ import { WaveCard } from './tabbar/WaveCard';
 import { TabItem } from './tabbar/TabItem';
 import { BuddyTab } from './tabbar/BuddyTab';
 import { BAR_H, BUDDY_SLOT, LABEL_BOTTOM, TOTAL_H, cardBottom } from './tabbar/geometry';
+
+/**
+ * What `<Tabs tabBar={…}>` hands this component.
+ *
+ * Derived from `Tabs` rather than imported from `@react-navigation/bottom-tabs`
+ * on purpose: since SDK 57 expo-router carries its **own** copy of the
+ * react-navigation types, so importing the package's copy puts two structurally
+ * different `BottomTabBarProps` in the same file and the tab bar stops
+ * type-checking. Reading the type off the component can never drift.
+ */
+type BottomTabBarProps = Parameters<
+  NonNullable<ComponentProps<typeof Tabs>['tabBar']>
+>[0];
 
 const buddy = require('../../assets/buddy-menu.webp');
 

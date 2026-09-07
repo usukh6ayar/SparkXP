@@ -1113,16 +1113,39 @@ in `backend/src/entities/index.ts` (never this list).
 
 ### Running the mobile app — Expo Go vs native build
 
-> 🔒 **Expo SDK-г 54-өөс ДЭЭШЛҮҮЛЖ БОЛОХГҮЙ** (шийдвэр 2026-08-04).
-> App Store дээрх iOS Expo Go нь **54.0.2 дээр царцсан** (2025-09-23-нд гарсан);
-> Expo-гийн SDK 55 хувилбар 2026 оны 5-р сараас Apple-ийн зөвшөөрөл хүлээсээр
-> байна. Тэгэхээр **SDK 54 бол iPhone дээрх Expo Go-той ажиллах сүүлийн SDK.**
-> Choi, Boju **хоёулаа iPhone** дээр тестэлдэг тул шинэчилбэл хоёулаа зогсоно —
-> үлдэх зам (dev build эсвэл `eas go`) хоёулаа **$99 Apple Developer данс**
-> шаарддаг, тэр данс хараахан аваагүй (`ROADMAP.md` § Store setup).
-> **Данс авсны дараа** шинэчлэх боломжтой болно. Энэ нь App Store руу апп
-> илгээхэд ямар ч саад биш — Expo Go-гийн шалгалтын асуудал нь Expo-гийн
-> өөрийнх нь апп, бидэнд хамаагүй.
+> ✅ **SDK 57 рүү шинэчлэгдэв (2026-09-07).** Өмнөх *«SDK-г 54-өөс дээшлүүлж
+> болохгүй»* дүрэм нь **хүчингүй** — түүний үндэслэл (App Store дээрх iOS
+> Expo Go 54.0.2 дээр царцсан) дуусав. Apple зөвшөөрч, Expo Go **57** болж
+> **автоматаар** шинэчлэгдсэн бөгөөд iOS дээр хуучин Expo Go-г буцааж суулгах
+> боломжгүй. Өөрөөр хэлбэл нөхцөл эсрэгээрээ эргэсэн: SDK 54 бол одоо iPhone
+> Expo Go дээр ажиллах**гүй** хувилбар болсон тул шинэчлэл нь сонголт биш
+> шаардлага байв.
+>
+> **Юу өөрчлөгдсөн:** `expo` 54→57, `react-native` 0.81.5→0.86.3,
+> `react` 19.1→19.2.3, `typescript` 5.9→6.0, reanimated 4.1→4.5,
+> бүх `expo-*` багц нэгдсэн 57.x дугаарлалт руу. Шинэ шууд dependency:
+> **`@expo/vector-icons`** (өмнө `expo`-той хамт ирдэг байсан).
+>
+> ⚠️ **Choi/Өсөхбаяр — `git pull` дараа заавал:**
+> 1. `cd mobile && npm install` (бараг бүх багц хөдөлсөн);
+> 2. утсан дээрх **Expo Go-г App Store/Play-ээс шинэчил** (57 байх ёстой);
+> 3. `npm run go` (cache цэвэрлэнэ).
+>
+> ⚠️ **Кодын гурван эвдрэлт өөрчлөлт** (аль хэдийн зассан, шинэ код бичихэд мэд):
+> - `StyleSheet.absoluteFillObject` **устсан** → `StyleSheet.absoluteFill`
+>   (одоо жирийн объект тул `...` spread хэвээр ажиллана);
+> - `@react-navigation/*`-ийг **шууд импортлохгүй** — expo-router 57 өөрийн
+>   хуулбартай болсон тул хоёр өөр төрөл мөргөлдөнө. `ThemeProvider` /
+>   `DarkTheme` / `DefaultTheme` бүгд **`expo-router`**-ээс ирнэ, харин
+>   `BottomTabBarProps`-ыг `Tabs`-аас гаргаж авна (`CustomTabBar.tsx`);
+> - `eslint-config-expo` 57 нь **React Compiler**-ийн дүрмүүдийг авчирсан
+>   (`set-state-in-effect` · `immutability` · `refs` · `purity`). Reanimated-ийн
+>   `sharedValue.value = x` ба react-three-fiber-ийн `useFrame` мутаци нь
+>   тэдгээрийг зөрчих нь **зайлшгүй** тул `eslint.config.js`-д warning болгосон.
+>
+> ⚠️ **Хараахан баталгаажаагүй:** `hot-updater` (0.35.3) RN 0.86 дээр ажиллах
+> эсэх. Bundle амжилттай гардаг ба `_layout.tsx` дээр хамгаалалттай (Expo Go-д
+> идэвхгүй) — гэхдээ **native build + OTA-г Өсөхбаяр биечлэн шалгах ёстой.**
 
 Two ways to run the app; pick by role:
 

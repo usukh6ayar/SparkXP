@@ -79,7 +79,7 @@ export default function OnboardingWelcome() {
 const makeStyles = (c: AppColors) =>
   StyleSheet.create({
     hero: { alignItems: 'center', justifyContent: 'center', height: vs(300) },
-    glowWrap: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
+    glowWrap: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
     glow3: {
       width: ms(300), height: ms(300), borderRadius: ms(150),
       backgroundColor: `${c.glow}0F`, // ~6% alpha
