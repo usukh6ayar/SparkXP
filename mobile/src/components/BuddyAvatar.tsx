@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { View, Text, type ViewStyle } from 'react-native';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
@@ -26,7 +26,7 @@ import { azurePoseAt, type VisemeCue } from './azureVisemes';
  *      the reply text and stretched over the audio's length. Approximate, but
  *      every syllable still lands on a plausible shape.
  *   Either way the timeline is read with the **audio player's own clock**
- *   (`speechPositionMs`), never a local timer — see docs/AZURE_VISEME_PLAN.md.
+ *   (`getPositionMs`), never a local timer — see docs/AZURE_VISEME_PLAN.md.
  *
  * If `assetUrl` is missing/failed, renders nothing — the parent keeps showing
  * the 2D image fallback, so the feature degrades gracefully.
@@ -34,6 +34,11 @@ import { azurePoseAt, type VisemeCue } from './azureVisemes';
 interface Props {
   assetUrl?: string | null;
   emotion?: string;
+  /**
+   * One-shot gesture tag (`wave`, `small_nod`, …), played when this value
+   * CHANGES. The parent may append a `#n` counter so the same gesture twice in
+   * a row still reads as a change; the suffix is stripped here.
+   */
   gesture?: string;
   /** tag → animation clip name (from GET /ai/buddies). */
   emotionMap?: Record<string, string>;
@@ -49,12 +54,19 @@ interface Props {
    */
   visemes?: VisemeCue[] | null;
   /**
-   * Where the reply audio actually is, in ms (expo-audio `currentTime` × 1000).
-   * This is the master clock: status updates are coarse, so the avatar advances
-   * its own clock between them and re-syncs to this value every time it changes.
-   * Without it the mouth free-runs and drifts from the voice.
+   * Where the reply audio actually is, in ms — the lip-sync master clock, read
+   * **once per rendered frame** instead of arriving as a prop.
+   *
+   * A prop was the wrong shape for this: the position changes constantly, so
+   * every update re-rendered the whole chat screen, the stage and this canvas
+   * just to hand over a number the frame loop was about to use anyway. Pulling
+   * it makes the mouth follow the player exactly (no interpolating between
+   * coarse status updates) and costs no React work at all.
+   *
+   * Return `null` when there is no player clock to follow — the device's own
+   * text-to-speech, for one — and the mouth times itself from the text.
    */
-  speechPositionMs?: number | null;
+  getPositionMs?: () => number | null;
   /** True while a turn is in flight → render at a trickle, leaving the JS
    *  thread and GPU to the request, the audio and the UI. */
   lowPower?: boolean;
@@ -149,9 +161,14 @@ interface Loaded {
   animations: THREE.AnimationClip[];
 }
 
-export function BuddyAvatar({
+/**
+ * Memoized: the parent re-renders on every audio status tick, and re-rendering
+ * a live GL canvas for that is pure cost — the frame loop already reads
+ * everything that changes that often (see `getPositionMs`).
+ */
+export const BuddyAvatar = memo(function BuddyAvatar({
   assetUrl, emotion, gesture, emotionMap, isSpeaking, speechText, speechDurationMs,
-  visemes, speechPositionMs, lowPower, onReady, style,
+  visemes, getPositionMs, lowPower, onReady, style,
 }: Props) {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -232,12 +249,12 @@ export function BuddyAvatar({
           speechText={speechText}
           speechDurationMs={speechDurationMs}
           visemes={visemes}
-          speechPositionMs={speechPositionMs}
+          getPositionMs={getPositionMs}
         />
       </Canvas>
     </View>
   );
-}
+});
 
 /** Drives the `frameloop="demand"` canvas at a fixed, phone-friendly rate. */
 function FrameLimiter({ fps }: { fps: number }) {
@@ -267,11 +284,11 @@ function muteUnsupportedPixelStore(gl: WebGLRenderingContext | null): void {
 
 function BuddyModel({
   scene, animations, emotion, gesture, emotionMap, isSpeaking, speechText, speechDurationMs,
-  visemes, speechPositionMs,
+  visemes, getPositionMs,
 }: Loaded &
   Pick<Props,
     | 'emotion' | 'gesture' | 'emotionMap' | 'isSpeaking'
-    | 'speechText' | 'speechDurationMs' | 'visemes' | 'speechPositionMs'>) {
+    | 'speechText' | 'speechDurationMs' | 'visemes' | 'getPositionMs'>) {
   // Canvas size in PIXELS and the camera, from which the visible area is derived
   // below. Deliberately not `state.viewport`: that is already in world units, so
   // reading it hides the aspect maths — and its identity does not reliably change
@@ -420,15 +437,6 @@ function BuddyModel({
   // frame loop reads them, so a new timeline must not re-render the canvas.
   useEffect(() => { cues.current = visemes ?? []; }, [visemes]);
 
-  // Re-sync to the audio player's clock — playback is the master clock, not us.
-  // expo-audio reports its position on its own cadence, so the frame loop keeps
-  // counting between reports and this snaps it back whenever truth arrives.
-  // That is also the whole frame-drop story: a late frame just reads a later
-  // position and picks the shape belonging to *now* instead of replaying.
-  useEffect(() => {
-    if (speechPositionMs != null && speechPositionMs >= 0) speechT.current = speechPositionMs;
-  }, [speechPositionMs]);
-
   // React to a new emotion/gesture.
   //
   // Two paths, and the second one is the one that actually fires today: a rig
@@ -438,12 +446,15 @@ function BuddyModel({
   // so every `wave` / `thumbs_up` / `small_nod` the LLM asked for was silently
   // dropped.
   useEffect(() => {
-    const tag = emotionMap?.[gesture ?? ''] ?? emotionMap?.[emotion ?? ''] ?? gesture ?? emotion;
+    // `gesture` may carry a replay counter (`wave#3`); the pose tables are keyed
+    // by the bare tag.
+    const name = gesture?.split('#')[0];
+    const tag = emotionMap?.[name ?? ''] ?? emotionMap?.[emotion ?? ''] ?? name ?? emotion;
     if (!tag || tag === 'idle' || tag === 'calm') { playClip(pickClip(animations, 'idle'), true); return; }
     const clip = pickClip(animations, tag);
     if (clip) { playClip(clip, false); return; }
-    if (gesture && GESTURE_POSES[gesture] && gesture !== 'idle') {
-      gestureTag.current = gesture;
+    if (name && GESTURE_POSES[name] && name !== 'idle') {
+      gestureTag.current = name;
       gestureT.current = 0;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -488,7 +499,13 @@ function BuddyModel({
 
     let mouth: Pose = {};
     if (isSpeaking) {
-      speechT.current += delta * 1000;
+      // Playback is the master clock, not us: ask the player where it actually
+      // is. A dropped frame therefore just reads a later position and picks the
+      // shape belonging to *now* — the mouth catches up instead of replaying.
+      // Only when there is no player to ask does the clock free-run.
+      const pos = getPositionMs?.();
+      if (pos != null && pos >= 0) speechT.current = pos;
+      else speechT.current += delta * 1000;
       mouth = cues.current.length
         // Real cues from the TTS engine — exact timing, no stretching needed.
         ? azurePoseAt(cues.current, speechT.current)

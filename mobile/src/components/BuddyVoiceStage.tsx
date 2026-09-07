@@ -59,19 +59,25 @@ type Phase = 'idle' | 'recording' | 'locked';
 export function BuddyVoiceStage({
   buddy, greeting, speaking, thinking, voiceLimited, usageLabel, usageLevel,
   captions, onToggleCaptions, onRecordStart, onRecordCommit, onRecordCancel, onOpenText,
-  backgroundUrl, emotion, speechText, speechDurationMs, visemes, speechPositionMs,
+  backgroundUrl, emotion, gesture, speechText, speechDurationMs, visemes, getPositionMs,
 }: {
   buddy: Buddy | null;
   /** LLM emotion tag for the last reply → drives the 3D face expression. */
   emotion?: string;
+  /** LLM gesture tag for the last reply (wave, small_nod, …) → played once. */
+  gesture?: string;
   /** Reply text → the 3D avatar derives its mouth shapes from it. */
   speechText?: string | null;
   /** Real audio length so the mouth keeps pace with the voice. */
   speechDurationMs?: number | null;
   /** Timed viseme cues for the reply audio (empty = derive them from the text). */
   visemes?: VisemeCue[] | null;
-  /** Live playback position of the reply audio in ms — the lip-sync master clock. */
-  speechPositionMs?: number | null;
+  /**
+   * Reads the reply audio's live position in ms — the lip-sync master clock.
+   * A function, not a value, so the avatar can sample it every frame without
+   * re-rendering this screen (see `BuddyAvatar`). `null` = no player to follow.
+   */
+  getPositionMs?: () => number | null;
   greeting: string;
   /** Equipped background scene (from the shop) shown behind the buddy. */
   backgroundUrl?: string | null;
@@ -125,6 +131,7 @@ export function BuddyVoiceStage({
   const [roomH, setRoomH] = useState(0);
   const boxW = winW - EDGE_GAP * 2;
   const boxH = roomH || boxW;
+  const avatarBox = useMemo(() => ({ width: boxW, height: boxH }), [boxW, boxH]);
   const pulse = useSharedValue(0);  // buddy breathing / speaking pulse (backdrop glow)
   const float = useSharedValue(0);  // slow vertical bob so the buddy feels alive
   const think = useSharedValue(0);  // gentle head-tilt wobble while thinking (-1…1)
@@ -375,13 +382,16 @@ export function BuddyVoiceStage({
                 // While a turn is processing the face wears the thinking
                 // expression; otherwise the emotion the LLM asked for.
                 emotion={thinking ? 'thinking' : emotion}
+                gesture={gesture}
                 speechText={speechText}
                 speechDurationMs={speechDurationMs}
                 visemes={visemes}
-                speechPositionMs={speechPositionMs}
+                getPositionMs={getPositionMs}
                 lowPower={thinking}
                 onReady={setReady3d}
-                style={{ width: boxW, height: boxH }}
+                // Memoized so the memoized avatar actually stays memoized: a
+                // fresh style object every render would defeat it on its own.
+                style={avatarBox}
               />
             )}
           </Animated.View>

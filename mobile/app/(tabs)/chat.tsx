@@ -48,6 +48,23 @@ const SPEECH_RECORDING = {
   bitRate: 32000,
 };
 
+/**
+ * Id for a bubble the server has not stored yet (the optimistic user message,
+ * the offline error reply).
+ *
+ * A bare `Date.now()` is not unique enough: two bubbles added in the same
+ * millisecond got the same key, and React then warns and may drop or duplicate
+ * one of them. The counter makes a collision impossible.
+ *
+ * Deliberately NOT uuid-shaped — `BuddyChatSheet` offers the report flag only
+ * for server UUIDs, and these rows cannot be reported.
+ */
+let localSeq = 0;
+const localId = (kind: string) => `local-${Date.now()}-${++localSeq}${kind}`;
+
+/** Makes a repeated gesture tag a new string, so the avatar replays it. */
+let gestureSeq = 0;
+
 export default function ChatScreen() {
   const { token } = useAuth();
   const c = useColors();
@@ -88,11 +105,44 @@ export default function ChatScreen() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   // The voice screen's latest spoken reply (kept apart from the text `messages`).
   const [voiceReply, setVoiceReply] = useState<string | null>(null);
-  // Timed mouth-shape cues for the reply currently playing. Empty until the
-  // backend ships Azure visemes — the avatar then guesses from `voiceReply`.
+  // Timed mouth-shape cues for the audio currently playing. Empty whenever the
+  // TTS provider reports no timing (only Azure does) — the avatar then guesses
+  // the shapes from `voiceSpeechText` instead.
   const [voiceVisemes, setVoiceVisemes] = useState<VisemeCue[]>([]);
+  /**
+   * The text the buddy is speaking **right now**, and how long that audio runs.
+   *
+   * Deliberately separate from `voiceReply` (the caption). A streamed reply is
+   * spoken piece by piece and the player's clock restarts with each piece, so
+   * the mouth has to be driven by the piece that is playing — feeding it the
+   * whole reply (or, before the turn returned, the PREVIOUS reply) is what made
+   * the lips race through a paragraph during one short clip. The caption still
+   * shows the full reply; only the lip-sync source is per-piece.
+   */
+  const [voiceSpeechText, setVoiceSpeechText] = useState<string | null>(null);
+  const [voiceSpeechMs, setVoiceSpeechMs] = useState<number | null>(null);
+  /**
+   * True while the reply is coming out of the DEVICE's text-to-speech rather
+   * than the audio player (the last-resort path when a turn comes back with no
+   * audio at all). The player's clock says nothing then, so the avatar is told
+   * to run the mouth on its own estimate — see `getSpeechPositionMs` below.
+   */
+  const [ttsSpeaking, setTtsSpeakingState] = useState(false);
+  /** Ref twin of `ttsSpeaking`, so the per-frame clock reader stays stable. */
+  const ttsSpeakingRef = useRef(false);
+  const setTtsSpeaking = useCallback((on: boolean) => {
+    ttsSpeakingRef.current = on;
+    setTtsSpeakingState(on);
+  }, []);
   // What the LLM asked the avatar's face to do on the last turn (emotion + gesture).
   const [avatarEmotion, setAvatarEmotion] = useState<string | undefined>(undefined);
+  /**
+   * One-shot gesture (wave, small_nod, …). Kept apart from the emotion because
+   * it PLAYS rather than holds: the avatar runs it once per change, so the same
+   * gesture twice in a row has to look like a change — hence the counter
+   * suffix, stripped again before the tag is used.
+   */
+  const [avatarGesture, setAvatarGesture] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [recording, setRecording] = useState(false);
   const [usage, setUsage] = useState<BuddyUsageBlock | null>(null);
@@ -126,6 +176,13 @@ export default function ChatScreen() {
 
   const holdRef = useRef(false); // synchronous "mic is held" flag (see startRecording)
   /**
+   * Synchronous "a typed turn is already in flight" flag, for the same reason
+   * `holdRef` exists: `setLoading(true)` only lands on the next render, so two
+   * sends fired in one tick (send button + keyboard return) both passed the
+   * `loading` check — billing two turns and appending two bubbles.
+   */
+  const sendingRef = useRef(false);
+  /**
    * Voice-turn stopwatch (Azure brief §7). `t0` is the moment the user stopped
    * talking; `responseAt` is when the turn came back. The number that matters —
    * T0 → first audible audio — is only known when the player actually starts,
@@ -144,6 +201,17 @@ export default function ChatScreen() {
   const chunkQueue = useRef<ChunkQueue | null>(null);
   const player = useAudioPlayer();
   const playerStatus = useAudioPlayerStatus(player);
+  /**
+   * The lip-sync master clock, handed to the avatar as a reader rather than a
+   * value: it samples the player once per rendered frame instead of making this
+   * screen re-render every time the position ticks. `null` while the device's
+   * own text-to-speech is talking — the player is idle then, so its position
+   * would pin the mouth at 0 for the whole sentence.
+   */
+  const getSpeechPositionMs = useCallback(
+    () => (ttsSpeakingRef.current ? null : player.currentTime * 1000),
+    [player],
+  );
   const recorder = useAudioRecorder(SPEECH_RECORDING);
 
   /** Flatten a loaded text thread into the local message list + bind its id. */
@@ -176,7 +244,11 @@ export default function ChatScreen() {
       // best-effort — never break navigation over playback
     }
     setVoiceVisemes([]);
-  }, [player]);
+    setVoiceSpeechText(null);
+    setVoiceSpeechMs(null);
+    setAvatarGesture(undefined);
+    setTtsSpeaking(false);
+  }, [player, setTtsSpeaking]);
 
   // Play speech both here (replay a chat bubble) and after a voice turn.
   //
@@ -444,7 +516,7 @@ export default function ChatScreen() {
    */
   function renderVoiceTurn(
     res: aiApi.TurnResponse,
-    opts?: { alreadySpeaking?: boolean },
+    opts?: { keepStream?: boolean },
   ) {
     if (turnClock.current) {
       turnClock.current.responseAt = Date.now();
@@ -453,16 +525,60 @@ export default function ChatScreen() {
     }
     setVoiceReply(res.reply_text);
     setUsage(res.usage);
-    // When the streamed pieces are already playing, leave playback and the
-    // mouth alone: `res.visemes` is the whole reply on one timeline, but the
-    // player's clock restarts per piece, so applying it here would desync the
-    // mouth from the audio it is meant to match.
-    if (opts?.alreadySpeaking) return;
+    setAvatarEmotion(res.avatar_instruction?.emotion);
+    playGesture(res.avatar_instruction?.gesture);
+    // The chunk queue owns playback and the mouth for this turn. Leave both
+    // alone: `res.visemes` is the whole reply on one timeline, but the player's
+    // clock restarts per piece, so applying it here would desync the mouth from
+    // the audio it is meant to match.
+    if (opts?.keepStream) return;
     // Set the timeline BEFORE playback starts, so the very first frame of audio
     // already has a mouth shape to hit.
     setVoiceVisemes(toVisemeTimeline(res.visemes));
-    setAvatarEmotion(res.avatar_instruction?.emotion);
-    playAudio(res.audio_url);
+    setVoiceSpeechText(res.reply_text);
+    setVoiceSpeechMs(null); // unknown until the player reports it
+    if (res.audio_url) {
+      playAudio(res.audio_url);
+      return;
+    }
+    // No audio and nothing streamed. Rather than a silent buddy (or the modal
+    // `playAudio` would raise, which is worse mid-conversation), read the reply
+    // with the device's own voice — the same fallback the chat sheet uses.
+    speakOnDevice(res.reply_text);
+  }
+
+  /**
+   * Ask the avatar to play a one-shot gesture.
+   *
+   * The tag is suffixed with a counter because the avatar plays a gesture when
+   * the prop CHANGES: two `small_nod` turns in a row would otherwise be one
+   * unchanged string and the second nod would never happen. `BuddyAvatar`
+   * splits the suffix back off before looking the pose up.
+   */
+  function playGesture(tag?: string | null) {
+    if (!tag || tag === 'idle') { setAvatarGesture(undefined); return; }
+    setAvatarGesture(`${tag}#${++gestureSeq}`);
+  }
+
+  /**
+   * Speak `text` with the device's text-to-speech and keep the avatar's mouth
+   * running for as long as it lasts.
+   *
+   * `expo-speech` exposes no playback clock, so `ttsSpeaking` is what tells the
+   * stage to let the avatar time the mouth from the text itself instead of
+   * following a position that will never move.
+   */
+  function speakOnDevice(text?: string | null) {
+    const say = text?.trim();
+    if (!say) return;
+    Speech.stop();
+    setTtsSpeaking(true);
+    Speech.speak(say, {
+      language: 'en-US',
+      onDone: () => setTtsSpeaking(false),
+      onStopped: () => setTtsSpeaking(false),
+      onError: () => setTtsSpeaking(false),
+    });
   }
 
   function handleTurnError(err: unknown, opts?: { voice?: boolean }) {
@@ -475,7 +591,7 @@ export default function ChatScreen() {
     if (opts?.voice) { setVoiceReply(t('chatReplyError')); return; }
     setMessages((prev) => [
       ...prev,
-      { id: `${Date.now()}e`, role: 'assistant', content: t('chatReplyError') },
+      { id: localId('e'), role: 'assistant', content: t('chatReplyError') },
     ]);
   }
 
@@ -511,8 +627,9 @@ export default function ChatScreen() {
 
   /** Send a typed message (the chat sheet owns the draft input + clears it). */
   async function sendMessage(text: string) {
-    if (loading || !textSessionId) return;
-    setMessages((prev) => [...prev, { id: `${Date.now()}u`, role: 'user', content: text }]);
+    if (sendingRef.current || loading || !textSessionId) return;
+    sendingRef.current = true;
+    setMessages((prev) => [...prev, { id: localId('u'), role: 'user', content: text }]);
     setLoading(true);
     try {
       const startedAt = Date.now();
@@ -536,10 +653,23 @@ export default function ChatScreen() {
         turnClock.current.responseAt = Date.now();
         turnClock.current.turnId = res.turn_id;
       }
-      playAudio(res.audio_url);
+      // The buddy is still on screen behind the chat sheet, and this reply is
+      // about to come out of the same player — so give the avatar the same
+      // treatment a spoken turn gets. Without it the mouth ran on whatever the
+      // last VOICE turn had left behind.
+      setVoiceVisemes(toVisemeTimeline(res.visemes));
+      setVoiceSpeechText(res.reply_text);
+      setVoiceSpeechMs(null);
+      setAvatarEmotion(res.avatar_instruction?.emotion);
+      playGesture(res.avatar_instruction?.gesture);
+      // No audio (a turn that skipped TTS) → read it on the device rather than
+      // raising an "audio unavailable" modal on an otherwise normal reply.
+      if (res.audio_url) playAudio(res.audio_url);
+      else speakOnDevice(res.reply_text);
     } catch (err) {
       handleTurnError(err);
     } finally {
+      sendingRef.current = false;
       setLoading(false);
     }
   }
@@ -599,9 +729,14 @@ export default function ChatScreen() {
           if (turnClock.current) turnClock.current.turnId ??= streamId;
         },
         onChunk: (chunk: aiApi.TurnAudioChunk) => {
-          // Cues are per-piece and the player's clock restarts with each piece,
-          // so the timeline is REPLACED, not appended.
-          if (chunk.visemes?.length) setVoiceVisemes(toVisemeTimeline(chunk.visemes));
+          // Everything here is per-piece and the player's clock restarts with
+          // each piece, so all three are REPLACED, never appended. The text and
+          // the duration matter as much as the cues: without them the mouth
+          // falls back to guessing from `voiceReply` — which, until the turn
+          // returns, is still the PREVIOUS reply.
+          setVoiceVisemes(toVisemeTimeline(chunk.visemes));
+          setVoiceSpeechText(chunk.text);
+          setVoiceSpeechMs(chunk.durationMs > 0 ? chunk.durationMs : null);
           if (chunk.emotion) setAvatarEmotion(chunk.emotion);
         },
       });
@@ -612,7 +747,27 @@ export default function ChatScreen() {
       // The turn is STT + LLM + TTS on the server; log it so a slow reply can be
       // pinned on the pipeline rather than guessed at.
       if (__DEV__) console.log(`[buddy] voice turn took ${Date.now() - startedAt} ms`);
-      renderVoiceTurn(res, { alreadySpeaking: chunkQueue.current?.didPlay() ?? false });
+      // Who owns playback now? The queue does if it is already speaking, and
+      // also if it is still alive while the response carries no audio of its own
+      // (a streamed turn returns `audio_url: null` — the bytes went out piece by
+      // piece). Otherwise the queue is done with and must be stopped BEFORE the
+      // full clip starts, or the reply is spoken twice over itself.
+      const queue = chunkQueue.current;
+      const keepStream = !!queue && (queue.didPlay() || !res.audio_url);
+      if (!keepStream) {
+        queue?.cancel();
+        chunkQueue.current = null;
+      }
+      renderVoiceTurn(res, { keepStream });
+      // The queue owns playback but has not made a sound yet. If it ends without
+      // ever playing (server aborted, chunk fetch failed) the turn would be
+      // silent AND have no `audio_url` to fall back on — so read it out then.
+      if (keepStream && queue && !queue.didPlay()) {
+        const reply = res.reply_text;
+        void queue.finished.then(() => {
+          if (chunkQueue.current === queue && !queue.didPlay()) speakOnDevice(reply);
+        });
+      }
     } catch (err) {
       chunkQueue.current?.cancel();
       chunkQueue.current = null;
@@ -706,16 +861,21 @@ export default function ChatScreen() {
           buddy={selected}
           greeting={voiceGreeting}
           backgroundUrl={bgUrl}
-          speaking={playerStatus.playing}
+          speaking={playerStatus.playing || ttsSpeaking}
           emotion={avatarEmotion}
-          speechText={voiceReply}
-          // expo-audio reports seconds; the avatar stretches its mouth-shape
-          // sequence over this so the lips keep pace with the actual voice.
-          speechDurationMs={playerStatus.duration ? playerStatus.duration * 1000 : null}
+          gesture={avatarGesture}
+          // The piece being spoken, not the whole reply — see `voiceSpeechText`.
+          speechText={voiceSpeechText}
+          // The server states each piece's exact length; the player's own
+          // `duration` is the fallback (and lags by a frame at a piece boundary).
+          speechDurationMs={
+            voiceSpeechMs ?? (playerStatus.duration ? playerStatus.duration * 1000 : null)
+          }
           visemes={voiceVisemes}
           // The lip-sync master clock. expo-audio reports seconds; the avatar
           // advances its own clock between reports and re-syncs to each one.
-          speechPositionMs={playerStatus.currentTime * 1000}
+          // A reader, not a value — see `getSpeechPositionMs`.
+          getPositionMs={getSpeechPositionMs}
           thinking={loading}
           voiceLimited={voiceLimited}
           usageLabel={usageLabel}

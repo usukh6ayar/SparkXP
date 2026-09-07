@@ -91,6 +91,21 @@ describe('BuddyTurnStreamService', () => {
     expect(svc.audioFor(TURN, 0, USER)).toEqual(Buffer.from('a'));
   });
 
+  it('reports the chunk\'s own content type, not a hardcoded one', () => {
+    // The route used to answer `audio/mpeg` for every chunk. Azure returns mp3
+    // so it looked right, but Gemini returns WAV — and a WAV announced as mp3
+    // is a turn the phone cannot decode at all.
+    svc.open(TURN, USER);
+    svc.publish(
+      TURN,
+      { ...chunk(0), mimeType: 'audio/wav' },
+      Buffer.from('a'),
+    );
+    expect(svc.mimeFor(TURN, 0, USER)).toBe('audio/wav');
+    expect(svc.mimeFor(TURN, 0, OTHER)).toBeNull(); // never across users
+    expect(svc.mimeFor(TURN, 1, USER)).toBeNull(); // no such chunk yet
+  });
+
   it('keeps chunks addressable by index, so order cannot be lost', () => {
     svc.open(TURN, USER);
     // Publishing out of order is possible if a later synthesis wins the race;

@@ -137,6 +137,14 @@ export async function runGeminiText(
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
   /** Dropped after a 400, which is how Gemini rejects a schema it dislikes. */
   let useSchema = Boolean(options.schema);
+  /**
+   * Мөн 400 дээр хаягддаг: `thinkingConfig`-ийг **зөвхөн 2.5 цуврал** хүлээж
+   * авдаг бөгөөд шинэ flash-lite загварууд хүсэлтийг бүхэлд нь татгалздаг.
+   * Загварын нэрээр таамаглахгүй (тэр жагсаалт заавал хоцордог) — API-гийн
+   * хариултаас сурч, нэг удаа түүнгүйгээр дахин оролдоно. Тэдгээр загварууд
+   * анхдагчаараа "бодохгүй" тул алдагдах зүйл алга.
+   */
+  let sendThinking = options.thinkingBudget !== undefined;
   const contents = options.contents ?? [
     { role: 'user' as const, parts: [{ text: prompt }] },
   ];
@@ -153,7 +161,7 @@ export async function runGeminiText(
         ...(options.maxOutputTokens
           ? { maxOutputTokens: options.maxOutputTokens }
           : {}),
-        ...(options.thinkingBudget !== undefined
+        ...(sendThinking
           ? { thinkingConfig: { thinkingBudget: options.thinkingBudget } }
           : {}),
         ...(options.json
@@ -222,6 +230,19 @@ export async function runGeminiText(
       continue;
     }
 
+    // The other 400 that is about the REQUEST rather than the prompt. Without
+    // this a model change (GEMINI_MODEL / GEMINI_LLM_MODEL pointed at a
+    // non-2.5 model) takes down every feature on this path at once — AI quiz
+    // generation and the buddy's own reply included — and the only clue is a
+    // 400 in the log.
+    if (response.status === 400 && sendThinking) {
+      logger.warn(
+        `Gemini "${model}" rejected thinkingConfig for "${label}" — retrying without it`,
+      );
+      sendThinking = false;
+      continue;
+    }
+
     const transient =
       response.status === 429 ||
       response.status === 503 ||
@@ -271,27 +292,42 @@ export async function streamGeminiText(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}` +
     `:streamGenerateContent?alt=sse&key=${apiKey}`;
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    signal,
-    body: JSON.stringify({
-      contents: options.contents,
-      ...(options.system
-        ? { systemInstruction: { parts: [{ text: options.system }] } }
-        : {}),
-      generationConfig: {
-        temperature: options.temperature ?? 0.3,
-        ...(options.maxOutputTokens
-          ? { maxOutputTokens: options.maxOutputTokens }
+  // Same `thinkingConfig` story as `runGeminiText`: only the 2.5 series accepts
+  // it, and a model that does not rejects the whole request with 400. Here it
+  // matters even more — this is the buddy's live voice turn, so an unrecovered
+  // 400 is a student hearing nothing.
+  let sendThinking = options.thinkingBudget !== undefined;
+  const send = () =>
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal,
+      body: JSON.stringify({
+        contents: options.contents,
+        ...(options.system
+          ? { systemInstruction: { parts: [{ text: options.system }] } }
           : {}),
-        ...(options.thinkingBudget !== undefined
-          ? { thinkingConfig: { thinkingBudget: options.thinkingBudget } }
-          : {}),
-        ...(options.json ? { responseMimeType: 'application/json' } : {}),
-      },
-    }),
-  });
+        generationConfig: {
+          temperature: options.temperature ?? 0.3,
+          ...(options.maxOutputTokens
+            ? { maxOutputTokens: options.maxOutputTokens }
+            : {}),
+          ...(sendThinking
+            ? { thinkingConfig: { thinkingBudget: options.thinkingBudget } }
+            : {}),
+          ...(options.json ? { responseMimeType: 'application/json' } : {}),
+        },
+      }),
+    });
+
+  let response = await send();
+  if (response.status === 400 && sendThinking) {
+    logger.warn(
+      `Gemini stream "${model}" rejected thinkingConfig — retrying without it`,
+    );
+    sendThinking = false;
+    response = await send();
+  }
   if (!response.ok || !response.body) {
     const body = await response.text().catch(() => '');
     throw new InternalServerErrorException(
