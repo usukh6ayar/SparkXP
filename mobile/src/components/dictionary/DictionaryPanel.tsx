@@ -358,7 +358,7 @@ const makeStyles = (colors: AppColors) => StyleSheet.create({
 
   // `overflow: hidden` is what lets the gradient hero inherit the panel's
   // rounded left corners.
-  backdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(10, 6, 30, 0.5)' },
+  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(10, 6, 30, 0.5)' },
   panel: {
     position: 'absolute',
     top: 0,

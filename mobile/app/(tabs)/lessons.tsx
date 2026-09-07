@@ -552,7 +552,7 @@ const styles = StyleSheet.create({
   island: { width: '100%', height: '100%' },
   islandLocked: { opacity: 0.4 },
   islandLock: {
-    ...StyleSheet.absoluteFill,
+    ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
   },

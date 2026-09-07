@@ -1113,39 +1113,34 @@ in `backend/src/entities/index.ts` (never this list).
 
 ### Running the mobile app — Expo Go vs native build
 
-> ✅ **SDK 57 рүү шинэчлэгдэв (2026-09-07).** Өмнөх *«SDK-г 54-өөс дээшлүүлж
-> болохгүй»* дүрэм нь **хүчингүй** — түүний үндэслэл (App Store дээрх iOS
-> Expo Go 54.0.2 дээр царцсан) дуусав. Apple зөвшөөрч, Expo Go **57** болж
-> **автоматаар** шинэчлэгдсэн бөгөөд iOS дээр хуучин Expo Go-г буцааж суулгах
-> боломжгүй. Өөрөөр хэлбэл нөхцөл эсрэгээрээ эргэсэн: SDK 54 бол одоо iPhone
-> Expo Go дээр ажиллах**гүй** хувилбар болсон тул шинэчлэл нь сонголт биш
-> шаардлага байв.
+> ⚠️ **SDK 54 хэвээр — ГЭХДЭЭ iPhone дээрх Expo Go-гоор ТЕСТЛЭХ БОЛОМЖГҮЙ
+> болсон (2026-09-07).** Энэ бол хуучин *«54 бол iPhone-той ажиллах сүүлийн
+> SDK»* гэсэн дүрмийн **эсрэг** байдал — тэр дүрмийн үндэслэл дуусав.
 >
-> **Юу өөрчлөгдсөн:** `expo` 54→57, `react-native` 0.81.5→0.86.3,
-> `react` 19.1→19.2.3, `typescript` 5.9→6.0, reanimated 4.1→4.5,
-> бүх `expo-*` багц нэгдсэн 57.x дугаарлалт руу. Шинэ шууд dependency:
-> **`@expo/vector-icons`** (өмнө `expo`-той хамт ирдэг байсан).
+> **Юу болсон:** App Store дээрх iOS Expo Go **57** болж автоматаар
+> шинэчлэгдсэн (Apple эцэст нь зөвшөөрсөн). iOS дээр хуучин Expo Go-г буцааж
+> суулгах боломжгүй. Тиймээс SDK 54 төслийг iPhone дээр нээхэд:
+> *«Project is incompatible with this version of Expo Go»*.
 >
-> ⚠️ **Choi/Өсөхбаяр — `git pull` дараа заавал:**
-> 1. `cd mobile && npm install` (бараг бүх багц хөдөлсөн);
-> 2. утсан дээрх **Expo Go-г App Store/Play-ээс шинэчил** (57 байх ёстой);
-> 3. `npm run go` (cache цэвэрлэнэ).
+> **SDK 57 рүү шинэчлэх оролдлого хийгээд БУЦААСАН.** Бүрэн шинэчлэл хийгдсэн
+> (PR #264: RN 0.86, `absoluteFillObject`→`absoluteFill`, expo-router-ийн
+> react-navigation, eslint дүрмүүд — `tsc` цэвэр, `expo-doctor` 21/21, bundle
+> амжилттай) боловч **Expo Go дээр QR уншмагц апп шууд унадаг** байсан. Нэг
+> шалтгааныг олж зассан (`Constants.appOwnership` нь SDK 57-д `null` буцаадаг
+> болсон тул Hot Updater-ийн хамгаалалт эсрэгээрээ эргэсэн) ч crash үлдсэн тул
+> `main`-ыг 54 руу revert хийсэн. **Ажил алдагдаагүй:** `feature/expo-sdk-57`
+> branch хэвээр байна — crash-ийн шалтгаан тодорхой болмогц дахин оруулна.
+> Дараагийн алхам нь iPhone-ны crash log (Тохиргоо → Privacy & Security →
+> Analytics Data → `Expo Go-*.ips`), тэр нь унасан модулийг шууд нэрлэнэ.
 >
-> ⚠️ **Кодын гурван эвдрэлт өөрчлөлт** (аль хэдийн зассан, шинэ код бичихэд мэд):
-> - `StyleSheet.absoluteFillObject` **устсан** → `StyleSheet.absoluteFill`
->   (одоо жирийн объект тул `...` spread хэвээр ажиллана);
-> - `@react-navigation/*`-ийг **шууд импортлохгүй** — expo-router 57 өөрийн
->   хуулбартай болсон тул хоёр өөр төрөл мөргөлдөнө. `ThemeProvider` /
->   `DarkTheme` / `DefaultTheme` бүгд **`expo-router`**-ээс ирнэ, харин
->   `BottomTabBarProps`-ыг `Tabs`-аас гаргаж авна (`CustomTabBar.tsx`);
-> - `eslint-config-expo` 57 нь **React Compiler**-ийн дүрмүүдийг авчирсан
->   (`set-state-in-effect` · `immutability` · `refs` · `purity`). Reanimated-ийн
->   `sharedValue.value = x` ба react-three-fiber-ийн `useFrame` мутаци нь
->   тэдгээрийг зөрчих нь **зайлшгүй** тул `eslint.config.js`-д warning болгосон.
->
-> ⚠️ **Хараахан баталгаажаагүй:** `hot-updater` (0.35.3) RN 0.86 дээр ажиллах
-> эсэх. Bundle амжилттай гардаг ба `_layout.tsx` дээр хамгаалалттай (Expo Go-д
-> идэвхгүй) — гэхдээ **native build + OTA-г Өсөхбаяр биечлэн шалгах ёстой.**
+> **Одоо тестлэх боломжтой замууд:**
+> - **Android утас** — `https://expo.dev/go?sdkVersion=54&platform=android&device=true`
+>   хаягаас SDK 54-ийн Expo Go APK-г татаж sideload хий (iOS дээр боломжгүй);
+> - **iOS Simulator** — Xcode → Settings → Components-оос iOS runtime татаад
+>   `npm run go` дараа `i`. ⚠️ expo-gl/three.js нь simulator дээр
+>   тогтворгүй тул 3D buddy-г шалгахад тохиромжгүй;
+> - **Dev build** — Android нь үнэгүй (`eas build --profile development
+>   --platform android`), iOS нь **$99 Apple Developer данс** шаардана.
 
 Two ways to run the app; pick by role:
 

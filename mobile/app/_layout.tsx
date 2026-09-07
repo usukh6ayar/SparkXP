@@ -1,12 +1,10 @@
 import { useEffect, useMemo, type ComponentType } from "react";
 import { View, ActivityIndicator, StyleSheet, Text, useColorScheme } from "react-native";
-import {
-  Stack, useRouter, useSegments, useNavigationContainerRef,
-  ThemeProvider, DarkTheme, DefaultTheme,
-} from "expo-router";
+import { Stack, useRouter, useSegments, useNavigationContainerRef } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
+import { ThemeProvider, DarkTheme, DefaultTheme } from "@react-navigation/native";
 import { StatusBar } from "expo-status-bar";
 import { setAudioModeAsync } from "expo-audio";
 import * as SplashScreen from "expo-splash-screen";

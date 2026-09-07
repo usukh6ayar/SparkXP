@@ -29,30 +29,6 @@ module.exports = [
       ],
       // Catches the `useEffect` dependency bugs that cause real runtime issues.
       'react-hooks/exhaustive-deps': 'warn',
-
-      // --- React Compiler rules, new in eslint-config-expo 57 (SDK 57) ---
-      //
-      // These arrived as ERRORS on ~100 existing, correct call sites the day the
-      // SDK was upgraded — no code had changed. They assume render-pure,
-      // compiler-friendly components, and the two libraries this app is built on
-      // require exactly the patterns they forbid:
-      //
-      //  • Reanimated worklets ARE mutation (`sharedValue.value = x`, and gesture
-      //    handlers writing to refs) → `immutability` / `refs`;
-      //  • react-three-fiber's `useFrame` mutates the scene graph every frame,
-      //    which is the entire point of a frame loop → `purity` / `immutability`;
-      //  • `set-state-in-effect` fires on the ordinary "load, then show" effect
-      //    used all over the screens.
-      //
-      // Kept as WARNINGS so the advice stays visible without failing `npm run
-      // lint` for everyone, which is how a lint run gets ignored (see the note
-      // at the top of this file). Turn one back into an error only together with
-      // the work to clear it.
-      'react-hooks/set-state-in-effect': 'warn',
-      'react-hooks/immutability': 'warn',
-      'react-hooks/refs': 'warn',
-      'react-hooks/purity': 'warn',
-      'react-hooks/preserve-manual-memoization': 'warn',
     },
   },
   {
