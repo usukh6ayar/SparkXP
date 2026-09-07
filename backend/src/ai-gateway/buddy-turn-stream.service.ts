@@ -170,6 +170,21 @@ export class BuddyTurnStreamService {
     return turn.audio[index] ?? null;
   }
 
+  /**
+   * Тухайн хэсгийн бодит content type.
+   *
+   * Тусад нь байгаа шалтгаан: хэсгийг үйлчлэх маршрут үүнийг `audio/mpeg` гэж
+   * ХАТУУ бичдэг байсан ба провайдер бүр өөр формат буцаадаг (Azure = mp3,
+   * Gemini = wav). WAV-ыг mp3 гэж зарлавал iOS тоглуулагч задлаж чадахгүй —
+   * дуу нь чимээгүй бүтэлгүйтэнэ. Adapter өөрөө форматаа хэлдэг тул түүнийг
+   * дамжуулах нь зөв.
+   */
+  mimeFor(turnId: string, index: number, userId: string): string | null {
+    const turn = this.turns.get(turnId);
+    if (!turn || turn.userId !== userId) return null;
+    return turn.chunks[index]?.mimeType ?? null;
+  }
+
   private wake(turn: TurnStream): void {
     const waiters = turn.waiters;
     turn.waiters = [];

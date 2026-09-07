@@ -25,7 +25,15 @@ import {
 export interface ChunkQueueHandlers {
   /** First audible audio — the number the latency target is written against. */
   onFirstAudio?: (chunk: TurnAudioChunk) => void;
-  /** Cues + emotion for the avatar, per piece. */
+  /**
+   * Cues + text + emotion for the avatar — fired the moment the piece becomes
+   * the player's source, NOT when it is fetched.
+   *
+   * The difference is the whole bug this callback used to have: a piece is
+   * fetched while the previous one is still being spoken, so notifying on fetch
+   * handed the avatar the NEXT piece's viseme timeline seconds early and the
+   * mouth mimed the wrong words for the rest of the piece being heard.
+   */
   onChunk?: (chunk: TurnAudioChunk) => void;
   /** Every piece has finished playing. */
   onDone?: () => void;
@@ -61,15 +69,16 @@ export function startChunkQueue(
       const { chunk, aborted } = await waitForTurnChunk(streamId, index, token);
       if (aborted || !chunk || cancelled) break;
 
-      handlers.onChunk?.(chunk);
-      if (index === 0) handlers.onFirstAudio?.(chunk);
-
       // Wait for the previous piece to finish before replacing the source —
       // `replace` is immediate, so calling it early would truncate the reply.
       await waitForIdle(player, played);
       if (cancelled) break;
       player.replace({ uri: turnChunkAudioUrl(streamId, index), headers });
       player.play();
+      // Announced HERE, not above: everything the avatar is told (mouth cues,
+      // spoken text, emotion) describes the audio that is now playing.
+      handlers.onChunk?.(chunk);
+      if (index === 0) handlers.onFirstAudio?.(chunk);
       played += 1;
       if (chunk.last) break;
     }
@@ -103,17 +112,23 @@ export function startChunkQueue(
  */
 async function waitForIdle(player: AudioPlayer, playedSoFar: number): Promise<void> {
   if (playedSoFar === 0) return;
+  // Phase 1 — wait for the piece to actually START.
+  //
+  // `replace()` points the player at a URL it has yet to fetch and decode, so
+  // `playing` stays false for as long as that takes: over mobile data, well
+  // past a single 120 ms beat. Treating that as "finished" is what cut pieces
+  // off mid-word — the next `replace()` landed before a sound was made. Waiting
+  // for the start first means "not playing" can only mean "played out".
+  const startBy = Date.now() + START_GRACE_MS;
+  while (Date.now() < startBy && !player.playing) await sleep(POLL_MS);
+  // Phase 2 — wait for it to play out.
   const deadline = Date.now() + MAX_CHUNK_WAIT_MS;
-  // A freshly-replaced source reports `playing: false` for a moment, so give
-  // playback a beat to actually start before treating idle as "finished".
-  await sleep(POLL_MS);
-  while (Date.now() < deadline) {
-    if (!player.playing) return;
-    await sleep(POLL_MS);
-  }
+  while (Date.now() < deadline && player.playing) await sleep(POLL_MS);
 }
 
 const POLL_MS = 120;
+/** How long a freshly-replaced source may take to make its first sound. */
+const START_GRACE_MS = 4_000;
 /** A piece longer than this is assumed stuck; better to continue than to hang. */
 const MAX_CHUNK_WAIT_MS = 30_000;
 

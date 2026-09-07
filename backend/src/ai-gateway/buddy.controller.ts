@@ -158,7 +158,13 @@ export class BuddyController {
   ) {
     const audio = this.turnStreams.audioFor(streamId, index, user.id);
     if (!audio) throw new NotFoundException('Аудио хэсэг олдсонгүй');
-    res.setHeader('Content-Type', 'audio/mpeg');
+    // Провайдерын өөрийнх нь формат. Хатуу "audio/mpeg" байсан нь Azure
+    // (mp3)-д таарч байсан ч Gemini (wav)-д худал болж, тоглуулагч задлаж
+    // чадахгүй — дуугүй turn болдог байв.
+    res.setHeader(
+      'Content-Type',
+      this.turnStreams.mimeFor(streamId, index, user.id) ?? 'audio/mpeg',
+    );
     res.setHeader('Content-Length', String(audio.length));
     // Санах ойд түр байдаг тул кэшлүүлэхгүй — URL дахин ашиглагдахгүй.
     res.setHeader('Cache-Control', 'no-store');
