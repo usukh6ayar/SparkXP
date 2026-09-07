@@ -650,8 +650,8 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   // 16:9 video keeps its natural shape on every phone width (was fixed 200).
   video: { aspectRatio: 16 / 9, borderRadius: radius.xl, overflow: 'hidden', marginTop: spacing.lg, backgroundColor: c.navy },
   videoImg: { width: '100%', height: '100%' },
-  videoScrim: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(20,16,48,0.35)' },
-  noVideo: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', gap: 6 },
+  videoScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(20,16,48,0.35)' },
+  noVideo: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', gap: 6 },
 
   // Tests
   quizHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.xl, marginBottom: spacing.md },

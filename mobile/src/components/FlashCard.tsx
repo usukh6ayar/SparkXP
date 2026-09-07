@@ -221,7 +221,7 @@ function SpeakerButton({ speaking, onPress }: { speaking: boolean; onPress: () =
 const styles = StyleSheet.create({
   card: { flex: 1 },
   face: {
-    ...StyleSheet.absoluteFill,
+    ...StyleSheet.absoluteFillObject,
     borderRadius: 30,
     overflow: 'hidden',
     backfaceVisibility: 'hidden',
@@ -270,7 +270,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.16)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)',
     alignItems: 'center', justifyContent: 'center',
   },
-  speakerRing: { ...StyleSheet.absoluteFill, borderRadius: radius.full, backgroundColor: colors.white },
+  speakerRing: { ...StyleSheet.absoluteFillObject, borderRadius: radius.full, backgroundColor: colors.white },
   flipHint: { marginTop: spacing.xs },
 
   // Back
