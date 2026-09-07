@@ -485,7 +485,7 @@ const styles = StyleSheet.create({
     width: CARD_WIDTH, height: CARD_HEIGHT,
     alignItems: 'center', justifyContent: 'center',
   },
-  cardAvatarFill: { ...StyleSheet.absoluteFillObject },
+  cardAvatarFill: { ...StyleSheet.absoluteFill },
   cardMonogram: {
     width: CARD_WIDTH * 0.46, height: CARD_WIDTH * 0.46, borderRadius: radius.full,
     alignItems: 'center', justifyContent: 'center', opacity: 0.9,
