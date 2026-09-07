@@ -822,7 +822,14 @@ export class BuddyService {
           Object.entries(stages)
             .map(([k, v]) => `${k}=${v}`)
             .join(' ') +
-          ` visemes=${visemes?.length ?? 0}`,
+          ` visemes=${visemes?.length ?? 0}` +
+          // Аль гурван провайдер бодитоор ажилласныг нэг мөрөнд. Сонголт нь
+          // бүхэлдээ env-ээр явдаг ба анхдагч нь ХУУЧИН утга тул "яагаад
+          // viseme алга / яагаад удаан" гэсэн асуултын хариу ихэвчлэн энд
+          // байдаг — тавихаа мартсан нэг хувьсагч.
+          ` stt=${this.providerName(this.stt as object)}` +
+          ` llm=${this.providerName(this.llm as object)}/${model}` +
+          ` tts=${this.providerName(this.tts as object)}/${this.tts.resolveVoice(buddy.voiceId)}`,
       );
       // Мессеж дээр аль хэдийн бичигдсэн хувилбар нь `persist_ms`-гүй (тэр үед
       // хараахан мэдэгдээгүй байсан). Бүрэн зургийг нөхнө — гэхдээ
@@ -1094,6 +1101,14 @@ export class BuddyService {
         timer?.set('tts_first_chunk', timer.sinceStart());
         timer?.set('tts_first_chunk_provider', result.firstAudioMs);
       }
+      this.logVoice(`chunk ${index}`, buddy.voiceId ?? null, {
+        voiceId: result.voiceId,
+        model: result.model,
+        durationMs: result.durationMs,
+        visemes: result.visemes?.length ?? 0,
+        mimeType: result.mimeType,
+        cache: 'miss',
+      });
       this.turnStreams.publish(
         streamId,
         {
@@ -1182,6 +1197,69 @@ export class BuddyService {
    * нь тухайн voice **яг одоо** юу буцаахыг (ялангуяа viseme өгөх эсэхийг)
    * харах явдал тул cache-ээс хариулах нь тестийг утгагүй болгоно.
    */
+  /**
+   * Идэвхтэй adapter-ийн богино нэр (`AzureTtsAdapter` → `azure`).
+   *
+   * Класс дээрээс уншиж байгаа нь санаатай: `TTS_PROVIDER` env-ийг дахин
+   * уншвал factory-гийн шийдвэрийг ТААМАГЛАЖ байна гэсэн үг — тэр хоёр зөрвөл
+   * лог худал болно. Энэ нь бодитоор дуудагдаж буй объектыг хэлнэ.
+   */
+  private providerName(adapter: object): string {
+    return (
+      adapter.constructor.name
+        .replace(/(Tts|Stt|Llm)Adapter$/, '')
+        .toLowerCase() || 'unknown'
+    );
+  }
+
+  /**
+   * Нэг синтезийн товч тайлан — **buddy ярих бүрд нэг мөр**.
+   *
+   * Яагаад хэрэгтэй вэ: turn амжилттай болсон эсэхийг лог хэлдэг байсан ч
+   * ЯМАР дуу хоолойгоор ярьсныг хэлдэггүй байв. Тиймээс доорхи гурван
+   * доголдол бүгд ЧИМЭЭГҮЙ явдаг — бүх зүйл ажиллаж байгаа мэт харагдана:
+   *
+   *  • `buddy.voiceId`-д өөр провайдерын үлдэгдэл нэр (ж: Gemini-гийн `Kore`)
+   *    байвал Azure түүнийг таньж чадахгүй → анхдагч руу буудаг;
+   *  • сонгосон voice viseme огт буцаахгүй байвал уруулын синк ажиллахгүй;
+   *  • cache-ээс ирсэн клип нь **хуучин** voice-ынх байж болно.
+   */
+  private logVoice(
+    stage: string,
+    requestedVoiceId: string | null,
+    info: {
+      voiceId: string;
+      model?: string;
+      durationMs: number;
+      visemes: number;
+      mimeType?: string;
+      cache: 'hit' | 'miss';
+    },
+  ): void {
+    const provider = this.providerName(this.tts as object);
+    // Хүссэн нэр нь ярьсан нэрээс өөр бол ЗААВАЛ хар: энэ бол чимээгүй
+    // орлуулалт, яг тэр нь буруу хоолойны шалтгаан болдог.
+    const swapped =
+      requestedVoiceId && requestedVoiceId !== info.voiceId
+        ? ` (asked "${requestedVoiceId}")`
+        : '';
+    this.logger.log(
+      `voice[${stage}] provider=${provider} voice=${info.voiceId}${swapped}` +
+        (info.model ? ` model=${info.model}` : '') +
+        ` dur=${info.durationMs}ms visemes=${info.visemes}` +
+        (info.mimeType ? ` mime=${info.mimeType}` : '') +
+        ` cache=${info.cache}`,
+    );
+    // Zero visemes from the one provider that is supposed to report them is a
+    // configuration answer, not a hiccup: that voice cannot drive lip-sync.
+    if (provider === 'azure' && info.visemes === 0 && info.cache === 'miss') {
+      this.logger.warn(
+        `"${info.voiceId}" нь viseme буцаасангүй — энэ voice-оор уруулын синк ` +
+          'ажиллахгүй. Өөр voice сонго (admin → test-voice дээр viseme_count шалга).',
+      );
+    }
+  }
+
   private async speak(
     userId: string,
     buddy: AiBuddy,
@@ -1209,6 +1287,12 @@ export class BuddyService {
     if (cached) {
       await this.voiceCache.increment({ id: cached.id }, 'hitCount', 1);
       timer?.mark('tts_cache_hit');
+      this.logVoice('cache', buddy.voiceId ?? null, {
+        voiceId,
+        durationMs: cached.durationMs,
+        visemes: cached.visemes?.length ?? 0,
+        cache: 'hit',
+      });
       return {
         audioUrl: cached.audioUrl,
         durationMs: cached.durationMs,
@@ -1223,6 +1307,14 @@ export class BuddyService {
         buddy.ttsParams ?? undefined,
       );
       timer?.mark('tts'); // t5 → синтез бүрэн дуусав
+      this.logVoice('turn', buddy.voiceId ?? null, {
+        voiceId: result.voiceId,
+        model: result.model,
+        durationMs: result.durationMs,
+        visemes: result.visemes?.length ?? 0,
+        mimeType: result.mimeType,
+        cache: 'miss',
+      });
       // t5 → t6: провайдер эхний аудио хэсгээ хэзээ өгсөн. `tts_ms`-ээс
       // хамаагүй бага байх ёстой; зөрүү нь streaming-ээс хожих хугацаа.
       timer?.set('tts_first_audio', result.firstAudioMs);
