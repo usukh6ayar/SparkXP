@@ -375,9 +375,9 @@ checklist-ийг бөглөх явцад гарсан бодит цоорхой�
     `ELEVENLABS_VOICE_ID`, `REPLICATE_API_TOKEN`, `REPLICATE_IMAGE_*` хувьсагчид
     prod дээр **хэвээр байгаа** ба код тэдгээрийг уншдаггүй. Устгаад
     провайдер дээрээс нь түлхүүрийг **revoke** хий.
-- ⚠️ **Илэрсэн, хараахан ЗАСААГҮЙ:** `TTS_PROVIDER` prod-д тавиагүй тул код
-  `gemini`-г сонгож байна — өөрөөр хэлбэл `AZURE_SPEECH_*` бүрэн тохируулагдсан
-  атлаа **viseme/lip-sync prod дээр ажиллахгүй байна**.
+- ~~⚠️ **Илэрсэн, хараахан ЗАСААГҮЙ:** `TTS_PROVIDER` prod-д тавиагүй…~~
+  **ЗАСАГДСАН** — `TTS_PROVIDER=azure` Railway дээр тавигдсан нь 2026-09-11-нд
+  boot логоор батлагдав (доорх 09-11-ийн бичлэг).
 
 **Buddy provider шилжилт: Gemini LLM + Azure TTS (2026-08-28).** `LLM_PROVIDER=gemini`
 · `TTS_PROVIDER=azure`. Кодын анхдагч нь ХУУЧИН хэвээр (`anthropic`/`gemini`) —
@@ -655,24 +655,28 @@ HTTP client-ийнх (2026-08-29).** 5C-д хүсэлтүүд төгс шата�
   ерөнхий аргаар илрүүлэх боломжгүй. Ховор бөгөөд өөрийгөө засдаг (хэрэглэгч
   дахин хэлнэ), гэхдээ мэдэж байх хэрэгтэй.
 
-**⚠️ PROD ДЭЭР ЗӨРҮҮ — кодын тал ШИЙДЭГДСЭН, env-ийн тал НЭЭЛТТЭЙ
-(шинэчлэв 2026-09-07).** Дээрх turn-үүд **prod** руу явсан (`mobile/.env` →
-Railway). Тухайн үед Phase 1–5 commit хийгдээгүй байсан тул prod хуучин кодтой
-байв. **Одоо `8301f3d` нь `main`-д нэгдсэн ба prod дээр байгаа нь батлагдсан:**
-нэвтрэлтгүй хандахад `/ai/buddy/turns/:id/chunk/:i` ба
-`/ai/buddy/rt/capabilities` хоёул **401** буцаана (байхгүй бол 404 байх байсан).
-- ✅ **`LLM_PROVIDER=gemini` одоо ажиллана** — `providers.config.ts`-ийн LLM
-  factory-д `case 'gemini'` **нэмэгдсэн**. (Өмнө нь `default:` → Anthropic руу
-  чимээгүй унадаг байсан.)
+**✅ PROD ДЭЭР ЗӨРҮҮ БАЙХГҮЙ — код ба env хоёул баталгаажлаа (2026-09-11).**
+Choi-гийн үлдээсэн 3 нээлттэй асуулт (PR #267) Railway-гийн лог + env
+жагсаалтаар **бүрэн хаагдав**. Prod deployment `ba229be5` = `243c16f` = тухайн
+үеийн `main` HEAD.
+- ✅ **`LLM_PROVIDER=gemini` ажиллаж байна** — `providers.config.ts`-д
+  `case 'gemini'` нэмэгдсэн. Boot лог: `[AiProviders] LLM_PROVIDER = gemini`.
 - ✅ **Phase 2-ын урсгалт зам prod дээр байна** — өмнөх "prod-д байхгүй" гэсэн
   тэмдэглэл хүчингүй.
-- ⚠️ **НЭЭЛТТЭЙ: `TTS_PROVIDER` Railway дээр тавигдсан эсэхийг гаднаас
-  шалгах боломжгүй.** `azure` биш бол Gemini TTS сонгогдоно, тэр adapter нь
-  `firstAudioMs`-ийг **огт тавьдаггүй** (зөвхөн `azure-tts.adapter.ts:240`) тул
-  **эхний-аудио урсгал ажиллахгүй** — сурагч бүтэн synthesis-ийг хүлээнэ.
-  Хэмжсэн (2026-09-07, локал): Gemini TTS дээр `tts_full` p50 **5536мс**, turn
-  нийт **6.7–7.8 сек**. Өөрөөр хэлбэл Phase 2–4-ийн бүх хожил алга болно.
-  Дэлгэрэнгүй → `ROADMAP.md` (2026-09-07-ны Choi-гийн хэсэг).
+- ✅ **`TTS_PROVIDER=azure` Railway дээр ТАВИГДСАН.** Boot лог:
+  `[AiProviders] TTS_PROVIDER = azure` · `STT_PROVIDER = gemini`. Өмнө нь
+  "гаднаас шалгах боломжгүй" гэж бичсэн нь буруу — **`announce()`-ийн мөрийг
+  Railway-гийн deploy логоос шууд уншина** (`filter: PROVIDER`). Дараагийн удаа
+  энэ нэг л алхмаар шалга, таамаглах хэрэггүй.
+- ✅ **Voice зөв, viseme ирж байна** — бодит turn-ийн лог:
+  `voice=en-US-AvaMultilingualNeural ... visemes=46/34`, `mime=audio/mpeg`
+  (Azure adapter нь үнэхээр `Audio24Khz48KBitRateMonoMp3` гаргадаг тул шошго
+  зөв — 08-21-ны WAV/mp3 зөрүү эргэж ирээгүй).
+- ✅ **Prod-ын бодит латенси:** `t0_to_response_ms` = **3845 · 5969мс**
+  (`tts_first_chunk_ms` 2746 · 4897). Локал Gemini TTS-ийн 6.7–7.8 сектэй
+  харьцуулахад Phase 2–4-ийн хожил prod дээр **биелж байна**.
+- ⚠️ Энэ бүхэн **зөвхөн серверийн тал**. Төхөөрөмж дээрх дуу гарах/уруул синк нь
+  TestFlight build-ээр л батлагдана (build 13, 2026-09-11).
 
 **Хараахан хийгдээгүй (blocker БИШ):** Lucide migration; бодит видео тоглуулагч;
 QPay; 3D avatar (1.2-т).
