@@ -4409,3 +4409,64 @@ went · Зөв нь: goes»). Ангийн дэлгэцтэй **яг ижил к
 Expo Go-г симулятор дээр өөрөө суулгадаг. CLAUDE.md-д бичсэн «iOS Expo Go
 54.0.2 дээр царцсан» гэсэн үндэслэл **хуучирсан** — Өсөхбаяр SDK шинэчлэх
 эсэхийг шийдэх шаардлагатай.
+
+---
+
+#### ✅ Choi — AI Buddy латенси: prod дээрх байдлыг шалгав + Gemini TTS-д урсгал байхгүйг хэмжив (2026-09-07) · ДАВХАРДУУЛАХГҮЙ
+
+**Код бичээгүй — хэмжилт + баталгаажуулалт.** «Buddy хурдан болсон уу, хэдэн
+секунд бэ?» гэсэн асуултаас эхэлсэн. Хариу: **кодын хувьд тийм, гэхдээ
+Railway-гийн `TTS_PROVIDER` нь `azure` биш бол тэр хожил бүхэлдээ алга болно.**
+
+**1. Prod дээр Phase 1–5-ийн код БАЙГАА нь батлагдав.** Нэвтрэлтгүй хандаж
+route-ын оршихуйг шалгасан (401 = байна, 404 = алга):
+
+```
+/ai/buddy/turns/probe/chunk/0   401   ← Phase 2 урсгал
+/ai/buddy/rt/capabilities       401
+/ai/buddy/availability          401
+/nonexistent-route-probe        404   ← хяналтын жишээ
+```
+
+`8301f3d` нь `main`-ийн өвөг мөн. Тиймээс `CLAUDE.md`-ийн **«prod нь `main`-ийн
+хуучин кодыг ажиллуулж байна»** гэсэн анхааруулга **хуучирсан** — энэ PR-аар
+залруулав. `providers.config.ts:95`-д `case 'gemini'` байгаа тул
+`LLM_PROVIDER=gemini` ажиллана.
+
+**2. Gemini TTS дээр эхний-аудио урсгал ОГТ АЖИЛЛАХГҮЙ.** Локал backend-ийг
+`TTS_PROVIDER=gemini`-ээр асааж 5 бодит text turn явуулав. `scripts/buddy-latency.sql`:
+
+| шат | p50 | p90 | max |
+| --- | --- | --- | --- |
+| **tts_full** | **5536** | 6016 | 6024 |
+| llm | 1798 | 2073 | 2110 |
+| persist | 7 | 26 | 34 |
+| context | 3 | 5 | 5 |
+| r2_upload | 1 | 3 | 4 |
+
+Turn бүрийн ханын хугацаа: **7711 · 6708 · 7828 · 7210 · 7846 мс**.
+
+⚠️ **`tts_first_audio` мөр огт гараагүй.** Шалтгаан нь кодод:
+`firstAudioMs`-ийг зөвхөн **`azure-tts.adapter.ts:240`** тавьдаг,
+`gemini-tts.adapter.ts` **хэзээ ч** тавьдаггүй. Өөрөөр хэлбэл Phase 2–4-ийн
+бүх хожил (first-audio p50 8565 → 3583 мс) нь **Azure adapter дээр л биелдэг**;
+Gemini TTS дээр сурагч бүтэн 5.5 секундийн synthesis-ийг хүлээнэ.
+
+⚠️ **Эдгээр нь prod-ын тоо БИШ** — локал (Монголоос шууд провайдер руу,
+Railway-гээс биш), бас **text turn тул STT алгассан** (дуут turn дээр ~1.9 сек
+нэмэгдэнэ). Prod-ын жинхэнэ p50-ыг зөвхөн prod DB дээрх
+`scripts/buddy-latency.sql` өгнө.
+
+**3. Өсөхбаярт — 3 зүйл (Railway/prod бол түүний хэсэг):**
+1. Railway env-д **`TTS_PROVIDER=azure`** байгаа эсэх + `AZURE_SPEECH_KEY` ·
+   `AZURE_SPEECH_REGION` бүрэн эсэх. ⚠️ Түлхүүргүйгээр `azure` болгож
+   **бүү тавь** — synthesis унаж buddy дуугүй болно.
+2. Voice-ын үлдэгдэл шалгах:
+   `SELECT slug, voice_id FROM ai_buddies WHERE voice_id IS NOT NULL;`
+   Gemini-ийн нэр (`Kore` г.м.) байвал Azure чимээгүй `JennyNeural` руу буудаг.
+   Зөв нь **`en-US-AvaMultilingualNeural`** (19 viseme, ~1.0 сек). Dragon HD
+   (Tyler/Ava/Andrew/Emma2) нь `koreacentral`-д **байхгүй**.
+3. Prod-ын бодит латенси: `psql "$PROD_DATABASE_URL" -f backend/scripts/buddy-latency.sql`
+
+⚠️ **Choi/Boju энэ хоёрыг хийхгүй** — машин дээр Railway CLI ч, prod DB хаяг ч
+байхгүй (шалгасан), бас `CLAUDE.md`-ийн дүрмээр backend/Railway нь Өсөхбаярынх.
