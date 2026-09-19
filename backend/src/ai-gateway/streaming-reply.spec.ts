@@ -17,12 +17,18 @@ describe('readJsonStringField', () => {
   });
 
   it('marks the value complete on the closing quote', () => {
-    const r = readJsonStringField('{"reply_text":"Nice!","emotion"', 'reply_text');
+    const r = readJsonStringField(
+      '{"reply_text":"Nice!","emotion"',
+      'reply_text',
+    );
     expect(r).toEqual({ value: 'Nice!', complete: true });
   });
 
   it('unescapes quotes rather than ending the string early', () => {
-    const r = readJsonStringField('{"reply_text":"She said \\"hi\\" today","x"', 'reply_text');
+    const r = readJsonStringField(
+      '{"reply_text":"She said \\"hi\\" today","x"',
+      'reply_text',
+    );
     expect(r).toEqual({ value: 'She said "hi" today', complete: true });
   });
 
@@ -38,14 +44,19 @@ describe('readJsonStringField', () => {
   });
 
   it('is not confused by a similarly named field', () => {
-    const r = readJsonStringField('{"reply_text_raw":"no","reply_text":"yes"', 'reply_text');
+    const r = readJsonStringField(
+      '{"reply_text_raw":"no","reply_text":"yes"',
+      'reply_text',
+    );
     expect(r?.value).toBe('yes');
   });
 });
 
 describe('takeSpeakableChunks', () => {
   it('emits nothing while the first sentence is incomplete', () => {
-    expect(takeSpeakableChunks('That sounds like a really fun', 0, false).chunks).toEqual([]);
+    expect(
+      takeSpeakableChunks('That sounds like a really fun', 0, false).chunks,
+    ).toEqual([]);
   });
 
   it('holds a sentence-ending punctuation until the next char confirms it', () => {
@@ -55,18 +66,40 @@ describe('takeSpeakableChunks', () => {
     expect(takeSpeakableChunks(text + ' And', 0, false).chunks).toEqual([text]);
   });
 
+  /**
+   * The shape the 50 → 40 threshold change exists for: a reply near the 20-word
+   * cap with a comma in it. At 50 the buddy waited for all 80 characters; at 40
+   * it starts speaking at the comma, 40% earlier. Everything shorter is
+   * unaffected, which is the rest of this suite.
+   */
+  it('speaks the first clause of a near-cap reply instead of waiting for the full stop', () => {
+    const reply =
+      'That sounds like a really wonderful day, and I think you had a lot of fun there.';
+    // Only the first clause has arrived; the sentence has no end yet.
+    const partial = reply.slice(0, 56);
+    const first = takeSpeakableChunks(partial, 0, false);
+    expect(first.chunks).toEqual(['That sounds like a really wonderful day,']);
+    // The remainder still comes out as one natural clause, not as fragments.
+    const rest = takeSpeakableChunks(reply, first.consumed, true);
+    expect(rest.chunks).toEqual(['and I think you had a lot of fun there.']);
+  });
+
   it('does not cut on a short sentence, to avoid a robotic one-word clip', () => {
     expect(takeSpeakableChunks('Nice. ', 0, false).chunks).toEqual([]);
   });
 
   it('emits everything remaining when the reply is final', () => {
-    expect(takeSpeakableChunks('Nice work!', 0, true).chunks).toEqual(['Nice work!']);
+    expect(takeSpeakableChunks('Nice work!', 0, true).chunks).toEqual([
+      'Nice work!',
+    ]);
   });
 
   it('reports a consumed offset that lets the caller resume without gaps', () => {
     const text = 'That sounds like a really wonderful day out there. And then?';
     const first = takeSpeakableChunks(text, 0, false);
-    expect(first.chunks).toEqual(['That sounds like a really wonderful day out there.']);
+    expect(first.chunks).toEqual([
+      'That sounds like a really wonderful day out there.',
+    ]);
     // Resuming from the reported offset must not repeat or drop characters.
     const second = takeSpeakableChunks(text, first.consumed, true);
     expect(second.chunks).toEqual(['And then?']);
@@ -103,7 +136,8 @@ describe('takeSpeakableChunks', () => {
   it('keeps a sentence whole when it fits inside the clause budget', () => {
     // Same shape but short enough — cutting at the comma here would only add a
     // needless TTS call and an unnatural pause.
-    const ok = 'I went to the park on a sunny afternoon with my friends, and it was really nice.';
+    const ok =
+      'I went to the park on a sunny afternoon with my friends, and it was really nice.';
     expect(ok.length).toBeLessThan(160);
     expect(takeSpeakableChunks(ok, 0, true).chunks).toEqual([ok]);
   });
@@ -129,11 +163,15 @@ describe('buddy JSON key order (streaming safety invariant)', () => {
   );
 
   it('asks for safety before reply_text', () => {
-    expect(prompt.indexOf('"safety"')).toBeLessThan(prompt.indexOf('"reply_text"'));
+    expect(prompt.indexOf('"safety"')).toBeLessThan(
+      prompt.indexOf('"reply_text"'),
+    );
   });
 
   it('asks for emotion before reply_text, so the face is set on chunk 0', () => {
-    expect(prompt.indexOf('"emotion"')).toBeLessThan(prompt.indexOf('"reply_text"'));
+    expect(prompt.indexOf('"emotion"')).toBeLessThan(
+      prompt.indexOf('"reply_text"'),
+    );
   });
 
   it('asks for follow_up_question after reply_text, so it becomes a later chunk', () => {

@@ -53,11 +53,43 @@ export function readJsonStringField(
 }
 
 const ESCAPES: Record<string, string> = {
-  n: '\n', t: '\t', r: '\r', b: '\b', f: '\f', '"': '"', '\\': '\\', '/': '/',
+  n: '\n',
+  t: '\t',
+  r: '\r',
+  b: '\b',
+  f: '\f',
+  '"': '"',
+  '\\': '\\',
+  '/': '/',
 };
 
-/** Ярих боломжтой хэсгийн урт (тэмдэгт). Төлөвлөгөө §2: 50–160. */
-const MIN_CHUNK_CHARS = 50;
+/**
+ * Ярих боломжтой хамгийн богино хэсэг (тэмдэгт).
+ *
+ * **50 → 40 (2026-09-20), хэмжилтээр.** Гэрээ нь `reply_text`-ийг 20 үгээр
+ * таслаж, 6–12 үгийг зорьдог (`buddy-contract.ts`) тул бодит хариунууд дээр
+ * 6 төлөөлөх хэлбэрээр туршив:
+ *
+ * | босго | эхний хэсэг хүртэлх тэмдэгт (нийт) | TTS дуудлага | жижиг хэсэг |
+ * | --- | --- | --- | --- |
+ * | 50 | 288 | 6 | 1 |
+ * | **40** | **256** | 7 | 1 |
+ * | 35 | 256 | 7 | 1 |
+ * | 30 | 256 | 7 | 1 |
+ *
+ * Уншигдах зүйл: **50 → 40 нь цорын ганц утга бүхий алхам**, тэр нь ч ганцхан
+ * хэлбэрт нөлөөлнө — хязгаарт ойрхон (17 үг) таслалтай хариу. Тэнд 80 тэмдэгт
+ * хүлээхийн оронд 48 дээр ("…wonderful day,") ярьж эхэлнэ = **40% эрт**. Бусад
+ * таван хэлбэр огт өөрчлөгдөхгүй, шинэ жижиг хэсэг үүсэхгүй.
+ *
+ * **40-оос доош буух нь юу ч өгөхгүй** (35 ба 30 нь 40-тэй яг ижил) тул
+ * `FIRST_CHUNK_MIN`/`SUBSEQUENT_CHUNK_MIN` гэж хоёр болгон салгасангүй — нэмэх
+ * ойлголтод харгалзах хэмжигдсэн ашиг алга.
+ *
+ * ⚠️ Дахин өөрчлөхийн өмнө benchmark хий. Хариунууд богино тул зөн совин энд
+ * тогтмол буруу гардаг.
+ */
+const MIN_CHUNK_CHARS = 40;
 
 /**
  * Ярих боломжтой дараагийн хэсгүүдийг тасалж авна.
@@ -120,7 +152,8 @@ export function takeSpeakableChunks(
  */
 function findCut(text: string, final: boolean): number | null {
   const sentenceCut = firstBreak(text, /[.!?…]/g, MIN_CHUNK_CHARS, final);
-  if (sentenceCut !== null && sentenceCut <= MAX_CLAUSE_CHARS) return sentenceCut;
+  if (sentenceCut !== null && sentenceCut <= MAX_CLAUSE_CHARS)
+    return sentenceCut;
 
   const clauseCut = firstBreak(text, /[,;:]/g, MIN_CHUNK_CHARS, final);
   if (clauseCut !== null && (sentenceCut === null || clauseCut < sentenceCut)) {
