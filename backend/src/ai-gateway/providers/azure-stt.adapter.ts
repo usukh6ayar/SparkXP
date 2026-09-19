@@ -28,6 +28,13 @@ import { SttAdapter, SttResult, sttErrorMessage } from './stt.adapter';
  * and only after the quota is raised. See `FallbackSttAdapter` for what
  * happens when the limit is hit anyway.
  */
+/**
+ * Нэг STT хүсэлтийн дээд хугацаа. Хэмжсэн p50 286мс / p95 804мс дээр
+ * маш өгөөмөр — зорилго нь удаан хүсэлтийг таслах биш, **өлгөгдсөн**
+ * хүсэлтийг fallback болгон хувиргах явдал.
+ */
+const DEFAULT_TIMEOUT_MS = 10_000;
+
 @Injectable()
 export class AzureFastSttAdapter implements SttAdapter {
   private readonly logger = new Logger(AzureFastSttAdapter.name);
@@ -59,7 +66,11 @@ export class AzureFastSttAdapter implements SttAdapter {
     const locale = this.config.get<string>('AZURE_STT_LOCALE', 'en-US');
 
     const form = new FormData();
-    form.append('audio', new Blob([new Uint8Array(audio)], { type: mime }), 'turn');
+    form.append(
+      'audio',
+      new Blob([new Uint8Array(audio)], { type: mime }),
+      'turn',
+    );
     form.append(
       'definition',
       new Blob([JSON.stringify({ locales: [locale] })], {
@@ -67,9 +78,29 @@ export class AzureFastSttAdapter implements SttAdapter {
       }),
     );
 
+    // Цаг хугацааны хаалт.
+    //
+    // `fetch` нь өөрөө богино timeout-гүй тул хариу өгөхөө больсон провайдер
+    // turn-ийг минутаар өлгөж болно — fallback нь зөвхөн АЛДАА дээр ажилладаг
+    // ба өлгөгдсөн хүсэлт хэзээ ч алдаа болохгүй. Хаалт нь тэр өлгөлтийг
+    // Gemini рүү шилжих алдаа болгож хувиргана.
+    //
+    // 10 сек нь хэмжсэн p95 (804мс)-аас 12 дахин их — хэвийн, бүр муу өдрийн
+    // хүсэлтийг ч таслахгүй, зөвхөн үхсэн холболтыг барина.
+    const timeoutMs = Number(
+      this.config.get<string>(
+        'AZURE_STT_TIMEOUT_MS',
+        String(DEFAULT_TIMEOUT_MS),
+      ),
+    );
     const response = await fetch(
       `https://${region}.api.cognitive.microsoft.com/speechtotext/transcriptions:transcribe?api-version=2024-11-15`,
-      { method: 'POST', headers: { 'Ocp-Apim-Subscription-Key': key }, body: form },
+      {
+        method: 'POST',
+        headers: { 'Ocp-Apim-Subscription-Key': key },
+        body: form,
+        signal: AbortSignal.timeout(timeoutMs),
+      },
     );
     if (!response.ok) {
       const body = await response.text().catch(() => '');
@@ -82,6 +113,11 @@ export class AzureFastSttAdapter implements SttAdapter {
           response.status,
           'Бичлэгийг уншиж чадсангүй. Дахин, арай удаан бөгөөд тод хэлээд үзнэ үү.',
         ),
+        // Azure states exactly how long the window has left (measured: a 429
+        // carries `retry-after: 54`). Passing it on is what lets the caller
+        // stop sending doomed requests instead of paying a full round trip to
+        // be told "429" again on every turn.
+        retryAfterMs(response.headers.get('retry-after')),
       );
     }
 
@@ -111,8 +147,23 @@ export class SttProviderError extends InternalServerErrorException {
    *  base already owns a private `status`. */
   readonly providerStatus: number;
 
-  constructor(providerStatus: number, message: string) {
+  /** How long the provider asked us to wait, in ms (from `retry-after`). */
+  readonly retryAfterMs?: number;
+
+  constructor(providerStatus: number, message: string, retryAfterMs?: number) {
     super(message);
     this.providerStatus = providerStatus;
+    this.retryAfterMs = retryAfterMs;
   }
+}
+
+/**
+ * `retry-after` as ms. The header is seconds (an HTTP-date is also legal, but
+ * Azure Speech sends seconds); anything unparseable is treated as absent, since
+ * a wrong cooldown is worse than none.
+ */
+function retryAfterMs(header: string | null): number | undefined {
+  if (!header) return undefined;
+  const seconds = Number(header.trim());
+  return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : undefined;
 }
