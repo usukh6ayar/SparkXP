@@ -11,6 +11,9 @@ import {
   missingArkitShapes, textToVisemes, visemePoseAt, type Pose, type Viseme,
 } from './buddyFace';
 import { azurePoseAt, type VisemeCue } from './azureVisemes';
+import {
+  invalidateBuddyAsset, readLocalAssetBytes, resolveBuddyAsset,
+} from '../lib/buddyAssetCache';
 
 /**
  * 3D AI Buddy avatar (Meshy-generated GLB rendered with three.js on expo-gl).
@@ -162,6 +165,29 @@ interface Loaded {
 }
 
 /**
+ * Start a buddy's model loading before anything is waiting for it.
+ *
+ * Downloading, parsing and JS-decoding the textures is seconds of work that
+ * today all happens after "Apply", with the student watching a spinner. While
+ * they are still reading the buddy picker, that time is free — so the caller
+ * hands over the one buddy they are most likely to choose and the work is
+ * already done (or well under way) by the time the stage mounts.
+ *
+ * Deliberately just `loadGlbCached`: the RAM cache is keyed by url and is the
+ * same map the avatar reads, so a warmed model is reused rather than redone,
+ * and warming buddy A can never make the stage show A when B was chosen — the
+ * stage only ever looks up its OWN url.
+ *
+ * Fire-and-forget. A failure here is not the user's problem: the entry path
+ * will retry and report it in the normal way.
+ */
+export function prewarmBuddyAvatar(assetUrl?: string | null): void {
+  if (!assetUrl || modelCache.has(assetUrl)) return;
+  if (__DEV__) console.log('[BuddyAvatar] prewarm', assetUrl);
+  void loadGlbCached(assetUrl).catch(() => undefined);
+}
+
+/**
  * Memoized: the parent re-renders on every audio status tick, and re-rendering
  * a live GL canvas for that is pure cost — the frame loop already reads
  * everything that changes that often (see `getPositionMs`).
@@ -175,12 +201,20 @@ export const BuddyAvatar = memo(function BuddyAvatar({
 
   useEffect(() => {
     let alive = true;
+    const startedAt = Date.now();
     setLoaded(null);
     setError(null);
     if (!assetUrl) return;
+    const warm = modelCache.has(assetUrl);
     loadGlbCached(assetUrl)
       .then((res) => {
         if (!alive) return;
+        // The number the student actually feels: mounting the avatar until it
+        // is on screen. `warm` says whether the work had already been done —
+        // by an earlier mount or by `prewarmBuddyAvatar`.
+        if (__DEV__) {
+          console.log(`[BuddyAvatar] ready in ${Date.now() - startedAt}ms (${warm ? 'warm' : 'cold'})`);
+        }
         // Clone per mount: an Object3D can only live in one scene, and the cache
         // hands the same one to every mount. SkeletonUtils keeps skin/bone links
         // intact (a plain .clone() would break skinning); geometry and textures
@@ -580,10 +614,11 @@ function pickClip(clips: THREE.AnimationClip[], tag: string): THREE.AnimationCli
 
 /** Fetch + parse a remote GLB into a scene + clips, then decode its textures. */
 async function loadGlb(url: string): Promise<Loaded> {
-  const buffer = await fetchArrayBuffer(url);
-  // RN's fetch reads a response body through a base64 data URL, so a big GLB
-  // costs ~1.4× its size as a JS string before it is even parsed — a 100 MB
-  // model runs the phone out of memory. Keep avatars small (see docs below).
+  const stage = stageTimer();
+  const buffer = await readGlbBytes(url, stage);
+  // Whatever the source, the whole model is in memory here and its textures are
+  // about to be decoded to raw RGBA on top of that — which is what actually
+  // runs a phone out of memory. Keep avatars sane (see MAX_GLB_MB).
   const mb = buffer.byteLength / 1048576;
   // Name the file. When a rig turns out to have fewer blendshapes than the one
   // that was commissioned, the first question is always "is the app even
@@ -594,7 +629,15 @@ async function loadGlb(url: string): Promise<Loaded> {
     new GLTFLoader().parse(buffer, '', resolve as (g: unknown) => void, (e) =>
       reject(new Error(`GLTFLoader.parse: ${(e as unknown as Error)?.message ?? String(e)}`)),
     );
+  }).catch((err: Error) => {
+    // Unparseable bytes that came off the disk would fail identically on every
+    // launch from now on — the buddy would simply never appear again. Drop the
+    // cached copy so the next attempt downloads it afresh. (Harmless when the
+    // bytes came over the network instead: there is then nothing to delete.)
+    invalidateBuddyAsset(url);
+    throw err;
   });
+  stage.mark('parse');
   // RN three.js can't decode embedded base64 textures (no DOM image decoder), so
   // GLTFLoader leaves the mesh untextured. Decode them ourselves — best-effort:
   // on any failure the avatar just stays untextured (never crashes).
@@ -603,7 +646,71 @@ async function loadGlb(url: string): Promise<Loaded> {
   } catch (e) {
     console.warn('[BuddyAvatar] texture decode failed (model stays untextured):', e);
   }
+  stage.mark('textures');
+  stage.log(`${mb.toFixed(1)} MB`);
   return { scene: gltf.scene as unknown as THREE.Group, animations: gltf.animations };
+}
+
+interface StageTimer {
+  mark(name: string): void;
+  log(suffix: string): void;
+}
+
+/**
+ * DEV-only stopwatch for the avatar load stages.
+ *
+ * The costs here behave completely differently — `resolve` is the network
+ * (seconds, once per device), `read` is the disk (milliseconds, every launch),
+ * `parse` and `textures` are JS-thread CPU (every cold load) — and each one is
+ * removed by a different mechanism. Reported as a single "the buddy took N
+ * seconds" they are a number nobody can act on.
+ */
+function stageTimer(): StageTimer {
+  let last = Date.now();
+  const stages: string[] = [];
+  return {
+    mark(name: string) {
+      const now = Date.now();
+      stages.push(`${name}=${now - last}ms`);
+      last = now;
+    },
+    log(suffix: string) {
+      if (__DEV__) console.log(`[BuddyAvatar] load ${stages.join(' ')} · ${suffix}`);
+    },
+  };
+}
+
+/**
+ * The GLB's bytes, from the device when possible and the network when not.
+ *
+ * The persistent cache (`buddyAssetCache`) is what makes a buddy behave like a
+ * downloadable game resource: the file is fetched once per device and every
+ * later launch reads it off the disk with no network at all. It sits UNDER the
+ * RAM `modelCache`, which still saves the parse + texture decode within one app
+ * session; the two solve different problems and neither replaces the other.
+ *
+ * `file.bytes()` is a direct binary read — no base64 hop, the same reason
+ * `fetchArrayBuffer` uses XHR rather than `fetch`.
+ *
+ * Any cache failure falls through to the plain remote download, so the worst a
+ * broken cache can do is make the avatar behave exactly as it did before.
+ */
+async function readGlbBytes(url: string, stage: StageTimer): Promise<ArrayBuffer> {
+  try {
+    // Split on purpose: `resolve` is the download (seconds, once per device)
+    // and `read` is the disk (milliseconds, every launch). Reported as one
+    // number they are indistinguishable, and only one of them is worth work.
+    const localUri = await resolveBuddyAsset(url);
+    stage.mark('resolve');
+    const bytes = await readLocalAssetBytes(localUri);
+    stage.mark('read');
+    return toArrayBuffer(bytes);
+  } catch (err) {
+    if (__DEV__) console.log('[BuddyAvatar] asset cache miss/failure — using network:', String(err));
+    const buffer = await fetchArrayBuffer(url);
+    stage.mark('network');
+    return buffer;
+  }
 }
 
 /**
@@ -641,8 +748,18 @@ interface GLTFResult {
   };
 }
 
-/** Exact-size ArrayBuffer from a Uint8Array (avoids passing a larger backing buffer). */
+/**
+ * Exact-size ArrayBuffer from a Uint8Array (avoids passing a larger backing
+ * buffer to a decoder that would then read past the view).
+ *
+ * The view already covering its whole buffer is handed straight back: the
+ * 25 MB model read off the disk arrives that way, and `slice` would copy every
+ * one of those megabytes to produce an identical result.
+ */
 function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  if (bytes.byteOffset === 0 && bytes.byteLength === bytes.buffer.byteLength) {
+    return bytes.buffer as ArrayBuffer;
+  }
   return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
 }
 

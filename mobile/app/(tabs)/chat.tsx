@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo, useEffect, useCallback } from 'react';
-import { StyleSheet, Alert } from 'react-native';
+import { StyleSheet, Alert, InteractionManager } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from 'expo-router';
 import * as Speech from 'expo-speech';
@@ -8,6 +8,8 @@ import { BuddySelector } from '../../src/components/BuddySelector';
 import { BuddyShopEntry } from '../../src/components/BuddyShopEntry';
 import { getEquippedBackground } from '../../src/api/buddyBackgrounds';
 import { BuddyVoiceStage } from '../../src/components/BuddyVoiceStage';
+import { prewarmBuddyAvatar } from '../../src/components/BuddyAvatar';
+import { ensureMicPermission, warmMicPermission } from '../../src/lib/mic';
 import { toVisemeTimeline, type VisemeCue } from '../../src/components/azureVisemes';
 import {
   newStreamId,
@@ -21,7 +23,7 @@ import { EmptyState } from '../../src/components/EmptyState';
 import { buildMockBuddies, FOX_SLUG } from '../../src/constants/mockBuddies';
 import {
   useAudioPlayer, useAudioPlayerStatus, useAudioRecorder, RecordingPresets,
-  requestRecordingPermissionsAsync, setAudioModeAsync,
+  setAudioModeAsync,
 } from 'expo-audio';
 import { useAuth } from '../../src/auth/AuthContext';
 import * as aiApi from '../../src/api/ai';
@@ -374,6 +376,44 @@ export default function ChatScreen() {
   useEffect(() => { loadBuddies(); }, [loadBuddies]);
 
   /**
+   * Warm the buddy the student is most likely to open, while they are still
+   * looking at the picker.
+   *
+   * The avatar is tens of megabytes to fetch and seconds to parse and texture,
+   * and today all of it starts only once "Apply" is pressed — so the wait lands
+   * squarely on the student. Started here it overlaps with them reading the
+   * carousel, and the stage usually finds the model already in memory.
+   *
+   * **One buddy, never the roster.** Every buddy is its own large file; warming
+   * all of them would be a multi-hundred-megabyte download nobody asked for.
+   * The pick is the buddy already chosen this session (coming back from a
+   * conversation) and otherwise the first one, which is where the carousel
+   * opens.
+   *
+   * `runAfterInteractions` keeps the parse — which is JS-thread work — out of
+   * the way of the carousel's own animations, so warming can never make
+   * swiping feel worse than not warming.
+   */
+  /**
+   * Ask for the microphone when the conversation opens, not when the student
+   * first holds the mic down — otherwise the very first thing a press-and-hold
+   * does is raise a system dialog, and whatever they say while reading it is
+   * gone. Asking here only requests permission; nothing records.
+   */
+  useEffect(() => {
+    if (mode === 'voice' && buddyEnabled === true) warmMicPermission();
+  }, [mode, buddyEnabled]);
+
+  useEffect(() => {
+    if (mode !== 'select' || buddyEnabled !== true) return;
+    const likely = selected ?? buddies[0];
+    if (!likely?.avatarAssetUrl) return;
+    const url = likely.avatarAssetUrl;
+    const task = InteractionManager.runAfterInteractions(() => prewarmBuddyAvatar(url));
+    return () => task.cancel();
+  }, [mode, buddyEnabled, selected, buddies]);
+
+  /**
    * Refresh the equipped background on focus.
    *
    * The practice-time stats used to be fetched here for a row above the picker.
@@ -674,6 +714,17 @@ export default function ChatScreen() {
     }
   }
 
+  /**
+   * Finger down → capturing. Everything in here is time the student is already
+   * talking into, so it is kept as short as it safely can be.
+   *
+   * Why the audio session is NOT warmed up earlier: `prepareToRecordAsync`
+   * puts iOS into `playAndRecord` and activates the session (expo-audio's
+   * `AudioRecorder.prepare`), which routes playback to the earpiece — the
+   * "volume faded out" bug. Preparing before the press would leave the whole
+   * screen in that state while the buddy is still speaking, so the only thing
+   * hoisted out of this path is the permission check, which touches nothing.
+   */
   async function startRecording() {
     if (loading || !sessionId || voiceLimited) return;
     if (holdRef.current) return;
@@ -686,9 +737,11 @@ export default function ChatScreen() {
     // stop/cancel signal "the finger is already up" and abort cleanly, instead
     // of leaving a recorder running forever.
     holdRef.current = true;
+    const pressedAt = Date.now();
     try {
-      const { granted } = await requestRecordingPermissionsAsync();
-      if (!granted) {
+      // Cached after the first grant (see `lib/mic`), so this is free on every
+      // press but the very first.
+      if (!(await ensureMicPermission())) {
         holdRef.current = false;
         Alert.alert(t('permissionTitle'), t('micPermission'));
         return;
@@ -698,6 +751,10 @@ export default function ChatScreen() {
       if (!holdRef.current) return; // released before we were ready → never record
       recorder.record();
       setRecording(true);
+      // The gap the student loses to setup. The mic UI is already up by now
+      // (the gesture shows it on touch-down), so anything said in this window
+      // is not captured — which makes it the number worth watching.
+      if (__DEV__) console.log(`[buddy] mic live in ${Date.now() - pressedAt}ms`);
     } catch {
       holdRef.current = false;
       Alert.alert(t('error'), t('recordStartError'));
