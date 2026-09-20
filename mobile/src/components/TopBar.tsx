@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { View, Pressable, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -27,6 +28,8 @@ export function TopBar({
   streak,
   showBadges = true,
   showDictionary = false,
+  onArt = false,
+  right,
   onAddSparks,
   onHistory,
 }: {
@@ -41,6 +44,19 @@ export function TopBar({
   showBadges?: boolean;
   /** Show the dictionary button — the five main tabs only. */
   showDictionary?: boolean;
+  /**
+   * The header sits straight on full-bleed artwork instead of a themed surface
+   * (the buddy screen). Text switches to `textOnDark` and the back button to a
+   * translucent dark chip, because a theme text colour is unreadable on a photo
+   * in one of the two themes whichever way it is set.
+   */
+  onArt?: boolean;
+  /**
+   * A screen's own control, rendered at the right end of the header. The buddy
+   * screen puts its caption toggle here: a header control belongs in the
+   * header, not floating in the content below it.
+   */
+  right?: ReactNode;
   /** Shows a small "+" button next to the Sparks badge (e.g. open the Sparks store). */
   onAddSparks?: () => void;
   /** Shows a history icon in the top corner (e.g. open the ChatGPT-style chat history). */
@@ -57,7 +73,7 @@ export function TopBar({
       <View style={styles.left}>
         {back ? (
           <Pressable
-            style={[styles.backBtn, { backgroundColor: c.surfaceAlt }]}
+            style={[styles.backBtn, { backgroundColor: onArt ? ART_CHIP : c.surfaceAlt }]}
             onPress={() => {
               if (onBack) return onBack();
               // Fall back to the home tab when there's nothing to pop (e.g. the
@@ -68,16 +84,29 @@ export function TopBar({
             }}
             hitSlop={8}
           >
-            <Ionicons name="chevron-back" size={22} color={c.text} />
+            <Ionicons name="chevron-back" size={22} color={onArt ? c.textOnDark : c.text} />
           </Pressable>
         ) : null}
         {title ? (
           <View style={styles.titleCol}>
-            <AppText variant="h1" numberOfLines={1}>{title}</AppText>
+            <AppText
+              variant="h1"
+              numberOfLines={1}
+              color={onArt ? c.textOnDark : undefined}
+              style={onArt ? styles.artText : undefined}
+            >
+              {title}
+            </AppText>
             {subtitle ? (
               <View style={styles.subtitleRow}>
                 <View style={[styles.onlineDot, { backgroundColor: c.success }]} />
-                <AppText variant="caption" color={c.textSecondary}>{subtitle}</AppText>
+                <AppText
+                  variant="caption"
+                  color={onArt ? c.textOnDark : c.textSecondary}
+                  style={onArt ? styles.artText : undefined}
+                >
+                  {subtitle}
+                </AppText>
               </View>
             ) : null}
           </View>
@@ -85,6 +114,7 @@ export function TopBar({
       </View>
 
       <View style={styles.badges}>
+        {right}
         {showDictionary ? (
           <DictionaryButton size={36} variant="filled" style={styles.iconBtn} />
         ) : null}
@@ -120,7 +150,18 @@ export function TopBar({
   );
 }
 
+/** Back-button chip over artwork — dark and translucent, so it reads on any
+ *  image without punching a themed hole in the scene. */
+const ART_CHIP = 'rgba(10,6,26,0.38)';
+
 const styles = StyleSheet.create({
+  // The backdrop scrim is light, so text on art carries its own shadow rather
+  // than relying on the image happening to be dark behind these few words.
+  artText: {
+    textShadowColor: 'rgba(10,6,26,0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 6,
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -2,10 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { View, StyleSheet, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
-  useAnimatedStyle, useSharedValue, withRepeat, withTiming, withSpring, withSequence,
+  useAnimatedStyle, useSharedValue, withRepeat, withTiming, withSpring,
   interpolate, Extrapolation, runOnJS, cancelAnimation, FadeIn,
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { AppText } from './Text';
 import { AppImage } from './AppImage';
@@ -18,6 +19,7 @@ import { haptics } from '../lib/haptics';
 import { useColors, useSettings } from '../settings/SettingsContext';
 import { spacing, radius, elevation, colors as staticColors, type AppColors } from '../theme/theme';
 import { ms, bounded } from '../theme/responsive';
+import { GLASS, GLASS_EDGE, ON_ART_SHADOW } from '../theme/onArt';
 import type { Buddy } from '../api/ai';
 
 /** Drag left past this (px) while holding → release cancels instead of sends. */
@@ -59,8 +61,8 @@ type Phase = 'idle' | 'recording' | 'locked';
  */
 export function BuddyVoiceStage({
   buddy, greeting, speaking, thinking, voiceLimited, usageLabel, usageLevel,
-  captions, onToggleCaptions, onRecordStart, onRecordCommit, onRecordCancel, onOpenText,
-  backgroundUrl, emotion, gesture, speechText, speechDurationMs, visemes, getPositionMs,
+  captions, onRecordStart, onRecordCommit, onRecordCancel, onOpenText,
+  emotion, gesture, speechText, speechDurationMs, visemes, getPositionMs,
 }: {
   buddy: Buddy | null;
   /** LLM emotion tag for the last reply → drives the 3D face expression. */
@@ -80,8 +82,6 @@ export function BuddyVoiceStage({
    */
   getPositionMs?: () => number | null;
   greeting: string;
-  /** Equipped background scene (from the shop) shown behind the buddy. */
-  backgroundUrl?: string | null;
   speaking: boolean;
   thinking: boolean;
   voiceLimited?: boolean;
@@ -89,9 +89,9 @@ export function BuddyVoiceStage({
   usageLabel?: string;
   /** Voice-cap warning tier (doc guardrail): amber at 80%, red at 95%. */
   usageLevel?: 'none' | 'warn80' | 'warn95';
-  /** Closed captions: when off, the buddy's spoken text is hidden. */
+  /** Closed captions: when off, the buddy's spoken text is hidden. The toggle
+   *  itself lives in the header (`CaptionToggle`). */
   captions: boolean;
-  onToggleCaptions: () => void;
   onRecordStart: () => void;
   onRecordCommit: () => void;
   onRecordCancel: () => void;
@@ -108,7 +108,6 @@ export function BuddyVoiceStage({
   const [ready3d, setReady3d] = useState(false);
   /** This buddy HAS a 3D model — whether or not it has finished loading yet. */
   const has3d = SHOW_3D_AVATAR && !!buddy?.avatarAssetUrl;
-  const is3d = has3d && ready3d;
   /**
    * Is this the one-time download, or a read off the disk?
    *
@@ -148,37 +147,8 @@ export function BuddyVoiceStage({
   const boxW = winW - EDGE_GAP * 2;
   const boxH = roomH || boxW;
   const avatarBox = useMemo(() => ({ width: boxW, height: boxH }), [boxW, boxH]);
-  const pulse = useSharedValue(0);  // buddy breathing / speaking pulse (backdrop glow)
-  const float = useSharedValue(0);  // slow vertical bob so the buddy feels alive
-  const think = useSharedValue(0);  // gentle head-tilt wobble while thinking (-1…1)
   const ripple = useSharedValue(0); // expanding mic rings while recording
   const didLock = useSharedValue(false); // fire lock() once per gesture, not per frame
-
-  // Gentle idle breathing; a livelier pulse while the buddy is speaking.
-  useEffect(() => {
-    cancelAnimation(pulse);
-    pulse.value = withRepeat(withTiming(1, { duration: speaking ? 500 : 2200 }), -1, true);
-  }, [speaking, pulse]);
-
-  // Continuous slow float — independent of speaking so the stage is never static.
-  useEffect(() => {
-    float.value = withRepeat(withTiming(1, { duration: 2600 }), -1, true);
-  }, [float]);
-
-  // "Thinking" state: a small left↔right head tilt while the buddy processes a
-  // turn — a distinct third state next to idle (float) and speaking (pulse).
-  useEffect(() => {
-    cancelAnimation(think);
-    if (thinking) {
-      think.value = withRepeat(
-        withSequence(withTiming(1, { duration: 620 }), withTiming(-1, { duration: 620 })),
-        -1,
-        false,
-      );
-    } else {
-      think.value = withTiming(0, { duration: 300 });
-    }
-  }, [thinking, think]);
 
   // Mic "listening" rings only run while actually recording.
   const recording = phase === 'recording' || phase === 'locked';
@@ -265,61 +235,33 @@ export function BuddyVoiceStage({
   const lockHintStyle = useAnimatedStyle(() => ({
     opacity: interpolate(tx.value, [0, LOCK_X], [0.4, 1], Extrapolation.CLAMP),
   }));
-  // The 2D art is bobbed/tilted from here. The 3D avatar gets NO transform at
-  // all. Transforming a GL surface every frame makes it swim and shear (and
-  // costs a re-composite), and the speaking scale-pulse that used to survive
-  // here — 1 → 1.03 twice a second — read as the character drifting toward and
-  // away from the camera once the buddy was drawn at full screen width, where
-  // 3% is over a centimetre of travel. The 3D buddy has real lip-sync and
-  // expressions to show that it is talking; it does not need the body to move.
-  const buddyStyle = useAnimatedStyle(() => ({
-    transform: is3d
-      ? []
-      : [
-          { translateY: interpolate(float.value, [0, 1], [6, -6], Extrapolation.CLAMP) },
-          { scale: interpolate(pulse.value, [0, 1], [1, speaking ? 1.04 : 1.015], Extrapolation.CLAMP) },
-          { rotate: `${think.value * 3}deg` },
-        ],
-  }));
+  /**
+   * The buddy does not move — not the 3D avatar, and not the 2D fallback.
+   * Transforming a GL surface every frame makes it swim and shear, and with the
+   * library behind it every bob read as the character sliding around in FRONT
+   * of a photograph instead of standing inside a room.
+   */
+  const buddyStyle = useAnimatedStyle(() => ({ transform: [] }));
 
   function lockedStop() { setPhase('idle'); active.value = withSpring(0); haptics.success(); onRecordCommit(); }
   function lockedCancel() { setPhase('idle'); active.value = withSpring(0); haptics.warning(); onRecordCancel(); }
 
   return (
     <View style={[styles.wrap, bounded]}>
-      {/* Equipped background scene (shop) behind everything, with a scrim so the
-          buddy + controls stay legible over any image. */}
-      {backgroundUrl ? (
-        <>
-          <AppImage source={backgroundUrl} width={800} style={StyleSheet.absoluteFill} contentFit="cover" />
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(10,6,26,0.45)' }]} pointerEvents="none" />
-        </>
+      {/* The voice-minutes meter, shown ONLY once it is a warning (80% / 95%).
+          It used to sit here permanently, reading "3.0 мин" at the top of an
+          otherwise clean scene. The caption toggle that shared this row now
+          lives in the header. */}
+      {usageLabel && (usageLevel === 'warn80' || usageLevel === 'warn95') ? (
+        <View style={styles.topRow}>
+          <View style={styles.usagePill}>
+            <Ionicons name="mic-outline" size={13} color={usageLevel === 'warn95' ? c.danger : c.warning} />
+            <AppText variant="caption" color={usageLevel === 'warn95' ? c.danger : c.warning}>
+              {usageLabel}
+            </AppText>
+          </View>
+        </View>
       ) : null}
-      {/* Top row: voice-minutes meter (left) + CC caption toggle (right). */}
-      <View style={styles.topRow}>
-        {usageLabel ? (() => {
-          // Two-tier voice-cap warning (doc guardrail): 95% → red, 80% → amber.
-          const usageColor =
-            usageLevel === 'warn95' ? c.danger : usageLevel === 'warn80' ? c.warning : c.textSecondary;
-          return (
-            <View style={[styles.usagePill, { backgroundColor: c.surfaceAlt }]}>
-              <Ionicons name="mic-outline" size={13} color={usageColor} />
-              <AppText variant="caption" color={usageColor}>{usageLabel}</AppText>
-            </View>
-          );
-        })() : <View />}
-
-        <PressableScale
-          onPress={onToggleCaptions}
-          style={[styles.ccBtn, { backgroundColor: captions ? c.primary : c.surfaceAlt }]}
-          accessibilityRole="button"
-          accessibilityLabel="Closed captions"
-          accessibilityState={{ selected: captions }}
-        >
-          <Ionicons name="chatbox-ellipses-outline" size={15} color={captions ? c.white : c.textSecondary} />
-          <AppText variant="label" color={captions ? c.white : c.textSecondary} style={styles.ccText}>CC</AppText>
-        </PressableScale>
-      </View>
 
       {/* Buddy stage — speech bubble (captions) sits ABOVE the buddy.
           The bubble lives in a FIXED-HEIGHT slot. Its own height used to follow
@@ -338,22 +280,13 @@ export function BuddyVoiceStage({
               {thinking ? (
                 <View style={styles.thinkingRow}>
                   <ActivityIndicator size="small" color={c.primary} />
-                  <AppText variant="body" color={c.textSecondary}>{t('buddyThinking')}</AppText>
+                  <AppText variant="body" color={c.textOnDark}>{t('buddyThinking')}</AppText>
                 </View>
               ) : (
-                <AppText
-                  variant="bodyStrong"
-                  color={c.text}
-                  center
-                  // Clamped so a long reply can't grow past the slot and start
-                  // pushing the buddy around again.
-                  numberOfLines={2}
-                  style={styles.bubbleText}
-                >
+                <AppText variant="bodyStrong" color={c.textOnDark} center style={styles.bubbleText}>
                   {greeting}
                 </AppText>
               )}
-              <View style={[styles.bubbleTail, { backgroundColor: c.surface }]} />
             </Animated.View>
           )}
         </View>
@@ -416,17 +349,47 @@ export function BuddyVoiceStage({
             )}
           </Animated.View>
         </View>
+
+        {/* The character is a BUST: the art (and the GLB) stops at the chest,
+            and that straight cut lands in open floor, where it reads as a
+            sticker laid on the photograph. Two layers hide it:
+              · a BLUR band, so whatever the cut falls across stops being
+                readable — it reads as a surface IN FRONT of the buddy;
+              · a long, many-stopped gradient over the blur, so the top of the
+                blur lands where the darkening is already well underway. A blur
+                band alone draws a hard line exactly where it begins.
+
+            ⚠️ It runs PAST the bottom of the stage (`bottom: -FADE_TAIL`),
+            behind the mic and the type bar. Confined to the stage it ended in a
+            second hard line of its own. The controls are later siblings, so
+            they still draw on top. Sizes are a share of the buddy's own box,
+            never fixed points, so it survives a screen it was not tuned on. */}
+        {(() => {
+          const soft = Math.round(boxH * 0.26);
+          const total = soft + FADE_TAIL;
+          const k = soft / total;
+          return (
+            <View style={[styles.characterFade, { height: total, bottom: -FADE_TAIL }]} pointerEvents="none">
+              <BlurView intensity={34} tint="dark" style={[styles.characterBlur, { top: Math.round(soft * 0.45) }]} />
+              <LinearGradient
+                colors={CHARACTER_FADE}
+                locations={[0, k * 0.35, k * 0.7, k, 1]}
+                style={StyleSheet.absoluteFill}
+              />
+            </View>
+          );
+        })()}
       </View>
 
       {/* Mic control zone */}
       <View style={styles.micZone}>
         {/* Status line: hold hint at idle; hands-free note while locked. */}
         {phase === 'locked' ? (
-          <AppText variant="caption" color={c.primary} style={styles.hintRow}>{t('buddyHandsFree')}</AppText>
+          <AppText variant="caption" color={c.textOnDark} style={styles.hintRow}>{t('buddyHandsFree')}</AppText>
         ) : recording ? (
           <View style={{ height: 20 }} />
         ) : (
-          <AppText variant="caption" color={c.textMuted} style={styles.hintRow}>
+          <AppText variant="caption" color={c.textOnDark} style={styles.hintRow}>
             {voiceLimited ? t('voiceMonthEnded') : t('buddyHoldToTalk')}
           </AppText>
         )}
@@ -458,8 +421,11 @@ export function BuddyVoiceStage({
 
             <View style={styles.micCenter}>
               {recording && <Animated.View style={[styles.micRipple, rippleStyle]} pointerEvents="none" />}
+              {/* Decorative halo, OUTSIDE the gesture so it cannot change what
+                  the finger has to hit. */}
+              <View style={[styles.micGlow, recording && styles.micGlowLive]} pointerEvents="none" />
               <GestureDetector gesture={pan}>
-                <Animated.View style={[styles.micBtn, micStyle, elevation.float]}>
+                <Animated.View style={[styles.micBtn, micStyle, elevation.float, styles.micRing]}>
                   <LinearGradient colors={staticColors.primaryGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
                   <Ionicons name="mic" size={34} color={c.white} />
                 </Animated.View>
@@ -479,19 +445,38 @@ export function BuddyVoiceStage({
       </View>
 
       {/* Type-to-chat handoff → the separate text-only chat screen. */}
-      <PressableScale onPress={onOpenText} style={[styles.typeBar, { backgroundColor: c.surface, borderColor: c.border }, elevation.sm]}>
-        <View style={[styles.typeBarLead, { backgroundColor: c.primarySoft }]}>
-          <Ionicons name="create-outline" size={24} color={c.primary} />
+      <PressableScale onPress={onOpenText} style={[styles.typeBar, elevation.sm]}>
+        <View style={styles.typeBarLead}>
+          <Ionicons name="create-outline" size={20} color={c.textOnDark} />
         </View>
-        <AppText variant="bodyStrong" color={c.text} style={styles.typeBarText}>{t('buddyTypeToChat')}</AppText>
+        <AppText variant="body" color={c.textOnDark} style={styles.typeBarText}>
+          {t('buddyTypeMessage')}
+        </AppText>
         <View style={styles.typeBarIcon}>
           <LinearGradient colors={staticColors.primaryGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
-          <Ionicons name="arrow-forward" size={18} color={c.white} />
+          <Ionicons name="send" size={16} color={c.white} />
         </View>
       </PressableScale>
     </View>
   );
 }
+
+/**
+ * Transparent → the scrim's own tone. FIVE stops, not two: a long ramp of one
+ * hue bands visibly on a 24-bit screen, and banding lines read as edges — the
+ * one thing this gradient exists to remove. Tuned against `BuddyBackdrop`:
+ * together they must never reach opaque, or the floor goes with the edge.
+ */
+const CHARACTER_FADE = [
+  'rgba(10,6,26,0)',
+  'rgba(10,6,26,0.18)',
+  'rgba(10,6,26,0.46)',
+  'rgba(10,6,26,0.68)',
+  'rgba(10,6,26,0.80)',
+] as const;
+/** How far the blur carries on below the stage. It only has to reach the
+ *  bottom of the screen; past that it is clipped and costs nothing. */
+const FADE_TAIL = 340;
 
 const makeStyles = (c: AppColors) => StyleSheet.create({
   // No top padding: the stage below is the buddy's, and it needs the height.
@@ -503,13 +488,11 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   usagePill: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     paddingHorizontal: spacing.md, paddingVertical: 5, borderRadius: radius.full,
+    backgroundColor: GLASS, borderWidth: 1, borderColor: GLASS_EDGE,
   },
-  ccBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: radius.full,
-  },
-  ccText: { letterSpacing: 0.5 },
   stage: { flex: 1, alignItems: 'center', justifyContent: 'center', width: '100%' },
+  characterFade: { position: 'absolute', left: 0, right: 0 },
+  characterBlur: { position: 'absolute', left: 0, right: 0, bottom: 0 },
   buddyWrap: { flex: 1, width: '100%', alignItems: 'center', justifyContent: 'center' },
   // Size is applied inline from the window width (see `boxW`/`boxH`).
   buddyImg: {},
@@ -523,19 +506,24 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
     height: BUBBLE_SLOT_H, width: '100%',
     alignItems: 'center', justifyContent: 'flex-end',
   },
+  // Glass, not a themed card: it sits on the library art. ABSOLUTE and anchored
+  // to the slot's bottom so it grows UPWARD — toward the header, never over the
+  // buddy's face — and never reaches the layout. That is what lets the caption
+  // show in full: the two-line clamp existed only so it could not resize the
+  // buddy's canvas, which it now cannot do at any length.
   bubble: {
-    maxWidth: '86%', backgroundColor: c.surface, borderRadius: radius.xl,
-    paddingHorizontal: spacing.lg, paddingVertical: spacing.md, marginBottom: spacing.lg,
-  },
-  bubbleTail: {
-    position: 'absolute', bottom: -6, alignSelf: 'center', width: 16, height: 16,
-    borderRadius: 3, transform: [{ rotate: '45deg' }],
+    position: 'absolute', bottom: spacing.lg,
+    maxWidth: '86%', backgroundColor: GLASS, borderRadius: radius.xl,
+    borderWidth: 1, borderColor: GLASS_EDGE,
+    paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
   },
   bubbleText: { lineHeight: 24 },
   thinkingRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   // Tightened from spacing.xl — the buddy is the thing that should have the room.
   micZone: { alignItems: 'center', gap: spacing.md, marginBottom: spacing.md, minHeight: 120, justifyContent: 'flex-end' },
-  hintRow: { height: 20, textAlignVertical: 'center' },
+  // Shadow, not a pill: the hint must read over a sunlit floor as well as a
+  // dark shelf. `textOnDark` because it is the only bare text on the screen.
+  hintRow: { height: 20, textAlignVertical: 'center', ...ON_ART_SHADOW },
   controlRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xl },
   edgeHint: { flexDirection: 'row', alignItems: 'center', gap: 2, width: 52, justifyContent: 'center' },
   micCenter: { alignItems: 'center', justifyContent: 'center' },
@@ -543,20 +531,37 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
     position: 'absolute', width: 76, height: 76, borderRadius: radius.full,
     backgroundColor: c.primary,
   },
+  // `shadowColor` is the brand purple, not black: a coloured glow, not a drop
+  // shadow, so the control looks like it lights the floor it sits on.
+  micGlow: {
+    position: 'absolute', width: 96, height: 96, borderRadius: radius.full,
+    backgroundColor: 'rgba(108,59,255,0.28)',
+    shadowColor: c.primary, shadowOpacity: 0.85, shadowRadius: 26,
+    shadowOffset: { width: 0, height: 0 }, elevation: 12,
+  },
+  micGlowLive: { backgroundColor: 'rgba(108,59,255,0.45)', shadowRadius: 34 },
   micBtn: {
     width: 76, height: 76, borderRadius: radius.full, overflow: 'hidden',
     alignItems: 'center', justifyContent: 'center',
   },
+  // A rim on the button itself — the gesture target is unchanged.
+  micRing: { borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.28)' },
   lockedRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xl },
   sideBtn: {
     width: 44, height: 44, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center',
   },
   typeBar: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm, width: '90%',
-    borderRadius: radius.full, borderWidth: 1, paddingLeft: spacing.xs, paddingRight: spacing.xs, paddingVertical: spacing.xs, height: 58,
+    borderRadius: radius.full, borderWidth: 1,
+    backgroundColor: GLASS, borderColor: GLASS_EDGE,
+    paddingLeft: spacing.xs, paddingRight: spacing.xs, paddingVertical: spacing.xs, height: 58,
   },
-  typeBarLead: { width: 40, height: 40, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center' },
-  typeBarText: { flex: 1 },
+  typeBarLead: {
+    width: 40, height: 40, borderRadius: radius.full,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.10)',
+  },
+  typeBarText: { flex: 1, opacity: 0.85 },
   typeBarIcon: {
     width: 40, height: 40, borderRadius: radius.full, overflow: 'hidden',
     alignItems: 'center', justifyContent: 'center',

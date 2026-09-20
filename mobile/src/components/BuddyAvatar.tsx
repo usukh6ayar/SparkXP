@@ -256,7 +256,11 @@ export const BuddyAvatar = memo(function BuddyAvatar({
         camera={{ position: [0, 0, 2.6], fov: 32 }}
         gl={{ alpha: true, antialias: true, powerPreference: 'low-power' }}
         onCreated={({ gl }) => {
-          gl.toneMappingExposure = 1.15; // slightly brighter than default
+          // Lifted from 1.15 for the library backdrop: the rig below was tuned
+          // when the buddy stood on a near-black stage, where 1.15 read as
+          // bright. Against a lit room the same character reads as a dark
+          // cut-out — the backdrop moved, so the exposure has to follow it.
+          gl.toneMappingExposure = 1.3;
           muteUnsupportedPixelStore(gl.getContext());
         }}
         // Cap pixel ratio so hi-DPI phones don't render a huge buffer (FPS/heat).
@@ -265,11 +269,18 @@ export const BuddyAvatar = memo(function BuddyAvatar({
       >
         {/* Three-point studio setup: a warm key from front-right shapes the face,
             a cool fill lifts the shadow side, and a brand-purple rim from behind
-            separates the character from the dark stage. The hemisphere light is
-            the soft daylight ambient (sky above, stage colour bouncing up). */}
-        <hemisphereLight args={['#FFF4E2', '#3A2A63', 0.75]} />
+            separates the character from the scene. The hemisphere light is the
+            room's ambient — warm light from above, and the colour of the floor
+            bouncing back up.
+            ⚠️ The GROUND colour is warm wood (#6A4A33), not the old near-black
+            purple: the buddy stands on a lit wooden floor now, and a dark
+            bounce under a character is exactly what makes it look pasted on
+            rather than lit by the room it is in. */}
+        <hemisphereLight args={['#FFF4E2', '#6A4A33', 0.9]} />
         <FrameLimiter fps={lowPower ? LOW_POWER_FPS : AVATAR_FPS} />
-        <ambientLight intensity={0.35} />
+        {/* Raised with the exposure — a lit room has far more bounce light in
+            it than the black stage this was first set against. */}
+        <ambientLight intensity={0.5} />
         <directionalLight position={[2.5, 3.5, 3]} intensity={1.7} color="#FFF1D8" />
         <directionalLight position={[-3, 1.5, 2]} intensity={0.55} color="#BFD4FF" />
         <directionalLight position={[0, 2.2, -3]} intensity={1.2} color="#B79BFF" />
