@@ -18,6 +18,7 @@ import { createContext, useContext, useEffect, useState, useCallback, type React
 import { useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { setLanguage, t as translate, type Lang, type TranslationKey } from '../i18n';
+import { useStatusBarArtOverride } from '../lib/statusBarOnArt';
 import { premiumThemes, appThemes, type PremiumPalette, type AppColors } from '../theme/theme';
 
 /** The painted theme. */
@@ -121,8 +122,16 @@ export function useColors(): AppColors {
  * Feeds the single app-wide `<StatusBar>` in `app/_layout.tsx`. Screens must
  * never set the status bar themselves (imperative `setStatusBarStyle` leaks to
  * the next screen; the per-screen `statusBarStyle` navigator option needs an
- * iOS Info.plist change we don't make) — change the theme instead.
+ * iOS Info.plist change we don't make).
+ *
+ * The one exception is a screen whose own artwork fills the status-bar area —
+ * the buddy stage — where the theme is the wrong question: the bar sits on a
+ * dark photograph in BOTH themes, so light-theme dark icons vanish into it.
+ * Such a screen calls `useStatusBarOnArt()` and this hook answers for it, which
+ * keeps the rule intact (still one bar, still declarative, restored on unmount).
  */
 export function useStatusBarStyle(): 'light' | 'dark' {
-  return useSettings().theme === 'dark' ? 'light' : 'dark';
+  const onArt = useStatusBarArtOverride();
+  const themed = useSettings().theme === 'dark' ? 'light' : 'dark';
+  return onArt ?? themed;
 }

@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo, useEffect, useCallback } from 'react';
-import { StyleSheet, Alert, InteractionManager } from 'react-native';
+import { View, StyleSheet, Alert, InteractionManager } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from 'expo-router';
 import * as Speech from 'expo-speech';
@@ -8,6 +8,9 @@ import { BuddySelector } from '../../src/components/BuddySelector';
 import { BuddyShopEntry } from '../../src/components/BuddyShopEntry';
 import { getEquippedBackground } from '../../src/api/buddyBackgrounds';
 import { BuddyVoiceStage } from '../../src/components/BuddyVoiceStage';
+import { BuddyBackdrop } from '../../src/components/BuddyBackdrop';
+import { CaptionToggle } from '../../src/components/CaptionToggle';
+import { useStatusBarOnArt } from '../../src/lib/statusBarOnArt';
 import { prewarmBuddyAvatar } from '../../src/components/BuddyAvatar';
 import { ensureMicPermission, warmMicPermission } from '../../src/lib/mic';
 import { toVisemeTimeline, type VisemeCue } from '../../src/components/azureVisemes';
@@ -49,6 +52,18 @@ const SPEECH_RECORDING = {
   numberOfChannels: 1,
   bitRate: 32000,
 };
+
+/**
+ * Keeps the clock and battery white while the library art is on screen.
+ *
+ * A component rather than a call in `ChatScreen`, because the art is only up in
+ * voice mode and a hook cannot be conditional. Mounting is the declaration;
+ * unmounting hands the status bar back to the theme.
+ */
+function StatusBarOnArt() {
+  useStatusBarOnArt();
+  return null;
+}
 
 /**
  * Id for a bubble the server has not stored yet (the optimistic user message,
@@ -891,19 +906,39 @@ export default function ChatScreen() {
   }
 
   return (
-    <SafeAreaView
-      // `app/(tabs)/_layout.tsx` pads every scene by the tab bar's height. With
-      // the bar hidden that padding is just dead space at the bottom, so pull
-      // it back — this is what lets the avatar actually reach the screen edges.
-      style={[styles.safe, { marginBottom: -tabBarHeight(insets.bottom) }]}
-      edges={['top']}
-    >
+    // `app/(tabs)/_layout.tsx` pads every scene by the tab bar's height. With
+    // the bar hidden that padding is just dead space at the bottom, so pull it
+    // back — this is what lets the avatar actually reach the screen edges.
+    <View style={[styles.stageRoot, { marginBottom: -tabBarHeight(insets.bottom) }]}>
+      {/* Outside the SafeAreaView on purpose: the library runs under the status
+          bar and behind the header, so the art is the whole screen. */}
+      <BuddyBackdrop url={bgUrl} />
+      <StatusBarOnArt />
+      {/*
+        `useSafeAreaInsets()` and a plain View, NOT `<SafeAreaView>`.
+
+        SafeAreaView is only free when it is the root of a screen. Nested — and
+        it has to be nested here, because the library art runs underneath it —
+        it applies its padding after measuring where it landed, so the first
+        frames render with no top inset at all: the back button and the title
+        drew up under the status bar and then dropped into place a moment later.
+
+        The insets hook reads the same numbers straight from context during
+        render, so the very first frame is already correct.
+      */}
+      <View style={[styles.flex, { paddingTop: insets.top }]}>
       <TopBar
         title={selected?.name ?? t('aiBuddyShort')}
         subtitle={t('buddyOnline')}
         // In conversation the header carries nothing but the way out: no
         // dictionary, no streak/Sparks badges. The buddy is the screen.
         showBadges={false}
+        // Captions belong in the header, next to the way out — not floating in
+        // the scene below it.
+        right={<CaptionToggle on={captions} onToggle={() => setCaptions((v) => !v)} />}
+        // The header sits straight on the library art — no themed surface under
+        // it — so it switches to the on-artwork treatment.
+        onArt
         back
         onBack={() => {
           // Same rule as leaving the tab: the reply must not follow you back to
@@ -917,7 +952,6 @@ export default function ChatScreen() {
         <BuddyVoiceStage
           buddy={selected}
           greeting={voiceGreeting}
-          backgroundUrl={bgUrl}
           speaking={playerStatus.playing || ttsSpeaking}
           emotion={avatarEmotion}
           gesture={avatarGesture}
@@ -938,7 +972,6 @@ export default function ChatScreen() {
           usageLabel={usageLabel}
           usageLevel={usage?.warn_level}
           captions={captions}
-          onToggleCaptions={() => setCaptions((v) => !v)}
           onRecordStart={startRecording}
           onRecordCommit={stopRecording}
           onRecordCancel={cancelRecording}
@@ -971,7 +1004,8 @@ export default function ChatScreen() {
           onDelete={deleteHistorySession}
         />
       )}
-    </SafeAreaView>
+      </View>
+    </View>
   );
 }
 
@@ -985,5 +1019,8 @@ function formatUsage(u: BuddyUsageBlock): string {
 
 const makeStyles = (colors: AppColors) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
+  // The themed colour is only ever seen for the frame before the bundled room
+  // decodes; the art itself covers it. Transparent here would flash white.
+  stageRoot: { flex: 1, backgroundColor: colors.background },
   flex: { flex: 1 },
 });

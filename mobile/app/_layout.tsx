@@ -114,10 +114,22 @@ function RootNavigator() {
  * navigator background (behind screens / the floating tab bar) matches
  * light/dark instead of a fixed night-sky. Must live inside SettingsProvider.
  */
+/**
+ * The status bar, isolated in its own component.
+ *
+ * `useStatusBarStyle()` subscribes to the on-artwork override (a screen with
+ * full-bleed art asks for white icons). Called from `ThemedNav`, that
+ * subscription re-rendered the WHOLE navigator every time such a screen mounted
+ * — visible as the header jumping up and settling back on entry to the buddy.
+ * Reading it here keeps the re-render to these two lines.
+ */
+function AppStatusBar() {
+  return <StatusBar style={useStatusBarStyle()} />;
+}
+
 function ThemedNav() {
   const { theme } = useSettings();
   const colors = useColors();
-  const statusBarStyle = useStatusBarStyle();
   const navTheme = useMemo(() => {
     const base = theme === "light" ? DefaultTheme : DarkTheme;
     return {
@@ -140,7 +152,7 @@ function ThemedNav() {
         imperatively either — that leaks to the next screen, which is how
         leaving Settings used to hide the icons.
       */}
-      <StatusBar style={statusBarStyle} />
+      <AppStatusBar />
       <RootNavigator />
     </ThemeProvider>
   );
