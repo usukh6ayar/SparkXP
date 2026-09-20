@@ -1,4 +1,4 @@
-import { BuddyService } from './buddy.service';
+import { BuddyService, deferredWrite } from './buddy.service';
 
 /**
  * Durability boundaries on the voice-turn critical path.
@@ -17,7 +17,9 @@ describe('BuddyService.audioTurn — usage durability', () => {
   const USER = 'user-1';
   const SESSION = 'session-1';
 
-  function harness(opts: { usageWriteFails?: boolean } = {}) {
+  function harness(
+    opts: { usageWriteFails?: boolean; pipelineDelayMs?: number } = {},
+  ) {
     const multi = { incr: jest.fn(), expire: jest.fn(), exec: jest.fn() };
     multi.incr.mockReturnValue(multi);
     multi.expire.mockReturnValue(multi);
@@ -28,8 +30,10 @@ describe('BuddyService.audioTurn — usage durability', () => {
     const save = jest.fn(async () => {
       // A real insert is not instantaneous; without the delay a missing join
       // would still look correct simply because nothing yielded.
-      await new Promise((r) => setTimeout(r, 20));
+      // A failing write rejects *immediately* so it can land while the rest of
+      // the pipeline is still running — see the `deferredWrite` suite below.
       if (opts.usageWriteFails) throw new Error('ledger write failed');
+      await new Promise((r) => setTimeout(r, 20));
       saved.done = true;
       return {};
     });
@@ -86,10 +90,17 @@ describe('BuddyService.audioTurn — usage durability', () => {
       },
       // Ends the turn right after the usage write is in flight. What happens to
       // that write when the rest of the pipeline fails is exactly the question.
+      //
+      // `pipelineDelayMs` stands in for the seconds a real turn spends in the
+      // LLM and TTS. It matters: with an instant failure the join is attached
+      // before a fast-failing write can reject, which hides the bug below.
       buddies: {
-        findOne: jest
-          .fn()
-          .mockRejectedValue(new Error('pipeline stopped here')),
+        findOne: jest.fn(async () => {
+          if (opts.pipelineDelayMs) {
+            await new Promise((r) => setTimeout(r, opts.pipelineDelayMs));
+          }
+          throw new Error('pipeline stopped here');
+        }),
       },
       memory: { getContextMemories: jest.fn().mockResolvedValue([]) },
       messages: { find: jest.fn().mockResolvedValue([]) },
@@ -130,5 +141,68 @@ describe('BuddyService.audioTurn — usage durability', () => {
     // month's numbers did not add up.
     const h = harness({ usageWriteFails: true });
     await expect(call(h.ctx)).rejects.toThrow('ledger write failed');
+  });
+
+  it('still surfaces the failure when the write fails mid-turn', async () => {
+    // Same as above, but the write rejects while the pipeline is still running
+    // rather than after it has already failed — the ordering `deferredWrite`
+    // exists for (see the suite below). The error must survive the wait.
+    const h = harness({ usageWriteFails: true, pipelineDelayMs: 50 });
+    await expect(call(h.ctx)).rejects.toThrow('ledger write failed');
+  });
+});
+
+/**
+ * `deferredWrite` — why "start the write, join it later" needs a helper at all.
+ *
+ * Between starting and joining, the promise has **no** rejection handler on it.
+ * If it rejects in that window Node reports an unhandled rejection, and since
+ * v15 the default action for one is to throw — which kills the entire API
+ * process, not just the turn. The window here is the length of a voice turn
+ * (seconds of LLM + TTS), so one failed ledger insert would take the server
+ * down. Verified on this repo's Node (v25): a promise rejecting at 100ms and
+ * awaited at 1500ms exits the process before the `try/catch` is ever reached.
+ *
+ * Do not try to assert this with a `process.on('unhandledRejection')` spy:
+ * Jest's sandboxed `process` never registers the listener with real Node, so
+ * such a test passes whether or not the bug is present. It was written that way
+ * first and proved nothing.
+ *
+ * What the tests below pin instead is the thing that actually fixes it — the
+ * handler goes on **synchronously**. Swapping `deferredWrite` for the plain
+ * `async () => { await promise; }` version does not merely fail these: it takes
+ * the Jest worker down with `[Error: ledger write failed] Node.js v25.2.1`,
+ * which is precisely what it would do to the API in production.
+ */
+describe('deferredWrite', () => {
+  it('attaches a rejection handler synchronously', () => {
+    const promise = Promise.reject(new Error('ledger write failed'));
+    // `.catch()` is `.then(undefined, fn)` — spying on `then` asks the real
+    // question: was a handler registered before this function returned?
+    const then = jest.spyOn(promise, 'then');
+    const join = deferredWrite(promise);
+    expect(then).toHaveBeenCalledTimes(1);
+    return expect(join()).rejects.toThrow('ledger write failed');
+  });
+
+  it('rethrows the original failure when joined', async () => {
+    const boom = new Error('ledger write failed');
+    const join = deferredWrite(Promise.reject(boom));
+    await new Promise((r) => setTimeout(r, 20)); // reject well before the join
+    await expect(join()).rejects.toBe(boom);
+  });
+
+  it('resolves quietly when the write succeeds', async () => {
+    await expect(
+      deferredWrite(Promise.resolve('row'))(),
+    ).resolves.toBeUndefined();
+  });
+
+  it('can be joined more than once without changing the outcome', async () => {
+    const join = deferredWrite(
+      Promise.reject(new Error('ledger write failed')),
+    );
+    await expect(join()).rejects.toThrow('ledger write failed');
+    await expect(join()).rejects.toThrow('ledger write failed');
   });
 });

@@ -280,6 +280,33 @@ function mergeSpokenChunks(chunks: SpokenChunk[]): {
   };
 }
 
+/**
+ * Эхлүүлээд дараа нь `await` хийх гэж буй promise-ийг "аюулгүй" болгоно.
+ *
+ * Бүртгэлийн бичилтийг LLM/TTS-ийн ард нуух загвар (`const p = save(); …;
+ * await p`) нь **процесс унагах** нүхтэй: promise нь хүлээгдэхээсээ хэдэн
+ * секундын өмнө унавал тэр агшинд түүнд ганц ч handler байхгүй тул Node
+ * `unhandledRejection` зарлана — v15-аас хойших анхдагч нь `throw`, өөрөөр
+ * хэлбэл **бүхэл backend процесс унана**. Node 25 дээр туршиж баталсан:
+ * 100мс-д унасан promise-ийг 1.5 сек дараа `await` хийхэд процесс `try/catch`
+ * хүртэл хүрэлгүй үхэв.
+ *
+ * Энд handler-ийг promise үүссэн ЯГ ТЭР агшинд залгана. Node түүнийг
+ * "хараа хяналттай" гэж үзэх тул зарлал гарахгүй, харин алдаа нь
+ * `settled`-д хадгалагдаад дараагийн `await` дээр яг хэвээрээ шиднэ —
+ * найдвартай байдлын хил хөндөгдөхгүй, зөвхөн унах нь л зогсоно.
+ */
+export function deferredWrite(promise: Promise<unknown>): () => Promise<void> {
+  let failure: unknown;
+  const settled = promise.catch((err: unknown) => {
+    failure = err ?? new Error('deferred write failed');
+  });
+  return async () => {
+    await settled;
+    if (failure) throw failure;
+  };
+}
+
 @Injectable()
 export class BuddyService {
   private readonly logger = new Logger(BuddyService.name);
@@ -633,11 +660,13 @@ export class BuddyService {
     // "тавиад март" БИШ. `finally` дэх join нь төлбөрийн мөр диск дээр
     // бичигдэхээс өмнө хариу хэрэглэгч рүү явахгүй гэдгийг баталгаажуулна:
     // хүлээлт нь LLM-ийн ард нуугдана, харин найдвартай байдал хэвээр.
-    const sttUsage = this.logUsage(userId, AiUsageType.STT, {
-      voiceSeconds: sttSeconds,
-      costMicroUsd: Math.round((sttSeconds / 3600) * 0.39 * 1e6),
-      metadata: { sessionId: session.id, stage: 'stt' },
-    });
+    const joinSttUsage = deferredWrite(
+      this.logUsage(userId, AiUsageType.STT, {
+        voiceSeconds: sttSeconds,
+        costMicroUsd: Math.round((sttSeconds / 3600) * 0.39 * 1e6),
+        metadata: { sessionId: session.id, stage: 'stt' },
+      }),
+    );
     try {
       return await this.runTurn(
         user,
@@ -649,7 +678,7 @@ export class BuddyService {
       );
     } finally {
       // Бичилт унавал алдаа энд гарч ирнэ — чимээгүй алдагдахгүй.
-      await sttUsage;
+      await joinSttUsage();
     }
   }
 
@@ -790,23 +819,29 @@ export class BuddyService {
     // хуучин (non-streaming / fallback) замд эдгээр нь баталгаажсан хариу ба
     // синтезийн хооронд яг дараалан зогсдог байв.
     //
-    // Доорх `await bookkeeping` нь найдвартай байдлын хил: мессежүүд
+    // Доорх `await joinBookkeeping()` нь найдвартай байдлын хил: мессежүүд
     // хадгалагдахаас, хариу буцахаас өмнө гурвуулаа дуусна.
-    const bookkeeping = Promise.all([
-      this.logUsage(user.id, AiUsageType.TEXT_CHAT, {
-        model,
-        promptTokens,
-        completionTokens,
-        costMicroUsd: llmCostMicroUsd(model, promptTokens, completionTokens),
-        metadata: {
-          sessionId: session.id,
-          buddySlug: buddy.slug,
-          stage: 'llm',
-        },
-      }),
-      this.users.increment({ id: user.id }, 'aiInputTokens', promptTokens),
-      this.users.increment({ id: user.id }, 'aiOutputTokens', completionTokens),
-    ]);
+    const joinBookkeeping = deferredWrite(
+      Promise.all([
+        this.logUsage(user.id, AiUsageType.TEXT_CHAT, {
+          model,
+          promptTokens,
+          completionTokens,
+          costMicroUsd: llmCostMicroUsd(model, promptTokens, completionTokens),
+          metadata: {
+            sessionId: session.id,
+            buddySlug: buddy.slug,
+            stage: 'llm',
+          },
+        }),
+        this.users.increment({ id: user.id }, 'aiInputTokens', promptTokens),
+        this.users.increment(
+          { id: user.id },
+          'aiOutputTokens',
+          completionTokens,
+        ),
+      ]),
+    );
     // Одоо ~0 болох ёстой. Тэг биш бол дээрх нь дахин дараалсан гэсэн үг.
     timer?.mark('llm_bookkeeping');
 
@@ -820,9 +855,9 @@ export class BuddyService {
     const { audioUrl, durationMs, visemes } = spokenChunks
       ? mergeSpokenChunks(spokenChunks)
       : await this.speak(user.id, buddy, spokenText, session.id, timer);
-    // Найдвартай байдлын хил (дээрх `bookkeeping`-ийг үз): төлбөр/токены
+    // Найдвартай байдлын хил (дээрх `joinBookkeeping`-ийг үз): төлбөр/токены
     // бүртгэл нь мессеж хадгалагдахаас өмнө заавал дуусна.
-    await bookkeeping;
+    await joinBookkeeping();
 
     // --- Persist both turns ---
     await this.messages.save(
