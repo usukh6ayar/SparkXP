@@ -678,6 +678,20 @@ Choi-гийн үлдээсэн 3 нээлттэй асуулт (PR #267) Railway
 - ⚠️ Энэ бүхэн **зөвхөн серверийн тал**. Төхөөрөмж дээрх дуу гарах/уруул синк нь
   TestFlight build-ээр л батлагдана (build 13 — доорх бичлэг).
 
+**Splash = апп-ийн icon (2026-09-20).** Апп ачаалагдах үед гарч байсан зураг
+нь `assets/splash-icon.png` — **өөр загварын** (3D рендер) үнэг, цагаан захтай
+ягаан дөрвөлжин байв, апп-ийн жинхэнэ icon-той огт таардаггүй. Одоо splash нь
+`assets/icon.png`-ийг шууд ашиглана.
+- `splash-icon.png` **устгагдсан. Дахин бүү ашигла, бүү сэргээ.**
+- Дэвсгэр light/dark хоёуланд **`#3D0BA0`** (Android adaptive-ийн ягаантай
+  ижил). Шалтгаан: `icon.png` нь захаараа бүтэн ягаан тул цайвар дэвсгэр дээр
+  «ягаан дөрвөлжин наасан» мэт харагддаг; ягаан дээр зах нь билтэрч нэг
+  бүхэл мэт болно. **Light/dark ижил байх нь санаатай**, алдаа биш.
+- ⚠️ `app.json`-ы `backgroundColor`/`dark` хосыг солих бүрд `_layout.tsx`-ийн
+  `SPLASH_BG`-г мөн сольж өг (JS нь plugin-ы native тохиргоог уншиж чадахгүй).
+- ⚠️ Splash бол **native тохиргоо** — OTA-гаар ХЭЗЭЭ Ч хүрэхгүй, шинэ build
+  шаардана (build 15).
+
 **⚠️ ДҮРЭМ — «эхлүүлээд дараа нь await» нь процесс унагана (2026-09-20, PR #270).**
 PR #269 нь бүртгэлийн бичилтийг эгзэгтэй замаас хасахдаа `const p = save(); …;
 await p` хэлбэр ашигласан. Латенсийн хувьд зөв, **гэхдээ тэр хоёр цэгийн
@@ -772,9 +786,11 @@ migration `AddTrophyPinnedRank1786300000000`). ⚠️ **Choi/Boju:** трофе�
 дуудаарай.
 
 **Splash + доод навигаци + streak freeze (2026-08-03).**
-- **Splash ✅** — `expo-splash-screen` plugin `app.json`-д (шинэ asset
-  `assets/splash-icon.png`, дэвсгэр нь theme-ийн өнгө: light `#F6F4FD` · dark
-  `#0B0716`). `app/_layout.tsx` splash-ыг фонт ачаалагдтал барина
+- **Splash ✅** — `expo-splash-screen` plugin `app.json`-д. ⚠️ **2026-09-20-нд
+  өөрчлөгдсөн** (доорх «Splash = апп-ийн icon» бичлэгийг үз): зураг нь одоо
+  `assets/icon.png`, дэвсгэр нь light/dark хоёуланд `#3D0BA0`. Хуучнаар
+  `assets/splash-icon.png` + light `#F6F4FD` · dark `#0B0716` байсан.
+  `app/_layout.tsx` splash-ыг фонт ачаалагдтал барина
   (`preventAutoHideAsync` → `hideAsync`). Splash **зөвхөн native build**-д
   харагдана; Expo Go өөрийн splash-ыг үзүүлнэ.
 - **Доод навигаци — шил (glass) БОЛИВ.** `WaveCard` нь одоо `BlurView`-гүй,
