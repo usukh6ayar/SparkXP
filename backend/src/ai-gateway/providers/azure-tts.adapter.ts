@@ -171,6 +171,51 @@ export class AzureTtsAdapter implements TtsAdapter {
     return configured;
   }
 
+  /**
+   * Тухайн voice-ийн WebSocket-ыг **синтез хийхээс өмнө** нээж, pool-д тавина.
+   *
+   * Pool нь ашиглалтаар л дулаацдаг: эхний хэсэг нь үргэлж handshake-ийг төлнө
+   * (хэмжсэн: эхний аудио хүртэл 799 vs 159мс) — deploy хийсний дараах эхний
+   * turn, эсвэл `POOL_IDLE_TTL_MS` хэтэрсний дараах эхний turn бүрд. Session
+   * эхлэх мөчид түүнийг төлөх нь үнэгүй: хэрэглэгч сонголтоо хийж байгаа тул
+   * хэн ч хүлээхгүй.
+   *
+   * `Connection.openConnection()` нь **синтез хийхгүй** — зөвхөн холболт, тэгэхээр
+   * нэмэлт төлбөргүй.
+   *
+   * Pool хоосон байвал л ажиллана: зорилго нь эхний хэсгийг хурдан болгох
+   * явдал, нөөц дээр холболт хураах биш.
+   */
+  prewarm(voiceId?: string | null): void {
+    if (
+      !this.config.get<string>('AZURE_SPEECH_KEY') ||
+      !this.config.get<string>('AZURE_SPEECH_REGION')
+    ) {
+      return; // Azure тохируулаагүй — дулаацуулах зүйл алга
+    }
+    const voice = this.resolveVoice(voiceId);
+    if (this.pool.get(voice)?.length) return; // аль хэдийн дулаан
+    try {
+      // `acquire` нь instance-ийг pool-оос ГАРГАЖ авдаг тул холболт нээгдэх
+      // хооронд өөр turn үүнийг зэрэг ашиглах боломжгүй (viseme хольцолдохоос
+      // хамгаалсан гол дүрэм).
+      const synthesizer = this.acquire(voice);
+      sdk.Connection.fromSynthesizer(synthesizer).openConnection(
+        () => this.release(voice, synthesizer),
+        (err) => {
+          // Дулаацуулалт бүтэлгүйтэх нь ердийн зүйл (сүлжээ, түр зуурын гэмтэл).
+          // Унасан холболтыг pool руу БҮҮ буцаа — дараагийн turn түүн дээр унана.
+          this.logger.warn(`Azure TTS prewarm failed (${voice}): ${err}`);
+          this.dispose(synthesizer);
+        },
+      );
+    } catch (err) {
+      this.logger.warn(
+        `Azure TTS prewarm skipped: ${err instanceof Error ? err.message : err}`,
+      );
+    }
+  }
+
   async synthesize(
     text: string,
     voiceId?: string,
@@ -302,18 +347,18 @@ export class AzureTtsAdapter implements TtsAdapter {
           finish(
             () =>
               resolve({
-              audio,
-              // `audioDuration` is ticks too. Fall back to the last viseme if a
-              // voice ever reports 0, so the avatar still gets a length.
-              durationMs:
-                Math.round(result.audioDuration / TICKS_PER_MS) ||
-                (visemes.length ? visemes[visemes.length - 1].offsetMs : 0),
-              model: voice,
-              voiceId: voice,
-              mimeType: 'audio/mpeg',
-              fileExtension: 'mp3',
-              // Sorted defensively: the events arrive in order today, but the
-              // client binary-searches this and would silently mis-shape if not.
+                audio,
+                // `audioDuration` is ticks too. Fall back to the last viseme if a
+                // voice ever reports 0, so the avatar still gets a length.
+                durationMs:
+                  Math.round(result.audioDuration / TICKS_PER_MS) ||
+                  (visemes.length ? visemes[visemes.length - 1].offsetMs : 0),
+                model: voice,
+                voiceId: voice,
+                mimeType: 'audio/mpeg',
+                fileExtension: 'mp3',
+                // Sorted defensively: the events arrive in order today, but the
+                // client binary-searches this and would silently mis-shape if not.
                 visemes: visemes.sort((a, b) => a.offsetMs - b.offsetMs),
                 firstAudioMs,
               }),

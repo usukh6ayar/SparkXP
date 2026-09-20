@@ -694,6 +694,32 @@ EAS build `24bba1b4`. Өмнөх build нь **08-27-ны build 12** байсан
   зогсоодоггүй. Төлөвийг `api.expo.dev/graphql` → `submissions(filter:…)`-аас
   унших ба `eas build:view` нь `--json`/`--non-interactive` хүлээж авдаггүй.
 
+**AI Buddy — гүйцэтгэлийн ажил (2026-09-19).** 10 даалгавартай ээлж; бүрэн
+тайлан + хэмжих заавар → **`docs/AI_BUDDY_PERF.md`**. Товчхондоо:
+- **Аватар нь тоглоомын нөөц шиг болов.** GLB нь одоо төхөөрөмж дээр **нэг л
+  удаа** татагдана (`mobile/src/lib/buddyAssetCache.ts` → `Paths.document/
+  buddy-assets/`); дараагийн нээлт бүрд дискнээс уншина, сүлжээ огт хөндөхгүй.
+  Session доторх RAM `modelCache` хэвээр — хоёул өөр асуудал шийддэг.
+- ⚠️ **GLB файлыг ӨӨРЧИЛСӨНГҮЙ** (шахалт, decimate, Draco/Meshopt/KTX2, texture
+  багасгалт — юу ч үгүй). Байт нь CDN-ээс ирснээрээ хадгалагдана. Өмнө нь
+  оптимизац хийх оролдлого аватарыг эвдэж байсан — **дахин бүү оролд.**
+- Picker нээлттэй байх зуур **нэг** buddy-г урьдчилж ачаална (бүх ростерыг БИШ).
+- Микрофоны зөвшөөрөл process-д нэг удаа асууна (`src/lib/mic.ts`); яриа эхлэх
+  дэлгэц нээгдэхэд урьдчилж асууна. ⚠️ Recorder-ийг урьдчилж бэлдэх нь
+  **БОЛОХГҮЙ** — `prepareToRecordAsync` нь iOS-ийг `playAndRecord` болгож,
+  тоглуулалтыг чихэвч рүү чиглүүлдэг ("дуу нь намдсан" алдаа).
+- Backend: turn эхлэхийн өмнөх 6 дараалсан round trip → 3, контекстийн 4 → 2;
+  Azure TTS холболтыг session эхлэхэд урьдчилж нээнэ; Azure STT-д тасалгуур
+  (circuit breaker) нэмэв. **Migration ч, шинэ dependency ч ШААРДЛАГАГҮЙ.**
+- ⚠️ **`STT_PROVIDER=azure` нь төлбөрт S0 багц шаардана** (F0 = 20 хүсэлт/60сек).
+  Анхдагч нь `gemini` хэвээр; S0 авсны дараа Railway-гийн env дээр л солино.
+- ⚠️ **Choi/Boju:** `chat.tsx`, `BuddyVoiceStage.tsx`, `BuddyAvatar.tsx`, `i18n`
+  хөндөгдсөн (дундын файлууд). **`npm install` ШААРДЛАГАГҮЙ** — `expo-file-system`
+  аль хэдийн багцад байсан (зүгээр л ашиглагдаагүй байсан) ба Expo Go-д багтдаг.
+- ⚠️ Хэмжилт: аппын тоонууд **бодит төхөөрөмж дээр л** гарна (DEV лог мөрүүд
+  `docs/AI_BUDDY_PERF.md` §T9-д); серверийнх → `scripts/buddy-latency.sql`
+  (шинэ `precheck` мөр).
+
 **Хараахан хийгдээгүй (blocker БИШ):** Lucide migration; бодит видео тоглуулагч;
 QPay; 3D avatar (1.2-т).
 **Already DONE (was wrongly listed as pending):** app icon wired

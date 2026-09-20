@@ -332,6 +332,11 @@ export class BuddyService {
     );
     const user = await this.loadUser(userId);
     const allowance = await this.usage.checkVoice(user);
+    // Хэрэглэгч энэ агшинд юу ч хэлээгүй байна — провайдерын холболтыг ЯГ ОДОО
+    // нээх нь хэнийг ч хүлээлгэхгүй, харин эхний хэсгийн handshake-ийг
+    // (хэмжсэн: 799 → 159мс) урьдчилж төлнө. Синтез хийхгүй тул төлбөргүй.
+    // Сонголттой + хүлээхгүй: бэлтгэл нь session эхлэхийг хэзээ ч зогсоохгүй.
+    this.tts.prewarm?.(buddy.voiceId);
     return { sessionId: session.id, buddy, usage: this.usageBlock(allowance) };
   }
 
@@ -568,17 +573,35 @@ export class BuddyService {
     clientT0?: number,
     streamId?: string,
   ): Promise<TurnResponse> {
-    const session = await this.ownedSession(userId, sessionId);
-    const user = await this.loadUser(userId);
-    const limits = await this.gateway.getLimits();
+    // Секундомер нь бүх зүйлийн ӨМНӨ эхэлнэ.
+    //
+    // Өмнө нь энэ мөр доорх шалгалтуудын ДАРАА байсан тул `upload_ms` (t0 →
+    // сервер) нь сүлжээний байршуулалт дээр нэмээд эдгээр бүх round trip-ийг
+    // залгидаг байв — өөрөөр хэлбэл шалгалтууд хэмжигдэхгүй, харин байршуулалт
+    // байгаагаасаа удаан харагддаг байсан. Одоо хоёулаа тусдаа.
+    const timer = new TurnTimer(clientT0);
+
+    // Бие даасан гурван уншилт — дараалуулах шалтгаан байхгүй (DB, DB, Redis).
+    const [session, user, limits] = await Promise.all([
+      this.ownedSession(userId, sessionId),
+      this.loadUser(userId),
+      this.gateway.getLimits(),
+    ]);
 
     // Pre-check: STT + voice allowance + daily turn cap, before any provider call.
-    const sttAllow = await this.usage.checkStt(user);
+    //
+    // Хоёр квот нь `ai_usages` дээрх тусдаа SUM — зэрэг уншина. ХАРИН шийдвэрийн
+    // дараалал хэвээр: аль хязгаарт хүрснийг хэрэглэгчид зөв хэлэх ёстой.
+    // `checkDailyTurns` нь тоолуурыг НЭМЭГДҮҮЛДЭГ тул хамгийн сүүлд, дараалан
+    // явна — эс бөгөөс квотод хаагдсан turn өдрийн эрхээс хасагдана.
+    const [sttAllow, voiceAllow] = await Promise.all([
+      this.usage.checkStt(user),
+      this.usage.checkVoice(user),
+    ]);
     if (!sttAllow.allowed) throw this.limitError('STT');
-    await this.preCheckVoice(user);
+    if (!voiceAllow.allowed) throw this.limitError('VOICE');
     await this.checkDailyTurns(userId, limits.dailyVoiceTurnLimit);
-
-    const timer = new TurnTimer(clientT0);
+    timer.mark('precheck');
     // Клиент хэсгүүдийг зэрэгцээд гуйж эхэлсэн байж болзошгүй тул STT-ийн
     // өмнө бүртгэнэ — эс бөгөөс эхний хүсэлт нь "мэдэгдэхгүй turn" гэж унана.
     if (streamId) this.turnStreams.open(streamId, userId);
@@ -605,13 +628,29 @@ export class BuddyService {
       });
     }
 
-    await this.logUsage(userId, AiUsageType.STT, {
+    // STT-ийн хэрэглээг бичих нь LLM-ээс ХАМААРАЛГҮЙ: transcript аль хэдийн
+    // гарт бий. Тиймээс бичилтийг эхлүүлээд хүлээхгүйгээр цааш явна — гэхдээ
+    // "тавиад март" БИШ. `finally` дэх join нь төлбөрийн мөр диск дээр
+    // бичигдэхээс өмнө хариу хэрэглэгч рүү явахгүй гэдгийг баталгаажуулна:
+    // хүлээлт нь LLM-ийн ард нуугдана, харин найдвартай байдал хэвээр.
+    const sttUsage = this.logUsage(userId, AiUsageType.STT, {
       voiceSeconds: sttSeconds,
       costMicroUsd: Math.round((sttSeconds / 3600) * 0.39 * 1e6),
       metadata: { sessionId: session.id, stage: 'stt' },
     });
-
-    return this.runTurn(user, session, transcript, transcript, timer, streamId);
+    try {
+      return await this.runTurn(
+        user,
+        session,
+        transcript,
+        transcript,
+        timer,
+        streamId,
+      );
+    } finally {
+      // Бичилт унавал алдаа энд гарч ирнэ — чимээгүй алдагдахгүй.
+      await sttUsage;
+    }
   }
 
   // ── Core pipeline (shared by text + voice) ───────────────────────────────
@@ -624,32 +663,45 @@ export class BuddyService {
     timer?: TurnTimer,
     streamId?: string,
   ): Promise<TurnResponse> {
-    const buddy = await this.buddies.findOne({
-      where: { slug: session.buddySlug },
-    });
-    if (!buddy) throw new NotFoundException('Buddy олдсонгүй');
-
     // Audit-only: flag obvious prompt-injection attempts (no blocking).
+    //
+    // **Хүлээхгүй.** Энэ бол бүртгэл — хэрэглэгч түүний DB бичилтийг хүлээх
+    // ямар ч шалтгаан байхгүй байтал өмнө нь LLM-ийн өмнө дараалан явдаг байв.
     if (looksLikeInjection(rawText)) {
-      await this.safetyEvents.save(
-        this.safetyEvents.create({
-          userId: user.id,
-          sessionId: session.id,
-          eventType: 'jailbreak_attempt',
-          severity: 'low',
-          details: { excerpt: rawText.slice(0, 120) },
-        }),
-      );
+      void this.safetyEvents
+        .save(
+          this.safetyEvents.create({
+            userId: user.id,
+            sessionId: session.id,
+            eventType: 'jailbreak_attempt',
+            severity: 'low',
+            details: { excerpt: rawText.slice(0, 120) },
+          }),
+        )
+        .catch(() => undefined);
     }
 
+    // Limit нь Redis-ээс (хурдан) бөгөөд түүхийн уртыг ТҮҮНИЙ `maxContextMessages`
+    // шийддэг тул эхлээд уншина. Дараагийн гурав нь хоорондоо хамааралгүй DB
+    // уншилт — зэрэг явна. (Өмнө нь дөрвүүлээ дараалан, өөрөөр хэлбэл
+    // LLM-ийн өмнө дөрвөн round trip байсан.)
+    //
+    // `maxContextMessages`-ыг сервер талд таслах гэсэн оролдлого нь энэ дөрвийг
+    // нэг алхам болгох байсан ч админаас тохируулдаг хязгаарыг чимээгүй
+    // үл тоомсорлоно — тэр нь Core Rules-ийн зөрчил.
     const limits = await this.gateway.getLimits();
+    const [buddy, memRows, history] = await Promise.all([
+      this.buddies.findOne({ where: { slug: session.buddySlug } }),
+      this.memory.getContextMemories(user.id),
+      this.messages.find({
+        where: { userId: user.id, sessionId: session.id },
+        order: { createdAt: 'DESC' },
+        take: limits.maxContextMessages,
+      }),
+    ]);
+    if (!buddy) throw new NotFoundException('Buddy олдсонгүй');
+
     const cefr = (user.level ?? 'b1').toUpperCase();
-    const memRows = await this.memory.getContextMemories(user.id);
-    const history = await this.messages.find({
-      where: { userId: user.id, sessionId: session.id },
-      order: { createdAt: 'DESC' },
-      take: limits.maxContextMessages,
-    });
     history.reverse();
 
     const system = buildBuddySystemPrompt(
@@ -731,20 +783,31 @@ export class BuddyService {
       hasCorrection = false;
     }
 
-    await this.logUsage(user.id, AiUsageType.TEXT_CHAT, {
-      model,
-      promptTokens,
-      completionTokens,
-      costMicroUsd: llmCostMicroUsd(model, promptTokens, completionTokens),
-      metadata: { sessionId: session.id, buddySlug: buddy.slug, stage: 'llm' },
-    });
-    await this.users.increment({ id: user.id }, 'aiInputTokens', promptTokens);
-    await this.users.increment(
-      { id: user.id },
-      'aiOutputTokens',
-      completionTokens,
-    );
-    // Гурван DB бичилт — цэвэр бүртгэл, гэвч TTS эхлэхийг хойшлуулж байна.
+    // Гурван бүртгэлийн бичилт. Хариу аль хэдийн баталгаажсан тул эдгээр нь
+    // ЯРИА ҮҮСГЭХЭЭС хамааралгүй — эхлүүлээд TTS рүү шууд оръё.
+    //
+    // Урсгалт замд энэ нь аль хэдийн эхний аудионы ДАРАА байдаг тул нөлөөгүй;
+    // хуучин (non-streaming / fallback) замд эдгээр нь баталгаажсан хариу ба
+    // синтезийн хооронд яг дараалан зогсдог байв.
+    //
+    // Доорх `await bookkeeping` нь найдвартай байдлын хил: мессежүүд
+    // хадгалагдахаас, хариу буцахаас өмнө гурвуулаа дуусна.
+    const bookkeeping = Promise.all([
+      this.logUsage(user.id, AiUsageType.TEXT_CHAT, {
+        model,
+        promptTokens,
+        completionTokens,
+        costMicroUsd: llmCostMicroUsd(model, promptTokens, completionTokens),
+        metadata: {
+          sessionId: session.id,
+          buddySlug: buddy.slug,
+          stage: 'llm',
+        },
+      }),
+      this.users.increment({ id: user.id }, 'aiInputTokens', promptTokens),
+      this.users.increment({ id: user.id }, 'aiOutputTokens', completionTokens),
+    ]);
+    // Одоо ~0 болох ёстой. Тэг биш бол дээрх нь дахин дараалсан гэсэн үг.
     timer?.mark('llm_bookkeeping');
 
     // --- TTS ---
@@ -757,6 +820,9 @@ export class BuddyService {
     const { audioUrl, durationMs, visemes } = spokenChunks
       ? mergeSpokenChunks(spokenChunks)
       : await this.speak(user.id, buddy, spokenText, session.id, timer);
+    // Найдвартай байдлын хил (дээрх `bookkeeping`-ийг үз): төлбөр/токены
+    // бүртгэл нь мессеж хадгалагдахаас өмнө заавал дуусна.
+    await bookkeeping;
 
     // --- Persist both turns ---
     await this.messages.save(

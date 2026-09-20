@@ -12,6 +12,7 @@ import { AppImage } from './AppImage';
 import { BuddyAvatar } from './BuddyAvatar';
 import type { VisemeCue } from './azureVisemes';
 import { SHOW_3D_AVATAR } from '../lib/buddyAvatarFlag';
+import { cachedBuddyAssetUri } from '../lib/buddyAssetCache';
 import { PressableScale } from './PressableScale';
 import { haptics } from '../lib/haptics';
 import { useColors, useSettings } from '../settings/SettingsContext';
@@ -108,6 +109,21 @@ export function BuddyVoiceStage({
   /** This buddy HAS a 3D model — whether or not it has finished loading yet. */
   const has3d = SHOW_3D_AVATAR && !!buddy?.avatarAssetUrl;
   const is3d = has3d && ready3d;
+  /**
+   * Is this the one-time download, or a read off the disk?
+   *
+   * The avatar is a downloadable game resource: tens of megabytes the first
+   * time and nothing at all afterwards (`buddyAssetCache`). Those are minutes
+   * apart on a slow connection, so the wait says which one the student is
+   * actually in rather than "Уншиж байна…" for both.
+   *
+   * Asked once per buddy, when the wait begins — a synchronous directory
+   * lookup, no network and no state machine to keep in sync with the loader.
+   */
+  const downloading = useMemo(
+    () => (buddy?.avatarAssetUrl ? !cachedBuddyAssetUri(buddy.avatarAssetUrl) : false),
+    [buddy?.avatarAssetUrl],
+  );
 
   /**
    * The buddy is the screen — it spans the full display width, leaving only
@@ -353,12 +369,16 @@ export function BuddyVoiceStage({
                 different-looking buddies in a row. A plain "loading" state says
                 what is actually happening instead of pretending to be the buddy.
 
-                The GLB is tens of megabytes, so the first entry genuinely waits;
-                `modelCache` makes every later entry instant. */}
+                The GLB is tens of megabytes, so the FIRST entry on this device
+                genuinely waits. After that it is read from the device's own
+                storage (`buddyAssetCache`) on every later launch, and from
+                `modelCache` within a session — neither touches the network. */}
             {has3d && !ready3d && (
               <View style={[styles.avatarLoading, { width: boxW, height: boxH }]}>
                 <ActivityIndicator size="large" color={c.primary} />
-                <AppText variant="caption" color={c.textMuted}>{t('loading')}</AppText>
+                <AppText variant="caption" color={c.textMuted}>
+                  {downloading ? t('buddyDownloading') : t('loading')}
+                </AppText>
               </View>
             )}
 

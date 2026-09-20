@@ -11,6 +11,7 @@
 WITH t AS (
   SELECT
     (metadata -> 'latency' ->> 'upload_ms')::numeric          AS upload_ms,
+    (metadata -> 'latency' ->> 'precheck_ms')::numeric        AS precheck_ms,
     (metadata -> 'latency' ->> 'stt_ms')::numeric             AS stt_ms,
     (metadata -> 'latency' ->> 'context_ms')::numeric         AS context_ms,
     (metadata -> 'latency' ->> 'llm_ms')::numeric             AS llm_ms,
@@ -36,8 +37,16 @@ SELECT
   round(max(v))                                              AS max
 FROM (
   SELECT 'stt'               AS metric, stt_ms             AS v FROM t
+  UNION ALL SELECT 'upload',            upload_ms          FROM t
+  -- Session/user/limit уншилт + квотын шалгалт, STT эхлэхийн ӨМНӨ. 2026-09-19
+  -- хүртэл энэ нь `upload_ms` дотор нуугдаж байсан (секундомер нь шалгалтуудын
+  -- дараа эхэлдэг байв) тул байршуулалт байгаагаасаа удаан харагддаг байсан.
+  UNION ALL SELECT 'precheck',          precheck_ms        FROM t
   UNION ALL SELECT 'context',           context_ms         FROM t
   UNION ALL SELECT 'llm',               llm_ms             FROM t
+  -- 2026-09-20-оос хойш ~0 байх ЁСТОЙ: хэрэглээ/токены бичилтүүд нь TTS-тэй
+  -- зэрэг явж, хариу буцахаас өмнө join хийгддэг болсон. Тэгээс мэдэгдэхүйц
+  -- том бол тэдгээр нь дахин дараалан орсон гэсэн үг.
   UNION ALL SELECT 'llm_bookkeeping',   bookkeeping_ms     FROM t
   UNION ALL SELECT 'tts_first_audio',   tts_first_audio_ms FROM t
   UNION ALL SELECT 'tts_full',          tts_ms             FROM t

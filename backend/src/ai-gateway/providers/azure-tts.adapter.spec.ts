@@ -1,4 +1,5 @@
 import { ConfigService } from '@nestjs/config';
+import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
 import { AzureTtsAdapter, buildSsml } from './azure-tts.adapter';
 
 /**
@@ -46,7 +47,12 @@ describe('buildSsml', () => {
   });
 
   it('prefers per-buddy params over the env defaults', () => {
-    const ssml = buildSsml('Hi', 'v', { rate: '-10%' }, { rate: '+5%', pitch: '+2%' });
+    const ssml = buildSsml(
+      'Hi',
+      'v',
+      { rate: '-10%' },
+      { rate: '+5%', pitch: '+2%' },
+    );
     expect(ssml).toContain('rate="-10%"');
     expect(ssml).toContain('pitch="+2%"'); // not overridden → default applies
   });
@@ -80,7 +86,9 @@ describe('AzureTtsAdapter.resolveVoice', () => {
     } as unknown as ConfigService);
 
   it('keeps a real Azure voice name', () => {
-    expect(adapter().resolveVoice('en-GB-SoniaNeural')).toBe('en-GB-SoniaNeural');
+    expect(adapter().resolveVoice('en-GB-SoniaNeural')).toBe(
+      'en-GB-SoniaNeural',
+    );
   });
 
   it('keeps an HD voice name containing a colon', () => {
@@ -95,13 +103,17 @@ describe('AzureTtsAdapter.resolveVoice', () => {
   });
 
   it('rejects a leftover ElevenLabs voice id', () => {
-    expect(adapter('en-US-AvaMultilingualNeural').resolveVoice('21m00Tcm4TlvDq8ikWAM')).toBe(
-      'en-US-AvaMultilingualNeural',
-    );
+    expect(
+      adapter('en-US-AvaMultilingualNeural').resolveVoice(
+        '21m00Tcm4TlvDq8ikWAM',
+      ),
+    ).toBe('en-US-AvaMultilingualNeural');
   });
 
   it('falls back to the configured voice when the buddy has none', () => {
-    expect(adapter('en-US-JennyNeural').resolveVoice(null)).toBe('en-US-JennyNeural');
+    expect(adapter('en-US-JennyNeural').resolveVoice(null)).toBe(
+      'en-US-JennyNeural',
+    );
   });
 });
 
@@ -125,7 +137,12 @@ describe('AzureTtsAdapter synthesizer pool', () => {
     close: () => void;
   }
   const make = (): FakeSynth => {
-    const s: FakeSynth = { closed: false, close: () => { s.closed = true; } };
+    const s: FakeSynth = {
+      closed: false,
+      close: () => {
+        s.closed = true;
+      },
+    };
     return s;
   };
   /** Reach the private pool helpers without booting the SDK. */
@@ -137,7 +154,11 @@ describe('AzureTtsAdapter synthesizer pool', () => {
       dispose: (s: FakeSynth) => void;
     };
   const adapter = () =>
-    pooled(new AzureTtsAdapter({ get: (_k: string, f?: string) => f } as unknown as ConfigService));
+    pooled(
+      new AzureTtsAdapter({
+        get: (_k: string, f?: string) => f,
+      } as unknown as ConfigService),
+    );
 
   it('hands a released synthesizer back out for the next chunk', () => {
     const a = adapter();
@@ -172,7 +193,9 @@ describe('AzureTtsAdapter synthesizer pool', () => {
     // turns a latency win into a failed turn.
     const a = adapter();
     const stale = make();
-    a.pool.set('v', [{ synthesizer: stale, idleSince: Date.now() - 10 * 60_000 }]);
+    a.pool.set('v', [
+      { synthesizer: stale, idleSince: Date.now() - 10 * 60_000 },
+    ]);
     // No key configured, so building a fresh one throws — which is fine here:
     // what matters is that the stale entry was closed rather than returned.
     expect(() => a.acquire('v')).toThrow();
@@ -194,5 +217,104 @@ describe('AzureTtsAdapter synthesizer pool', () => {
     const ava = make();
     a.release('en-US-AvaMultilingualNeural', ava);
     expect(a.pool.get('en-GB-SoniaNeural')).toBeUndefined();
+  });
+});
+
+/**
+ * Connection prewarm.
+ *
+ * The pool above only warms through use, so the FIRST spoken chunk after a
+ * deploy — or after the idle TTL expires — still pays the WebSocket handshake
+ * the pool exists to avoid. `prewarm` pays it at session start instead, when
+ * the student has not said anything yet and nobody is waiting.
+ *
+ * Two things must stay true, and neither shows up in the types: it must open a
+ * connection **without synthesizing** (a synthesis would be billed), and a
+ * connection that failed to open must never reach the pool — handing a broken
+ * connection to the next turn is worse than having no warm one at all.
+ */
+describe('AzureTtsAdapter.prewarm', () => {
+  interface FakeSynth {
+    closed: boolean;
+    close: () => void;
+  }
+  const make = (): FakeSynth => {
+    const s: FakeSynth = {
+      closed: false,
+      close: () => {
+        s.closed = true;
+      },
+    };
+    return s;
+  };
+
+  function harness(configured = true) {
+    const env: Record<string, string> = configured
+      ? { AZURE_SPEECH_KEY: 'k', AZURE_SPEECH_REGION: 'r' }
+      : {};
+    const adapter = new AzureTtsAdapter({
+      get: (key: string, fallback?: string) => env[key] ?? fallback,
+    } as unknown as ConfigService);
+    const inner = adapter as unknown as {
+      pool: Map<string, { synthesizer: FakeSynth; idleSince: number }[]>;
+      acquire: (voice: string) => FakeSynth;
+    };
+    const synth = make();
+    jest.spyOn(inner, 'acquire').mockReturnValue(synth);
+    return { adapter, inner, synth };
+  }
+
+  /** Stand in for the SDK's Connection, reporting success or failure. */
+  function stubConnection(outcome: 'ok' | 'fail') {
+    const speak = jest.fn();
+    jest.spyOn(sdk.Connection, 'fromSynthesizer').mockReturnValue({
+      openConnection: (cb?: () => void, err?: (e: string) => void) =>
+        outcome === 'ok' ? cb?.() : err?.('boom'),
+    } as unknown as sdk.Connection);
+    return speak;
+  }
+
+  afterEach(() => jest.restoreAllMocks());
+
+  it('opens a connection and leaves it in the pool, ready for the first chunk', () => {
+    const h = harness();
+    stubConnection('ok');
+    h.adapter.prewarm('en-GB-SoniaNeural');
+    expect(h.inner.pool.get('en-GB-SoniaNeural')).toHaveLength(1);
+    expect(h.synth.closed).toBe(false);
+  });
+
+  it('never synthesizes — a warm-up must not be billable', () => {
+    const h = harness();
+    stubConnection('ok');
+    const synthesize = jest.spyOn(h.adapter, 'synthesize');
+    h.adapter.prewarm('en-GB-SoniaNeural');
+    expect(synthesize).not.toHaveBeenCalled();
+  });
+
+  it('discards a connection that failed to open instead of pooling it', () => {
+    const h = harness();
+    stubConnection('fail');
+    h.adapter.prewarm('en-GB-SoniaNeural');
+    expect(h.inner.pool.get('en-GB-SoniaNeural') ?? []).toHaveLength(0);
+    expect(h.synth.closed).toBe(true);
+  });
+
+  it('does nothing when the pool is already warm for that voice', () => {
+    const h = harness();
+    const existing = make();
+    h.inner.pool.set('en-GB-SoniaNeural', [
+      { synthesizer: existing, idleSince: Date.now() },
+    ]);
+    h.adapter.prewarm('en-GB-SoniaNeural');
+    // Untouched: warming is about the first chunk, not about hoarding sockets.
+    expect(h.inner.acquire).not.toHaveBeenCalled();
+    expect(h.inner.pool.get('en-GB-SoniaNeural')).toHaveLength(1);
+  });
+
+  it('does nothing when Azure is not configured', () => {
+    const h = harness(false);
+    h.adapter.prewarm('en-GB-SoniaNeural');
+    expect(h.inner.acquire).not.toHaveBeenCalled();
   });
 });
