@@ -54,8 +54,14 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
  * The two splash backgrounds declared in `app.json` → `expo-splash-screen`
  * (`backgroundColor` + its `dark` override). Kept in sync BY HAND — the plugin
  * config is native, so JS cannot read it. Change one, change the other.
+ *
+ * Both are the brand purple on purpose: the splash image is now the app icon
+ * (`assets/icon.png`), which is full-bleed purple to its edges. On the old
+ * near-white background it read as a purple tile pasted on a light screen; on
+ * this one the icon's edges disappear and the splash looks like one piece.
+ * That also makes light and dark identical here — intended, not an oversight.
  */
-const SPLASH_BG = { light: "#F6F4FD", dark: "#0B0716" } as const;
+const SPLASH_BG = { light: "#3D0BA0", dark: "#3D0BA0" } as const;
 
 function RootNavigator() {
   const { token, user, loading, onboarded } = useAuth();
