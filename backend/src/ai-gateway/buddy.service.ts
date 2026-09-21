@@ -641,6 +641,21 @@ export class BuddyService {
       timer.mark('stt'); // T1 — transcript ready
       if (result.confidence < limits.sttMinConfidence || !transcript) {
         // Low confidence → ask to repeat, charge nothing, skip LLM/TTS.
+        //
+        // ⚠️ Энэ салаа нь өмнө нь ЮУ Ч бичдэггүй байсан: DB-д мөр үлдээхгүй
+        // (`staticTurn` нь `message_id: ''`), логт мөр гаргахгүй. Тиймээс
+        // "buddy бүх turn дээр «I didn't catch that» гэж байна" гэсэн гомдлыг
+        // гаднаас нь ялгах боломжгүй — амжилтгүй turn нь огт болоогүй turn-тэй
+        // яг ижил харагддаг байв (2026-09-21-нд оношлоход яг энэ саад болсон).
+        //
+        // `bytes` нь шийдвэрлэх тоо: 1-2KB орчим бол микрофон юу ч бичээгүй
+        // (клиентийн алдаа), харин хэвийн хэмжээтэй атлаа transcript хоосон
+        // бол STT талын алдаа. Ярианы АГУУЛГЫГ бүү бич — сурагчийн апп.
+        this.logger.warn(
+          `STT empty/low-confidence: bytes=${file.buffer.length} mime=${file.mimetype} ` +
+            `confidence=${result.confidence} chars=${transcript.length} ` +
+            `threshold=${limits.sttMinConfidence} session=${session.id}`,
+        );
         return this.staticTurn(session.id, transcript, 'curious', {
           reply_text:
             "I didn't catch that clearly. Can you say it again slowly?",
