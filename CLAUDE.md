@@ -710,6 +710,38 @@ await p` хэлбэр ашигласан. Латенсийн хувьд зөв, 
   бичилт унахаас өмнө залгагдаж алдааг бүрэн нуана (#269-ийн тестүүд яг ингэж
   алдаагаа өнгөрөөсөн). `pipelineDelayMs` ашигла.
 
+**TestFlight build 15 ба 16 гарлаа (09-20 · 09-21).** Build 15 нь өмнө нь энд
+**бичигдээгүй** үлдсэн тул splash засвар хүрээгүй мэт уншигдаж байсныг залруулав.
+
+| build | огноо | commit | EAS build | submission | агуулга |
+| --- | --- | --- | --- | --- | --- |
+| 15 | 09-20 | `ebff026` (PR #271) | `c94ab685` | `fbbd42e8` ✅ | Splash = апп-ийн icon, `splash-icon.png` устсан |
+| 16 | 09-21 | `63922e2` (PR #272) | `51c74c9f` | auto-submit | Buddy дуут дэлгэцийн номын сангийн орчин |
+
+- **Build 16-ийн агуулга = зөвхөн PR #272** (Choi): `BuddyBackdrop` (дэлгэцийн
+  давхарга + градиент scrim + доод blur зурвас), `CaptionToggle`, `onArt.ts`
+  токенууд, `statusBarOnArt.ts` (зураг дээрх цагаан статус мөр), `TopBar`-ийн
+  `onArt`/`right` slot, дуут дэлгэц `SafeAreaView` → `useSafeAreaInsets()`.
+  **Бичлэг/ярианы логик хөндөгдөөгүй** — дэлгэрэнгүй `ROADMAP.md`.
+- **Backend тал аль хэдийн амьд.** PR #272-ийн `buddy.service.ts` (durability /
+  `deferredWrite`) нь `main`-д байгаа тул Railway дээр 09-20-ноос ажиллаж байна.
+  Build 16 бол **клиент нь хойноос гүйцэж байгаа** хэрэг, шинэ хос биш.
+- ⚠️ **Fingerprint нь build 15-тай ЯГ ТААРСАН** (`d90160a3…`) — build 14-ийн
+  үеийнхтэй **яг ижил байдал**, өөрөөр хэлбэл PR #272 нь **JS-only** байсан ба
+  `ota:deploy` хийж болох байсан. Эзэн дахин шинэ build сонгов.
+- ⚠️ **Яагаад OTA нь "хямд" сонголт БИШ бэ** (энэ нь тэмдэглэгдээгүй байсан):
+  `hot-updater.config.ts` нь `updateStrategy: 'appVersion'`, script нь
+  `-t 1.0.0` тул OTA нь **суулгагдсан build 12–15 БҮГД рүү тэр дор нь** очно —
+  тестер зөвшөөрөхгүй, Apple-ийн шалгалт байхгүй, буцаахад хэцүү. Шинэ build нь
+  эсрэгээрээ: 30 минут + тестер өөрөө шинэчилнэ. Fingerprint-ийн дүрэм бол
+  **зардлын зөвлөмж**, тарааллын шийдвэр биш — хоёрыг хольж болохгүй.
+- ⚠️ **Build-ийн өмнө `cd mobile && npx tsc --noEmit`** ажиллуул. PR #272 нь
+  `BuddyVoiceStage.tsx` (243 мөр), `SettingsContext.tsx`, `TopBar.tsx` гэсэн
+  **дундын** файлуудыг feature branch-аас merge хийсэн; төрлийн алдаа EAS дээр
+  ~15 минутын дараа л илэрдэг. (Build 16-д цэвэр байсан.)
+- ⚠️ **`npm install` шаардлагагүй** — PR #272 нь зөвхөн `backend/package-lock.json`
+  хөндсөн, mobile-ийн dependency өөрчлөгдөөгүй.
+
 **TestFlight build 14 гарлаа (2026-09-20).** `1.0.0 (14)`, commit `e8f688a`
 (= PR #269 merge), EAS build `f6ee6ae4`, submission `4a3bec5b` — App Store
 Connect руу амжилттай илгээгдэв. Build 13-аас хойшхи ажил = **зөвхөн PR #269**
