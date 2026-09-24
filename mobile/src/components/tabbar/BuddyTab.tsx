@@ -37,15 +37,6 @@ const RING_COLORS = [colors.primary, '#A855F7', '#EC4899'] as const;
 const BACKDROP = '#241250';
 
 /**
- * `buddy-menu.webp` is a 1024px sticker with a WHITE page behind it: the purple
- * disc spans the middle ~71%, its centre ~3% above the file's centre. Drawing
- * the image at 1.42× the avatar and nudging it down crops the white away, so
- * the artwork's own disc is what fills the circle.
- */
-const IMG = Math.round(AVATAR * 1.42);
-const IMG_NUDGE = Math.round(IMG * 0.03);
-
-/**
  * The halo: a soft purple bloom that breathes half a beat behind the avatar.
  *
  * Kept TIGHT on purpose. The bar reserves only its card from the screens, so
@@ -176,8 +167,9 @@ const styles = StyleSheet.create({
     backgroundColor: BACKDROP,
     overflow: 'hidden',
   },
-  // Oversized and nudged down so the sticker's white backing is cropped off.
-  img: { width: IMG, height: IMG, left: (AVATAR - IMG) / 2, top: (AVATAR - IMG) / 2 + IMG_NUDGE },
+  // `buddy-tab.webp` is already cropped to the artwork's inner disc, so it
+  // fills the avatar edge to edge — the gradient ring above is the only ring.
+  img: { width: AVATAR, height: AVATAR },
   halo: {
     position: 'absolute',
     width: BUDDY_OUTER,

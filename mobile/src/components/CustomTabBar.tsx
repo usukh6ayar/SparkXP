@@ -18,7 +18,7 @@ import { TabItem } from './tabbar/TabItem';
 import { BuddyTab } from './tabbar/BuddyTab';
 import { BAR_H, BUDDY_SLOT, LABEL_BOTTOM, TOTAL_H, cardBottom } from './tabbar/geometry';
 
-const buddy = require('../../assets/buddy-menu.webp');
+const buddy = require('../../assets/buddy-tab.webp');
 
 /** The buddy's own route — rendered as the floating hero, not as a flat tab. */
 const BUDDY_ROUTE = 'chat';

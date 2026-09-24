@@ -4582,3 +4582,8 @@ Metro терминал руу явдаг (CDP-ээр баригдахгүй). Ө
 токен. Дэлгэрэнгүй → `CLAUDE.md` «Splash = апп-ийн icon» бичлэгийн шинэчлэл.
 ⚠️ `app.json` (splash image/imageWidth) хөндөгдсөн → native тал нь **шинэ build**
 шаардана (Өсөхбаяр). `BrandLoader` нь JS тул OTA/Expo Go дээр шууд ажиллана.
+
+**Навбарын AI buddy icon** — `assets/buddy-tab.webp` (шинэ үнэгний зураг,
+дотоод дугуйгаар тайрсан, 384px). `CustomTabBar` үүнийг ашиглана; `BuddyTab`-ийн
+хуучин цагаан зах нуух томруулалт хасагдсан. `buddy-menu.webp` бусад дэлгэцэд
+(профайл, тохиргоо, chat sheet, onboarding) хэвээр. JS-only → OTA/Expo Go.
