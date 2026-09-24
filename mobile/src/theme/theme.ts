@@ -29,6 +29,9 @@ export const colors = {
   // Glowing CTA gradient stops (#7A4DFF → #6C3BFF → #5A28F0), 135°, at 0 / 0.55 / 1
   primaryGradient: ['#7A4DFF', '#6C3BFF', '#5A28F0'] as const,
   glow: '#9D7BFF', // neon halo / shadowColor on dark / the only legal purple TEXT on dark
+  // Launch background — MUST equal `app.json` → expo-splash-screen
+  // `backgroundColor` (+ its `dark`). JS can't read plugin config; sync by hand.
+  splash: '#3D0BA0',
 
   // navy — historically "deep ink". On this dark theme it now means the
   // primary LIGHT text/ink (so screens using `colors.navy` stay readable).

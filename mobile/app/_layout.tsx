@@ -1,5 +1,5 @@
 import { useEffect, useMemo, type ComponentType } from "react";
-import { View, ActivityIndicator, StyleSheet, Text, useColorScheme } from "react-native";
+import { View, ActivityIndicator, StyleSheet, Text } from "react-native";
 import { Stack, useRouter, useSegments, useNavigationContainerRef } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -17,6 +17,7 @@ import {
   Manrope_400Regular, Manrope_500Medium, Manrope_600SemiBold, Manrope_700Bold, Manrope_800ExtraBold,
 } from "@expo-google-fonts/manrope";
 import { AuthProvider, useAuth } from "../src/auth/AuthContext";
+import { BrandLoader } from "../src/components/BrandLoader";
 import { usePushTapRouting } from "../src/lib/pushRegistration";
 import {
   SettingsProvider, useColors, useSettings, useStatusBarStyle,
@@ -50,22 +51,8 @@ const PREVIEW_AUTH = false;
 // the app, and in Expo Go there is no native splash of ours to control.
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
-/**
- * The two splash backgrounds declared in `app.json` → `expo-splash-screen`
- * (`backgroundColor` + its `dark` override). Kept in sync BY HAND — the plugin
- * config is native, so JS cannot read it. Change one, change the other.
- *
- * Both are the brand purple on purpose: the splash image is now the app icon
- * (`assets/icon.png`), which is full-bleed purple to its edges. On the old
- * near-white background it read as a purple tile pasted on a light screen; on
- * this one the icon's edges disappear and the splash looks like one piece.
- * That also makes light and dark identical here — intended, not an oversight.
- */
-const SPLASH_BG = { light: "#3D0BA0", dark: "#3D0BA0" } as const;
-
 function RootNavigator() {
   const { token, user, loading, onboarded } = useAuth();
-  const colors = useColors();
   const segments = useSegments();
   const router = useRouter();
 
@@ -93,13 +80,9 @@ function RootNavigator() {
     }
   }, [token, user, loading, onboarded, segments]);
 
-  if (loading) {
-    return (
-      <View style={[styles.center, { backgroundColor: colors.background }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
-    );
-  }
+  // Same launch screen as the font phase, so restoring the session doesn't
+  // flash the theme background between the splash and the first screen.
+  if (loading) return <BrandLoader />;
 
   // Platform-standard push transition so screens slide in instead of snapping.
   return (
@@ -159,9 +142,6 @@ function ThemedNav() {
 }
 
 function RootLayout() {
-  // Which splash colour the OS already painted (see the pre-font return below).
-  const scheme = useColorScheme() === "dark" ? "dark" : "light";
-
   // Hand the router's navigation container to Sentry so every screen change
   // becomes a performance transaction (screen load time + the API calls it
   // makes). This is what stands in for EAS Observe, which needs SDK 55.
@@ -199,19 +179,9 @@ function RootLayout() {
     if (fontsLoaded || fontError) SplashScreen.hideAsync().catch(() => {});
   }, [fontsLoaded, fontError]);
 
-  if (!fontsLoaded && !fontError) {
-    return (
-      // Must match the splash `backgroundColor` in `app.json`, or a lost race
-      // between `hideAsync` and the first render flashes a different colour.
-      // `app.json` declares BOTH (light `#F6F4FD` + `dark` `#0B0716`) and the
-      // native splash picks between them by SYSTEM scheme — so this has to read
-      // the system too, not the app theme. It also renders above
-      // `SettingsProvider`, so the app theme isn't available here anyway.
-      <View style={[styles.center, { backgroundColor: SPLASH_BG[scheme] }]}>
-        <ActivityIndicator size="large" color="#6C3BFF" />
-      </View>
-    );
-  }
+  // Continues the native splash seamlessly (same background, same fox in the
+  // same spot — see BrandLoader) until the fonts are in.
+  if (!fontsLoaded && !fontError) return <BrandLoader />;
 
   return (
     <GestureHandlerRootView style={styles.flex}>
@@ -326,11 +296,6 @@ export default wrapRoot(withHotUpdater(RootLayout));
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  center: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
   otaFallback: {
     flex: 1,
     justifyContent: "center",
