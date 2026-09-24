@@ -41,6 +41,13 @@ export interface PlanInfo {
   usage: { voiceMinutes: number; sttMinutes: number; dictionaryAi: number; memoryMb: number };
 }
 
+/** The two tiers the app shows. The free tier (no plan row → backend says
+ *  "Үнэгүй") is presented as **Essential**; any paid plan is **Plus**. Use this
+ *  everywhere a plan is labelled so Profile and "Миний багц" never disagree. */
+export type PlanTier = 'standard' | 'premium';
+export const planTier = (info: Pick<PlanInfo, 'isFree'>): PlanTier => (info.isFree ? 'standard' : 'premium');
+export const PLAN_NAME_KEY = { standard: 'planStandardName', premium: 'planPremiumName' } as const;
+
 /** GET /users/me/plan — current plan + usage for the profile plan card. */
 export function getMyPlan(token: string): Promise<PlanInfo> {
   return apiRequest<PlanInfo>('/users/me/plan', { token });

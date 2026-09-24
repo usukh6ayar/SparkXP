@@ -9,14 +9,14 @@ import { useAuth } from '../src/auth/AuthContext';
 import { useSettings } from '../src/settings/SettingsContext';
 import { AppText } from '../src/components/Text';
 import { getBuddyUsage, getBuddyAvailability, type BuddyUsageBlock } from '../src/api/ai';
-import { getMyPlan } from '../src/api/users';
+import { getMyPlan, planTier, PLAN_NAME_KEY, type PlanTier } from '../src/api/users';
 import { tf } from '../src/i18n';
 import { colors, spacing, radius, type PremiumPalette } from '../src/theme/theme';
 import { bounded } from '../src/theme/responsive';
 import type { TranslationKey } from '../src/i18n';
 
 /** The two tiers the comparison cards offer. */
-type PlanKey = 'standard' | 'premium';
+type PlanKey = PlanTier;
 
 /**
  * "Миний багц" — plan, this-month usage and limits, per the Premium 56,000₮
@@ -33,7 +33,7 @@ export default function PlanScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   // The plan the user is actually on (from GET /users/me/plan). The free tier
-  // maps to "standard" — the paid tier is the only one called Premium.
+  // maps to "standard" (shown as Essential) — the paid tier is Premium Plus.
   const [currentPlan, setCurrentPlan] = useState<PlanKey>('standard');
   // Which plan card is tapped. It starts on the user's real plan so the screen
   // opens showing the truth, and tapping the other card previews a switch.
@@ -48,7 +48,7 @@ export default function PlanScreen() {
     // which plan you're on, so it keeps its own try/catch.
     getMyPlan(token)
       .then((info) => {
-        const key: PlanKey = info.isFree ? 'standard' : 'premium';
+        const key = planTier(info);
         setCurrentPlan(key);
         setSelectedPlan(key);
       })
@@ -80,7 +80,7 @@ export default function PlanScreen() {
   );
 
   const onCurrentPlan = selectedPlan === currentPlan;
-  const selectedName = t(selectedPlan === 'premium' ? 'planPremiumName' : 'planStandardName');
+  const selectedName = t(PLAN_NAME_KEY[selectedPlan]);
   const ctaLabel = onCurrentPlan ? t('planCurrent') : tf('planSwitchTo', { plan: selectedName });
 
   return (
@@ -124,15 +124,20 @@ export default function PlanScreen() {
           {/* Plan comparison (§7) */}
           <AppText variant="bodyStrong" color={p.text} style={styles.groupTitle}>{t('planPlansTitle')}</AppText>
 
+          {/* Voice time is sold as a comparison ("2x"), never as raw minutes —
+              "25 мин" invites "is that a lot?", "2 дахин" answers it. */}
           <PlanCard
-            p={p} name={t('planStandardName')} price={t('planStandardPrice')}
-            features={['planStdVoice', 'planStdDict', 'planStdMemory']} t={t}
+            p={p} name={t('planStandardName')} price={t('planStandardPrice')} perDay={t('planStdPerDay')}
+            features={['planStdVoice', 'planStdDict', 'planStdMemory', 'planStdLessons']} t={t}
             active={currentPlan === 'standard' ? t('planActive') : undefined}
             selected={selectedPlan === 'standard'} onPress={() => setSelectedPlan('standard')}
           />
 
+          <AppText variant="caption" color={p.primary} style={styles.nudge}>{t('planPlusNudge')}</AppText>
+
           <PlanCard
-            p={p} name={t('planPremiumName')} price={t('planPremiumPrice')} recommended={t('planRecommended')}
+            p={p} name={t('planPremiumName')} price={t('planPremiumPrice')} perDay={t('planPremPerDay')}
+            recommended={t('planRecommended')} intro="planPremAll"
             features={['planPremVoice', 'planPremDict', 'planPremMemory', 'planPremBuddies', 'planPremSparks']} t={t}
             active={currentPlan === 'premium' ? t('planActive') : undefined}
             selected={selectedPlan === 'premium'} onPress={() => setSelectedPlan('premium')}
@@ -191,12 +196,14 @@ function UsageRow({
   );
 }
 
-/** A selectable plan card: name, price, feature bullets, optional "recommended"
+/** A selectable plan card: name, price (+ per-day anchor), optional intro line
+ *  ("Everything in Essential, plus:"), feature bullets, optional "recommended"
  *  tag. Tapping selects it (radio dot + primary border show the choice). */
 function PlanCard({
-  p, name, price, features, recommended, active, selected, onPress, t,
+  p, name, price, perDay, intro, features, recommended, active, selected, onPress, t,
 }: {
-  p: PremiumPalette; name: string; price: string; features: TranslationKey[];
+  p: PremiumPalette; name: string; price: string; perDay: string; intro?: TranslationKey;
+  features: TranslationKey[];
   recommended?: string;
   /** Label shown when this is the plan the user is actually on ("Идэвхтэй"). */
   active?: string;
@@ -232,7 +239,16 @@ function PlanCard({
           </View>
         ) : null}
       </View>
-      <AppText variant="bodyStrong" color={p.primary} style={styles.price}>{price}</AppText>
+      <View style={styles.priceRow}>
+        <AppText variant="bodyStrong" color={p.primary}>{price}</AppText>
+        <AppText variant="caption" color={p.textMuted}>· {perDay}</AppText>
+      </View>
+      {intro ? (
+        <View style={styles.feature}>
+          <Ionicons name="sparkles" size={18} color={colors.xp} />
+          <AppText variant="bodyStrong" color={p.text} style={{ flex: 1 }}>{t(intro)}</AppText>
+        </View>
+      ) : null}
       {features.map((f) => (
         <View key={f} style={styles.feature}>
           <Ionicons name="checkmark-circle" size={18} color={colors.success} />
@@ -271,7 +287,8 @@ const styles = StyleSheet.create({
   planHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   planNameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   tag: { paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radius.full },
-  price: { marginBottom: spacing.sm },
+  priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs, marginBottom: spacing.sm },
+  nudge: { textAlign: 'center', marginTop: -spacing.xs, marginBottom: spacing.md },
   feature: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: 4 },
 
   upgradeBtn: {

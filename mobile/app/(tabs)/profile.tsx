@@ -285,19 +285,27 @@ export default function ProfileScreen() {
           </View>
 
           {/* Plan / limits */}
+          {/* Whole card opens "Миний багц" — no need to scroll to the banner. */}
           {plan ? (
-            <View style={styles.planCard}>
+            <Pressable
+              onPress={() => router.push('/plan')}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.planCard, pressed && styles.pressed]}
+            >
               <View style={styles.planTop}>
                 <View style={{ flex: 1 }}>
                   <AppText variant="overline" color={p.textMuted}>{t('myPlan').toUpperCase()}</AppText>
-                  <AppText variant="h3" color={p.text}>{plan.planName}</AppText>
+                  {/* Same label as "Миний багц" (planTier), not the backend's
+                      raw planName — that says "Үнэгүй" for the Essential tier. */}
+                  <AppText variant="h3" color={p.text}>{t(usersApi.PLAN_NAME_KEY[usersApi.planTier(plan)])}</AppText>
                 </View>
                 <View style={[styles.planBadge, { backgroundColor: plan.isFree ? alpha(p.primary, 0.22) : colors.xp }]}>
                   <Ionicons name={plan.isFree ? 'leaf' : 'star'} size={12} color={plan.isFree ? p.primaryLight : colors.white} />
                   <AppText variant="caption" color={plan.isFree ? p.primaryLight : colors.white}>
-                    {plan.isFree ? t('free') : 'Premium'}
+                    {t('planActive')}
                   </AppText>
                 </View>
+                <Ionicons name="chevron-forward" size={18} color={p.textMuted} />
               </View>
               {plan.limits ? (
                 <View style={styles.planUsage}>
@@ -316,7 +324,7 @@ export default function ProfileScreen() {
                   {t('premiumHint')}
                 </AppText>
               )}
-            </View>
+            </Pressable>
           ) : null}
 
           {/* Statistics — learner analytics (GET /analytics/overview + history) */}
@@ -408,7 +416,7 @@ export default function ProfileScreen() {
               <View style={{ flex: 1 }}>
                 <View style={styles.premiumTitleRow}>
                   <AppIcon name="gem" size={20} />
-                  <AppText variant="h3" color={colors.white}>SparkXP Premium</AppText>
+                  <AppText variant="h3" color={colors.white}>SparkXP {t('planPremiumName')}</AppText>
                 </View>
                 <AppText variant="caption" color="rgba(255,255,255,0.85)" style={styles.premiumSub}>
                   {t('premiumSubtitle')}
