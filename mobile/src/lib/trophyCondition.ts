@@ -1,5 +1,5 @@
 import { t, tf, type TranslationKey } from '../i18n';
-import type { TrophyCondition } from '../api/achievements';
+import type { Trophy, TrophyCondition } from '../api/achievements';
 
 /**
  * Turns a backend `TrophyCondition` into the human sentence shown under a
@@ -64,9 +64,16 @@ export function describeCondition(condition: TrophyCondition | null): string {
         ? tf('condBuddySessionsMode', { mode, n })
         : tf('condBuddySessions', { n });
     }
+    case 'level_complete':
+      return tf('condLevelComplete', { level: (condition.level ?? '').toUpperCase() });
     default:
       return t('trophyComingSoon');
   }
+}
+
+/** A trophy's title: Mongolian first, English when the server predates it. */
+export function trophyTitle(trophy: Pick<Trophy, 'name' | 'nameMn'>): string {
+  return trophy.nameMn || trophy.name;
 }
 
 /** Display name for a tier, e.g. `gold` → "Алт". */

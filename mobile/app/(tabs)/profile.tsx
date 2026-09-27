@@ -29,6 +29,7 @@ import { EditProfileModal } from '../../src/components/EditProfileModal';
 import { AnalyticsSection } from '../../src/components/AnalyticsSection';
 import { resolveAvatar } from '../../src/lib/avatar';
 import { useAvatarPicker } from '../../src/lib/useAvatarPicker';
+import { trophyTitle } from '../../src/lib/trophyCondition';
 import { useLogoutConfirm, useComingSoon } from '../../src/lib/useLogoutConfirm';
 import { tf } from '../../src/i18n';
 import { colors, spacing, radius, tints, elevation, type PremiumPalette, progressGradients } from '../../src/theme/theme';
@@ -359,7 +360,7 @@ export default function ProfileScreen() {
                   numberOfLines={2}
                   style={styles.achLabel}
                 >
-                  {tr.name}
+                  {trophyTitle(tr)}
                 </AppText>
               </Pressable>
             ))}

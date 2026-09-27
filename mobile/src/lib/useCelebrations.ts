@@ -9,6 +9,7 @@ import { getGamification, markStreakSeen, type Gamification } from '../api/gamif
 import type { Achievement } from '../components/AchievementModal';
 import { t, tf } from '../i18n';
 import { tintThemes, type Tints } from '../theme/theme';
+import { trophyTitle } from './trophyCondition';
 import { useSettings } from '../settings/SettingsContext';
 
 /**
@@ -190,7 +191,7 @@ function trophyAchievement(trophy: Trophy, tints: Tints): Achievement {
     // brand gold cup rather than an Ionicons outline, so a trophy whose image
     // hasn't been uploaded yet still looks like it belongs in a celebration.
     appIcon: 'trophy',
-    title: trophy.name,
+    title: trophyTitle(trophy),
     tint: tints[TIER_TINT[trophy.tier] ?? 'purple'],
     imageUrl: trophy.image,
   };

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BuddySession } from '../entities/buddy-session.entity';
+import { Lesson } from '../entities/lesson.entity';
 import { QuizAttempt } from '../entities/quiz-attempt.entity';
 import { User } from '../entities/user.entity';
 import { UserTrophy } from '../entities/user-trophy.entity';
@@ -24,6 +25,7 @@ import { TrophyStatsService } from './trophy-stats.service';
       QuizAttempt,
       WordReview,
       BuddySession,
+      Lesson,
     ]),
   ],
   controllers: [AchievementsController],

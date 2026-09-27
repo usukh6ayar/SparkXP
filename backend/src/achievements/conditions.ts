@@ -1,4 +1,4 @@
-import { BuddySessionMode, XpSource } from '../common/enums';
+import { BuddySessionMode, ContentLevel, XpSource } from '../common/enums';
 import type { Skill } from '../teacher/skill';
 
 /**
@@ -33,6 +33,11 @@ export interface TrophyStats {
   buddySessions: Partial<Record<BuddySessionMode | 'total', number>>;
   /** Distinct buddy_slug values the user has talked to. */
   buddyDistinct: number;
+  /**
+   * % of a CEFR island's published top-level lessons the user finished —
+   * the same done/total the Lessons map shows (xp.service.ts progressByLevel).
+   */
+  levelComplete: Partial<Record<ContentLevel, number>>;
 }
 
 /** Stats that need no parameter — the condition is just `stat >= value`. */
@@ -52,7 +57,8 @@ export type TrophyCondition =
   | { type: SimpleConditionType; value: number }
   | { type: 'xp_events'; source: XpSource; value: number }
   | { type: 'quiz_count' | 'quiz_perfect'; skill?: Skill; value: number }
-  | { type: 'buddy_sessions'; mode?: BuddySessionMode; value: number };
+  | { type: 'buddy_sessions'; mode?: BuddySessionMode; value: number }
+  | { type: 'level_complete'; level: ContentLevel; value: number };
 
 export type ConditionType = TrophyCondition['type'];
 
@@ -87,6 +93,8 @@ function statFor(c: TrophyCondition, s: TrophyStats): number {
       return s.quizPerfect[c.skill ?? 'total'] ?? 0;
     case 'buddy_sessions':
       return s.buddySessions[c.mode ?? 'total'] ?? 0;
+    case 'level_complete':
+      return s.levelComplete[c.level] ?? 0;
   }
 }
 
@@ -126,7 +134,8 @@ export const TYPES_BY_SOURCE: Record<XpSource, ConditionType[]> = {
   ],
   [XpSource.AI_BUDDY]: ['xp_events', 'buddy_sessions', 'buddy_distinct'],
   [XpSource.READING]: ['xp_events'],
-  [XpSource.LESSON]: ['xp_events'],
+  // A lesson finish is what moves an island's done/total.
+  [XpSource.LESSON]: ['xp_events', 'level_complete'],
   [XpSource.ASSIGNMENT]: ['xp_events'],
   [XpSource.REFERRAL]: ['xp_events'],
   [XpSource.ONBOARDING]: ['xp_events'],

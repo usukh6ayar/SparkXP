@@ -1,14 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { BuddySessionMode, XpSource } from '../common/enums';
+import { In, Repository } from 'typeorm';
+import { BuddySessionMode, ContentLevel, XpSource } from '../common/enums';
 import { BuddySession } from '../entities/buddy-session.entity';
+import { Lesson } from '../entities/lesson.entity';
 import { QuizAttempt } from '../entities/quiz-attempt.entity';
 import { User } from '../entities/user.entity';
 import { UserTrophy } from '../entities/user-trophy.entity';
 import { WordReview } from '../entities/word-review.entity';
 import { XpLog } from '../entities/xp-log.entity';
 import type { Skill } from '../teacher/skill';
+import { CATALOG_SLUGS } from './catalog';
 import { ConditionType, TrophyStats } from './conditions';
 
 /**
@@ -34,6 +36,7 @@ function emptyStats(): TrophyStats {
     mistakesFixed: 0,
     buddySessions: {},
     buddyDistinct: 0,
+    levelComplete: {},
   };
 }
 
@@ -71,6 +74,7 @@ export class TrophyStatsService {
     private readonly sessions: Repository<BuddySession>,
     @InjectRepository(UserTrophy)
     private readonly trophies: Repository<UserTrophy>,
+    @InjectRepository(Lesson) private readonly lessons: Repository<Lesson>,
   ) {}
 
   async load(userId: string, types: ConditionType[]): Promise<TrophyStats> {
@@ -88,6 +92,7 @@ export class TrophyStatsService {
       need(WORD_TYPES) ? this.loadWords(userId, stats) : null,
       want.has('buddy_sessions') ? this.loadBuddySessions(userId, stats) : null,
       want.has('buddy_distinct') ? this.loadBuddyDistinct(userId, stats) : null,
+      want.has('level_complete') ? this.loadLevelComplete(userId, stats) : null,
     ]);
 
     return stats;
@@ -108,7 +113,11 @@ export class TrophyStatsService {
     userId: string,
     out: TrophyStats,
   ): Promise<void> {
-    out.trophyCount = await this.trophies.count({ where: { userId } });
+    // Only trophies still in the catalog count — a retired one earned before
+    // the 2026-09-28 cleanup must not push "The Crowned Fox" closer.
+    out.trophyCount = await this.trophies.count({
+      where: { userId, slug: In(CATALOG_SLUGS) },
+    });
   }
 
   private async loadXpEvents(userId: string, out: TrophyStats): Promise<void> {
@@ -209,5 +218,48 @@ export class TrophyStatsService {
       .where('s.user_id = :userId', { userId })
       .getRawOne<{ n: number }>();
     out.buddyDistinct = Number(row?.n ?? 0);
+  }
+
+  /**
+   * Island completion %, counted exactly as the Lessons map counts it
+   * (`xp.service.ts` progressByLevel): published top-level lessons, and a
+   * lesson is "done" once it has logged LESSON XP. Same rule, so a trophy can
+   * never say an island is finished while the map says it is not.
+   */
+  private async loadLevelComplete(
+    userId: string,
+    out: TrophyStats,
+  ): Promise<void> {
+    const [totals, done] = await Promise.all([
+      this.lessons
+        .createQueryBuilder('l')
+        .select('l.level', 'level')
+        .addSelect('COUNT(*)::int', 'n')
+        .where('l.is_published = true')
+        .andWhere('l.parent_lesson_id IS NULL')
+        .groupBy('l.level')
+        .getRawMany<{ level: ContentLevel; n: number }>(),
+      this.xpLogs
+        .createQueryBuilder('x')
+        .innerJoin(Lesson, 'l', 'l.id = x.reference_id')
+        .select('l.level', 'level')
+        .addSelect('COUNT(DISTINCT x.reference_id)::int', 'n')
+        .where('x.user_id = :userId', { userId })
+        .andWhere('x.source = :src', { src: XpSource.LESSON })
+        .andWhere('l.is_published = true')
+        .andWhere('l.parent_lesson_id IS NULL')
+        .groupBy('l.level')
+        .getRawMany<{ level: ContentLevel; n: number }>(),
+    ]);
+    const doneBy = new Map(done.map((r) => [r.level, Number(r.n)]));
+    for (const r of totals) {
+      const total = Number(r.n);
+      // An island with no lessons yet cannot be "finished".
+      if (total > 0) {
+        out.levelComplete[r.level] = Math.floor(
+          ((doneBy.get(r.level) ?? 0) * 100) / total,
+        );
+      }
+    }
   }
 }

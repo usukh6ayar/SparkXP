@@ -850,6 +850,7 @@ const mn = {
   condQuizPerfectSkill: '{skill} чиглэлийн {n} сорилыг алдаагүй өгөх',
   condBuddySessions: '{n} удаа AI найзтай ярих',
   condBuddySessionsMode: '{n} удаа AI найзтай {mode} ярих',
+  condLevelComplete: '{level} арлын бүх хичээлийг дуусгах',
   // XpSource labels, used only to fill `{what}` in condXpEvents.
   xpSrc_word_review: 'үг давтах',
   xpSrc_quiz: 'сорил өгөх',
@@ -2096,6 +2097,7 @@ const en: Record<TranslationKey, string> = {
   condQuizPerfectSkill: 'Score 100% on {n} {skill} quizzes',
   condBuddySessions: 'Have {n} AI buddy sessions',
   condBuddySessionsMode: 'Have {n} {mode} AI buddy sessions',
+  condLevelComplete: 'Finish every lesson on the {level} island',
   xpSrc_word_review: 'word review',
   xpSrc_quiz: 'quizzes',
   xpSrc_lesson: 'lessons',
