@@ -4,10 +4,11 @@ import {
   StyleSheet,
   ScrollView,
   Pressable,
-  ImageBackground,
   Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { AppImage } from "../../src/components/AppImage";
+import { LinearGradient } from "expo-linear-gradient";
 import Animated from "react-native-reanimated";
 import { enter } from "../../src/lib/motion";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -37,6 +38,8 @@ import { bounded } from '../../src/theme/responsive';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 const banner = require("../../assets/soril-banner.webp");
+/** Hero scrim: the banner's own deep purple, strongest under the text column. */
+const HERO_SCRIM = ["rgba(52,18,170,0.88)", "rgba(52,18,170,0.7)", "rgba(52,18,170,0)"] as const;
 
 // 3D glossy icon-ууд (assets/soril/README.md-г үз). PNG-ууд бэлэн болсон үед
 // доорх require мөрийг нээж, тухайн game-ийн `img`-д онооно. img байвал IconTile
@@ -193,13 +196,25 @@ export default function SorilScreen() {
           {t("sorilSubtitle")}
         </AppText>
 
-        {/* Daily challenge hero — banner image as background (same as Home) */}
-        <ImageBackground
-          source={banner}
-          style={styles.hero}
-          imageStyle={styles.heroImg}
-          resizeMode="cover"
-        >
+        {/* Daily challenge hero. The banner is anchored RIGHT: the fox fills
+            the card's height, and when a taller card crops the art it must lose
+            empty gradient on the left, never the fox's ear on the right.
+            His clipboard reaches under the text, so a left-to-right scrim keeps
+            the text readable and has faded out before his face. */}
+        <View style={styles.hero}>
+          <AppImage
+            source={banner}
+            style={StyleSheet.absoluteFill}
+            contentFit="cover"
+            contentPosition="right center"
+          />
+          <LinearGradient
+            colors={HERO_SCRIM}
+            locations={[0, 0.42, 0.62]}
+            start={{ x: 0, y: 0.5 }}
+            end={{ x: 1, y: 0.5 }}
+            style={StyleSheet.absoluteFill}
+          />
           <View style={styles.heroBody}>
             <View style={styles.heroPill}>
               <AppIcon name="streak" size={14} />
@@ -242,7 +257,7 @@ export default function SorilScreen() {
               </AppText>
             </Pressable>
           </View>
-        </ImageBackground>
+        </View>
 
         {/* Section */}
         <View style={styles.sectionRow}>
@@ -288,13 +303,15 @@ export default function SorilScreen() {
                 borderColor={isDark ? g.tint.fg : undefined}
               />
               <View style={styles.cardBody}>
-                <AppText variant="h3" numberOfLines={1}>
+                {/* Titles are two words ("Үгийн ангууч") — let them wrap
+                    rather than truncate in the narrow half-width card. */}
+                <AppText variant="h3" numberOfLines={2}>
                   {g.title}
                 </AppText>
                 <AppText
                   variant="caption"
                   color={c.textMuted}
-                  numberOfLines={2}
+                  numberOfLines={3}
                   style={styles.cardDesc}
                 >
                   {g.desc}
@@ -423,8 +440,8 @@ const makeStyles = (c: AppColors, isDark: boolean) => StyleSheet.create({
     justifyContent: "center",
     backgroundColor: c.primary, // зураг ачаалагдах хүртэлх fallback
   },
-  heroImg: { borderRadius: radius.xl },
-  heroBody: { maxWidth: "62%" },
+  // Text (and the progress bar) stays in the left half, over the scrim.
+  heroBody: { width: "48%" },
   heroPill: {
     flexDirection: "row",
     alignItems: "center",

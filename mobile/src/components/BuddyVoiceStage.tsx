@@ -6,11 +6,11 @@ import Animated, {
   interpolate, Extrapolation, runOnJS, cancelAnimation, FadeIn,
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { AppText } from './Text';
 import { AppImage } from './AppImage';
 import { BuddyAvatar } from './BuddyAvatar';
+import { BuddyDesk } from './BuddyDesk';
 import type { VisemeCue } from './azureVisemes';
 import { SHOW_3D_AVATAR } from '../lib/buddyAvatarFlag';
 import { cachedBuddyAssetUri } from '../lib/buddyAssetCache';
@@ -351,32 +351,26 @@ export function BuddyVoiceStage({
         </View>
 
         {/* The character is a BUST: the art (and the GLB) stops at the chest,
-            and that straight cut lands in open floor, where it reads as a
-            sticker laid on the photograph. Two layers hide it:
-              · a BLUR band, so whatever the cut falls across stops being
-                readable — it reads as a surface IN FRONT of the buddy;
-              · a long, many-stopped gradient over the blur, so the top of the
-                blur lands where the darkening is already well underway. A blur
-                band alone draws a hard line exactly where it begins.
+            and that straight cut used to land in open floor, reading as a
+            sticker on the photograph. A blur band hid it but drew its own hard
+            line across the hoodie. A DESK in front hides the cut the way a real
+            scene would (`BuddyDesk`).
 
-            ⚠️ It runs PAST the bottom of the stage (`bottom: -FADE_TAIL`),
-            behind the mic and the type bar. Confined to the stage it ended in a
-            second hard line of its own. The controls are later siblings, so
-            they still draw on top. Sizes are a share of the buddy's own box,
-            never fixed points, so it survives a screen it was not tuned on. */}
+            ⚠️ It runs PAST the bottom of the stage (`bottom: -DESK_TAIL`),
+            behind the mic and the type bar, so the desk front reaches the
+            bottom of the screen. The controls are later siblings, so they
+            still draw on top. The tabletop's height is a share of the buddy's
+            own box, never fixed points, so it survives a screen it was not
+            tuned on. */}
         {(() => {
-          const soft = Math.round(boxH * 0.26);
-          const total = soft + FADE_TAIL;
-          const k = soft / total;
+          const surfaceH = Math.round(boxH * DESK_SURFACE);
+          const total = surfaceH + DESK_TAIL;
           return (
-            <View style={[styles.characterFade, { height: total, bottom: -FADE_TAIL }]} pointerEvents="none">
-              <BlurView intensity={34} tint="dark" style={[styles.characterBlur, { top: Math.round(soft * 0.45) }]} />
-              <LinearGradient
-                colors={CHARACTER_FADE}
-                locations={[0, k * 0.35, k * 0.7, k, 1]}
-                style={StyleSheet.absoluteFill}
-              />
-            </View>
+            <BuddyDesk
+              width={winW}
+              height={total}
+              style={{ top: undefined, height: total, bottom: -DESK_TAIL }}
+            />
           );
         })()}
       </View>
@@ -461,22 +455,12 @@ export function BuddyVoiceStage({
   );
 }
 
-/**
- * Transparent → the scrim's own tone. FIVE stops, not two: a long ramp of one
- * hue bands visibly on a 24-bit screen, and banding lines read as edges — the
- * one thing this gradient exists to remove. Tuned against `BuddyBackdrop`:
- * together they must never reach opaque, or the floor goes with the edge.
- */
-const CHARACTER_FADE = [
-  'rgba(10,6,26,0)',
-  'rgba(10,6,26,0.18)',
-  'rgba(10,6,26,0.46)',
-  'rgba(10,6,26,0.68)',
-  'rgba(10,6,26,0.80)',
-] as const;
-/** How far the blur carries on below the stage. It only has to reach the
+/** Share of the buddy's box the desk stands above the stage bottom. It has to
+ *  reach above the bust's bottom cut, with the contact shadow landing on the hoodie. */
+const DESK_SURFACE = 0.24;
+/** How far the desk front carries on below the stage. It only has to reach the
  *  bottom of the screen; past that it is clipped and costs nothing. */
-const FADE_TAIL = 340;
+const DESK_TAIL = 340;
 
 const makeStyles = (c: AppColors) => StyleSheet.create({
   // No top padding: the stage below is the buddy's, and it needs the height.
@@ -491,8 +475,6 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
     backgroundColor: GLASS, borderWidth: 1, borderColor: GLASS_EDGE,
   },
   stage: { flex: 1, alignItems: 'center', justifyContent: 'center', width: '100%' },
-  characterFade: { position: 'absolute', left: 0, right: 0 },
-  characterBlur: { position: 'absolute', left: 0, right: 0, bottom: 0 },
   buddyWrap: { flex: 1, width: '100%', alignItems: 'center', justifyContent: 'center' },
   // Size is applied inline from the window width (see `boxW`/`boxH`).
   buddyImg: {},
