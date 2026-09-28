@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
+import Svg, { Path } from 'react-native-svg';
 import Animated, {
   useSharedValue, useAnimatedStyle, withRepeat, withSequence, withTiming,
 } from 'react-native-reanimated';
@@ -48,7 +49,6 @@ import { bounded } from '../../src/theme/responsive';
 
 const skyImg = require('../../assets/avatars/islands/background.webp'); // starry sky backdrop — dark theme
 const lightBgImg = require('../../assets/avatars/islands/lightBackground.webp'); // bright sky backdrop — light theme
-const lineImg = require('../../assets/avatars/islands/line.webp'); // golden winding trail overlay
 // scene height = width * RATIO — exactly the world art (4 stitched sections,
 // 1024×5020), so art and islands share one coordinate system. The scene runs
 // the full screen height: its top ~650px of calm sky sits behind the header.
@@ -128,6 +128,23 @@ const LEVELS: LevelNode[] = [
   { code: 'C1', nameKey: 'levelNameC1', color: BADGE.purple, unlockAt: 45,   isl: { left: 0.48, top: 0.2795, w: 0.50 } },
   { code: 'C2', nameKey: 'levelNameC2', color: BADGE.purple, unlockAt: 60,   isl: { left: 0.00, top: 0.1494, w: 0.50 } },
 ];
+
+/**
+ * SVG path through the island centres, bottom (A1) to top (C2). Each hop is a
+ * cubic curve with vertical tangents, so the trail snakes between the
+ * alternating left/right islands instead of cutting straight across.
+ */
+function trailPath(sceneW: number, sceneH: number): string {
+  const pts = LEVELS.map(({ isl }) => ({
+    x: (isl.left + isl.w / 2) * sceneW,
+    y: isl.top * sceneH + (isl.w * sceneW * ISLAND_ASPECT) / 2,
+  }));
+  return pts.reduce((d, p, i) => {
+    if (i === 0) return `M ${p.x} ${p.y}`;
+    const midY = (pts[i - 1].y + p.y) / 2;
+    return `${d} C ${pts[i - 1].x} ${midY} ${p.x} ${midY} ${p.x} ${p.y}`;
+  }, '');
+}
 
 /** Add thousands separators (Hermes' toLocaleString is unreliable). */
 function fmt(n: number): string {
@@ -273,6 +290,7 @@ export default function LessonsScreen() {
   const sceneW = width;
   const sceneH = sceneW * SCENE_RATIO;
   const CARD_W = Math.min(sceneW * 0.44, 200);
+  const trail = trailPath(sceneW, sceneH);
   // Y (px) of the current island — drives the "ahead" trail scrim + initial scroll.
   const currentTop = (() => {
     const n = LEVELS.find((l) => l.code === currentCode);
@@ -383,14 +401,12 @@ export default function LessonsScreen() {
               resizeMode={worldArt ? 'stretch' : 'cover'}
               style={{ position: 'absolute', top: 0, left: 0, width: sceneW, height: sceneH }}
             />
-            {/* Golden winding trail (line.png) threading the islands, behind them.
-                Span (top / height) is tuned to reach from the first to the last
-                island — adjust the 0.181 / 0.715 fractions if it drifts. */}
-            <Image
-              source={lineImg}
-              style={{ position: 'absolute', left: 0, top: sceneH * 0.181, width: sceneW, height: sceneH * 0.715 }}
-              resizeMode="stretch"
-            />
+            {/* Golden trail threading the islands (A1 → C2), behind them. Drawn
+                from the island centres, so it follows LEVELS if an island moves. */}
+            <Svg style={StyleSheet.absoluteFill} width={sceneW} height={sceneH} pointerEvents="none">
+              <Path d={trail} stroke={SKY.gold} strokeOpacity={0.35} strokeWidth={12} strokeLinecap="round" fill="none" />
+              <Path d={trail} stroke={SKY.gold} strokeWidth={4} strokeLinecap="round" fill="none" />
+            </Svg>
             {LEVELS.map((node) => {
               // Real per-level lesson progress, or null until it loads.
               const progress: LevelProgress = gam?.progressByLevel?.[node.code.toLowerCase()] ?? null;

@@ -16,11 +16,33 @@ import { Animated, StyleSheet } from 'react-native';
 
 export type MapArt = { src: number; aspect: number }; // aspect = height / width
 
+const LEVEL_ASPECT = 4248 / 1024; // every level map = 3 stitched 1024×1536 sections
+
 /** Levels that have map art. Levels without one keep the old fixed backdrop. */
 export const LEVEL_MAPS: Partial<Record<string, { light: MapArt; dark: MapArt }>> = {
   a1: {
-    light: { src: require('../../assets/levels/a1-light.webp'), aspect: 4248 / 1024 },
-    dark: { src: require('../../assets/levels/a1-dark.webp'), aspect: 4248 / 1024 },
+    light: { src: require('../../assets/levels/a1-light.webp'), aspect: LEVEL_ASPECT },
+    dark: { src: require('../../assets/levels/a1-dark.webp'), aspect: LEVEL_ASPECT },
+  },
+  a2: {
+    light: { src: require('../../assets/levels/a2-light.webp'), aspect: LEVEL_ASPECT },
+    dark: { src: require('../../assets/levels/a2-dark.webp'), aspect: LEVEL_ASPECT },
+  },
+  b1: {
+    light: { src: require('../../assets/levels/b1-light.webp'), aspect: LEVEL_ASPECT },
+    dark: { src: require('../../assets/levels/b1-dark.webp'), aspect: LEVEL_ASPECT },
+  },
+  b2: {
+    light: { src: require('../../assets/levels/b2-light.webp'), aspect: LEVEL_ASPECT },
+    dark: { src: require('../../assets/levels/b2-dark.webp'), aspect: LEVEL_ASPECT },
+  },
+  c1: {
+    light: { src: require('../../assets/levels/c1-light.webp'), aspect: LEVEL_ASPECT },
+    dark: { src: require('../../assets/levels/c1-dark.webp'), aspect: LEVEL_ASPECT },
+  },
+  c2: {
+    light: { src: require('../../assets/levels/c2-light.webp'), aspect: LEVEL_ASPECT },
+    dark: { src: require('../../assets/levels/c2-dark.webp'), aspect: LEVEL_ASPECT },
   },
 };
 
