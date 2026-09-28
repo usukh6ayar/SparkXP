@@ -26,4 +26,9 @@ export class CreatePaymentDto {
   @IsString()
   @IsIn(['qpay', 'stripe'])
   provider?: string;
+
+  /** Plan purchases only: a discount promo code (see PromosService.quote). */
+  @IsOptional()
+  @IsString()
+  promoCode?: string;
 }

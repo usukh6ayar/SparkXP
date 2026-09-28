@@ -12,6 +12,7 @@ import { SparksLog } from '../entities/sparks-log.entity';
 import { User } from '../entities/user.entity';
 import { PaymentStatus, SparksSource } from '../common/enums';
 import { ReferralsService } from '../referrals/referrals.service';
+import { PromosService } from '../promos/promos.service';
 import { CreatePaymentDto, SPARKS_PACKAGES } from './dto/create-payment.dto';
 import { ConfirmPaymentDto } from './dto/confirm-payment.dto';
 
@@ -23,6 +24,7 @@ export class PaymentsService {
     @InjectRepository(Plan)
     private readonly planRepo: Repository<Plan>,
     private readonly referrals: ReferralsService,
+    private readonly promos: PromosService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -40,6 +42,13 @@ export class PaymentsService {
       if (!plan) throw new NotFoundException('Plan not found or inactive');
       amount = plan.priceAmount;
       metadata = { type: 'plan', planId: plan.id, planName: plan.name, durationDays: plan.durationDays };
+      // Discount code: priced now, but the use is only recorded on confirm —
+      // an abandoned checkout must not burn one of the code's limited uses.
+      if (dto.promoCode) {
+        const quote = await this.promos.quote(user.id, dto.promoCode, plan.id);
+        amount = quote.finalPrice;
+        metadata = { ...metadata, promoId: quote.promoId, originalPrice: quote.originalPrice };
+      }
     } else if (dto.amount) {
       // --- Sparks top-up ---
       const pkg = SPARKS_PACKAGES.find((p) => p.amount === dto.amount);
@@ -114,6 +123,9 @@ export class PaymentsService {
         expiresAt.setDate(expiresAt.getDate() + days);
         await manager.update(User, { id: caller.id }, { planId, planExpiresAt: expiresAt });
       }
+
+      const promoId = payment.metadata?.promoId as string | undefined;
+      if (promoId) await this.promos.recordDiscountUse(manager, promoId, caller.id, payment.id);
 
       // If this buyer was referred, credit their inviter the referral Sparks
       // bonus — once, on the first confirmed purchase (any type). Atomic here.

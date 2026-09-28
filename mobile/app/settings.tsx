@@ -329,6 +329,7 @@ export default function SettingsScreen() {
                 the code + reward copy, so this points there instead of the
                 bare OS share sheet (which gives the friend nothing to redeem). */}
             <Row p={p} icon="share-social" tint={tints.teal} label={t('shareApp')} onPress={() => router.push('/invite')} />
+            <Row p={p} icon="pricetag" tint={tints.purple} label={t('promoCode')} onPress={() => router.push('/promo')} />
           </Card>
 
           {/* Legal */}

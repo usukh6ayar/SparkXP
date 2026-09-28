@@ -866,7 +866,7 @@ Guard per-method. (QPay QR stub — §PRODUCT: Update 1.)
 | --- | --- | --- | --- |
 | GET `/payments/plans` | **Public** | Идэвхтэй багцын жагсаалт | — |
 | POST `/payments/plans` | admin, super_admin | Багц үүсгэх (давхардвал 409) | `CreatePlanDto` |
-| POST `/payments` | JWT | Төлбөрийн intent үүсгэх (QPay QR stub) | `CreatePaymentDto` |
+| POST `/payments` | JWT | Төлбөрийн intent үүсгэх (QPay QR stub). `promoCode` өгвөл хөнгөлөлтийн кодоор үнийг бууруулна (ашиглалт нь confirm дээр л тоологдоно) | `CreatePaymentDto` (+ `promoCode?`) |
 | POST `/payments/:id/confirm` | JWT | QPay callback дараа баталгаажуулах. Худалдан авагчийг урьсан хүн байвал эхний удаад урисан хүнд referral Sparks bonus нэмнэ (transaction дотор, нэг л удаа) | `ConfirmPaymentDto` |
 | GET `/payments/my` | JWT | Өөрийн төлбөрийн түүх | — |
 | GET `/payments` | admin, super_admin | Бүх төлбөр (хэрэглэгчтэй) | — |
@@ -902,6 +902,24 @@ Controller-level: admin, super_admin.
 (`XpSource.REFERRAL`). Тэр найз анхны төлбөрөө хийхэд **урисан хүнд Sparks bonus**
 (`SparksSource.REFERRAL`, `/payments/:id/confirm` дотор). Урих код нь username-ээр
 ч ажиллана. Шинэ prod багана/enum: migration `AddReferralSystem1782500000000`.
+
+## 21a. Promo код + Influencer эрх — `/api/promos`, `/api/admin/promos` (2026-09-28)
+
+| Method + Path | Auth | Зорилго | Params / Body |
+| --- | --- | --- | --- |
+| POST `/promos/redeem` | JWT (10/мин) | Үнэгүй эрхийн кодыг идэвхжүүлнэ → `{ code, planId, planName, days, accessUntil }`. Буруу/идэвхгүй/өөр хүнийх → 404, хугацаа/эрх дууссан → 400, аль хэдийн ашигласан эсвэл өөр идэвхтэй багцтай → 409 | `{ code }` |
+| POST `/promos/quote` | JWT (10/мин) | Хөнгөлөлтийн кодын үнэ → `{ promoId, code, originalPrice, finalPrice }`. Юу ч бичихгүй | `{ code, planId }` |
+| GET `/admin/promos` | admin, super_admin | Бүх код (≤500), `plan`, `assignedUser`-тай | `?audience=general\|influencer` |
+| POST `/admin/promos` | admin, super_admin | Код үүсгэх (кодгүй бол `SPX-XXXXXX`) | `CreatePromoDto` — `name, kind(free_access\|discount_percent\|discount_fixed), value, planId?, validFrom?, validUntil?, usageLimit?, audience?, assignedUserId?, note?` |
+| PATCH `/admin/promos/:id` | admin, super_admin | Кампанит ажлын тохиргоо (нэр, идэвхтэй, огноо, хязгаар, тэмдэглэл). `kind/value/code` өөрчлөгдөхгүй | `UpdatePromoDto` |
+| GET `/admin/promos/:id/redemptions` | admin, super_admin | Ашигласан түүх (хэрэглэгч, огноо, `accessUntil`) | — |
+| POST `/admin/promos/influencer` | admin, super_admin | Influencer эрх: `email` өгвөл тухайн данс руу шууд (1 хүний `INF-` код + түүх), үгүй бол `usageLimit` хүнд зориулсан `INF-` код | `{ planId, email?, days?=7, usageLimit?, validUntil?, name?, note? }` |
+
+**Эрх:** `users.plan_id` + `plan_expires_at`-аар олгогдоно — хугацааг уншихдаа шалгадаг тул 7 хоногийн эрх cron-гүй өөрөө дуусна. Ижил багц идэвхтэй бол дуусах огнооноос нь сунгана; **өөр** багц идэвхтэй бол 409 (промо төлсөн багцыг хэзээ ч солихгүй).
+**Хязгаар:** `used_count`-ийг `usage_limit`-тэй нэг `UPDATE … WHERE used_count < usage_limit` дотор шалгаж нэмнэ; `(promo_id, user_id)` UNIQUE. Хөнгөлөлтийн код нь төлбөр (`PAYMENTS_ENABLED`) нээгдэх хүртэл зөвхөн үнэ тооцно.
+Migration: `AddPromoCodes1788000000000` (2 шинэ хүснэгт).
+
+---
 
 ## 22. Achievements (trophy) — `/api/achievements`
 
@@ -999,6 +1017,7 @@ Admin dashboard энэ endpoint-уудыг дараа ашиглаж болно 
 | `assignments.ts` | `createAssignment`→POST `/assignments` · `getClassAssignments`→GET `/assignments?classId=` · `getMyAssignments`→GET `/assignments/mine` · `deleteAssignment`→DELETE `/assignments/:id` |
 | `organizations.ts` | `getOrganizations`→GET `/organizations?limit=100` |
 | `referrals.ts` | `getMyReferral`→GET `/referrals/me` |
+| `promos.ts` | `redeemPromo`→POST `/promos/redeem` (`app/promo.tsx`, Тохиргоо → «Промо код») |
 
 ### Admin (`admin/src/pages/**`)
 Token автоматаар залгагдана. Зураг байршуулалт: `components/*` → POST `/upload`.
@@ -1007,6 +1026,7 @@ Token автоматаар залгагдана. Зураг байршуулал
 | --- | --- |
 | Login / AuthContext | POST `/auth/login` · GET `/auth/me` |
 | Users | GET `/users` · PATCH `/users/:id` · DELETE `/users/:id` |
+| Promos (`pages/promos`) | GET/POST `/admin/promos` · PATCH `/admin/promos/:id` · GET `/admin/promos/:id/redemptions` · POST `/admin/promos/influencer` · GET `/payments/plans` |
 | Usage | GET `/users` |
 | Lessons | GET/POST/PATCH/DELETE `/lessons` |
 | Lesson Tests | GET `/quizzes?lessonId=&category=` · POST/PATCH/DELETE `/quizzes` |
