@@ -69,7 +69,7 @@ const skyImg = require("../../assets/background.webp");
 const skyImgLight = require("../../assets/light-mode-index.webp");
 const sceneImg = require("../../assets/fox-island.webp");
 
-const SCENE_RATIO = 1081 / 963; // h / w of fox-island.png
+const SCENE_RATIO = 1536 / 1368; // h / w of fox-island.webp — canvas fills the scene box exactly
 const GRASS = 0.6; // grass surface ≈ 60% down the composite (where feet rest)
 const FOX_EARS = 0.16; // empty sky above his ears, as a fraction of the composite
 

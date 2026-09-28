@@ -9,6 +9,7 @@ import {
   ScrollView,
   RefreshControl,
   useWindowDimensions,
+  Animated as RNAnimated,
 } from 'react-native';
 import Animated, {
   ZoomIn, useSharedValue, useAnimatedStyle, withRepeat, withSequence, withTiming,
@@ -24,6 +25,7 @@ import type { TranslationKey } from '../../src/i18n';
 import { getLessons, getCompletedLessonIds, type Lesson } from '../../src/api/lessons';
 import { getGamification, getLessonStars, type Gamification } from '../../src/api/gamification';
 import { AppText } from '../../src/components/Text';
+import { LevelMapBackdrop, LEVEL_MAPS } from '../../src/components/LevelMapBackdrop';
 import { haptics } from '../../src/lib/haptics';
 import { DURATION, useReduceMotion } from '../../src/lib/motion';
 import { colors, islandMap } from '../../src/theme/theme';
@@ -42,7 +44,7 @@ import { bounded, CONTENT_MAX_WIDTH } from '../../src/theme/responsive';
 
 const bgDark = require('../../assets/avatars/islands/lessonBackground.webp'); // dark forest — dark theme
 const bgLight = require('../../assets/avatars/islands/lessonLightBackground.webp'); // bright forest — light theme
-const foxMascot = require('../../assets/avatars/lessonAvatar.png'); // progress-card mascot (transparent XP fox)
+const foxMascot = require('../../assets/avatars/lessonAvatar.webp'); // progress-card mascot — Spark, thumbs up (same character as the AI buddy)
 
 /** Theme-aware palette for the header UI over the (dark/light) forest backdrop. */
 function palette(isLight: boolean) {
@@ -167,7 +169,16 @@ export default function LevelScreen() {
   const [headerH, setHeaderH] = useState(0);
   // The climb starts at the bottom (node 1), so jump there once on first render.
   const scrollRef = useRef<ScrollView>(null);
-  const didInitialScroll = useRef(false);
+  // Level map (parallax) — the scroll offset drives it natively, plus the two
+  // sizes it needs to map the trail's scroll range onto the art's height.
+  const scrollY = useRef(new RNAnimated.Value(0)).current;
+  const [viewportH, setViewportH] = useState(0);
+  const [contentH, setContentH] = useState(0);
+  const mapArt = LEVEL_MAPS[levelCode]?.[theme];
+  // Until the student drags, keep the trail parked at its bottom (lesson 1):
+  // the content grows after mount (header measured, lessons loaded), and a
+  // one-shot scrollToEnd left the view stranded partway up.
+  const userScrolled = useRef(false);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -220,7 +231,13 @@ export default function LevelScreen() {
   // One node per lesson + a few locked "coming soon" nodes. The path is tall
   // enough to hold them all and scrolls; node 1 sits at the very bottom.
   const nodeCount = Math.max(lessons.length + LOCKED_AHEAD, MIN_NODES);
-  const pathHeight = V_TOP_PAD + nodeCount * V_SPACING + V_BOTTOM_PAD;
+  // With a level map, the trail is at least as tall as the art: nodes still
+  // start at the bottom, and the student can scroll up past the last one to
+  // the level's landmark at the summit (Candy Crush). It also keeps the map
+  // from racing ahead of the trail — the parallax never runs faster than 1:1.
+  const trailTop = (headerH || insets.top + 260) + 28; // = scroll content paddingTop
+  const mapMinPath = mapArt ? Math.ceil(width * mapArt.aspect) - trailTop - 24 : 0;
+  const pathHeight = Math.max(V_TOP_PAD + nodeCount * V_SPACING + V_BOTTOM_PAD, mapMinPath);
   // On tablets the trail lives in a centered max-width column (mapX offset)
   // instead of sprawling edge-to-edge; on phones mapW == width, mapX == 0.
   const mapW = Math.min(width, CONTENT_MAX_WIDTH);
@@ -248,21 +265,30 @@ export default function LevelScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: isLight ? '#DCEAF5' : '#06101C' }]}>
-      {/* Fixed forest backdrop — stays put while the trail scrolls over it. */}
-      <ImageBackground source={bg} style={StyleSheet.absoluteFill} resizeMode="cover" />
+      {mapArt ? (
+        // Level map: climbs with the trail (see LevelMapBackdrop).
+        <LevelMapBackdrop art={mapArt} width={width} viewportH={viewportH} maxScroll={Math.max(0, contentH - viewportH)} scrollY={scrollY} />
+      ) : (
+        // Levels without map art yet: fixed forest backdrop under the trail.
+        <ImageBackground source={bg} style={StyleSheet.absoluteFill} resizeMode="cover" />
+      )}
 
       {/* Scrolling trail: golden connectors + numbered/locked lesson nodes. */}
-      <ScrollView
+      <RNAnimated.ScrollView
         ref={scrollRef}
         style={StyleSheet.absoluteFill}
-        contentContainerStyle={{ paddingTop: (headerH || insets.top + 260) + 28, paddingBottom: 24 }}
+        onLayout={(e) => setViewportH(e.nativeEvent.layout.height)}
+        onScroll={RNAnimated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true })}
+        scrollEventThrottle={16}
+        onScrollBeginDrag={() => { userScrolled.current = true; }}
+        contentContainerStyle={{ paddingTop: trailTop, paddingBottom: 24 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={islandMap.gold} progressViewOffset={headerH || insets.top + 260} />
         }
         onContentSizeChange={(_w, h) => {
-          if (!didInitialScroll.current && h > 0) {
-            didInitialScroll.current = true;
+          setContentH(h);
+          if (!userScrolled.current && h > 0) {
             scrollRef.current?.scrollToEnd({ animated: false });
           }
         }}
@@ -371,7 +397,7 @@ export default function LevelScreen() {
               );
             })}
         </View>
-      </ScrollView>
+      </RNAnimated.ScrollView>
 
       {/* Top scrim so the header reads over the forest top (light=white, dark=navy). */}
       <LinearGradient
