@@ -54,6 +54,7 @@ describe('TrophyStatsService', () => {
         }),
       } as never,
       fakeRepo([]),
+      fakeRepo([]),
     );
 
     const first = await service.load('user-a', ['buddy_sessions']);
@@ -70,6 +71,7 @@ describe('TrophyStatsService', () => {
 
   it('returns zeros for stats the caller did not ask for', async () => {
     const service = new TrophyStatsService(
+      fakeRepo([]),
       fakeRepo([]),
       fakeRepo([]),
       fakeRepo([]),

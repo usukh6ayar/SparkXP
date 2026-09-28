@@ -1,4 +1,4 @@
-import { BuddySessionMode, XpSource } from '../common/enums';
+import { BuddySessionMode, ContentLevel, XpSource } from '../common/enums';
 import {
   ALWAYS_CHECKED,
   TYPES_BY_SOURCE,
@@ -30,6 +30,7 @@ const ZERO: TrophyStats = {
   mistakesFixed: 0,
   buddySessions: {},
   buddyDistinct: 0,
+  levelComplete: {},
 };
 
 describe('evaluate', () => {
@@ -84,6 +85,28 @@ describe('evaluate', () => {
     ).toBe(true);
   });
 
+  it('reads island completion per level', () => {
+    const stats = { ...ZERO, levelComplete: { a1: 100, a2: 40 } };
+    expect(
+      evaluate(
+        { type: 'level_complete', level: ContentLevel.A1, value: 100 },
+        stats,
+      ),
+    ).toBe(true);
+    expect(
+      evaluate(
+        { type: 'level_complete', level: ContentLevel.A2, value: 100 },
+        stats,
+      ),
+    ).toBe(false);
+    expect(
+      evaluate(
+        { type: 'level_complete', level: ContentLevel.B1, value: 100 },
+        stats,
+      ),
+    ).toBe(false);
+  });
+
   it('keeps voice sessions separate from all sessions', () => {
     const stats = { ...ZERO, buddySessions: { total: 20, voice: 3 } };
     expect(evaluate({ type: 'buddy_sessions', value: 20 }, stats)).toBe(true);
@@ -119,21 +142,38 @@ describe('typesForSource', () => {
 describe('TROPHY_CATALOG', () => {
   const withCondition = TROPHY_CATALOG.filter((t) => t.condition !== null);
 
-  it('has 100 trophies with unique slugs', () => {
-    expect(TROPHY_CATALOG).toHaveLength(100);
-    expect(new Set(TROPHY_CATALOG.map((t) => t.slug)).size).toBe(100);
+  it('has unique slugs', () => {
+    expect(new Set(TROPHY_CATALOG.map((t) => t.slug)).size).toBe(
+      TROPHY_CATALOG.length,
+    );
   });
 
-  it('gives every trophy a condition except the 4 CEFR finishers', () => {
-    const dormant = TROPHY_CATALOG.filter((t) => t.condition === null).map(
-      (t) => t.slug,
-    );
-    expect(dormant.sort()).toEqual([
-      'crystal_b1_finisher',
-      'emerald_b2_finisher',
-      'gold_a1_finisher',
-      'sapphire_a2_finisher',
-    ]);
+  // The 2026-09-28 cleanup: every trophy is winnable and says so in Mongolian.
+  it('gives every trophy a condition and a Mongolian name', () => {
+    for (const t of TROPHY_CATALOG) {
+      expect(t.condition).not.toBeNull();
+      expect(t.nameMn.trim()).not.toBe('');
+    }
+  });
+
+  it('never gives two trophies the same rule', () => {
+    const rules = TROPHY_CATALOG.map((t) => JSON.stringify(t.condition));
+    expect(new Set(rules).size).toBe(rules.length);
+  });
+
+  it('keeps names free of typos and bare numeric suffixes', () => {
+    for (const t of TROPHY_CATALOG) {
+      expect(t.name).not.toMatch(
+        /Grammer|Figther|Pronounciation|Complationist|\d$/,
+      );
+    }
+  });
+
+  it('lets The Crowned Fox be reached with trophies to spare', () => {
+    const crown = TROPHY_CATALOG.find(
+      (t) => t.slug === 'celestial_the_crowned_fox',
+    )!;
+    expect(crown.condition!.value).toBeLessThan(TROPHY_CATALOG.length - 1);
   });
 
   it('uses only condition types that some award actually checks', () => {
@@ -159,6 +199,7 @@ describe('TROPHY_CATALOG', () => {
         'skill' in c ? c.skill : '',
         'mode' in c ? c.mode : '',
         'source' in c ? c.source : '',
+        'level' in c ? c.level : '',
       ].join('|');
 
     const byFamily = new Map<

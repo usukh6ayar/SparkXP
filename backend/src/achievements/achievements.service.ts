@@ -4,7 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { In, IsNull, Repository } from 'typeorm';
 import { XpSource } from '../common/enums';
 import { UserTrophy } from '../entities/user-trophy.entity';
-import { TROPHY_CATALOG, TROPHY_TIERS, Trophy } from './catalog';
+import { CATALOG_SLUGS, TROPHY_CATALOG, TROPHY_TIERS, Trophy } from './catalog';
 import { ConditionType, evaluate, typesForSource } from './conditions';
 import { TrophyStatsService } from './trophy-stats.service';
 
@@ -45,6 +45,8 @@ export interface AchievementsResponse {
   trophies: TrophyView[];
 }
 
+const LIVE = new Set(CATALOG_SLUGS);
+
 /** How many trophies a learner may pin to their profile. */
 export const MAX_PINNED_TROPHIES = 5;
 
@@ -67,8 +69,10 @@ export class AchievementsService {
 
   /** The full catalog with this user's earned flags, dates and unseen list. */
   async getForUser(userId: string): Promise<AchievementsResponse> {
+    // Retired trophies (2026-09-28 cleanup) stay in the table but are not
+    // shown, counted, celebrated or pinned.
     const rows = await this.earned.find({
-      where: { userId },
+      where: { userId, slug: In(CATALOG_SLUGS) },
       select: { slug: true, createdAt: true, seenAt: true, pinnedRank: true },
     });
     const bySlug = new Map(rows.map((r) => [r.slug, r]));
@@ -104,7 +108,10 @@ export class AchievementsService {
    * unambiguous and makes the call idempotent — the app sends what the profile
    * row should look like and gets exactly that.
    */
-  async setPinned(userId: string, slugs: string[]): Promise<{ pinned: string[] }> {
+  async setPinned(
+    userId: string,
+    slugs: string[],
+  ): Promise<{ pinned: string[] }> {
     const wanted = [...new Set(slugs)];
     if (wanted.length > MAX_PINNED_TROPHIES) {
       throw new BadRequestException(
@@ -127,7 +134,11 @@ export class AchievementsService {
     await this.earned.manager.transaction(async (manager) => {
       await manager.update(UserTrophy, { userId }, { pinnedRank: null });
       for (const [rank, slug] of wanted.entries()) {
-        await manager.update(UserTrophy, { userId, slug }, { pinnedRank: rank });
+        await manager.update(
+          UserTrophy,
+          { userId, slug },
+          { pinnedRank: rank },
+        );
       }
     });
 
@@ -190,8 +201,9 @@ export class AchievementsService {
     if (!unheld.length) return [];
 
     const stats = await this.stats.load(userId, types);
-    // `held` is already loaded, so use it rather than a second COUNT.
-    stats.trophyCount = held.size;
+    // `held` is already loaded, so use it rather than a second COUNT — but
+    // only live slugs count toward "The Crowned Fox".
+    stats.trophyCount = [...held].filter((slug) => LIVE.has(slug)).length;
 
     return unheld
       .filter((t) => evaluate(t.condition!, stats))

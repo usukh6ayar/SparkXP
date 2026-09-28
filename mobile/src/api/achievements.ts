@@ -2,7 +2,7 @@ import { apiRequest } from './client';
 
 /**
  * Trophies / achievements. Mirrors `backend/src/achievements/` — the catalog
- * (100 badges over 10 tiers) lives on the server, so the app never hardcodes a
+ * (68 badges over 10 tiers since the 2026-09-28 cleanup) lives on the server, so the app never hardcodes a
  * badge list. Trophies are awarded server-side after every XP award; the client
  * only reads them and marks unlock celebrations as shown.
  */
@@ -35,12 +35,13 @@ export type TrophyConditionType =
   | 'xp_events'
   | 'quiz_count'
   | 'quiz_perfect'
-  | 'buddy_sessions';
+  | 'buddy_sessions'
+  | 'level_complete';
 
 /**
  * `stat >= value`. The optional keys narrow which stat is read and only appear
  * on their own type (`source` on xp_events, `skill` on quiz_*, `mode` on
- * buddy_sessions) — absent means "any".
+ * buddy_sessions, `level` on level_complete) — absent means "any".
  */
 export interface TrophyCondition {
   type: TrophyConditionType;
@@ -48,14 +49,18 @@ export interface TrophyCondition {
   source?: string;
   skill?: string;
   mode?: string;
+  /** CEFR island, e.g. "a1" — `level_complete` only. */
+  level?: string;
 }
 
 export interface Trophy {
   /** Stable id; also the key stored in `user_trophies` and used for images. */
   slug: string;
   tier: TrophyTier;
-  /** English by design — trophy names are not localized. */
+  /** English name — shown under the Mongolian one. */
   name: string;
+  /** Mongolian name (2026-09-28 cleanup). Optional: older servers omit it. */
+  nameMn?: string;
   /** null = not trackable yet; show it as "coming soon". */
   condition: TrophyCondition | null;
   /** ~87KB WebP, 640px. Detail view and unlock celebration ONLY. */

@@ -21,7 +21,7 @@ import { EmptyState } from '../src/components/EmptyState';
 import { SkeletonRows } from '../src/components/SkeletonRows';
 import { ProgressBar } from '../src/components/ProgressBar';
 import { PressableScale } from '../src/components/PressableScale';
-import { describeCondition, tierLabel } from '../src/lib/trophyCondition';
+import { describeCondition, tierLabel, trophyTitle } from '../src/lib/trophyCondition';
 import { haptics } from '../src/lib/haptics';
 import { toast } from '../src/components/Toast';
 import { t, tf } from '../src/i18n';
@@ -40,12 +40,11 @@ const FILTERS: { key: Filter; labelKey: 'trophyFilterAll' | 'trophyFilterEarned'
 ];
 
 /**
- * The full 100-badge trophy collection, grouped by tier.
+ * The trophy collection, grouped by tier.
  *
  * Everything comes from GET /achievements — the catalog, the earned flags and
- * the image URLs. Trophy names stay English (the backend catalog is the single
- * source of truth for them); only the surrounding UI and the unlock conditions
- * are Mongolian.
+ * the image URLs. Since the 2026-09-28 cleanup each trophy carries a Mongolian
+ * name (`nameMn`, shown first) beside its English one.
  */
 export default function TrophiesScreen() {
   const { token } = useAuth();
@@ -252,7 +251,7 @@ function TrophyCell({
         color={trophy.earned ? c.text : c.textMuted}
         style={styles.cellLabel}
       >
-        {trophy.name}
+        {trophyTitle(trophy)}
       </AppText>
     </PressableScale>
   );
@@ -280,8 +279,10 @@ function TrophyDetail({
             contentFit="contain"
             style={[styles.detailImg, !trophy.earned && styles.badgeImgLocked]}
           />
-          <AppText variant="h2" center>{trophy.name}</AppText>
-          <AppText variant="label" color={c.textMuted} center>{tierLabel(trophy.tier)}</AppText>
+          <AppText variant="h2" center>{trophyTitle(trophy)}</AppText>
+          <AppText variant="label" color={c.textMuted} center>
+            {trophy.nameMn ? `${trophy.name} · ` : ''}{tierLabel(trophy.tier)}
+          </AppText>
 
           {/* The condition shows either way. It used to appear only while the
               trophy was LOCKED, so earning one made its detail sheet lose the

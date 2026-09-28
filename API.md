@@ -907,7 +907,7 @@ Controller-level: admin, super_admin.
 
 | Method + Path | Auth | Зорилго | Params / Body |
 | --- | --- | --- | --- |
-| GET `/achievements` | JWT | Trophy catalog + өөрийн авсан төлөв → `{ tiers[], total, earned, unseen[], pinned[], trophies: [{slug, tier, name, image, thumb, condition, earned, earnedAt}] }` | — |
+| GET `/achievements` | JWT | Trophy catalog + өөрийн авсан төлөв → `{ tiers[], total, earned, unseen[], pinned[], trophies: [{slug, tier, name, nameMn, image, thumb, condition, earned, earnedAt}] }`. `nameMn` = монгол нэр (апп эхэлж харуулна) | — |
 | POST `/achievements/seen` | JWT | Баярлах цонх үзүүлсний дараа тэмдэглэнэ → `{ updated }` | `{ slugs?: string[] }` — хоосон бол бүх үзээгүйг |
 | POST `/achievements/pinned` | JWT | Профайлд онцлох трофейнуудыг **бүхэлд нь** солино → `{ pinned }`. >5 эсвэл аваагүй трофей → **400** | `{ slugs: string[] }` (харагдах дараалалтай, хоосон = бүгдийг болиулна) |
 
@@ -929,9 +929,11 @@ Controller-level: admin, super_admin.
 багана **ашиглагдахаа больсон**.
 
 **Нөхцөл:** `catalog.ts` дотор өгөгдөл хэлбэрээр (`{ type, value }`), логик нь
-`conditions.ts`-д. 96 трофей нөхцөлтэй; 4 CEFR Finisher `condition: null` (UI-д
-"удахгүй"). Grammar цуврал нь `quiz_count{skill:'fill'}` — `fill` контент нэмэгдэх
-хүртэл түр идэвхгүй.
+`conditions.ts`-д. **2026-09-28: 100 → 68**, бүгд нөхцөлтэй (`docs/TROPHIES.md`).
+A1–B2 Finisher нь `level_complete{level}` — арлын нийтлэгдсэн бүх хичээлийг дуусгах
+(Lessons map-ийн done/total-тай ижил тоолол). Хасагдсан трофейг авсан мөр хэвээр
+боловч харуулахгүй/тоолохгүй (`CATALOG_SLUGS`). Grammar цуврал нь
+`quiz_count{skill:'fill'}`.
 
 Шинэ prod хүснэгт: migration `CreateUserTrophies1786100000000`.
 Deploy хийсний дараа нэг удаа `src/scripts/backfill-trophies.ts` ажиллуулна
