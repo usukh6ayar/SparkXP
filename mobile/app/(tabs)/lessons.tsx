@@ -20,11 +20,13 @@ import { useSettings } from '../../src/settings/SettingsContext';
 import { haptics } from '../../src/lib/haptics';
 import { useReduceMotion } from '../../src/lib/motion';
 import { tf } from '../../src/i18n';
+import type { TranslationKey } from '../../src/i18n';
 import { getGamification, type Gamification } from '../../src/api/gamification';
 import { AppText } from '../../src/components/Text';
 import { AppIcon } from '../../src/components/AppIcon';
 import { AnimatedFlame } from '../../src/components/AnimatedFlame';
 import { DictionaryButton } from '../../src/components/DictionaryButton';
+import { WORLD_MAP } from '../../src/components/LevelMapBackdrop';
 import { type AppIconName } from '../../src/constants/appIcons';
 import { islandMap, colors } from '../../src/theme/theme';
 import { bounded } from '../../src/theme/responsive';
@@ -47,7 +49,15 @@ import { bounded } from '../../src/theme/responsive';
 const skyImg = require('../../assets/avatars/islands/background.webp'); // starry sky backdrop — dark theme
 const lightBgImg = require('../../assets/avatars/islands/lightBackground.webp'); // bright sky backdrop — light theme
 const lineImg = require('../../assets/avatars/islands/line.webp'); // golden winding trail overlay
-const SCENE_RATIO = 2.7; // scene height = width * RATIO (room for 6 stacked islands)
+// scene height = width * RATIO — exactly the world art (4 stitched sections,
+// 1024×5020), so art and islands share one coordinate system. The scene runs
+// the full screen height: its top ~650px of calm sky sits behind the header.
+const SCENE_RATIO = 5020 / 1024;
+/** Colours of the world art's top and bottom rows (bounce fallback). */
+const WORLD_EDGES: Partial<Record<'light' | 'dark', [string, string]>> = {
+  light: ['#D0BBBD', '#4C5742'],
+  dark: ['#090A52', '#323E5D'],
+};
 const ISLAND_ASPECT = 1.0; // island art height / width (the day tiles are ~square)
 
 // Island artwork per theme. Dark = the original night cut-outs on the starry
@@ -90,7 +100,7 @@ const LIGHT_SKY = {
 
 interface LevelNode {
   code: string; // CEFR — also matches the lesson.level used for navigation
-  name: string; // themed island name
+  nameKey: TranslationKey; // themed island name (i18n — same key as the level screen)
   color: string; // level-badge color
   unlockAt: number | null; // min user level to unlock; null = always open
   /** Island image placement, as fractions of the scene (left, top, width). */
@@ -111,12 +121,12 @@ type LevelProgress = { done: number; total: number } | null;
 // golden trail stretched over them) are unchanged — only which level occupies
 // each slot is reversed. The label card is auto-placed under each island.
 const LEVELS: LevelNode[] = [
-  { code: 'A1', name: 'Forest',    color: BADGE.green,  unlockAt: null, isl: { left: 0.44, top: 0.740, w: 0.52 } },
-  { code: 'A2', name: 'Village',   color: BADGE.green,  unlockAt: null, isl: { left: 0.00, top: 0.600, w: 0.50 } },
-  { code: 'B1', name: 'Castle',    color: BADGE.blue,   unlockAt: null, isl: { left: 0.47, top: 0.455, w: 0.50 } },
-  { code: 'B2', name: 'Mountain',  color: BADGE.blue,   unlockAt: 30,   isl: { left: 0.00, top: 0.300, w: 0.52 } },
-  { code: 'C1', name: 'Space',     color: BADGE.purple, unlockAt: 45,   isl: { left: 0.48, top: 0.140, w: 0.50 } },
-  { code: 'C2', name: 'Sky Realm', color: BADGE.purple, unlockAt: 60,   isl: { left: 0.00, top: 0.010, w: 0.50 } },
+  { code: 'A1', nameKey: 'levelNameA1', color: BADGE.green,  unlockAt: null, isl: { left: 0.44, top: 0.8426, w: 0.52 } },
+  { code: 'A2', nameKey: 'levelNameA2', color: BADGE.green,  unlockAt: null, isl: { left: 0.00, top: 0.7450, w: 0.50 } },
+  { code: 'B1', nameKey: 'levelNameB1', color: BADGE.blue,   unlockAt: null, isl: { left: 0.47, top: 0.5394, w: 0.50 } },
+  { code: 'B2', nameKey: 'levelNameB2', color: BADGE.blue,   unlockAt: 30,   isl: { left: 0.00, top: 0.4096, w: 0.52 } },
+  { code: 'C1', nameKey: 'levelNameC1', color: BADGE.purple, unlockAt: 45,   isl: { left: 0.48, top: 0.2795, w: 0.50 } },
+  { code: 'C2', nameKey: 'levelNameC2', color: BADGE.purple, unlockAt: 60,   isl: { left: 0.00, top: 0.1494, w: 0.50 } },
 ];
 
 /** Add thousands separators (Hermes' toLocaleString is unreliable). */
@@ -176,6 +186,9 @@ export default function LessonsScreen() {
   // The climb starts at the bottom (A1), so jump there once on first render.
   const scrollRef = useRef<ScrollView>(null);
   const didInitialScroll = useRef(false);
+  const [headerH, setHeaderH] = useState(0);
+  // Painted world (A1 forest → C2 sky palace) behind the islands.
+  const worldArt = WORLD_MAP[theme];
 
   // The map only needs the gamification summary (streak + per-island progress);
   // the lessons themselves are loaded by the level screen the island opens.
@@ -270,7 +283,13 @@ export default function LessonsScreen() {
     <View style={[styles.root, isLight && { backgroundColor: '#C7E4FB' }]}>
       {/* Fallback color behind the backdrop image (only shows on overscroll). */}
       <LinearGradient
-        colors={isLight ? LIGHT_SKY.grad : ['#150F38', '#0E0A2A', '#0E0A2A']}
+        // With world art, the ends match the art's own top sky / bottom forest,
+        // so an iOS bounce past either end shows the same colour, not a band.
+        colors={
+          worldArt
+            ? WORLD_EDGES[theme] ?? LIGHT_SKY.grad
+            : isLight ? LIGHT_SKY.grad : ['#150F38', '#0E0A2A', '#0E0A2A']
+        }
         style={StyleSheet.absoluteFill}
       />
       {/* THE sky — one fixed backdrop behind the header AND the map. Because the
@@ -278,21 +297,25 @@ export default function LessonsScreen() {
           draws its own sky), there is no seam/line between them, and pull-to-
           refresh overscroll simply reveals more of the same continuous sky. The
           map scrolls over it as parallax. */}
-      <Image source={bgImg} style={[styles.headerSky, { width: sceneW, height: sceneH, top: -sceneH * 0.12 }]} resizeMode="cover" />
+      {/* No world art for this theme yet → the old fixed sky. With world art,
+          the backdrop lives INSIDE the scene instead (below). */}
       <View style={styles.safe}>
         {/* STICKY header — pinned above the scrolling map (Apple/Duolingo-style)
             so the title, subtitle and stats (streak / gems / XP) stay visible
             while only the world map below scrolls. Backed by the starry sky
             (clipped by `top`'s overflow:hidden) so its backdrop stays fixed. */}
-        <View style={styles.top}>
-            {/* The header has NO sky of its own — it floats over the single fixed
-                backdrop sky (below), so there's no seam where it meets the map.
-                This theme-tuned gradient only tints the top for text readability
-                and fades to transparent so the header melts into the sky. */}
+        <View style={styles.top} onLayout={(e) => setHeaderH(e.nativeEvent.layout.height)}>
+            {/* The header floats over the scrolling map; this gradient only tints
+                the top for text readability and fades out below the stats.
+                (No blur — owner's call.) */}
             <LinearGradient
               colors={
                 isLight
-                  ? ['rgba(255,255,255,0.35)', 'rgba(255,255,255,0.12)', 'rgba(199,228,251,0.0)']
+                  // The painted world is busy (planet, palace) right behind the
+                  // title, so it needs a stronger wash than the plain sky did.
+                  ? worldArt
+                    ? ['rgba(255,255,255,0.82)', 'rgba(255,255,255,0.55)', 'rgba(255,255,255,0.0)']
+                    : ['rgba(255,255,255,0.35)', 'rgba(255,255,255,0.12)', 'rgba(199,228,251,0.0)']
                   : ['rgba(14,10,42,0.60)', 'rgba(14,10,42,0.30)', 'rgba(14,10,42,0.0)']
               }
               style={StyleSheet.absoluteFill}
@@ -323,6 +346,10 @@ export default function LessonsScreen() {
           ref={scrollRef}
           contentContainerStyle={[styles.scroll, bounded]}
           showsVerticalScrollIndicator={false}
+          // The map runs under the status bar on purpose (the header floats
+          // over it) — don't let iOS pad it with safe-area insets, which left
+          // the bounce mirror showing below the forest at rest.
+          contentInsetAdjustmentBehavior="never"
           onContentSizeChange={(_w, h) => {
             // Open scrolled to the "you are here" island (§3.2), ~180pt above it
             // so it sits in view. Falls back to the bottom (A1) until progress
@@ -330,26 +357,38 @@ export default function LessonsScreen() {
             if (!didInitialScroll.current && h > 0) {
               didInitialScroll.current = true;
               if (currentTop != null) {
-                scrollRef.current?.scrollTo({ y: Math.max(0, currentTop - 180), animated: false });
+                // The header floats over the map, so park the island below it.
+                scrollRef.current?.scrollTo({ y: Math.max(0, currentTop - (headerH || 220) - 40), animated: false });
               } else {
                 scrollRef.current?.scrollToEnd({ animated: false });
               }
             }
           }}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={SKY.gold} />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={SKY.gold} progressViewOffset={headerH} />
           }
         >
           {/* Map scene: the islands + trail float over the single fixed sky
               backdrop (rendered once at root), so the sky stays put and scrolls
               as parallax while the map moves — no seam with the header. */}
           <View style={[styles.scene, { width: sceneW, height: sceneH }]}>
+            {/* World backdrop: stretched to the scene's exact height and moving
+                1:1 with it, so every island sits over its own zone — forest
+                behind A1, village A2, castle B1, snowy peaks B2, planet C1,
+                sky palace C2. (Tried parallax: the zones drifted off their
+                islands.) Wider than the screen at this height; the sides crop. */}
+            {/* No world art for this theme yet → the old sky, covering the scene. */}
+            <Image
+              source={worldArt ? worldArt.src : bgImg}
+              resizeMode={worldArt ? 'stretch' : 'cover'}
+              style={{ position: 'absolute', top: 0, left: 0, width: sceneW, height: sceneH }}
+            />
             {/* Golden winding trail (line.png) threading the islands, behind them.
                 Span (top / height) is tuned to reach from the first to the last
-                island — adjust the 0.06 / 0.84 fractions if it drifts. */}
+                island — adjust the 0.181 / 0.715 fractions if it drifts. */}
             <Image
               source={lineImg}
-              style={{ position: 'absolute', left: 0, top: sceneH * 0.06, width: sceneW, height: sceneH * 0.84 }}
+              style={{ position: 'absolute', left: 0, top: sceneH * 0.181, width: sceneW, height: sceneH * 0.715 }}
               resizeMode="stretch"
             />
             {LEVELS.map((node) => {
@@ -403,11 +442,36 @@ export default function LessonsScreen() {
                     onPress={onPress}
                     style={{ position: 'absolute', left: islLeft, top: islTop, width: islW, height: islH }}
                   >
-                    <Image
-                      source={islandImg[node.code]}
-                      style={[styles.island, locked && styles.islandLocked]}
-                      resizeMode="contain"
-                    />
+                    {/* Glow outline so open islands lift off the painted world:
+                        a level-coloured silhouette a touch larger behind the art
+                        (the rim), and a same-colour shadow on the art itself
+                        (the soft glow — iOS shadows follow the PNG's alpha).
+                        blurRadius + tintColor together does not render on iOS. */}
+                    {!locked && (
+                      <Image
+                        source={islandImg[node.code]}
+                        style={[styles.island, styles.islandGlow]}
+                        tintColor={node.color}
+                        resizeMode="contain"
+                      />
+                    )}
+                    {/* Locked islands keep the glow too. The fade sits on the
+                        image INSIDE the wrapper and the shadow on the wrapper, so
+                        the glow is not faded with it; no solid rim, which would
+                        show through the see-through island. */}
+                    {/* The wrapper's shadow follows its children's alpha, so a
+                        faded (locked) island casts a faded glow. Locked islands
+                        get a second shadow layer around the first, which traces
+                        the first glow too and brings it up to an open island's. */}
+                    <View style={[styles.island, locked && { shadowColor: node.color, ...styles.islandShadow }]}>
+                      <View style={[styles.island, { shadowColor: node.color, ...styles.islandShadow }]}>
+                        <Image
+                          source={islandImg[node.code]}
+                          style={[styles.island, locked && styles.islandLocked]}
+                          resizeMode="contain"
+                        />
+                      </View>
+                    </View>
                     {locked ? (
                       <View style={styles.islandLock}>
                         <Ionicons name="lock-closed" size={26} color="#FFFFFF" />
@@ -443,8 +507,8 @@ export default function LessonsScreen() {
               );
             })}
           </View>
-
-          <View style={{ height: 70 }} />
+          {/* No bottom spacer: the world art itself runs to the tab bar. (A 70pt
+              spacer used to leave a flat strip under the forest.) */}
         </ScrollView>
       </View>
     </View>
@@ -480,6 +544,7 @@ function StatPill({
  *  mastered (gold star + success count), current/unlocked (level badge + track),
  *  locked (lockedInk badge + unlock condition). */
 function Label({ node, locked, mastered, progress, starsRequired }: { node: LevelNode; locked: boolean; mastered: boolean; progress: LevelProgress; starsRequired: number }) {
+  const { t } = useSettings();
   const pct = progress && progress.total > 0 ? progress.done / progress.total : 0;
   const badgeBg = mastered ? SKY.gold : locked ? colors.lockedInk : node.color;
   return (
@@ -492,8 +557,17 @@ function Label({ node, locked, mastered, progress, starsRequired }: { node: Leve
             <AppText variant="overline" color="#FFFFFF">{node.code}</AppText>
           )}
         </View>
-        <AppText variant="h3" color={locked ? colors.lockedInk : '#FFFFFF'} numberOfLines={1} style={{ flexShrink: 1 }}>
-          {node.name}
+        {/* Themed names are two–three words ("Нөхцөлт бүтцийн уул") — wrap, don't
+            truncate. 16pt (not h3's 18) so the longest single word
+            ("Өгүүлбэрийн") fits a line instead of breaking mid-word.
+            (adjustsFontSizeToFit squeezed short names onto one tiny line.) */}
+        <AppText
+          variant="h3"
+          color={locked ? colors.lockedInk : '#FFFFFF'}
+          numberOfLines={2}
+          style={{ flexShrink: 1, fontSize: 16, lineHeight: 21 }}
+        >
+          {t(node.nameKey)}
         </AppText>
       </View>
 
@@ -524,8 +598,10 @@ function Label({ node, locked, mastered, progress, starsRequired }: { node: Leve
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: SKY.bottom },
   safe: { flex: 1 },
-  scroll: { paddingTop: 4 },
-  top: { position: 'relative', overflow: 'hidden' },
+  scroll: {},
+  // Floats OVER the map (which runs the full screen height behind it), so the
+  // world art is one continuous picture from the status bar to the tab bar.
+  top: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 2 },
   headerSky: { position: 'absolute', left: 0 },
   topInner: { paddingHorizontal: 16, paddingBottom: 10 },
 
@@ -550,6 +626,8 @@ const styles = StyleSheet.create({
 
   scene: { position: 'relative' },
   island: { width: '100%', height: '100%' },
+  islandGlow: { position: 'absolute', opacity: 0.55, transform: [{ scale: 1.035 }] },
+  islandShadow: { shadowOpacity: 1, shadowRadius: 14, shadowOffset: { width: 0, height: 0 } },
   islandLocked: { opacity: 0.4 },
   islandLock: {
     ...StyleSheet.absoluteFillObject,
