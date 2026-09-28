@@ -79,14 +79,13 @@ announced here first.
 
 ## Current Status (last verified against code: 2026-07-28)
 
-**2026-09-28 — Trophy цэгцлэл · арлын нэр · Промо/Influencer (PR #275, #276, энэ PR).**
+**2026-09-28 — Trophy цэгцлэл · арлын нэр · Промо/Influencer (PR #275, #276, #277, #278).**
 - **Trophy 100 → 68** (`docs/TROPHIES.md`). Трофей бүр `nameMn`-тэй; апп `trophyTitle()`-оор
   монгол нэрийг эхэлж харуулна. Шинэ нөхцөл `level_complete` (A1–B2 Finisher). Хасагдсан
   трофейг авсан мөр хэвээр, `CATALOG_SLUGS`-ээр шүүгдэнэ.
-- **Арлын нэр** i18n `levelNameA1…C2` (Үйл үгийн ой … Нарийн утгын ертөнц). Арал бүрийн
-  арын зураг `app/level/[code].tsx` → `LEVEL_BG` (одоо A1 л зурагтай). Үнэгний аудит +
-  зураг үүсгэх prompt → `mobile/assets/ART_BRIEF.md`; **зураг хараахан үүсгэгдээгүй**
-  (локал OpenAI түлхүүр хүчингүй).
+- **Арлын нэр + A1 газрын зураг + Spark үнэгнүүд** — Choi-гийн PR #277. Үлдсэн зураг
+  (бүртгэлийн 2D үнэг, A2–C2 түвшний газрын зураг, C2 арал) → `mobile/assets/ART_BRIEF.md`;
+  **хараахан үүсгэгдээгүй** (локал OpenAI түлхүүр хүчингүй).
 - **Промо код + Influencer 7 хоног** — `backend/src/promos/`, админ `/promos`, апп
   Тохиргоо → «Промо код» (`app/promo.tsx`). Migration `AddPromoCodes1788000000000` —
   **Railway дээр `DB_MIGRATIONS_RUN=true` эсэхийг шалгаад deploy хий.**
