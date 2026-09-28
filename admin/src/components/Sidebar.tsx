@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import {
   BookOpen, BookMarked, FileText, HelpCircle, Users, BarChart2,
   Settings, LogOut, Trophy, Bot, GraduationCap,
-  Building2, Activity, Bell, LifeBuoy, Quote, Dumbbell, ShieldAlert, MessageSquareHeart, Award,
+  Building2, Activity, Bell, LifeBuoy, Quote, Dumbbell, ShieldAlert, MessageSquareHeart, Award, Ticket,
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { canAccess } from '../auth/access';
@@ -23,6 +23,7 @@ const nav = [
   { to: '/leaderboard',   label: 'Leaderboard',  icon: Trophy },
   { to: '/buddy',         label: 'AI Buddy',     icon: Bot },
   { to: '/usage',         label: 'Хэрэглээ',     icon: Activity },
+  { to: '/promos',        label: 'Промо код',    icon: Ticket },
   { to: '/notifications', label: 'Мэдэгдэл',     icon: Bell },
   { to: '/monitor',       label: 'Монитор',      icon: BarChart2 },
   { to: '/safety',        label: 'Аюулгүй лог',  icon: ShieldAlert },

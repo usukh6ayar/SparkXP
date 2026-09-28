@@ -30,6 +30,7 @@ import { DictionaryModule } from './dictionary/dictionary.module';
 import { ReadingModule } from './reading/reading.module';
 import { IdiomsModule } from './idioms/idioms.module';
 import { ReferralsModule } from './referrals/referrals.module';
+import { PromosModule } from './promos/promos.module';
 import { AchievementsModule } from './achievements/achievements.module';
 import { TeacherModule } from './teacher/teacher.module';
 import { EventsModule } from './events/events.module';
@@ -74,6 +75,7 @@ import { SpeakingModule } from './speaking/speaking.module';
     ReadingModule,
     IdiomsModule,
     ReferralsModule,
+    PromosModule,
     AchievementsModule,
     TeacherModule,
     EventsModule,
