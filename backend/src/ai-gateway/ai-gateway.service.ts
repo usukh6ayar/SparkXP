@@ -529,6 +529,7 @@ export class AiGatewayService implements OnModuleInit {
         metadata: {
           wordId: input.wordId,
           english: input.english,
+          characters: input.english.length,
           provider: 'gemini',
           voiceId,
         },
@@ -575,6 +576,7 @@ export class AiGatewayService implements OnModuleInit {
         metadata: {
           feature: 'reading',
           text: input.text.slice(0, 80),
+          characters: input.text.length,
           provider: 'gemini',
           voiceId,
         },

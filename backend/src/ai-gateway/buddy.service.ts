@@ -1297,7 +1297,9 @@ export class BuddyService {
         model: result.model,
         voiceSeconds: Math.ceil(result.durationMs / 1000),
         costMicroUsd: Math.round((text.length / 1000) * 0.05 * 1e6),
-        metadata: { sessionId, stage: 'tts' },
+        // Azure bills TTS per CHARACTER, not per minute (voice cost brief,
+        // 2026-09-26) — log it beside the seconds the plan limit counts.
+        metadata: { sessionId, stage: 'tts', characters: text.length },
       });
     } catch (err) {
       this.logger.warn(
@@ -1469,7 +1471,9 @@ export class BuddyService {
         model: result.model,
         voiceSeconds: Math.ceil(result.durationMs / 1000),
         costMicroUsd: Math.round((text.length / 1000) * 0.05 * 1e6),
-        metadata: { sessionId, stage: 'tts' },
+        // Azure bills TTS per CHARACTER, not per minute (voice cost brief,
+        // 2026-09-26) — log it beside the seconds the plan limit counts.
+        metadata: { sessionId, stage: 'tts', characters: text.length },
       });
       timer?.mark('tts_persist'); // дуут cache + хэрэглээний бүртгэл (DB)
       return {
