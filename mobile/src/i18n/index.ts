@@ -1133,7 +1133,7 @@ const mn = {
   levelNameA1: 'Үйл үгийн ой',
   levelNameA2: 'Цагийн тосгон',
   levelNameB1: 'Өгүүлбэрийн цайз',
-  levelNameB2: 'Нөхцөлт бүтцийн уул',
+  levelNameB2: 'Нөхцөл бүтцийн уул',
   levelNameC1: 'Дүрмийн галактик',
   levelNameC2: 'Нарийн утгын ертөнц',
   levelNameFallback: 'Түвшин',
