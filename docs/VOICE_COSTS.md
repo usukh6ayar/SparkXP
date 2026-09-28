@@ -11,9 +11,10 @@
 
 ## Кодод хаана байна
 
-- **Лимит нь өгөгдөл, код биш.** `plans.stt_minutes_limit` (100) ба
-  `plans.voice_minutes_limit` (35) — админ багцын мөрөөс тохируулна, апп
-  шинэчлэхгүй. Шалгалт: `ai-gateway/buddy-usage.service.ts` (`checkStt`,
+- **Лимит нь өгөгдөл, код биш.** «Essential» = `standard` мөр:
+  `stt_minutes_limit` 100, `voice_minutes_limit` 35 (migration
+  `SetEssentialVoiceLimits1788100000000`, 2026-09-28). Багцгүй эсвэл хугацаа нь
+  дууссан хэрэглэгч ч **Essential-ийн лимитийг** авна — өмнө нь хязгааргүй байсан. Шалгалт: `ai-gateway/buddy-usage.service.ts` (`checkStt`,
   `checkVoice`), сарын `ai_usage.voice_seconds`-ийн нийлбэрээр.
 - **Тэмдэгтийн тоо (2026-09-28-аас).** Azure TTS-ийг тэмдэгтээр тооцдог тул
   TTS мөр бүр `ai_usage.metadata.characters`-тай. Сарын дүн:
