@@ -104,11 +104,10 @@ const LEVEL: Record<string, LevelMeta> = {
 
 const NODE = 62;            // node diameter
 const RING = NODE + 14;     // glowing ring diameter around a node
-const V_SPACING = 150;      // vertical gap between node centers
-const V_BOTTOM_PAD = 96;    // gap below the first (bottom) node
-const V_TOP_PAD = 70;       // gap above the last (top) node
+const V_SPACING = 140;      // vertical gap between node centers (min — wider on big screens)
+const EDGE_FRAC = 0.06;     // empty margin above the last and below the first node, as a share of the trail
 const LOCKED_AHEAD = 1;     // just the single "Next" node past the real lessons
-const MIN_NODES = 4;        // always show at least this many slots
+const PLANNED_LESSONS = 15; // a level is planned for ~15 lessons — the trail always lays out that many slots
 const BEAD = 11;            // golden trail bead diameter
 const BEAD_GAP = 22;        // spacing between beads along the trail
 
@@ -228,29 +227,44 @@ export default function LevelScreen() {
   const firstUndone = lessons.findIndex((l) => !completed.has(l.id));
   const currentIndex = firstUndone === -1 ? lessons.length : firstUndone;
 
-  // One node per lesson + a few locked "coming soon" nodes. The path is tall
-  // enough to hold them all and scrolls; node 1 sits at the very bottom.
-  const nodeCount = Math.max(lessons.length + LOCKED_AHEAD, MIN_NODES);
-  // With a level map, the trail is at least as tall as the art: nodes still
-  // start at the bottom, and the student can scroll up past the last one to
-  // the level's landmark at the summit (Candy Crush). It also keeps the map
-  // from racing ahead of the trail — the parallax never runs faster than 1:1.
+  // One node per lesson, padded with locked "coming soon" slots up to the
+  // planned 15, so the trail's shape is the same before the content lands.
+  // Node 1 sits at the very bottom.
+  const nodeCount = Math.max(lessons.length + LOCKED_AHEAD, PLANNED_LESSONS);
+  // Nodes climb from the bottom to the level's landmark at the summit (Candy
+  // Crush); the art follows at parallax speed. The trail keeps the same EDGE_FRAC margin at both ends.
   const trailTop = (headerH || insets.top + 260) + 28; // = scroll content paddingTop
-  const mapMinPath = mapArt ? Math.ceil(width * mapArt.aspect) - trailTop - 24 : 0;
-  const pathHeight = Math.max(V_TOP_PAD + nodeCount * V_SPACING + V_BOTTOM_PAD, mapMinPath);
+  // Never shorter than the art (big screens), or the art would outrun the trail.
+  const artPath = mapArt ? width * mapArt.aspect - trailTop - 24 : 0;
+  const pathHeight = Math.max(((nodeCount - 1) * V_SPACING) / (1 - 2 * EDGE_FRAC), artPath);
+  const edgePad = pathHeight * EDGE_FRAC;
+  const spacing = (pathHeight - 2 * edgePad) / (nodeCount - 1); // = V_SPACING on phones
   // On tablets the trail lives in a centered max-width column (mapX offset)
   // instead of sprawling edge-to-edge; on phones mapW == width, mapX == 0.
   const mapW = Math.min(width, CONTENT_MAX_WIDTH);
   const mapX = (width - mapW) / 2;
   const nodeCenter = (i: number) => ({
     x: mapX + nodeXFrac(i) * mapW,
-    y: pathHeight - V_BOTTOM_PAD - i * V_SPACING,
+    y: pathHeight - edgePad - i * spacing,
   });
 
   // Beaded golden trail: sample dots evenly along the polyline between nodes
   // (a bead every BEAD_GAP px), so it curves nicely for any number of nodes.
   // Segments at/above the current node are "ahead" (not yet earned) → rendered
   // muted, so travelled-vs-ahead reads at a glance like the island trail (§3.2b).
+  const maxScroll = Math.max(0, contentH - viewportH);
+  // Park the trail at its bottom (lesson 1) until the student drags. Runs on
+  // every content OR viewport size change — scrolling on content changes alone
+  // sometimes fired before the viewport was measured and stopped mid-trail.
+  // A programmatic scroll doesn't always emit onScroll on iOS, so the map's
+  // offset is set too, or the art stays at the summit while the trail is down.
+  useEffect(() => {
+    if (!userScrolled.current && maxScroll > 0) {
+      scrollRef.current?.scrollTo({ y: maxScroll, animated: false });
+      scrollY.setValue(maxScroll);
+    }
+  }, [maxScroll, scrollY]);
+
   const beads: { x: number; y: number; key: string; ahead: boolean }[] = [];
   for (let i = 0; i < nodeCount - 1; i++) {
     const a = nodeCenter(i);
@@ -267,7 +281,7 @@ export default function LevelScreen() {
     <View style={[styles.root, { backgroundColor: isLight ? '#DCEAF5' : '#06101C' }]}>
       {mapArt ? (
         // Level map: climbs with the trail (see LevelMapBackdrop).
-        <LevelMapBackdrop art={mapArt} width={width} viewportH={viewportH} maxScroll={Math.max(0, contentH - viewportH)} scrollY={scrollY} />
+        <LevelMapBackdrop art={mapArt} width={width} viewportH={viewportH} maxScroll={maxScroll} scrollY={scrollY} />
       ) : (
         // Levels without map art yet: fixed forest backdrop under the trail.
         <ImageBackground source={bg} style={StyleSheet.absoluteFill} resizeMode="cover" />
@@ -284,14 +298,9 @@ export default function LevelScreen() {
         contentContainerStyle={{ paddingTop: trailTop, paddingBottom: 24 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={islandMap.gold} progressViewOffset={headerH || insets.top + 260} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={islandMap.gold} progressViewOffset={trailTop - 28} />
         }
-        onContentSizeChange={(_w, h) => {
-          setContentH(h);
-          if (!userScrolled.current && h > 0) {
-            scrollRef.current?.scrollToEnd({ animated: false });
-          }
-        }}
+        onContentSizeChange={(_w, h) => setContentH(h)}
       >
         <View style={{ height: pathHeight }}>
           {!loading &&
