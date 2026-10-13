@@ -103,6 +103,14 @@ export default function AccountScreen() {
         {/* Sign-in & security */}
         <AppText variant="overline" color={c.textMuted} style={styles.sectionLabel}>{t('security').toUpperCase()}</AppText>
         <View style={styles.card}>
+          <Row
+            c={c}
+            icon="call"
+            tint={tints.teal}
+            label={t('phone')}
+            value={user?.phoneVerified ? (user.phone ?? '') : t('linkAction')}
+            onPress={user?.phoneVerified ? undefined : () => router.push('/phone-link')}
+          />
           <Row c={c} icon="mail" tint={tints.coral} label={t('changeEmail')} value={user?.email ?? ''} onPress={soon} />
           <Row c={c} icon="lock-closed" tint={tints.purple} label={t('changePassword')} onPress={() => router.push('/change-password')} last />
         </View>
