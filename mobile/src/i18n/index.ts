@@ -1295,6 +1295,13 @@ const mn = {
   // Plan & Usage (Premium 56,000₮ багц)
   planTitle: 'Миний багц',
   planSubtitle: 'Багц, хэрэглээ, хязгаараа хараарай',
+  // ── Plan pass (Миний багц) ──
+  passPlan: 'Багц',
+  passVoice: 'Spark-тэй ярих',
+  passStt: 'Таны яриаг таних',
+  passMinutes: 'мин/сар',
+  passValidUntil: 'Хүчинтэй',
+  passNoExpiry: 'Хугацаагүй',
   planUsageTitle: 'Энэ сарын хэрэглээ',
   planVoiceLabel: 'AI дуут яриа',
   planSttLabel: 'Таны яриа (бичлэг)',
@@ -2579,6 +2586,13 @@ const en: Record<TranslationKey, string> = {
   // Plan & Usage (Premium 56,000₮ plan)
   planTitle: 'My plan',
   planSubtitle: 'See your plan, usage and limits',
+  // ── Plan pass (My plan) ──
+  passPlan: 'Plan',
+  passVoice: 'Talk with Spark',
+  passStt: 'Speech recognition',
+  passMinutes: 'min/month',
+  passValidUntil: 'Valid until',
+  passNoExpiry: 'No expiry',
   planUsageTitle: 'This month',
   planVoiceLabel: 'AI voice',
   planSttLabel: 'Your speech (STT)',
