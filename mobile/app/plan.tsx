@@ -8,7 +8,8 @@ import { useAuth } from '../src/auth/AuthContext';
 import { useSettings } from '../src/settings/SettingsContext';
 import { AppText } from '../src/components/Text';
 import { getBuddyUsage, getBuddyAvailability, type BuddyUsageBlock } from '../src/api/ai';
-import { getMyPlan, planTier, type PlanTier } from '../src/api/users';
+import { getMyPlan, planTier, type PlanInfo, type PlanTier } from '../src/api/users';
+import { PlanPass } from '../src/components/PlanPass';
 import { colors, spacing, radius, type PremiumPalette } from '../src/theme/theme';
 import { bounded } from '../src/theme/responsive';
 import type { TranslationKey } from '../src/i18n';
@@ -34,6 +35,7 @@ export default function PlanScreen() {
   // The plan the user is actually on (from GET /users/me/plan). The free tier
   // maps to "standard" (shown as Essential) — the paid tier is Premium Plus.
   const [currentPlan, setCurrentPlan] = useState<PlanKey>('standard');
+  const [planInfo, setPlanInfo] = useState<PlanInfo | null>(null);
   // The AI Buddy usage meters only make sense while the feature is open.
   // Fails closed → hidden (see `getBuddyAvailability`).
   const [buddyEnabled, setBuddyEnabled] = useState(false);
@@ -45,6 +47,7 @@ export default function PlanScreen() {
     getMyPlan(token)
       .then((info) => {
         setCurrentPlan(planTier(info));
+        setPlanInfo(info);
       })
       .catch(() => {});
 
@@ -89,6 +92,16 @@ export default function PlanScreen() {
 
         <ScrollView contentContainerStyle={[styles.container, bounded]} showsVerticalScrollIndicator={false}>
           <AppText variant="caption" color={p.textMuted} style={styles.sub}>{t('planSubtitle')}</AppText>
+
+          {/* The plan the user is on, as the same pass the website shows. */}
+          {planInfo ? (
+            <PlanPass
+              planName={planInfo.planName}
+              until={planInfo.isFree ? null : planInfo.expiresAt}
+              limits={planInfo.limits ? { voice: planInfo.limits.voiceMinutes, stt: planInfo.limits.sttMinutes } : null}
+              active={!planInfo.isFree && (!planInfo.expiresAt || Date.parse(planInfo.expiresAt) > Date.now())}
+            />
+          ) : null}
 
           {/* This month's usage. Both meters count AI Buddy time, so while the
               feature is closed they can only ever read "0 / 25 мин" — hide them
