@@ -79,6 +79,13 @@ announced here first.
 
 ## Current Status (last verified against code: 2026-07-28)
 
+**TestFlight build 19 гарлаа (2026-10-14).** `1.0.0 (19)`, commit `f11a605` (= PR #284 утас
+баталгаажуулалт), EAS build `fef76737`, submission `24ab2186` ✅. Fingerprint build 18-тай **таарсан**
+(JS-only) — эзэн build сонгов. ⚠️ **Build 18** (09-29, commit `2af1aef` = PR #283, EAS `7deaabde`) энд
+бичигдээгүй байсныг нөхөв. Build 19 дээр анх шалгах: утсаар бүртгэл (iOS `sms:` товч Messages-ийг
+кодтой нээх эсэх), SMS-ээр нэвтрэх, утсаар сэргээх, хуучин имэйл данс → gate, Аккаунт → утас холбох.
+Prod дээр verify.mn түлхүүр тавигдаж, бодит SMS-ээр `verified` болохыг 10-14-нд баталсан.
+
 **2026-10-14 — Утасны дугаар баталгаажуулалт (verify.mn).** Төлбөрийн ажлын 1-р
 дэд төсөл (2-р нь вэб дээрх byl.mn төлбөр — тусдаа spec). Spec:
 `docs/superpowers/specs/2026-10-13-phone-verification-design.md` · план:
