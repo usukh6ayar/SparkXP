@@ -3,7 +3,8 @@ import { apiRequest } from './client';
 /** A user as returned by the backend (no password hash). */
 export interface AuthUser {
   id: string;
-  email: string;
+  /** Optional since phone sign-up — phone-registered accounts may have none. */
+  email: string | null;
   username: string | null;
   fullName: string;
   role: string;
@@ -14,6 +15,11 @@ export interface AuthUser {
   level: string | null;
   province: string | null;
   district: string | null;
+  /** Normalised 8-digit phone — only when verified. */
+  phone: string | null;
+  phoneVerified: boolean;
+  /** Server says: show the phone gate (email accounts without a verified phone). */
+  needsPhone: boolean;
 }
 
 export interface AuthResult {
