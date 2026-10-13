@@ -163,6 +163,10 @@ export function SignInSheet({
     close();
     router.push('/(auth)/register');
   };
+  const goPhoneLogin = () => {
+    close();
+    router.push('/(auth)/phone-login');
+  };
 
   return (
     <BottomSheetModal
@@ -192,7 +196,7 @@ export function SignInSheet({
           <TextField
             InputComponent={BottomSheetTextInput}
             leftIcon="person-outline"
-            label={t('usernameOrEmail')}
+            label={t('usernamePhoneOrEmail')}
             autoCapitalize="none"
             autoCorrect={false}
             defaultValue={initial?.username}
@@ -238,6 +242,14 @@ export function SignInSheet({
               </View>
             )}
           </LinearGradient>
+        </Pressable>
+
+        {/* Password-free login with one SMS from the linked phone. */}
+        <Pressable onPress={goPhoneLogin} hitSlop={6} style={styles.smsLink}>
+          <Ionicons name="chatbubble-outline" size={18} color={colors.primary} />
+          <AppText variant="bodyStrong" color={colors.primary}>
+            {t('phoneLogin')}
+          </AppText>
         </Pressable>
 
         <View style={styles.divider}>
@@ -288,6 +300,7 @@ function GlassBackdrop({
 }
 
 const makeStyles = (colors: AppColors, isLight: boolean) => StyleSheet.create({
+  smsLink: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, minHeight: 44, marginTop: spacing.sm },
   dim: { backgroundColor: isLight ? 'rgba(0,0,0,0.12)' : 'rgba(10,6,26,0.35)' },
   sheetBg: {
     borderTopLeftRadius: radius.xl,
