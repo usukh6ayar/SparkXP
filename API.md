@@ -896,17 +896,41 @@ Controller-level: JWT.
 | GET `/classes/:id/overview` | teacher, admin, super_admin | Ангийн skill breakdown + хамгийн сул skill + сурагч бүрийн completion % | path `id` |
 | GET `/classes/:id/students/:studentId/progress` | teacher, admin, super_admin | Нэг сурагчийн skill breakdown (+vocab), даалгаврын түүх+оноо, XP/streak. Хариу: `studentId, fullName, avatarUrl, xp, currentStreak, skills, assignments[]` | path `id`, `studentId` |
 
-## 17. Payments — `/api/payments`
-Guard per-method. (QPay QR stub — §PRODUCT: Update 1.)
+## 17. Payments — `/api/payments` (Byl вэб төлбөр, 2026-10-14)
+Худалдан авалт **зөвхөн вэб сайт дээр** (`SparkXP_web` → `/checkout`). Апп дотор худалдан авах товч/линк
+**байхгүй** (App Store anti-steering). Spec: `docs/superpowers/specs/2026-10-14-byl-web-payments-design.md`.
 
 | Method + Path | Auth | Зорилго | Params / Body |
 | --- | --- | --- | --- |
-| GET `/payments/plans` | **Public** | Идэвхтэй багцын жагсаалт | — |
+| GET `/payments/plans` | **Public** | Идэвхтэй багцын жагсаалт (апп + вэб) | — |
 | POST `/payments/plans` | admin, super_admin | Багц үүсгэх (давхардвал 409) | `CreatePlanDto` |
-| POST `/payments` | JWT | Төлбөрийн intent үүсгэх (QPay QR stub). `promoCode` өгвөл хөнгөлөлтийн кодоор үнийг бууруулна (ашиглалт нь confirm дээр л тоологдоно) | `CreatePaymentDto` (+ `promoCode?`) |
-| POST `/payments/:id/confirm` | JWT | QPay callback дараа баталгаажуулах. Худалдан авагчийг урьсан хүн байвал эхний удаад урисан хүнд referral Sparks bonus нэмнэ (transaction дотор, нэг л удаа) | `ConfirmPaymentDto` |
+| GET `/payments/quote` | JWT | Төлөхөөс өмнөх тооцоо → `{ planId, planName, price, discount, finalPrice, accessUntil }` | `?planId=&promoCode=` |
+| POST `/payments` | JWT + `PAYMENTS_ENABLED` | `pending` төлбөр + Byl checkout → `{ paymentId, checkoutUrl }`. **Эрх олгохгүй** | `{ planId, promoCode? }` |
+| POST `/payments/webhook/byl` | **Public**, `Byl-Signature` | Byl → бид. **Эрх олгодог цорын ганц зам** (доор) | Byl event |
 | GET `/payments/my` | JWT | Өөрийн төлбөрийн түүх | — |
+| GET `/payments/:id` | JWT (зөвхөн өөрийнх) | `{ id, status, planName, accessUntil }` — вэбийн «амжилттай» хуудас асууна | — |
 | GET `/payments` | admin, super_admin | Бүх төлбөр (хэрэглэгчтэй) | — |
+| GET `/payments/export.csv` | admin, super_admin | Нягтлангийн CSV (и-баримтыг гараар) | — |
+
+~~`POST /payments/:id/confirm`~~ — **устсан** (клиент өөртөө premium олгож болох цоорхой байсан).
+
+> ### 💳 Byl webhook
+> 1. `Byl-Signature` = `hex(HMAC-SHA256(BYL_WEBHOOK_SECRET, raw body))` — `main.ts` зөвхөн
+>    `/api/payments/webhook/*`-ийн түүхий body-г хадгална. Буруу → 401.
+> 2. Зөвхөн `checkout.completed`; event `id`-г Redis-д 7 хоног (`byl:event:<id>`) — давхардлыг алгасна.
+> 3. `client_reference_id` = манай `payment.id` (UUID биш бол 200-аар алгасна). Аль хэдийн `paid` → алгасна.
+> 4. Checkout-ийг **Byl-ээс дахин уншина** (`status: complete`, `amount_total` = `payment.amount`).
+>    `BYL_TEST_MODE=true` үед дүнгийн зөрүүг тэвчинэ (Byl test = тогтмол 100₮). Live-д зөрвөл эрх
+>    олгохгүй, `metadata.mismatch = true`.
+> 5. Нэг transaction: `paid` → `planAccessAfterPurchase` (ижил багц сунгана; өөр багц үлдсэн хоногийг
+>    жагсаалтын үнээр хөрвүүлнэ) → промо хэрэглээ → referral бонус.
+> 6. Throttle-гүй (`@SkipThrottle`) — Byl-ийн дахин илгээлт хязгаарт баригдах ёсгүй.
+>
+> **Алдааны код:** `PLAN_NOT_FOUND` 404 · `PLAN_SWITCH_BLOCKED` 409 (хугацаагүй багцтай) ·
+> `PRICE_TOO_LOW` 400 · `PAYMENT_UNAVAILABLE` 503 (Byl унасан / токен байхгүй / тохиргоо дутуу).
+>
+> **Env:** `BYL_API_TOKEN`, `BYL_PROJECT_ID`, `BYL_WEBHOOK_SECRET`, `BYL_TEST_MODE`, `WEB_URL`
+> (success/cancel redirect), `WEB_ORIGIN` (CORS).
 
 ## 18. Upload — `/api/upload`
 Controller-level: admin-баг.
@@ -1080,7 +1104,7 @@ Token автоматаар залгагдана. Зураг байршуулал
 | Leaderboard | GET `/leaderboard/top` |
 | AI Buddy | GET `/ai/buddies` · GET `/ai/buddy-stats` · POST/PATCH/DELETE `/ai/buddies` |
 | Settings | GET/PATCH `/ai/limits` |
-| Monitor | GET `/payments/plans` · GET `/payments` · POST `/payments/plans` |
+| Monitor | GET `/payments/plans` · GET `/payments` · POST `/payments/plans` · GET `/payments/export.csv` |
 | Notifications | GET `/notifications` · **GET `/notifications/me`** (сурагчийн мэдэгдлийн төв — 2026-08-19) |
 
 ---

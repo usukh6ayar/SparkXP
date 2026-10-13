@@ -5,6 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import { json, urlencoded } from 'express';
 import helmet from 'helmet';
 import { join } from 'path';
+import type { IncomingMessage } from 'http';
 import { AppModule } from './app.module';
 import { initSentry } from './common/observability/sentry';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
@@ -27,7 +28,16 @@ async function bootstrap() {
   // /uploads/* serves images consumed by the mobile app and the admin web app
   // from different origins; the default 'same-origin' would block them.
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
-  app.use(json({ limit: '15mb' }));
+  // The Byl webhook signs the RAW body; keep the bytes for that one route only
+  // (storing them for every 15 MB batch request would double memory for nothing).
+  app.use(
+    json({
+      limit: '15mb',
+      verify: (req: IncomingMessage & { rawBody?: Buffer }, _res, buf) => {
+        if (req.url?.startsWith('/api/payments/webhook/')) req.rawBody = buf;
+      },
+    }),
+  );
   app.use(urlencoded({ extended: true, limit: '15mb' }));
   // Serve uploaded files at /uploads/<filename>
   app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads' });
@@ -46,6 +56,11 @@ async function bootstrap() {
     // Supports a comma-separated list (e.g. prod + preview deploys).
     ...config
       .get<string>('ADMIN_ORIGIN', '')
+      .split(',')
+      .map((o) => o.trim()),
+    // Marketing site (web checkout, spec 2026-10-14) — comma-separated too.
+    ...config
+      .get<string>('WEB_ORIGIN', '')
       .split(',')
       .map((o) => o.trim()),
   ].filter(Boolean);

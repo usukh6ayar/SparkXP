@@ -1,13 +1,20 @@
 import {
+  Body,
+  ConflictException,
   Controller,
   Get,
-  Post,
-  Body,
+  Header,
+  Headers,
+  HttpCode,
   Param,
   ParseUUIDPipe,
+  Post,
+  Query,
+  Req,
   UseGuards,
-  ConflictException,
 } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
+import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { PaymentsEnabledGuard } from './guards/payments-enabled.guard';
@@ -17,41 +24,40 @@ import { UserRole } from '../common/enums';
 import { User } from '../entities/user.entity';
 import { PaymentsService } from './payments.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
-import { ConfirmPaymentDto } from './dto/confirm-payment.dto';
 import { CreatePlanDto } from './dto/create-plan.dto';
 
 @Controller('payments')
 export class PaymentsController {
   constructor(private readonly service: PaymentsService) {}
 
-  /**
-   * Create a payment intent (QPay QR stub). Requires login.
-   *
-   * Disabled unless `PAYMENTS_ENABLED=true` — see PaymentsEnabledGuard for why
-   * the whole flow is closed by default.
-   */
+  /** Price + promo + resulting expiry, before paying (website checkout page). */
+  @Get('quote')
+  @UseGuards(JwtAuthGuard)
+  async quote(@Query() dto: CreatePaymentDto, @CurrentUser() user: User) {
+    const { plan: _plan, ...q } = await this.service.quote(user, dto);
+    return q;
+  }
+
+  /** Pending payment + Byl checkout → { paymentId, checkoutUrl }. Grants nothing. */
   @Post()
   @UseGuards(JwtAuthGuard, PaymentsEnabledGuard)
-  createIntent(@Body() dto: CreatePaymentDto, @CurrentUser() user: User) {
-    return this.service.createIntent(dto, user);
+  createCheckout(@Body() dto: CreatePaymentDto, @CurrentUser() user: User) {
+    return this.service.createCheckout(user, dto);
   }
 
   /**
-   * Confirm payment after QPay callback. Requires login.
-   *
-   * ⚠️ This route grants a plan / credits Sparks and verifies NOTHING with
-   * QPay, so a caller can pay themselves. It stays shut behind
-   * PaymentsEnabledGuard until it is replaced by a signature-verified QPay
-   * callback — do not just flip the env flag.
+   * Byl → us. Signature-verified; the ONLY route that grants a purchase.
+   * Public by design (Byl has no JWT); never throttled — Byl retries must land.
    */
-  @Post(':id/confirm')
-  @UseGuards(JwtAuthGuard, PaymentsEnabledGuard)
-  confirm(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: ConfirmPaymentDto,
-    @CurrentUser() user: User,
+  @Post('webhook/byl')
+  @HttpCode(200)
+  @SkipThrottle()
+  async bylWebhook(
+    @Req() req: Request & { rawBody?: Buffer },
+    @Headers('byl-signature') signature?: string,
   ) {
-    return this.service.confirm(id, dto, user);
+    await this.service.handleBylWebhook(req.rawBody, signature);
+    return { ok: true };
   }
 
   /** User's own payment history. Requires login. */
@@ -61,18 +67,28 @@ export class PaymentsController {
     return this.service.findMy(user);
   }
 
+  /** Public: list all active subscription plans (mobile app + website). */
+  @Get('plans')
+  findPlans() {
+    return this.service.findAllPlans();
+  }
+
+  /** Admin: CSV for the accountant (manual e-barimt). */
+  @Get('export.csv')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  @Header('Content-Disposition', 'attachment; filename="sparkxp-payments.csv"')
+  exportCsv() {
+    return this.service.exportCsv();
+  }
+
   /** Admin: all payments with user info. */
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
   findAll() {
     return this.service.findAll();
-  }
-
-  /** Public: list all active subscription plans (mobile app uses this). */
-  @Get('plans')
-  findPlans() {
-    return this.service.findAllPlans();
   }
 
   /** Admin: create a new subscription plan. */
@@ -89,5 +105,15 @@ export class PaymentsController {
       }
       throw e;
     }
+  }
+
+  /**
+   * The buyer's own payment — the website success page polls this. Declared
+   * LAST: `:id` would otherwise swallow the static paths above.
+   */
+  @Get(':id')
+  @UseGuards(JwtAuthGuard)
+  findOne(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: User) {
+    return this.service.findOne(user, id);
   }
 }
