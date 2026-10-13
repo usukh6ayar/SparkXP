@@ -102,20 +102,16 @@ describe('Auth', () => {
     expect(res.body).toHaveProperty('pendingVerification', true);
   });
 
-  // The account from the test above exists but has NOT verified its email.
-  // It used to be able to sign in regardless, so a user could back out of the
-  // OTP screen and still get a token — taking the referral bonus and onboarding
-  // XP that hang off verification with them, on an address nobody owns.
-  it('POST /api/auth/login → 403 EMAIL_NOT_VERIFIED before the OTP is entered', async () => {
+  // The account from the test above has NOT verified its email. Since
+  // 2026-10-14 that no longer blocks sign-in — the phone is the verified key, so
+  // the account logs in and the app's phone gate takes over (`needsPhone`).
+  it('POST /api/auth/login → 200 with needsPhone for an unverified email account', async () => {
     const res = await request(app.getHttpServer())
       .post('/api/auth/login')
       .send({ identifier: `auth_test_${RUN}`, password: 'Test1234!' });
-    expect(res.status).toBe(403);
-    // The app routes to the OTP screen on this code, so it has to survive the
-    // exception filter — it is matched on, never the (translatable) message.
-    expect(res.body).toHaveProperty('code', 'EMAIL_NOT_VERIFIED');
-    expect(res.body).toHaveProperty('email', mail('auth_test'));
-    expect(res.body).not.toHaveProperty('accessToken');
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('accessToken');
+    expect(res.body.user).toHaveProperty('needsPhone', true);
   });
 
   it('POST /api/auth/verify-otp → 200 with token', async () => {

@@ -255,4 +255,15 @@ describe('AuthService — phone flows', () => {
       svc.login({ identifier: 'bataa_07', password: 'secret1' }),
     ).resolves.toBeDefined();
   });
+
+  it('an account with neither a verified email nor a phone signs in and is sent to the phone gate', async () => {
+    const { svc, usersService } = setup();
+    const hash = await bcrypt.hash('secret1', 4);
+    usersService.findByUsernameOrEmail.mockResolvedValue(
+      userRow({ passwordHash: hash, email: 'old@x.mn', emailVerified: false, phone: null, phoneVerifiedAt: null }),
+    );
+    const res = await svc.login({ identifier: 'old@x.mn', password: 'secret1' });
+    expect(res.accessToken).toBe('jwt');
+    expect(res.user.needsPhone).toBe(true);
+  });
 });
