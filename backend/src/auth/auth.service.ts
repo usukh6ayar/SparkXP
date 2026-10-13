@@ -248,14 +248,17 @@ export class AuthService {
   /** Start password recovery: email a reset code. Always "ok" (no user leak). */
   async forgotPassword(email: string): Promise<{ ok: true }> {
     const user = await this.usersService.findByEmail(email);
-    if (user) await this.sendOtp('reset', email);
+    // Only a VERIFIED address: an unverified one may belong to someone else
+    // (phone sign-up stores email unverified) — sending them a reset code
+    // would hand over the account.
+    if (user?.emailVerified) await this.sendOtp('reset', email);
     return { ok: true };
   }
 
   /** Finish password recovery: validate the code and set a new password. */
   async resetPassword(email: string, code: string, password: string): Promise<{ ok: true }> {
     const user = await this.usersService.findByEmail(email);
-    if (!user) throw new BadRequestException('Хэрэглэгч олдсонгүй');
+    if (!user || !user.emailVerified) throw new BadRequestException('Хэрэглэгч олдсонгүй');
 
     await this.consumeOtp('reset', email, code);
     const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
