@@ -13,6 +13,9 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { resolveJwtSecret } from './jwt-secret';
+import { PhoneController } from './phone/phone.controller';
+import { PhoneVerificationService } from './phone/phone-verification.service';
+import { VerifyMnClient } from './phone/verify-mn.client';
 
 /**
  * Wires up JWT auth. JwtModule is configured async so the secret and expiry
@@ -36,7 +39,14 @@ import { resolveJwtSecret } from './jwt-secret';
       }),
     }),
   ],
-  controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, SocialTokenService, SocialAuthService],
+  controllers: [AuthController, PhoneController],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    SocialTokenService,
+    SocialAuthService,
+    VerifyMnClient,
+    PhoneVerificationService,
+  ],
 })
 export class AuthModule {}

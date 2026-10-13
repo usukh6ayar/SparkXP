@@ -36,13 +36,45 @@ Backend (NestJS) endpoint-үүдийн бүрэн лавлах. **Зам/мет�
 | POST `/auth/register` | Public | Баталгаажаагүй бүртгэл үүсгэж, имэйлээр OTP илгээх (token өгөхгүй). Optional `referralCode` — verify хийхэд хэрэглэгдэнэ. Optional **`tasteCompleted`** (C4) — үнэн бол verify хийх үед **нэг удаагийн +10 XP** (onboarding) олгоно | `RegisterDto` |
 | POST `/auth/verify-otp` | Public | OTP-оор имэйл баталгаажуулж → token буцаана (нэвтэрнэ) | `{ email, code }` |
 | POST `/auth/resend-otp` | Public | Баталгаажуулах OTP дахин илгээх | `{ email }` |
-| POST `/auth/login` | Public | username/email + нууц үгээр нэвтрэх → token. ⚠️ Имэйл баталгаажаагүй бол **403 + `code: 'EMAIL_NOT_VERIFIED'` + `email`** (401 БИШ — апп үүнийг таньж OTP дэлгэц рүү аваачдаг). Google/Apple-ээр үүссэн данс нууц үггүй тул энд хэзээ ч нэвтрэхгүй | `LoginDto` |
+| POST `/auth/login` | Public | username / имэйл / **баталгаажсан утас (8 орон, `+976` зөвшөөрнө)** + нууц үгээр нэвтрэх → token. Утас баталгаажсан данс `EMAIL_NOT_VERIFIED`-д баригдахгүй. ⚠️ Имэйл баталгаажаагүй бол **403 + `code: 'EMAIL_NOT_VERIFIED'` + `email`** (401 БИШ — апп үүнийг таньж OTP дэлгэц рүү аваачдаг). Google/Apple-ээр үүссэн данс нууц үггүй тул энд хэзээ ч нэвтрэхгүй | `LoginDto` |
 | GET `/auth/social/providers` | Public | Ямар provider тохируулагдсаныг мэдэх → `{ google, apple }`. Аппын товч үүгээр шийдэгдэнэ (апп шинэчлэхгүйгээр асаах боломжтой) | — |
 | POST `/auth/social` | Public | Google/Apple **identity token**-оор нэвтрэх. Хариу нь 2 хэлбэрийн нэг: session (`{ needsUsername: false, accessToken, user }`) **эсвэл** шинэ хүн бол `{ needsUsername: true, ticket, email, suggestedUsername, fullName }` | `{ provider, idToken }` |
 | POST `/auth/social/complete` | Public | Түр зогссон бүртгэлийг сонгосон username-ээр дуусгах → token | `{ ticket, username, fullName? }` |
 | POST `/auth/forgot-password` | Public | Нууц үг сэргээх код имэйлдэх | `{ email }` |
 | POST `/auth/reset-password` | Public | Кодоор шинэ нууц үг тавих | `{ email, code, password }` |
-| GET `/auth/me` | JWT | Одоогийн хэрэглэгчийн мэдээлэл | — |
+| GET `/auth/me` | JWT | Одоогийн хэрэглэгч + **`phone`, `phoneVerified`, `needsPhone`** (gate-ийн цорын ганц эх сурвалж) | — |
+| GET `/auth/check-availability` | Public (5/мин) | SMS-ээс **өмнө** username / утас чөлөөтэй эсэх → `{ username?: bool, phone?: bool }` | `?username=&phone=` |
+| POST `/auth/phone/start` | Public (5/мин) | verify.mn session эхлүүлэх. `register`: утас бүртгэлтэй бол 409 `PHONE_TAKEN`; `login`/`reset`: бүртгэлгүй бол 404 `PHONE_NOT_FOUND`. Утсанд 10 мин/3 session → 429 `TOO_MANY_REQUESTS` → `{ verificationId, smsUri, displayInstruction, expiresAt }` | `{ phone, purpose: 'register'\|'login'\|'reset' }` |
+| GET `/auth/phone/status/:verificationId` | Public (40/мин) | Backend verify.mn-ээс шалгана → `{ status: 'pending'\|'verified'\|'expired' }`. Апп 3 сек тутам асууна | — |
+| POST `/auth/register-phone` | Public | `register` proof-оор данс үүсгэж → token. Имэйл заавал биш, баталгаажуулахгүй (давхардвал 409 `EMAIL_TAKEN`). Referral + onboarding XP энд олгогдоно | `RegisterPhoneDto` (`verificationId, username, password, fullName, email?, level?, province?, district?, referralCode?, tasteCompleted?`) |
+| POST `/auth/phone/login` | Public | «SMS-ээр нэвтрэх» — `login` proof → token | `{ verificationId }` |
+| POST `/auth/phone/reset` | Public | `reset` proof + шинэ нууц үг → token (шууд нэвтэрнэ) | `{ verificationId, password }` |
+
+> ### 📱 Утас баталгаажуулалт (verify.mn, 2026-10-14)
+>
+> **MO SMS:** хэрэглэгч **өөрийн дугаараасаа 144773 руу** кодыг илгээнэ (SMS бүр
+> 150₮, хэрэглэгч төлнө). Бид SMS илгээдэггүй, verify.mn-ийн callback
+> ашигладаггүй (гарын үсэггүй) — апп `status`-ыг 3 сек тутам асууна.
+>
+> **Proof:** `VERIFIED` болмогц сервер **нэг удаагийн** proof үүсгэнэ — утас +
+> purpose-д холбогдсон (`register` proof-оор нууц үг сэргээж болохгүй), 10 мин.
+> Хоёр дахь хэрэглээ → 400 `VERIFICATION_EXPIRED`; SMS ирээгүй / өөр purpose →
+> 400 `VERIFICATION_INVALID`. verify.mn-ийн `sessionId` апп руу хэзээ ч очихгүй.
+>
+> **Нэг дугаар = нэг данс:** `users.phone` дээр `WHERE phone_verified_at IS NOT
+> NULL` partial unique index. Утсаар хайх бүх үйлдэл зөвхөн баталгаажсан мөрийг
+> тоолно. `needsPhone` = утас баталгаажаагүй **ба** Google/Apple identity байхгүй.
+>
+> **Алдааны код** (апп кодоор салгана): `INVALID_PHONE` 400 · `VERIFICATION_EXPIRED`
+> 400 · `VERIFICATION_INVALID` 400 · `PHONE_NOT_FOUND` 404 · `PHONE_TAKEN` 409 ·
+> `EMAIL_TAKEN` 409 · `TOO_MANY_REQUESTS` 429 · `SMS_UNAVAILABLE` 503.
+>
+> **Env:** `VERIFY_MN_API_KEY` (хоосон → 503). Локал/Expo Go: `VERIFY_MN_FAKE=true`
+> → session бүр 3 сек-ийн дараа өөрөө баталгаажна; **production дээр boot унана**.
+>
+> **Аюулгүй байдал (хамт зассан):** имэйл одоо баталгаажаагүй байж болох тул
+> Google/Apple нэвтрэлт зөвхөн **баталгаажсан** имэйлтэй дансанд холбогдоно;
+> имэйлээр нууц үг сэргээх код зөвхөн баталгаажсан хаяг руу очно.
 
 > ### 🔐 Google / Apple нэвтрэлт
 >
@@ -72,6 +104,11 @@ Backend (NestJS) endpoint-үүдийн бүрэн лавлах. **Зам/мет�
 > `usesAppleSignIn: true` (entitlement).
 
 ## 2. Users — `/api/users`
+
+> Утас: `POST /users/me/phone/start` (JWT, `{ phone }` → `{ verificationId, … }`, purpose = `link`) ·
+> `POST /users/me/phone` (JWT, `{ verificationId }` → шинэчлэгдсэн public user; proof нь **тухайн
+> хэрэглэгчийн** эхлүүлсэн байх ёстой) · `DELETE /users/:id/phone` (admin — дахин ашиглуулсан дугаарыг
+> суллана). Дэлгэрэнгүй §1 «Утас баталгаажуулалт».
 Controller-level: бүгд JWT. Заримд нэмэлт роль.
 
 | Method + Path | Auth | Зорилго | Params / Body |
@@ -1020,6 +1057,7 @@ Admin dashboard энэ endpoint-уудыг дараа ашиглаж болно 
 | `organizations.ts` | `getOrganizations`→GET `/organizations?limit=100` |
 | `referrals.ts` | `getMyReferral`→GET `/referrals/me` |
 | `promos.ts` | `redeemPromo`→POST `/promos/redeem` (`app/promo.tsx`, Тохиргоо → «Промо код») |
+| `phone.ts` | `checkAvailability`→GET `/auth/check-availability` · `startPhoneVerification`→POST `/auth/phone/start` · `getPhoneStatus`→GET `/auth/phone/status/:id` · `registerWithPhone`→POST `/auth/register-phone` · `loginWithPhone`→POST `/auth/phone/login` · `resetWithPhone`→POST `/auth/phone/reset` · `startLinkPhone`→POST `/users/me/phone/start` · `linkPhone`→POST `/users/me/phone` (`register.tsx`, `phone-login.tsx`, `forgot.tsx`, `phone-link.tsx`, `account.tsx`) |
 
 ### Admin (`admin/src/pages/**`)
 Token автоматаар залгагдана. Зураг байршуулалт: `components/*` → POST `/upload`.
@@ -1027,7 +1065,7 @@ Token автоматаар залгагдана. Зураг байршуулал
 | Хуудас | Endpoint-ууд |
 | --- | --- |
 | Login / AuthContext | POST `/auth/login` · GET `/auth/me` |
-| Users | GET `/users` · PATCH `/users/:id` · DELETE `/users/:id` |
+| Users | GET `/users` · PATCH `/users/:id` · DELETE `/users/:id` · DELETE `/users/:id/phone` (утас салгах) |
 | Promos (`pages/promos`) | GET/POST `/admin/promos` · PATCH `/admin/promos/:id` · GET `/admin/promos/:id/redemptions` · POST `/admin/promos/influencer` · GET `/payments/plans` |
 | Usage | GET `/users` |
 | Lessons | GET/POST/PATCH/DELETE `/lessons` |

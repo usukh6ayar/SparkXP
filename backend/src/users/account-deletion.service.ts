@@ -125,19 +125,20 @@ export class AccountDeletionService {
    * keys expire on their own within the day, and a SCAN across production
    * Redis for every deletion is a worse trade than waiting for the TTL.
    */
-  private async clearRedis(userId: string, email: string): Promise<void> {
+  private async clearRedis(userId: string, email: string | null): Promise<void> {
     const today = new Date().toISOString().slice(0, 10);
-    const lower = email.toLowerCase();
+    // Phone-registered accounts may have no email → no email-keyed entries.
+    const lower = email?.toLowerCase();
+    const emailKeys = lower
+      ? [`otp:verify:${lower}`, `otp:reset:${lower}`, `referral:pending:${lower}`, `taste:pending:${lower}`]
+      : [];
     try {
       await this.redis.del(
         `streak:seen:${userId}`,
         `ai:daily:msg:${userId}:${today}`,
         `ai:daily:tokens:${userId}:${today}`,
         `ai:daily:voice:${userId}:${today}`,
-        `otp:verify:${lower}`,
-        `otp:reset:${lower}`,
-        `referral:pending:${lower}`,
-        `taste:pending:${lower}`,
+        ...emailKeys,
       );
     } catch {
       // Non-critical — see the doc comment.

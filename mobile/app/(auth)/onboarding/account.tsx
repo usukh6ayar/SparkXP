@@ -80,11 +80,10 @@ export default function OnboardingAccount() {
             onPress={() => startSocial('apple')}
           />
         ) : null}
-        {/* The one that actually works — filled so it reads as the main path.
-            Registration is email + password (there is no phone sign-up). */}
+        {/* The main path — phone sign-up (verify.mn SMS to 144773). */}
         <AuthOption
-          icon="mail"
-          label={t('continueWithEmail')}
+          icon="call"
+          label={t('continueWithPhone')}
           filled
           onPress={() => leave('/(auth)/register', 'register')}
         />

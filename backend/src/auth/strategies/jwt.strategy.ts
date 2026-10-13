@@ -8,7 +8,7 @@ import { resolveJwtSecret } from '../jwt-secret';
 /** Shape of the data we sign into the JWT. */
 export interface JwtPayload {
   sub: string; // user id
-  email: string;
+  email: string | null;
   role: string;
   /**
    * Set on tokens that are NOT session tokens (currently only the short-lived

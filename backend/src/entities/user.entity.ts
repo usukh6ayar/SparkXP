@@ -27,10 +27,17 @@ import { Plan } from './plan.entity';
  *  - `sparks` spendable currency balance.
  */
 @Entity('users')
+@Index('UQ_users_verified_phone', ['phone'], { unique: true, where: '"phone_verified_at" IS NOT NULL' })
 export class User extends BaseEntity {
+  /**
+   * Optional since phone sign-up (2026-10). Unique when present (NULLs don't
+   * collide). Never verified for phone-registered accounts — only an address
+   * with `emailVerified = true` may be used to reset a password or link a
+   * Google/Apple sign-in.
+   */
   @Index({ unique: true })
-  @Column()
-  email: string;
+  @Column({ type: 'varchar', nullable: true })
+  email: string | null;
 
   /**
    * bcrypt hash — never the plaintext password.
@@ -68,9 +75,17 @@ export class User extends BaseEntity {
   @Column({ type: 'varchar', nullable: true })
   username: string | null;
 
-  /** Phone number (Mongolian format: 8 digits). Used for teacher/student contact. */
+  /**
+   * Mongolian mobile, normalised to 8 digits (`auth/phone/phone.ts`). Written
+   * ONLY by the verify.mn flow (and cleared by an admin). Never trust it as an
+   * identity unless `phoneVerifiedAt` is set — every lookup checks that.
+   */
   @Column({ type: 'varchar', nullable: true })
   phone: string | null;
+
+  /** When the phone was proven by an SMS to 144773. NULL = not verified. */
+  @Column({ name: 'phone_verified_at', type: 'timestamptz', nullable: true })
+  phoneVerifiedAt: Date | null;
 
   @Column({ type: 'enum', enum: UserRole, default: UserRole.STUDENT })
   role: UserRole;

@@ -112,10 +112,10 @@ export class AuthController {
     return this.social.completeSignUp(dto.ticket, dto.username, dto.fullName);
   }
 
-  /** Return the current user. Requires a valid Bearer token. */
+  /** Return the current user (+ `needsPhone`). Requires a valid Bearer token. */
   @Get('me')
   @UseGuards(JwtAuthGuard)
   me(@CurrentUser() user: User) {
-    return this.authService.toPublicUser(user);
+    return this.authService.publicUser(user);
   }
 }

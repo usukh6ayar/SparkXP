@@ -96,7 +96,7 @@ export class SocialAuthService {
         await this.identities.delete({ id: existing.id });
         throw new UnauthorizedException('Хэрэглэгч олдсонгүй');
       }
-      return { needsUsername: false, ...this.authService.buildAuthResult(user) };
+      return { needsUsername: false, ...(await this.authService.buildAuthResult(user)) };
     }
 
     // Apple sends the address on the FIRST authorisation only. That's fine:
@@ -107,17 +107,15 @@ export class SocialAuthService {
       );
     }
 
-    // 2 — same verified address as an existing account: link, don't duplicate.
+    // 2 — same VERIFIED address as an existing account: link, don't duplicate.
+    // Only verified: an unverified address may have been typed by anyone
+    // (phone sign-up keeps email optional and unverified), and linking to it
+    // would hand this provider's owner over to whoever typed it.
     if (profile.emailVerified) {
       const byEmail = await this.usersService.findByEmail(profile.email);
-      if (byEmail) {
+      if (byEmail?.emailVerified) {
         await this.link(byEmail.id, profile);
-        // An address the provider vouched for is at least as good as our OTP.
-        if (!byEmail.emailVerified) {
-          await this.usersService.markEmailVerified(byEmail.id);
-          byEmail.emailVerified = true;
-        }
-        return { needsUsername: false, ...this.authService.buildAuthResult(byEmail) };
+        return { needsUsername: false, ...(await this.authService.buildAuthResult(byEmail)) };
       }
     }
 
@@ -166,16 +164,17 @@ export class SocialAuthService {
     }
     await this.usersService.assertUsernameFree(handle);
 
-    // The token was minted up to 15 minutes ago; someone may have registered
-    // that address by email in the meantime. Adopt it rather than 409-ing.
+    // Someone may have registered this address in the meantime. Adopt it only
+    // if they VERIFIED it; an unverified holder keeps it, and the new social
+    // account starts without an email (the unique index forbids a duplicate).
     const existing = await this.usersService.findByEmail(claims.email);
-    if (existing) {
+    if (existing?.emailVerified) {
       await this.link(existing.id, { ...claims, provider: claims.provider });
       return this.authService.buildAuthResult(existing);
     }
 
     const user = await this.usersService.create({
-      email: claims.email,
+      email: existing ? null : claims.email,
       username: handle,
       // No password: this account signs in through the provider. Anything that
       // compares a password must handle null (see AccountDeletionService).

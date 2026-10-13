@@ -18,6 +18,11 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     bodyParser: false,
   });
+  // Railway puts one proxy in front of the app. Without this, `req.ip` is the
+  // proxy's address for EVERY request, so each per-IP @Throttle (login 5/min,
+  // phone sign-up 5/min) became one bucket shared by all users nationwide.
+  // `1` = trust exactly that one hop (the client can't spoof past it).
+  app.set('trust proxy', 1);
   // Baseline security headers. `crossOriginResourcePolicy` is relaxed because
   // /uploads/* serves images consumed by the mobile app and the admin web app
   // from different origins; the default 'same-origin' would block them.

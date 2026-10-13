@@ -66,6 +66,19 @@ function RootNavigator() {
     const inTabsGroup = segments[0] === "(tabs)";
     const isTeacher = user?.role === "teacher";
     if (token) {
+      // Email accounts without a verified phone must verify once (server flag
+      // `needsPhone`). The gate lives outside (auth) because this effect throws
+      // logged-in users out of (auth).
+      if (user?.needsPhone) {
+        if (segments[0] !== "phone-link") router.replace("/phone-link?gate=1");
+        return;
+      }
+      // Gate just passed (updateUser set needsPhone=false) → go home. The
+      // optional link screen (opened from Account) has history and pops itself.
+      if (segments[0] === "phone-link" && !router.canGoBack()) {
+        router.replace(isTeacher ? "/(teacher)" : "/(tabs)");
+        return;
+      }
       // Logged in — keep each role out of the *other* role's screens and out of
       // auth/onboarding. Standalone shared routes (e.g. /avatar) are left alone
       // so both roles can open them.
