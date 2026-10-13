@@ -13,9 +13,11 @@ import { Pagination } from '../../components/Pagination';
 const LIMIT = 20;
 
 interface User {
-  id: string; email: string; fullName: string;
+  id: string; email: string | null; fullName: string;
   role: string; xp: number; sparks: number;
   username: string | null; phone: string | null;
+  /** Set when the phone was proven by SMS (verify.mn). */
+  phoneVerifiedAt: string | null;
   trophies: string[] | null;
 }
 
@@ -77,8 +79,15 @@ export default function UsersPage() {
 
   async function remove(u: User) {
     if (u.id === me?.id) { alert('Өөрийгөө устгах боломжгүй'); return; }
-    if (!confirm(`${u.email}-г устгах уу?`)) return;
+    if (!confirm(`${u.email ?? u.username ?? u.fullName}-г устгах уу?`)) return;
     await api.delete(`/users/${u.id}`);
+    load();
+  }
+
+  /** Release a verified number — e.g. the operator recycled it to someone else. */
+  async function unlinkPhone(u: User) {
+    if (!confirm(`${u.username ?? u.fullName}-ийн ${u.phone} дугаарыг салгах уу? Тэр хүн дахин SMS-ээр баталгаажуулах шаардлагатай болно.`)) return;
+    await api.delete(`/users/${u.id}/phone`);
     load();
   }
 
@@ -87,7 +96,7 @@ export default function UsersPage() {
       key: 'name', header: 'Хэрэглэгч', render: (u: User) => (
         <div>
           <p className="font-medium">{u.fullName}</p>
-          <p className="text-xs text-gray-400">{u.email}</p>
+          {u.email && <p className="text-xs text-gray-400">{u.email}</p>}
           <div className="flex items-center gap-3 mt-0.5">
             {u.username && (
               <span className="flex items-center gap-1 text-xs text-indigo-500">
@@ -97,6 +106,14 @@ export default function UsersPage() {
             {u.phone && (
               <span className="flex items-center gap-1 text-xs text-gray-500">
                 <Phone className="h-3 w-3" />{u.phone}
+                {u.phoneVerifiedAt ? (
+                  <>
+                    <span title="SMS-ээр баталгаажсан" className="text-emerald-600">✓</span>
+                    <button onClick={() => unlinkPhone(u)} className="ml-1 text-red-500 hover:underline">салгах</button>
+                  </>
+                ) : (
+                  <span className="text-gray-400">(баталгаажаагүй)</span>
+                )}
               </span>
             )}
           </div>
