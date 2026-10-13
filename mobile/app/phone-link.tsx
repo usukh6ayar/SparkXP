@@ -39,8 +39,11 @@ export default function PhoneLinkScreen() {
     phoneApi
       .linkPhone(v.verificationId, token)
       .then(async (fresh) => {
-        await updateUser(fresh); // needsPhone=false → RootNavigator lets them through
-        if (!isGate) router.back();
+        await updateUser(fresh); // needsPhone=false
+        // Leave explicitly — the gate has no back button, so never rely on
+        // RootNavigator's history check alone to get the user out of it.
+        if (isGate) router.replace(user?.role === 'teacher' ? '/(teacher)' : '/(tabs)');
+        else router.back();
       })
       .catch((e) => {
         v.reset();
