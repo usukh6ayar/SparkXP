@@ -96,7 +96,7 @@ export class SocialAuthService {
         await this.identities.delete({ id: existing.id });
         throw new UnauthorizedException('Хэрэглэгч олдсонгүй');
       }
-      return { needsUsername: false, ...this.authService.buildAuthResult(user) };
+      return { needsUsername: false, ...(await this.authService.buildAuthResult(user)) };
     }
 
     // Apple sends the address on the FIRST authorisation only. That's fine:
@@ -117,7 +117,7 @@ export class SocialAuthService {
           await this.usersService.markEmailVerified(byEmail.id);
           byEmail.emailVerified = true;
         }
-        return { needsUsername: false, ...this.authService.buildAuthResult(byEmail) };
+        return { needsUsername: false, ...(await this.authService.buildAuthResult(byEmail)) };
       }
     }
 

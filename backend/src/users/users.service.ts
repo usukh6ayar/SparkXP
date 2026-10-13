@@ -124,12 +124,13 @@ export class UsersService {
   }
 
   create(data: {
-    email: string;
+    email: string | null;
     /** `null` for a Google/Apple account — it signs in without a password. */
     passwordHash: string | null;
     fullName: string;
     username?: string | null;
     phone?: string | null;
+    phoneVerifiedAt?: Date | null;
     role?: UserRole;
     emailVerified?: boolean;
     level?: string | null;
@@ -148,6 +149,47 @@ export class UsersService {
   /** Set a new password hash (password reset). */
   async setPasswordHash(id: string, passwordHash: string): Promise<void> {
     await this.users.update(id, { passwordHash });
+  }
+
+  /** The account holding this VERIFIED phone (input must be normalised). */
+  findByVerifiedPhone(phone: string): Promise<User | null> {
+    return this.users
+      .createQueryBuilder('u')
+      .where('u.phone = :phone AND u.phone_verified_at IS NOT NULL', { phone })
+      .getOne();
+  }
+
+  /** True when another account already holds this verified phone. */
+  async isPhoneTaken(phone: string, excludeUserId?: string): Promise<boolean> {
+    const q = this.users
+      .createQueryBuilder('u')
+      .where('u.phone = :phone AND u.phone_verified_at IS NOT NULL', { phone });
+    if (excludeUserId) q.andWhere('u.id != :excludeUserId', { excludeUserId });
+    return (await q.getCount()) > 0;
+  }
+
+  /** True when `username` is free (case-insensitive, same rule as assertUsernameFree). */
+  async isUsernameFree(username: string): Promise<boolean> {
+    try {
+      await this.assertUsernameFree(username);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Attach a phone proven by SMS. A parallel claim of the same number loses on
+   * the partial unique index (23505) — the caller maps that to PHONE_TAKEN.
+   */
+  async setVerifiedPhone(id: string, phone: string): Promise<void> {
+    await this.users.update(id, { phone, phoneVerifiedAt: new Date() });
+  }
+
+  /** Admin: release a number (operator recycled it to someone else). */
+  async clearPhone(id: string): Promise<void> {
+    const res = await this.users.update(id, { phone: null, phoneVerifiedAt: null });
+    if (!res.affected) throw new NotFoundException('Хэрэглэгч олдсонгүй');
   }
 
   /**

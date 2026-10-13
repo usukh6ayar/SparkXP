@@ -21,6 +21,9 @@ import { User } from '../entities/user.entity';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { JwtPayload } from './strategies/jwt.strategy';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { UserIdentity } from '../entities/user-identity.entity';
 
 /** Cost factor for bcrypt. 10 is a good default for an MVP. */
 const BCRYPT_ROUNDS = 10;
@@ -40,7 +43,7 @@ export interface AuthResult {
 /** User fields safe to send to the client (never the password hash). */
 export interface PublicUser {
   id: string;
-  email: string;
+  email: string | null;
   username: string | null;
   fullName: string;
   role: string;
@@ -51,6 +54,15 @@ export interface PublicUser {
   level: string | null;
   province: string | null;
   district: string | null;
+  /** Normalised 8-digit phone — only when verified, else null. */
+  phone: string | null;
+  phoneVerified: boolean;
+  /**
+   * True → the app must show the phone gate. Email/password accounts without a
+   * verified phone; never Google/Apple accounts (Apple 5.1.1 — don't force a
+   * phone on Sign in with Apple users). The ONE source of truth for the gate.
+   */
+  needsPhone: boolean;
 }
 
 @Injectable()
@@ -64,6 +76,8 @@ export class AuthService {
     private readonly referrals: ReferralsService,
     private readonly xp: XpService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    @InjectRepository(UserIdentity)
+    private readonly identities: Repository<UserIdentity>,
   ) {}
 
   /**
@@ -94,7 +108,7 @@ export class AuthService {
     // Hold any referral code until the email is verified (then it's consumed).
     if (dto.referralCode?.trim()) {
       await this.redis.set(
-        this.referralKey(user.email),
+        this.referralKey(dto.email),
         dto.referralCode.trim(),
         'EX',
         REFERRAL_PENDING_TTL,
@@ -103,7 +117,7 @@ export class AuthService {
 
     // Hold a taste-task completion → onboarding XP is granted on first verify.
     if (dto.tasteCompleted) {
-      await this.redis.set(this.tasteKey(user.email), '1', 'EX', TASTE_PENDING_TTL);
+      await this.redis.set(this.tasteKey(dto.email), '1', 'EX', TASTE_PENDING_TTL);
     }
 
     // If the code cannot be emailed, the account must not survive. Registration
@@ -114,14 +128,14 @@ export class AuthService {
     // try again. (Observed in production on 2026-08-06 with a misconfigured
     // SMTP setup.)
     try {
-      await this.sendOtp('verify', user.email);
+      await this.sendOtp('verify', dto.email);
     } catch (err) {
       await this.usersService.remove(user.id).catch(() => {
         // Rollback failed too — log loudly; the row will need clearing by hand.
-        this.logger.error(`Rollback failed for ${user.email} after mail error`);
+        this.logger.error(`Rollback failed for ${dto.email} after mail error`);
       });
       this.logger.error(
-        `Registration aborted for ${user.email}: verification email failed — ${
+        `Registration aborted for ${dto.email}: verification email failed — ${
           err instanceof Error ? err.message : String(err)
         }`,
       );
@@ -129,7 +143,7 @@ export class AuthService {
         'Баталгаажуулах имэйл илгээхэд алдаа гарлаа. Түр хүлээгээд дахин оролдоно уу.',
       );
     }
-    return { pendingVerification: true, email: user.email };
+    return { pendingVerification: true, email: dto.email };
   }
 
   /** Confirm the email with the OTP, then log the user in. */
@@ -289,20 +303,21 @@ export class AuthService {
   // ── shaping ─────────────────────────────────────────────────────────────
 
   /** Public so social sign-in returns the exact same session shape. */
-  buildAuthResult(user: User): AuthResult {
-    const payload: JwtPayload = {
-      sub: user.id,
-      email: user.email,
-      role: user.role,
-    };
-    return {
-      accessToken: this.jwtService.sign(payload),
-      user: this.toPublicUser(user),
-    };
+  async buildAuthResult(user: User): Promise<AuthResult> {
+    const payload: JwtPayload = { sub: user.id, email: user.email, role: user.role };
+    return { accessToken: this.jwtService.sign(payload), user: await this.publicUser(user) };
+  }
+
+  /** `toPublicUser` + the gate flag (needs one identities lookup). */
+  async publicUser(user: User): Promise<PublicUser> {
+    const needsPhone =
+      user.phoneVerifiedAt === null &&
+      (await this.identities.count({ where: { userId: user.id } })) === 0;
+    return this.toPublicUser(user, needsPhone);
   }
 
   /** Maps a User entity to the public shape (drops passwordHash, relations). */
-  toPublicUser(user: User): PublicUser {
+  toPublicUser(user: User, needsPhone = false): PublicUser {
     return {
       id: user.id,
       email: user.email,
@@ -316,6 +331,9 @@ export class AuthService {
       level: user.level,
       province: user.province,
       district: user.district,
+      phone: user.phoneVerifiedAt ? user.phone : null,
+      phoneVerified: user.phoneVerifiedAt !== null,
+      needsPhone,
     };
   }
 }
