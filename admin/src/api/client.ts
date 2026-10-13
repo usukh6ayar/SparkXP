@@ -71,8 +71,22 @@ export async function apiUpload<T>(
   return (text ? JSON.parse(text) : undefined) as T;
 }
 
+/** GET a file (CSV export) with the admin token → Blob. */
+export async function apiBlob(path: string): Promise<Blob> {
+  const token = getToken();
+  const res = await fetch(`${BASE}${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, body.message ?? `HTTP ${res.status}`);
+  }
+  return res.blob();
+}
+
 export const api = {
   get: <T>(path: string) => apiFetch<T>(path),
+  getBlob: (path: string) => apiBlob(path),
   post: <T>(path: string, body: unknown) =>
     apiFetch<T>(path, { method: 'POST', body: JSON.stringify(body) }),
   patch: <T>(path: string, body: unknown) =>

@@ -25,9 +25,12 @@ const LIMIT = 20;
 
 interface Payment {
   id: string; amount: number; currency: string;
-  status: string; provider: string | null; createdAt: string;
-  metadata?: { type?: string; planName?: string; sparksToCredit?: number } | null;
-  user?: { email: string; fullName: string };
+  status: string; provider: string | null; providerRef: string | null; createdAt: string;
+  metadata?: {
+    type?: string; planName?: string; sparksToCredit?: number;
+    listPrice?: number; discount?: number; promoCode?: string; mismatch?: boolean; accessUntil?: string;
+  } | null;
+  user?: { email: string | null; fullName: string; username: string | null; phone: string | null };
 }
 
 interface Plan {
@@ -84,6 +87,14 @@ export default function MonitorPage() {
   const planSales = payments.filter(p => p.status === 'paid' && p.metadata?.type === 'plan').length;
 
   // Auto-generate slug from name
+  async function downloadCsv() {
+    const blob = await api.getBlob('/payments/export.csv');
+    const url = URL.createObjectURL(blob);
+    const a = Object.assign(document.createElement('a'), { href: url, download: 'sparkxp-payments.csv' });
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   function handleNameChange(name: string) {
     const slug = name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
     setPlanForm(f => ({ ...f, name, slug }));
@@ -125,8 +136,8 @@ export default function MonitorPage() {
       key: 'user', header: 'Хэрэглэгч',
       render: (p: Payment) => (
         <div>
-          <p className="font-medium text-sm">{p.user?.fullName ?? '—'}</p>
-          <p className="text-xs text-gray-400">{p.user?.email ?? ''}</p>
+          <p className="font-medium text-sm">{p.user?.username ?? p.user?.fullName ?? '—'}</p>
+          <p className="text-xs text-gray-400">{p.user?.phone ?? p.user?.email ?? ''}</p>
         </div>
       ),
     },
@@ -138,11 +149,28 @@ export default function MonitorPage() {
     },
     {
       key: 'amount', header: 'Дүн',
-      render: (p: Payment) => <span className="font-medium">{p.amount.toLocaleString()} ₮</span>,
+      render: (p: Payment) => (
+        <div>
+          <span className="font-medium">{p.amount.toLocaleString()} ₮</span>
+          {p.metadata?.discount ? (
+            <p className="text-xs text-gray-400">-{p.metadata.discount.toLocaleString()} ₮ {p.metadata.promoCode ?? ''}</p>
+          ) : null}
+        </div>
+      ),
     },
     {
       key: 'status', header: 'Статус',
-      render: (p: Payment) => <Badge color={statusColors[p.status] ?? 'gray'}>{p.status}</Badge>,
+      render: (p: Payment) => (
+        <div className="flex items-center gap-1">
+          <Badge color={statusColors[p.status] ?? 'gray'}>{p.status}</Badge>
+          {/* Byl paid a different amount than we charged — not granted, check by hand. */}
+          {p.metadata?.mismatch ? <Badge color="red">зөрүү</Badge> : null}
+        </div>
+      ),
+    },
+    {
+      key: 'byl', header: 'Byl',
+      render: (p: Payment) => <span className="font-mono text-xs text-gray-500">{p.providerRef ?? '—'}</span>,
     },
     {
       key: 'date', header: 'Огноо',
@@ -198,7 +226,11 @@ export default function MonitorPage() {
       </div>
 
       {/* Payments */}
-      <h2 className="text-lg font-semibold text-gray-800 mb-3">Төлбөрийн жагсаалт</h2>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-lg font-semibold text-gray-800">Төлбөрийн жагсаалт</h2>
+        {/* For the accountant: e-barimt is issued by hand from this export. */}
+        <Button variant="secondary" onClick={downloadCsv}>CSV татах</Button>
+      </div>
       <Table
         columns={paymentColumns}
         rows={payments.slice((payPage - 1) * LIMIT, payPage * LIMIT)}
