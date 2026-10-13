@@ -1,16 +1,14 @@
 import { useCallback, useState } from 'react';
-import { View, StyleSheet, ScrollView, Pressable, Alert, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { AppIcon } from '../src/components/AppIcon';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../src/auth/AuthContext';
 import { useSettings } from '../src/settings/SettingsContext';
 import { AppText } from '../src/components/Text';
 import { getBuddyUsage, getBuddyAvailability, type BuddyUsageBlock } from '../src/api/ai';
-import { getMyPlan, planTier, PLAN_NAME_KEY, type PlanTier } from '../src/api/users';
-import { tf } from '../src/i18n';
+import { getMyPlan, planTier, type PlanTier } from '../src/api/users';
 import { colors, spacing, radius, type PremiumPalette } from '../src/theme/theme';
 import { bounded } from '../src/theme/responsive';
 import type { TranslationKey } from '../src/i18n';
@@ -22,7 +20,8 @@ type PlanKey = PlanTier;
  * "Миний багц" — plan, this-month usage and limits, per the Premium 56,000₮
  * cost-breakdown doc (§2 limits, §7 positioning). Usage bars read the live
  * voice/STT counters (getBuddyUsage); the plan comparison is static content.
- * Upgrade is a stub until the QPay/web payment backend ships.
+ * Informational only: plans are bought on the website, and App Store rules
+ * forbid steering users there from inside the app — so no buy button or link.
  */
 export default function PlanScreen() {
   const router = useRouter();
@@ -35,9 +34,6 @@ export default function PlanScreen() {
   // The plan the user is actually on (from GET /users/me/plan). The free tier
   // maps to "standard" (shown as Essential) — the paid tier is Premium Plus.
   const [currentPlan, setCurrentPlan] = useState<PlanKey>('standard');
-  // Which plan card is tapped. It starts on the user's real plan so the screen
-  // opens showing the truth, and tapping the other card previews a switch.
-  const [selectedPlan, setSelectedPlan] = useState<PlanKey>('standard');
   // The AI Buddy usage meters only make sense while the feature is open.
   // Fails closed → hidden (see `getBuddyAvailability`).
   const [buddyEnabled, setBuddyEnabled] = useState(false);
@@ -48,9 +44,7 @@ export default function PlanScreen() {
     // which plan you're on, so it keeps its own try/catch.
     getMyPlan(token)
       .then((info) => {
-        const key = planTier(info);
-        setCurrentPlan(key);
-        setSelectedPlan(key);
+        setCurrentPlan(planTier(info));
       })
       .catch(() => {});
 
@@ -79,9 +73,6 @@ export default function PlanScreen() {
     }, [load]),
   );
 
-  const onCurrentPlan = selectedPlan === currentPlan;
-  const selectedName = t(PLAN_NAME_KEY[selectedPlan]);
-  const ctaLabel = onCurrentPlan ? t('planCurrent') : tf('planSwitchTo', { plan: selectedName });
 
   return (
     <View style={[styles.root, { backgroundColor: p.bgFlat }]}>
@@ -130,32 +121,18 @@ export default function PlanScreen() {
             p={p} name={t('planStandardName')} price={t('planStandardPrice')} perDay={t('planStdPerDay')}
             features={['planStdVoice', 'planStdDict', 'planStdMemory', 'planStdLessons']} t={t}
             active={currentPlan === 'standard' ? t('planActive') : undefined}
-            selected={selectedPlan === 'standard'} onPress={() => setSelectedPlan('standard')}
           />
 
-          <AppText variant="caption" color={p.primary} style={styles.nudge}>{t('planPlusNudge')}</AppText>
 
           <PlanCard
             p={p} name={t('planPremiumName')} price={t('planPremiumPrice')} perDay={t('planPremPerDay')}
             recommended={t('planRecommended')} intro="planPremAll"
             features={['planPremVoice', 'planPremDict', 'planPremMemory', 'planPremBuddies', 'planPremSparks']} t={t}
             active={currentPlan === 'premium' ? t('planActive') : undefined}
-            selected={selectedPlan === 'premium'} onPress={() => setSelectedPlan('premium')}
           />
 
-          {/* The CTA follows the selection instead of always saying "upgrade":
-              on your current plan it is a disabled "this is your plan", and on
-              the other one it names the plan you'd switch to. */}
-          <Pressable
-            disabled={onCurrentPlan}
-            onPress={() => Alert.alert(ctaLabel, t('planUpgradeSoon'))}
-            style={({ pressed }) => [onCurrentPlan && styles.ctaDisabled, pressed && styles.pressed]}
-          >
-            <LinearGradient colors={colors.primaryGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.upgradeBtn}>
-              <AppIcon name="gem" size={18} />
-              <AppText variant="bodyStrong" color={colors.white}>{ctaLabel}</AppText>
-            </LinearGradient>
-          </Pressable>
+          {/* No purchase button or link: plans are bought on the website, and App
+              Store rules forbid steering users there from inside the app. */}
 
           <AppText variant="caption" color={p.textMuted} style={styles.note}>{t('planFairUseNote')}</AppText>
         </ScrollView>
@@ -198,35 +175,26 @@ function UsageRow({
 
 /** A selectable plan card: name, price (+ per-day anchor), optional intro line
  *  ("Everything in Essential, plus:"), feature bullets, optional "recommended"
- *  tag. Tapping selects it (radio dot + primary border show the choice). */
+ *  tag. Informational — not tappable (nothing to buy in the app). */
 function PlanCard({
-  p, name, price, perDay, intro, features, recommended, active, selected, onPress, t,
+  p, name, price, perDay, intro, features, recommended, active, t,
 }: {
   p: PremiumPalette; name: string; price: string; perDay: string; intro?: TranslationKey;
   features: TranslationKey[];
   recommended?: string;
   /** Label shown when this is the plan the user is actually on ("Идэвхтэй"). */
   active?: string;
-  selected?: boolean; onPress?: () => void; t: (k: TranslationKey) => string;
+  t: (k: TranslationKey) => string;
 }) {
   return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
+    <View
+      style={[
         styles.planCard,
-        { backgroundColor: p.card, borderColor: selected ? p.primary : p.cardBorder, borderWidth: selected ? 2 : 1 },
-        pressed && styles.pressed,
+        { backgroundColor: p.card, borderColor: active ? colors.success : p.cardBorder, borderWidth: active ? 2 : 1 },
       ]}
     >
       <View style={styles.planHead}>
-        <View style={styles.planNameRow}>
-          <Ionicons
-            name={selected ? 'radio-button-on' : 'radio-button-off'}
-            size={20}
-            color={selected ? p.primary : p.textMuted}
-          />
-          <AppText variant="h3" color={p.text}>{name}</AppText>
-        </View>
+        <AppText variant="h3" color={p.text}>{name}</AppText>
         {/* "Идэвхтэй" wins over "Санал болгож буй" — which plan you are on is
             the more useful fact, and two tags would crowd the row. */}
         {active ? (
@@ -255,7 +223,7 @@ function PlanCard({
           <AppText variant="body" color={p.textSecondary} style={{ flex: 1 }}>{t(f)}</AppText>
         </View>
       ))}
-    </Pressable>
+    </View>
   );
 }
 
@@ -285,18 +253,10 @@ const styles = StyleSheet.create({
 
   planCard: { borderRadius: radius.lg, borderWidth: 1, padding: spacing.lg, marginBottom: spacing.md, gap: spacing.xs },
   planHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  planNameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   tag: { paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radius.full },
   priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs, marginBottom: spacing.sm },
-  nudge: { textAlign: 'center', marginTop: -spacing.xs, marginBottom: spacing.md },
   feature: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: 4 },
 
-  upgradeBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm,
-    marginTop: spacing.sm, paddingVertical: spacing.md, borderRadius: radius.lg,
-  },
   note: { textAlign: 'center', marginTop: spacing.lg, paddingHorizontal: spacing.md },
 
-  pressed: { opacity: 0.85 },
-  ctaDisabled: { opacity: 0.5 },
 });
