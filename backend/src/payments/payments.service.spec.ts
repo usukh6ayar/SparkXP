@@ -1,0 +1,256 @@
+import { createHmac } from 'crypto';
+import { PaymentsService } from './payments.service';
+import { PaymentStatus } from '../common/enums';
+
+const SECRET = 'whsec';
+const NOW = Date.now();
+const plusPlan = {
+  id: 'plan-plus',
+  name: 'Plus',
+  slug: 'plus',
+  priceAmount: 56_000,
+  durationDays: 30,
+  isActive: true,
+};
+
+function setup(env: Record<string, string> = {}) {
+  const payments = new Map<string, any>();
+  const paymentRepo = {
+    create: (d: any) => ({
+      id: 'pay-1',
+      metadata: null,
+      providerRef: null,
+      ...d,
+    }),
+    save: jest.fn(async (p: any) => (payments.set(p.id, p), p)),
+    findOne: jest.fn(async ({ where }: any) => payments.get(where.id) ?? null),
+  };
+  const planRepo = { findOne: jest.fn(async () => plusPlan) };
+  const user = { id: 'u-1', planId: null, planExpiresAt: null, plan: null };
+  const userRepo = { findOne: jest.fn(async () => user) };
+  const promos = {
+    quote: jest.fn(async () => ({
+      promoId: 'promo-1',
+      code: 'AA',
+      originalPrice: 56_000,
+      finalPrice: 50_400,
+    })),
+    recordDiscountUse: jest.fn(),
+  };
+  const referrals = { creditFirstPurchaseBonus: jest.fn() };
+  const byl = {
+    createCheckout: jest.fn(async (_body: any) => ({
+      id: 13338,
+      url: 'https://byl.mn/h/checkout/13338/x',
+    })),
+    getCheckout: jest.fn(async () => ({
+      id: 13338,
+      status: 'complete',
+      amount_total: '56000.00',
+      client_reference_id: 'pay-1',
+    })),
+  };
+  const redisKeys = new Set<string>();
+  const redis = {
+    set: jest.fn(async (k: string) =>
+      redisKeys.has(k) ? null : (redisKeys.add(k), 'OK'),
+    ),
+  };
+  const manager = {
+    save: jest.fn(async (_e: any, p: any) => p),
+    update: jest.fn(),
+    findOne: jest.fn(async () => user),
+  };
+  const dataSource = { transaction: jest.fn(async (fn: any) => fn(manager)) };
+  const config = {
+    get: (k: string) =>
+      ({ BYL_WEBHOOK_SECRET: SECRET, WEB_URL: 'https://web.test', ...env })[k],
+  };
+  const svc = new PaymentsService(
+    paymentRepo as any,
+    planRepo as any,
+    userRepo as any,
+    referrals as any,
+    promos as any,
+    dataSource as any,
+    byl as any,
+    redis as any,
+    config as any,
+  );
+  return { svc, payments, byl, promos, referrals, manager, redis };
+}
+
+const event = (paymentId: string, id = 1) => {
+  const raw = Buffer.from(
+    JSON.stringify({
+      id,
+      type: 'checkout.completed',
+      data: { object: { id: 13338, client_reference_id: paymentId } },
+    }),
+  );
+  return { raw, sig: createHmac('sha256', SECRET).update(raw).digest('hex') };
+};
+
+describe('PaymentsService', () => {
+  it('quote: list price, promo discount and the resulting expiry', async () => {
+    const { svc } = setup();
+    const q = await svc.quote({ id: 'u-1' } as any, {
+      planId: 'plan-plus',
+      promoCode: 'AA',
+    });
+    expect(q).toMatchObject({
+      price: 56_000,
+      discount: 5_600,
+      finalPrice: 50_400,
+      planName: 'Plus',
+    });
+    expect(new Date(q.accessUntil).getTime()).toBeGreaterThan(
+      NOW + 29 * 86_400_000,
+    );
+  });
+
+  it('createCheckout: pending payment + Byl checkout pointing back to the site', async () => {
+    const { svc, payments, byl } = setup();
+    const out = await svc.createCheckout({ id: 'u-1' } as any, {
+      planId: 'plan-plus',
+    });
+    expect(out).toEqual({
+      paymentId: 'pay-1',
+      checkoutUrl: 'https://byl.mn/h/checkout/13338/x',
+    });
+    const body = byl.createCheckout.mock.calls[0][0];
+    expect(body).toMatchObject({
+      client_reference_id: 'pay-1',
+      email_collection: false,
+      success_url: 'https://web.test/checkout/success?payment=pay-1',
+    });
+    expect(body.items[0].price_data.unit_amount).toBe(56_000);
+    expect(payments.get('pay-1')).toMatchObject({
+      status: PaymentStatus.PENDING,
+      provider: 'byl',
+      providerRef: '13338',
+      amount: 56_000,
+    });
+  });
+
+  it('createCheckout with a promo sends the discount to Byl', async () => {
+    const { svc, byl } = setup();
+    await svc.createCheckout({ id: 'u-1' } as any, {
+      planId: 'plan-plus',
+      promoCode: 'AA',
+    });
+    expect(byl.createCheckout.mock.calls[0][0].discounts).toEqual([
+      { amount: 5_600, description: 'Промо код AA' },
+    ]);
+  });
+
+  it('webhook: bad signature → 401, nothing granted', async () => {
+    const { svc, manager } = setup();
+    const { raw } = event('pay-1');
+    const err = await svc.handleBylWebhook(raw, 'nope').catch((e) => e);
+    expect(err.getStatus()).toBe(401);
+    expect(manager.update).not.toHaveBeenCalled();
+  });
+
+  it('webhook: grants the plan once, records promo + referral', async () => {
+    const { svc, manager, promos, referrals, payments, byl } = setup();
+    await svc.createCheckout({ id: 'u-1' } as any, {
+      planId: 'plan-plus',
+      promoCode: 'AA',
+    });
+    byl.getCheckout.mockResolvedValue({
+      id: 13338,
+      status: 'complete',
+      amount_total: '50400.00',
+      client_reference_id: 'pay-1',
+    });
+    const { raw, sig } = event('pay-1');
+    await svc.handleBylWebhook(raw, sig);
+    expect(payments.get('pay-1').status).toBe(PaymentStatus.PAID);
+    expect(manager.update).toHaveBeenCalledWith(
+      expect.anything(),
+      { id: 'u-1' },
+      expect.objectContaining({ planId: 'plan-plus' }),
+    );
+    expect(promos.recordDiscountUse).toHaveBeenCalledWith(
+      manager,
+      'promo-1',
+      'u-1',
+      'pay-1',
+    );
+    expect(referrals.creditFirstPurchaseBonus).toHaveBeenCalledWith(
+      manager,
+      'u-1',
+    );
+  });
+
+  it('webhook: the same event twice grants once', async () => {
+    const { svc, manager } = setup();
+    await svc.createCheckout({ id: 'u-1' } as any, { planId: 'plan-plus' });
+    const { raw, sig } = event('pay-1', 9);
+    await svc.handleBylWebhook(raw, sig);
+    await svc.handleBylWebhook(raw, sig);
+    expect(manager.update).toHaveBeenCalledTimes(1);
+  });
+
+  it('webhook: a different event id for an already-paid payment does nothing', async () => {
+    const { svc, manager } = setup();
+    await svc.createCheckout({ id: 'u-1' } as any, { planId: 'plan-plus' });
+    await svc.handleBylWebhook(event('pay-1', 1).raw, event('pay-1', 1).sig);
+    await svc.handleBylWebhook(event('pay-1', 2).raw, event('pay-1', 2).sig);
+    expect(manager.update).toHaveBeenCalledTimes(1);
+  });
+
+  it('webhook (live): amount mismatch → no grant, flagged', async () => {
+    const { svc, manager, byl, payments } = setup();
+    await svc.createCheckout({ id: 'u-1' } as any, { planId: 'plan-plus' });
+    byl.getCheckout.mockResolvedValue({
+      id: 13338,
+      status: 'complete',
+      amount_total: '100.00',
+      client_reference_id: 'pay-1',
+    });
+    await svc.handleBylWebhook(event('pay-1').raw, event('pay-1').sig);
+    expect(manager.update).not.toHaveBeenCalled();
+    expect(payments.get('pay-1').metadata.mismatch).toBe(true);
+  });
+
+  it('webhook (BYL_TEST_MODE): Byl test checkouts are always 100₮ — still grants', async () => {
+    const { svc, manager, byl } = setup({ BYL_TEST_MODE: 'true' });
+    await svc.createCheckout({ id: 'u-1' } as any, { planId: 'plan-plus' });
+    byl.getCheckout.mockResolvedValue({
+      id: 13338,
+      status: 'complete',
+      amount_total: '100.00',
+      client_reference_id: 'pay-1',
+    });
+    await svc.handleBylWebhook(event('pay-1').raw, event('pay-1').sig);
+    expect(manager.update).toHaveBeenCalledTimes(1);
+  });
+
+  it('webhook: checkout not complete at Byl → no grant', async () => {
+    const { svc, manager, byl } = setup();
+    await svc.createCheckout({ id: 'u-1' } as any, { planId: 'plan-plus' });
+    byl.getCheckout.mockResolvedValue({
+      id: 13338,
+      status: 'open',
+      amount_total: '56000',
+      client_reference_id: 'pay-1',
+    });
+    await svc.handleBylWebhook(event('pay-1').raw, event('pay-1').sig);
+    expect(manager.update).not.toHaveBeenCalled();
+  });
+
+  it('webhook: ignores other event types and unknown payments', async () => {
+    const { svc, manager } = setup();
+    const raw = Buffer.from(
+      JSON.stringify({ id: 5, type: 'invoice.paid', data: { object: {} } }),
+    );
+    await svc.handleBylWebhook(
+      raw,
+      createHmac('sha256', SECRET).update(raw).digest('hex'),
+    );
+    await svc.handleBylWebhook(event('missing').raw, event('missing').sig);
+    expect(manager.update).not.toHaveBeenCalled();
+  });
+});

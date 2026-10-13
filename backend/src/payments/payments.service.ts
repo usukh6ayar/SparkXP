@@ -1,138 +1,340 @@
 import {
+  HttpStatus,
+  Inject,
   Injectable,
+  Logger,
   NotFoundException,
-  BadRequestException,
-  ConflictException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
+import type { Redis } from 'ioredis';
+import { REDIS_CLIENT } from '../redis/redis.module';
 import { Payment } from '../entities/payment.entity';
 import { Plan } from '../entities/plan.entity';
-import { SparksLog } from '../entities/sparks-log.entity';
 import { User } from '../entities/user.entity';
-import { PaymentStatus, SparksSource } from '../common/enums';
+import { PaymentStatus } from '../common/enums';
 import { ReferralsService } from '../referrals/referrals.service';
 import { PromosService } from '../promos/promos.service';
-import { CreatePaymentDto, SPARKS_PACKAGES } from './dto/create-payment.dto';
-import { ConfirmPaymentDto } from './dto/confirm-payment.dto';
+import { CreatePaymentDto } from './dto/create-payment.dto';
+import { CreatePlanDto } from './dto/create-plan.dto';
+import { planAccessAfterPurchase } from './plan-access';
+import { BylClient } from './byl/byl.client';
+import { verifyBylSignature } from './byl/byl-signature';
+import { paymentError } from './payments-errors';
+
+/** Processed Byl event ids — Byl retries for ~4 days; keep a week. */
+const EVENT_TTL_SECONDS = 7 * 24 * 3600;
+
+interface PlanMeta {
+  type: 'plan';
+  planId: string;
+  planSlug: string;
+  planName: string;
+  durationDays: number;
+  listPrice: number;
+  discount: number;
+  promoId?: string;
+  promoCode?: string;
+  accessUntil?: string;
+  mismatch?: boolean;
+}
 
 @Injectable()
 export class PaymentsService {
+  private readonly logger = new Logger(PaymentsService.name);
+
   constructor(
     @InjectRepository(Payment)
     private readonly paymentRepo: Repository<Payment>,
-    @InjectRepository(Plan)
-    private readonly planRepo: Repository<Plan>,
+    @InjectRepository(Plan) private readonly planRepo: Repository<Plan>,
+    @InjectRepository(User) private readonly userRepo: Repository<User>,
     private readonly referrals: ReferralsService,
     private readonly promos: PromosService,
     private readonly dataSource: DataSource,
+    private readonly byl: BylClient,
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    private readonly config: ConfigService,
   ) {}
 
-  /**
-   * Creates a PENDING payment for either a Sparks package or a subscription
-   * plan, and returns a QPay stub URL. Real QPay swaps this stub.
-   */
-  async createIntent(dto: CreatePaymentDto, user: User) {
-    let amount: number;
-    let metadata: Record<string, unknown>;
-
-    if (dto.planId) {
-      // --- Subscription plan purchase ---
-      const plan = await this.planRepo.findOne({ where: { id: dto.planId, isActive: true } });
-      if (!plan) throw new NotFoundException('Plan not found or inactive');
-      amount = plan.priceAmount;
-      metadata = { type: 'plan', planId: plan.id, planName: plan.name, durationDays: plan.durationDays };
-      // Discount code: priced now, but the use is only recorded on confirm —
-      // an abandoned checkout must not burn one of the code's limited uses.
-      if (dto.promoCode) {
-        const quote = await this.promos.quote(user.id, dto.promoCode, plan.id);
-        amount = quote.finalPrice;
-        metadata = { ...metadata, promoId: quote.promoId, originalPrice: quote.originalPrice };
-      }
-    } else if (dto.amount) {
-      // --- Sparks top-up ---
-      const pkg = SPARKS_PACKAGES.find((p) => p.amount === dto.amount);
-      if (!pkg) {
-        throw new BadRequestException(
-          `Invalid amount. Valid Sparks packages: ${SPARKS_PACKAGES.map((p) => p.amount).join(', ')} MNT`,
-        );
-      }
-      amount = dto.amount;
-      metadata = { type: 'sparks', sparksToCredit: pkg.sparks };
-    } else {
-      throw new BadRequestException('Provide either planId or amount');
+  /** Price + promo + the expiry this purchase would give. Shown before paying. */
+  async quote(user: Pick<User, 'id'>, dto: CreatePaymentDto) {
+    const plan = await this.activePlan(dto.planId);
+    let finalPrice = plan.priceAmount;
+    let promoId: string | undefined;
+    let promoCode: string | undefined;
+    if (dto.promoCode?.trim()) {
+      const q = await this.promos.quote(user.id, dto.promoCode, plan.id);
+      finalPrice = q.finalPrice;
+      promoId = q.promoId;
+      promoCode = q.code;
     }
-
-    const payment = this.paymentRepo.create({
-      userId: user.id,
-      amount,
-      currency: 'MNT',
-      provider: dto.provider ?? 'qpay',
-      status: PaymentStatus.PENDING,
-      metadata,
-    });
-    await this.paymentRepo.save(payment);
-
-    // TODO: call real QPay API here — store providerRef, return QR/deep-link URL
+    if (finalPrice < 100) {
+      throw paymentError(
+        HttpStatus.BAD_REQUEST,
+        'PRICE_TOO_LOW',
+        'Энэ кодоор төлбөр үүсгэх боломжгүй — «Промо код» хэсэгт оруулна уу.',
+      );
+    }
+    const accessUntil = await this.accessFor(user.id, plan);
     return {
-      paymentId: payment.id,
-      amount: payment.amount,
-      currency: payment.currency,
-      metadata: payment.metadata,
-      paymentUrl: `https://qpay.mn/payment/stub/${payment.id}`,
-      status: payment.status,
+      planId: plan.id,
+      planName: plan.name,
+      price: plan.priceAmount,
+      discount: plan.priceAmount - finalPrice,
+      finalPrice,
+      accessUntil: accessUntil.toISOString(),
+      promoId,
+      promoCode,
+      plan,
     };
   }
 
+  /** Pending payment + Byl checkout. Nothing is granted here — only the webhook grants. */
+  async createCheckout(user: Pick<User, 'id'>, dto: CreatePaymentDto) {
+    const q = await this.quote(user, dto);
+    const meta: PlanMeta = {
+      type: 'plan',
+      planId: q.plan.id,
+      planSlug: q.plan.slug,
+      planName: q.plan.name,
+      durationDays: q.plan.durationDays,
+      listPrice: q.price,
+      discount: q.discount,
+      ...(q.promoId ? { promoId: q.promoId, promoCode: q.promoCode } : {}),
+    };
+    const payment = await this.paymentRepo.save(
+      this.paymentRepo.create({
+        userId: user.id,
+        amount: q.finalPrice,
+        currency: 'MNT',
+        provider: 'byl',
+        status: PaymentStatus.PENDING,
+        metadata: meta as unknown as Record<string, unknown>,
+      }),
+    );
+
+    const web = this.config.get<string>('WEB_URL') ?? '';
+    try {
+      const checkout = await this.byl.createCheckout({
+        items: [
+          {
+            price_data: {
+              unit_amount: q.price,
+              product_data: {
+                name: `SparkXP ${q.plan.name} — ${q.plan.durationDays} хоног`,
+                client_reference_id: q.plan.slug,
+              },
+            },
+            quantity: 1,
+          },
+        ],
+        ...(q.discount > 0
+          ? {
+              discounts: [
+                { amount: q.discount, description: `Промо код ${q.promoCode}` },
+              ],
+            }
+          : {}),
+        client_reference_id: payment.id,
+        success_url: `${web}/checkout/success?payment=${payment.id}`,
+        cancel_url: `${web}/checkout?plan=${q.plan.slug}&canceled=1`,
+        email_collection: false, // phone-first users may have no email
+      });
+      payment.providerRef = String(checkout.id);
+      await this.paymentRepo.save(payment);
+      return { paymentId: payment.id, checkoutUrl: checkout.url };
+    } catch (err) {
+      payment.status = PaymentStatus.FAILED;
+      await this.paymentRepo.save(payment);
+      throw err;
+    }
+  }
+
   /**
-   * Confirms a payment after QPay callback or manual confirmation.
-   * - Sparks purchase  → credits Sparks to user
-   * - Plan purchase    → sets user.planId + user.planExpiresAt
+   * POST /payments/webhook/byl. The ONLY path that grants a purchase.
+   * Returns normally for anything we deliberately ignore (Byl stops retrying
+   * on 2xx); throws 401 only for a bad signature.
    */
-  async confirm(paymentId: string, dto: ConfirmPaymentDto, caller: User) {
-    const payment = await this.paymentRepo.findOne({ where: { id: paymentId } });
-    if (!payment || payment.userId !== caller.id) throw new NotFoundException('Payment not found');
-    if (payment.status === PaymentStatus.PAID) throw new ConflictException('Already confirmed');
-    if (payment.status !== PaymentStatus.PENDING) {
-      throw new BadRequestException('Cannot confirm in current state');
+  async handleBylWebhook(
+    rawBody: Buffer | undefined,
+    signature: string | undefined,
+  ): Promise<void> {
+    if (
+      !verifyBylSignature(
+        rawBody,
+        signature,
+        this.config.get<string>('BYL_WEBHOOK_SECRET'),
+      )
+    ) {
+      throw paymentError(
+        HttpStatus.UNAUTHORIZED,
+        'BAD_SIGNATURE',
+        'Invalid signature',
+      );
+    }
+    const event = JSON.parse(rawBody!.toString('utf8')) as {
+      id: number | string;
+      type: string;
+      data?: { object?: { id?: number; client_reference_id?: string | null } };
+    };
+    if (event.type !== 'checkout.completed') return;
+    if (
+      (await this.redis.set(
+        `byl:event:${event.id}`,
+        '1',
+        'EX',
+        EVENT_TTL_SECONDS,
+        'NX',
+      )) === null
+    )
+      return;
+
+    const paymentId = event.data?.object?.client_reference_id ?? '';
+    const payment = paymentId
+      ? await this.paymentRepo.findOne({ where: { id: paymentId } })
+      : null;
+    if (!payment || payment.provider !== 'byl') {
+      this.logger.warn(`Byl event ${event.id}: no byl payment ${paymentId}`);
+      return;
+    }
+    if (payment.status === PaymentStatus.PAID) return;
+
+    // Defence in depth: ask Byl itself instead of trusting the event body.
+    const checkout = await this.byl.getCheckout(payment.providerRef ?? '');
+    if (checkout.status !== 'complete') {
+      this.logger.warn(
+        `Byl checkout ${checkout.id} is ${checkout.status} — not granting ${payment.id}`,
+      );
+      return;
+    }
+    const paid = Math.round(Number(checkout.amount_total));
+    const meta = payment.metadata as unknown as PlanMeta;
+    if (paid !== payment.amount) {
+      if (this.config.get<string>('BYL_TEST_MODE') === 'true') {
+        this.logger.log(
+          `Byl test mode: paid ${paid}₮ for ${payment.amount}₮ (test checkouts are fixed at 100₮)`,
+        );
+      } else {
+        this.logger.error(
+          `Byl amount mismatch on ${payment.id}: paid ${paid}, expected ${payment.amount}`,
+        );
+        payment.metadata = { ...meta, mismatch: true } as unknown as Record<
+          string,
+          unknown
+        >;
+        await this.paymentRepo.save(payment);
+        return;
+      }
     }
 
-    const type = payment.metadata?.type as string;
+    await this.grant(payment, meta);
+  }
 
+  /** The buyer's own payment, for the website's success page. */
+  async findOne(user: Pick<User, 'id'>, id: string) {
+    const p = await this.paymentRepo.findOne({ where: { id } });
+    if (!p || p.userId !== user.id)
+      throw new NotFoundException('Төлбөр олдсонгүй');
+    const meta = (p.metadata ?? {}) as Partial<PlanMeta>;
+    return {
+      id: p.id,
+      status: p.status,
+      planName: meta.planName ?? null,
+      accessUntil: meta.accessUntil ?? null,
+    };
+  }
+
+  private async grant(payment: Payment, meta: PlanMeta): Promise<void> {
+    const plan = await this.planRepo.findOne({ where: { id: meta.planId } });
+    if (!plan) {
+      this.logger.error(
+        `Paid payment ${payment.id} references missing plan ${meta.planId}`,
+      );
+      return;
+    }
     await this.dataSource.transaction(async (manager) => {
+      const buyer = await manager.findOne(User, {
+        where: { id: payment.userId! },
+        relations: { plan: true },
+      });
+      const until =
+        planAccessAfterPurchase(
+          {
+            planId: buyer?.planId ?? null,
+            planExpiresAt: buyer?.planExpiresAt ?? null,
+            planPrice: buyer?.plan?.priceAmount ?? 0,
+          },
+          {
+            planId: plan.id,
+            price: plan.priceAmount,
+            durationDays: plan.durationDays,
+          },
+        ) ??
+        // Unlimited plan was active (quote refused, but a race got here): don't shorten it.
+        null;
+
       payment.status = PaymentStatus.PAID;
-      payment.providerRef = dto.providerRef;
+      payment.metadata = {
+        ...meta,
+        accessUntil: until?.toISOString(),
+      } as unknown as Record<string, unknown>;
       await manager.save(Payment, payment);
-
-      if (type === 'sparks') {
-        const sparks = (payment.metadata?.sparksToCredit as number) ?? 0;
-        if (sparks > 0) {
-          const log = manager.create(SparksLog, {
-            userId: caller.id,
-            amount: sparks,
-            source: SparksSource.PURCHASE,
-            referenceId: payment.id,
-          });
-          await manager.save(SparksLog, log);
-          await manager.increment(User, { id: caller.id }, 'sparks', sparks);
-        }
-      } else if (type === 'plan') {
-        const planId = payment.metadata?.planId as string;
-        const days = (payment.metadata?.durationDays as number) ?? 30;
-        const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + days);
-        await manager.update(User, { id: caller.id }, { planId, planExpiresAt: expiresAt });
-      }
-
-      const promoId = payment.metadata?.promoId as string | undefined;
-      if (promoId) await this.promos.recordDiscountUse(manager, promoId, caller.id, payment.id);
-
-      // If this buyer was referred, credit their inviter the referral Sparks
-      // bonus — once, on the first confirmed purchase (any type). Atomic here.
-      await this.referrals.creditFirstPurchaseBonus(manager, caller.id);
+      if (until)
+        await manager.update(
+          User,
+          { id: payment.userId! },
+          { planId: plan.id, planExpiresAt: until },
+        );
+      if (meta.promoId)
+        await this.promos.recordDiscountUse(
+          manager,
+          meta.promoId,
+          payment.userId!,
+          payment.id,
+        );
+      await this.referrals.creditFirstPurchaseBonus(manager, payment.userId!);
     });
+  }
 
-    return { message: 'Payment confirmed', type, paymentId };
+  private async activePlan(planId: string): Promise<Plan> {
+    const plan = await this.planRepo.findOne({
+      where: { id: planId, isActive: true },
+    });
+    if (!plan)
+      throw paymentError(
+        HttpStatus.NOT_FOUND,
+        'PLAN_NOT_FOUND',
+        'Багц олдсонгүй',
+      );
+    return plan;
+  }
+
+  private async accessFor(userId: string, plan: Plan): Promise<Date> {
+    const u = await this.userRepo.findOne({
+      where: { id: userId },
+      relations: { plan: true },
+    });
+    const until = planAccessAfterPurchase(
+      {
+        planId: u?.planId ?? null,
+        planExpiresAt: u?.planExpiresAt ?? null,
+        planPrice: u?.plan?.priceAmount ?? 0,
+      },
+      {
+        planId: plan.id,
+        price: plan.priceAmount,
+        durationDays: plan.durationDays,
+      },
+    );
+    if (!until) {
+      throw paymentError(
+        HttpStatus.CONFLICT,
+        'PLAN_SWITCH_BLOCKED',
+        'Таны одоогийн багц хугацаагүй тул өөр багц авах боломжгүй.',
+      );
+    }
+    return until;
   }
 
   findMy(user: User): Promise<Payment[]> {
@@ -156,7 +358,7 @@ export class PaymentsService {
   }
 
   /** Admin: create a new subscription plan. */
-  async createPlan(dto: import('./dto/create-plan.dto').CreatePlanDto): Promise<Plan> {
+  async createPlan(dto: CreatePlanDto): Promise<Plan> {
     const plan = this.planRepo.create({
       name: dto.name,
       slug: dto.slug,
@@ -171,5 +373,41 @@ export class PaymentsService {
       memoryMbLimit: dto.memoryMbLimit ?? null,
     });
     return this.planRepo.save(plan);
+  }
+
+  /** Admin CSV for the accountant (manual e-barimt — spec decision 4). */
+  async exportCsv(): Promise<string> {
+    const rows = await this.findAll();
+    const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const head = [
+      'date',
+      'payment_id',
+      'user',
+      'phone',
+      'plan',
+      'list_price',
+      'discount',
+      'amount',
+      'status',
+      'byl_checkout',
+    ];
+    const lines = rows.map((p) => {
+      const m = (p.metadata ?? {}) as Partial<PlanMeta>;
+      return [
+        p.createdAt.toISOString(),
+        p.id,
+        p.user?.username ?? p.user?.fullName,
+        p.user?.phone,
+        m.planName,
+        m.listPrice,
+        m.discount,
+        p.amount,
+        m.mismatch ? 'mismatch' : p.status,
+        p.providerRef,
+      ]
+        .map(esc)
+        .join(',');
+    });
+    return [head.join(','), ...lines].join('\n');
   }
 }

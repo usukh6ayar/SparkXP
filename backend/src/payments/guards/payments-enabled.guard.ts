@@ -6,24 +6,18 @@ import {
 import { ConfigService } from '@nestjs/config';
 
 /**
- * Blocks every money-moving payment route until QPay is genuinely integrated.
+ * Opens / closes checkout creation (`POST /payments`).
  *
- * **Why this exists.** `PaymentsService.confirm()` flips a payment to PAID and
- * hands out a subscription plan or Sparks. It is reached over `POST
- * /payments/:id/confirm`, which is protected by nothing but `JwtAuthGuard` and
- * does not verify anything with QPay — `createIntent()` still returns a stub
- * URL and carries a `// TODO: call real QPay API here`. So any registered user
- * could create an intent and immediately confirm it themselves, granting
- * themselves premium for free.
+ * **What it no longer protects.** The old client-callable `POST
+ * /payments/:id/confirm` (which granted plans without asking any provider) is
+ * gone. Access is now granted ONLY by `POST /payments/webhook/byl`, after its
+ * `Byl-Signature` is verified and the checkout is re-read from Byl — that route
+ * is deliberately not behind this guard, so a payment completed just before the
+ * flag is turned off is still honoured.
  *
- * **Default is OFF.** `PAYMENTS_ENABLED` must be explicitly set to `'true'`,
- * so a fresh environment (a new staging database, a misconfigured production
- * deploy) is closed rather than open. Turning it on is a deliberate act.
- *
- * **Before flipping it on, `confirm` must stop being a client-callable route.**
- * The real design is a QPay server-to-server callback whose signature is
- * verified; the mobile app should only ever poll payment status. Enabling this
- * flag without that change re-opens the same hole.
+ * **Default is OFF.** `PAYMENTS_ENABLED` must be exactly `'true'` — a fresh or
+ * misconfigured environment stays closed. Turn it on only once Byl is live
+ * (spec 2026-10-14 §9).
  */
 @Injectable()
 export class PaymentsEnabledGuard implements CanActivate {

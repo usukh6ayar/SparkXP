@@ -9,11 +9,16 @@ import { PromosModule } from '../promos/promos.module';
 import { PaymentsService } from './payments.service';
 import { PaymentsController } from './payments.controller';
 import { PaymentsEnabledGuard } from './guards/payments-enabled.guard';
+import { BylClient } from './byl/byl.client';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Payment, Plan, SparksLog, User]), ReferralsModule, PromosModule],
+  imports: [
+    TypeOrmModule.forFeature([Payment, Plan, SparksLog, User]),
+    ReferralsModule,
+    PromosModule,
+  ],
   controllers: [PaymentsController],
-  providers: [PaymentsService, PaymentsEnabledGuard],
+  providers: [PaymentsService, PaymentsEnabledGuard, BylClient],
   exports: [PaymentsService],
 })
 export class PaymentsModule {}

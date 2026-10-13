@@ -13,13 +13,11 @@ describe('BylClient', () => {
   afterEach(() => (global.fetch = realFetch));
 
   it('creates a checkout on the project with the bearer token', async () => {
-    const f = jest
-      .fn()
-      .mockResolvedValue(
-        res(201, {
-          data: { id: 13338, url: 'https://byl.mn/h/checkout/13338/x' },
-        }),
-      );
+    const f = jest.fn().mockResolvedValue(
+      res(201, {
+        data: { id: 13338, url: 'https://byl.mn/h/checkout/13338/x' },
+      }),
+    );
     global.fetch = f;
     const out = await live().createCheckout({
       items: [],
@@ -36,18 +34,16 @@ describe('BylClient', () => {
   });
 
   it('reads a checkout', async () => {
-    global.fetch = jest
-      .fn()
-      .mockResolvedValue(
-        res(200, {
-          data: {
-            id: 1,
-            status: 'complete',
-            amount_total: '56000.000000',
-            client_reference_id: 'p1',
-          },
-        }),
-      );
+    global.fetch = jest.fn().mockResolvedValue(
+      res(200, {
+        data: {
+          id: 1,
+          status: 'complete',
+          amount_total: '56000.000000',
+          client_reference_id: 'p1',
+        },
+      }),
+    );
     await expect(live().getCheckout(1)).resolves.toMatchObject({
       status: 'complete',
       amount_total: '56000.000000',

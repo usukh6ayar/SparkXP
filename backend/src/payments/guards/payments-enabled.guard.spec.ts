@@ -26,6 +26,8 @@ describe('PaymentsEnabledGuard', () => {
     ['yes', 'yes'],
     ['TRUE (wrong case)', 'TRUE'],
   ])('blocks when the flag is %s', (_label, value) => {
-    expect(() => guardWith(value).canActivate()).toThrow(ServiceUnavailableException);
+    expect(() => guardWith(value).canActivate()).toThrow(
+      ServiceUnavailableException,
+    );
   });
 });
