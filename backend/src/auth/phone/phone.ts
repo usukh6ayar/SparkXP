@@ -14,14 +14,20 @@ const PHONE_RE = /^[5-9]\d{7}$/;
 export function tryNormalizePhone(input: string): string | null {
   let digits = (input ?? '').replace(/[\s\-()]/g, '');
   if (digits.startsWith('+')) digits = digits.slice(1);
-  if (digits.length === 11 && digits.startsWith('976')) digits = digits.slice(3);
+  if (digits.length === 11 && digits.startsWith('976'))
+    digits = digits.slice(3);
   return PHONE_RE.test(digits) ? digits : null;
 }
 
 /** Like `tryNormalizePhone` but throws 400 `INVALID_PHONE`. */
 export function normalizePhone(input: string): string {
   const phone = tryNormalizePhone(input);
-  if (!phone) throw phoneError(HttpStatus.BAD_REQUEST, 'INVALID_PHONE', 'Утасны дугаар 8 оронтой байх ёстой');
+  if (!phone)
+    throw phoneError(
+      HttpStatus.BAD_REQUEST,
+      'INVALID_PHONE',
+      'Утасны дугаар 8 оронтой байх ёстой',
+    );
   return phone;
 }
 
@@ -29,6 +35,10 @@ export function normalizePhone(input: string): string {
  * Error with a machine-readable `code`. The app matches the code, never the
  * Mongolian message (same contract as `EMAIL_NOT_VERIFIED`).
  */
-export function phoneError(status: HttpStatus, code: string, message: string): HttpException {
+export function phoneError(
+  status: HttpStatus,
+  code: string,
+  message: string,
+): HttpException {
   return new HttpException({ statusCode: status, code, message }, status);
 }

@@ -16,11 +16,15 @@ function setup() {
     createSession: jest.fn().mockResolvedValue(session()),
     getStatus: jest.fn().mockResolvedValue('PENDING'),
   };
-  const svc = new PhoneVerificationService(vm as unknown as VerifyMnClient, redis as never);
+  const svc = new PhoneVerificationService(
+    vm as unknown as VerifyMnClient,
+    redis as never,
+  );
   return { svc, vm, redis };
 }
 
-const codeOf = (err: unknown) => ((err as HttpException).getResponse() as { code: string }).code;
+const codeOf = (err: unknown) =>
+  ((err as HttpException).getResponse() as { code: string }).code;
 
 describe('PhoneVerificationService', () => {
   it('start() returns OUR id, never the verify.mn session id', async () => {
@@ -42,7 +46,9 @@ describe('PhoneVerificationService', () => {
 
   it('retries once with a new code on verify.mn 409', async () => {
     const { svc, vm } = setup();
-    vm.createSession.mockRejectedValueOnce(new VerifyMnConflictError()).mockResolvedValueOnce(session());
+    vm.createSession
+      .mockRejectedValueOnce(new VerifyMnConflictError())
+      .mockResolvedValueOnce(session());
     await svc.start('99112233', 'register');
     expect(vm.createSession).toHaveBeenCalledTimes(2);
   });
@@ -70,7 +76,9 @@ describe('PhoneVerificationService', () => {
     const { verificationId } = await svc.start('99112233', 'register');
     vm.getStatus.mockResolvedValue('EXPIRED');
     expect(await svc.status(verificationId)).toEqual({ status: 'expired' });
-    expect(await svc.status('00000000-0000-0000-0000-000000000000')).toEqual({ status: 'expired' });
+    expect(await svc.status('00000000-0000-0000-0000-000000000000')).toEqual({
+      status: 'expired',
+    });
   });
 
   it('consume() returns the proof exactly once', async () => {
@@ -109,6 +117,8 @@ describe('PhoneVerificationService', () => {
     const { verificationId } = await svc.start('99112233', 'link', 'user-1');
     vm.getStatus.mockResolvedValue('VERIFIED');
     await svc.status(verificationId);
-    await expect(svc.consume(verificationId, 'link')).resolves.toMatchObject({ userId: 'user-1' });
+    await expect(svc.consume(verificationId, 'link')).resolves.toMatchObject({
+      userId: 'user-1',
+    });
   });
 });

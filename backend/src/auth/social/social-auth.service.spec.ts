@@ -29,8 +29,15 @@ function setup(byEmail: { id: string; emailVerified: boolean } | null) {
     findById: jest.fn(),
     create: jest.fn(),
   };
-  const authService = { buildAuthResult: jest.fn().mockResolvedValue({ accessToken: 't', user: {} }) };
-  const jwtService = { sign: jest.fn().mockReturnValue('ticket'), verify: jest.fn() };
+  const authService = {
+    buildAuthResult: jest
+      .fn()
+      .mockResolvedValue({ accessToken: 't', user: {} }),
+  };
+  const jwtService = {
+    sign: jest.fn().mockReturnValue('ticket'),
+    verify: jest.fn(),
+  };
   const svc = new SocialAuthService(
     identities as never,
     tokens as never,
@@ -50,7 +57,10 @@ describe('SocialAuthService — linking by email', () => {
   });
 
   it('does NOT link to (or verify) an account whose email is unverified', async () => {
-    const { svc, identities, usersService } = setup({ id: 'attacker', emailVerified: false });
+    const { svc, identities, usersService } = setup({
+      id: 'attacker',
+      emailVerified: false,
+    });
     const res = await svc.signIn(AuthProvider.GOOGLE, 'id-token');
     expect(res).toMatchObject({ needsUsername: true });
     expect(identities.save).not.toHaveBeenCalled();

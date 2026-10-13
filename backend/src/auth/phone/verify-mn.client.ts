@@ -58,7 +58,9 @@ export class VerifyMnClient implements OnModuleInit {
       throw new Error('VERIFY_MN_FAKE=true is not allowed in production');
     }
     if (!this.fake && !this.apiKey) {
-      this.logger.warn('VERIFY_MN_API_KEY is not set — phone verification will answer 503');
+      this.logger.warn(
+        'VERIFY_MN_API_KEY is not set — phone verification will answer 503',
+      );
     }
   }
 
@@ -68,12 +70,17 @@ export class VerifyMnClient implements OnModuleInit {
 
     const res = await this.call('/sessions', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.apiKey}` },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${this.apiKey}`,
+      },
       body: JSON.stringify({ phone, text: code }),
     });
     if (res.status === 409) throw new VerifyMnConflictError();
     if (res.status === 401) {
-      this.logger.error('verify.mn rejected the API key (401) — check VERIFY_MN_API_KEY');
+      this.logger.error(
+        'verify.mn rejected the API key (401) — check VERIFY_MN_API_KEY',
+      );
       throw unavailable();
     }
     if (!res.ok) throw unavailable();
@@ -89,7 +96,9 @@ export class VerifyMnClient implements OnModuleInit {
 
   async getStatus(sessionId: string): Promise<VerifyMnStatus> {
     if (this.fake) return fakeStatus(sessionId);
-    const res = await this.call(`/sessions/${encodeURIComponent(sessionId)}`, { method: 'GET' });
+    const res = await this.call(`/sessions/${encodeURIComponent(sessionId)}`, {
+      method: 'GET',
+    });
     if (!res.ok) throw unavailable();
     const body = (await res.json()) as { sessionStatus: VerifyMnStatus };
     return body.sessionStatus;
@@ -97,9 +106,14 @@ export class VerifyMnClient implements OnModuleInit {
 
   private async call(path: string, init: RequestInit): Promise<Response> {
     try {
-      return await fetch(API + path, { ...init, signal: AbortSignal.timeout(TIMEOUT_MS) });
+      return await fetch(API + path, {
+        ...init,
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
     } catch (err) {
-      this.logger.warn(`verify.mn unreachable: ${err instanceof Error ? err.message : String(err)}`);
+      this.logger.warn(
+        `verify.mn unreachable: ${err instanceof Error ? err.message : String(err)}`,
+      );
       throw unavailable();
     }
   }

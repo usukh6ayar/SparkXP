@@ -50,14 +50,31 @@ export class PhoneVerificationService {
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
 
-  async start(phone: string, purpose: PhonePurpose, userId: string | null = null): Promise<PhoneStartResult> {
+  async start(
+    phone: string,
+    purpose: PhonePurpose,
+    userId: string | null = null,
+  ): Promise<PhoneStartResult> {
     await this.rateLimit(phone);
     const session = await this.createSession(phone);
 
     const verificationId = randomUUID();
-    const record: PendingRecord = { phone, purpose, userId, vmSessionId: session.sessionId };
-    const ttl = Math.max(1, Math.ceil((Date.parse(session.expiresAt) - Date.now()) / 1000));
-    await this.redis.set(pendingKey(verificationId), JSON.stringify(record), 'EX', ttl);
+    const record: PendingRecord = {
+      phone,
+      purpose,
+      userId,
+      vmSessionId: session.sessionId,
+    };
+    const ttl = Math.max(
+      1,
+      Math.ceil((Date.parse(session.expiresAt) - Date.now()) / 1000),
+    );
+    await this.redis.set(
+      pendingKey(verificationId),
+      JSON.stringify(record),
+      'EX',
+      ttl,
+    );
 
     return {
       verificationId,
@@ -67,8 +84,11 @@ export class PhoneVerificationService {
     };
   }
 
-  async status(verificationId: string): Promise<{ status: 'pending' | 'verified' | 'expired' }> {
-    if (await this.redis.exists(proofKey(verificationId))) return { status: 'verified' };
+  async status(
+    verificationId: string,
+  ): Promise<{ status: 'pending' | 'verified' | 'expired' }> {
+    if (await this.redis.exists(proofKey(verificationId)))
+      return { status: 'verified' };
 
     const raw = await this.redis.get(pendingKey(verificationId));
     if (!raw) return { status: 'expired' };
@@ -76,8 +96,17 @@ export class PhoneVerificationService {
 
     const vmStatus = await this.vm.getStatus(record.vmSessionId);
     if (vmStatus === 'VERIFIED') {
-      const proof: PhoneProof = { phone: record.phone, purpose: record.purpose, userId: record.userId };
-      await this.redis.set(proofKey(verificationId), JSON.stringify(proof), 'EX', PROOF_TTL_SECONDS);
+      const proof: PhoneProof = {
+        phone: record.phone,
+        purpose: record.purpose,
+        userId: record.userId,
+      };
+      await this.redis.set(
+        proofKey(verificationId),
+        JSON.stringify(proof),
+        'EX',
+        PROOF_TTL_SECONDS,
+      );
       await this.redis.del(pendingKey(verificationId));
       return { status: 'verified' };
     }
@@ -89,7 +118,10 @@ export class PhoneVerificationService {
   }
 
   /** Spend a proof. Throws unless it exists, is verified and has this purpose. */
-  async consume(verificationId: string, purpose: PhonePurpose): Promise<PhoneProof> {
+  async consume(
+    verificationId: string,
+    purpose: PhonePurpose,
+  ): Promise<PhoneProof> {
     const raw = await this.redis.getdel(proofKey(verificationId));
     if (!raw) {
       // Still waiting for the SMS → the client called too early.
@@ -110,7 +142,8 @@ export class PhoneVerificationService {
       return await this.vm.createSession(phone, newCode());
     } catch (err) {
       // 409 = same phone + same text still active; a new code is a new text.
-      if (err instanceof VerifyMnConflictError) return this.vm.createSession(phone, newCode());
+      if (err instanceof VerifyMnConflictError)
+        return this.vm.createSession(phone, newCode());
       throw err;
     }
   }
@@ -133,5 +166,9 @@ function newCode(): string {
 }
 
 function invalid() {
-  return phoneError(HttpStatus.BAD_REQUEST, 'VERIFICATION_INVALID', 'Утас баталгаажаагүй байна.');
+  return phoneError(
+    HttpStatus.BAD_REQUEST,
+    'VERIFICATION_INVALID',
+    'Утас баталгаажаагүй байна.',
+  );
 }

@@ -29,7 +29,9 @@ describe('normalizePhone', () => {
     } catch (err) {
       expect(err).toBeInstanceOf(HttpException);
       expect((err as HttpException).getStatus()).toBe(400);
-      expect((err as HttpException).getResponse()).toMatchObject({ code: 'INVALID_PHONE' });
+      expect((err as HttpException).getResponse()).toMatchObject({
+        code: 'INVALID_PHONE',
+      });
     }
   });
 });

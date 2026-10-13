@@ -6,7 +6,11 @@ const config = (env: Record<string, string | undefined>) =>
   ({ get: (k: string) => env[k] }) as unknown as ConfigService;
 
 const json = (status: number, body: unknown) =>
-  ({ ok: status >= 200 && status < 300, status, json: async () => body }) as Response;
+  ({
+    ok: status >= 200 && status < 300,
+    status,
+    json: async () => body,
+  }) as Response;
 
 describe('VerifyMnClient', () => {
   const realFetch = global.fetch;
@@ -15,7 +19,8 @@ describe('VerifyMnClient', () => {
     jest.useRealTimers();
   });
 
-  const live = () => new VerifyMnClient(config({ VERIFY_MN_API_KEY: 'vrf_test' }));
+  const live = () =>
+    new VerifyMnClient(config({ VERIFY_MN_API_KEY: 'vrf_test' }));
 
   it('creates a session with the key and returns what the app needs', async () => {
     const fetchMock = jest.fn().mockResolvedValue(
@@ -39,17 +44,24 @@ describe('VerifyMnClient', () => {
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe('https://api.verify.mn/sessions');
     expect(init.headers.Authorization).toBe('Bearer vrf_test');
-    expect(JSON.parse(init.body)).toEqual({ phone: '99112233', text: '482916' });
+    expect(JSON.parse(init.body)).toEqual({
+      phone: '99112233',
+      text: '482916',
+    });
   });
 
   it('maps 409 (same phone+text still active) to VerifyMnConflictError', async () => {
     global.fetch = jest.fn().mockResolvedValue(json(409, {}));
-    await expect(live().createSession('99112233', '111111')).rejects.toBeInstanceOf(VerifyMnConflictError);
+    await expect(
+      live().createSession('99112233', '111111'),
+    ).rejects.toBeInstanceOf(VerifyMnConflictError);
   });
 
   it.each([401, 500])('maps %i to 503 SMS_UNAVAILABLE', async (status) => {
     global.fetch = jest.fn().mockResolvedValue(json(status, {}));
-    const err = await live().createSession('99112233', '111111').catch((e) => e);
+    const err = await live()
+      .createSession('99112233', '111111')
+      .catch((e) => e);
     expect(err).toBeInstanceOf(HttpException);
     expect(err.getStatus()).toBe(503);
     expect(err.getResponse()).toMatchObject({ code: 'SMS_UNAVAILABLE' });
@@ -57,7 +69,9 @@ describe('VerifyMnClient', () => {
 
   it('maps a network failure to 503', async () => {
     global.fetch = jest.fn().mockRejectedValue(new Error('ECONNRESET'));
-    const err = await live().getStatus('s1').catch((e) => e);
+    const err = await live()
+      .getStatus('s1')
+      .catch((e) => e);
     expect(err.getStatus()).toBe(503);
   });
 
@@ -72,14 +86,18 @@ describe('VerifyMnClient', () => {
   });
 
   it('reads EXPIRED', async () => {
-    global.fetch = jest.fn().mockResolvedValue(json(200, { sessionStatus: 'EXPIRED' }));
+    global.fetch = jest
+      .fn()
+      .mockResolvedValue(json(200, { sessionStatus: 'EXPIRED' }));
     expect(await live().getStatus('s1')).toBe('EXPIRED');
   });
 
   it('without a key (and not fake) refuses with 503 instead of calling out', async () => {
     const fetchMock = jest.fn();
     global.fetch = fetchMock;
-    const err = await new VerifyMnClient(config({})).createSession('99112233', '1').catch((e) => e);
+    const err = await new VerifyMnClient(config({}))
+      .createSession('99112233', '1')
+      .catch((e) => e);
     expect(err.getStatus()).toBe(503);
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -99,7 +117,9 @@ describe('VerifyMnClient', () => {
     });
 
     it('refuses to boot in production', () => {
-      const c = new VerifyMnClient(config({ VERIFY_MN_FAKE: 'true', NODE_ENV: 'production' }));
+      const c = new VerifyMnClient(
+        config({ VERIFY_MN_FAKE: 'true', NODE_ENV: 'production' }),
+      );
       expect(() => c.onModuleInit()).toThrow(/VERIFY_MN_FAKE/);
     });
   });
