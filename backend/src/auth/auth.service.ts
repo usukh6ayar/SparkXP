@@ -6,7 +6,6 @@ import {
   ServiceUnavailableException,
   ConflictException,
   UnauthorizedException,
-  ForbiddenException,
   BadRequestException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -201,30 +200,11 @@ export class AuthService {
       throw new UnauthorizedException('Нэвтрэх нэр эсвэл нууц үг буруу байна');
     }
 
-    // The email OTP was optional in practice: `register` creates the row with
-    // `emailVerified: false` and nothing here ever looked at it, so a user could
-    // back out of the OTP screen and simply log in — the verification step, the
-    // referral bonus and the onboarding XP that hang off `verifyOtp` were all
-    // skippable, and an address nobody owns could hold an account.
-    //
-    // 403 with a code (not 401) so the app can tell this apart from a wrong
-    // password and send the user to the OTP screen instead of showing
-    // "нэр эсвэл нууц үг буруу". Matching by code, never by message — the
-    // message is user-facing Mongolian and would break the moment it is
-    // reworded or translated.
-    //
-    // The code is NOT re-sent here: `login` must stay side-effect-free, or an
-    // attacker holding an address could send it mail on demand. The app calls
-    // `resend-otp` from the screen it lands on.
-    // A phone-verified account is verified — its email (if any) is optional.
-    if (!user.emailVerified && !user.phoneVerifiedAt) {
-      throw new ForbiddenException({
-        code: 'EMAIL_NOT_VERIFIED',
-        message: 'Имэйлээ баталгаажуулна уу.',
-        email: user.email,
-      });
-    }
-
+    // No email-verification gate (owner decision 2026-10-14): the phone is the
+    // account's verified key. An account with neither a verified email nor a
+    // verified phone still signs in — `needsPhone` then sends it to the app's
+    // phone gate. An unverified email is safe to ignore here because nothing
+    // trusts it: password reset and Google/Apple linking require a VERIFIED one.
     return this.buildAuthResult(user);
   }
 

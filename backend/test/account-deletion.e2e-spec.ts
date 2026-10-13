@@ -64,8 +64,7 @@ describe('Account deletion (DELETE /api/users/me)', () => {
     // "cannot read property of undefined" and hides the rate limit.
     expect(reg.status).toBe(201);
 
-    // Sign-in refuses an unverified account (403 EMAIL_NOT_VERIFIED), so the
-    // token has to come from the verify step — the same path a real user walks.
+    // The token comes from the verify step — the same path an old-build user walks.
     // The code can't be emailed here, so it is read from the store the service
     // writes it to.
     const code = await app.get<Redis>(REDIS_CLIENT).get(`otp:verify:${email.toLowerCase()}`);
