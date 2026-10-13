@@ -3,6 +3,7 @@ import { PaymentsService } from './payments.service';
 import { PaymentStatus } from '../common/enums';
 
 const SECRET = 'whsec';
+const PAY = '11111111-1111-4111-8111-111111111111';
 const NOW = Date.now();
 const plusPlan = {
   id: 'plan-plus',
@@ -17,7 +18,7 @@ function setup(env: Record<string, string> = {}) {
   const payments = new Map<string, any>();
   const paymentRepo = {
     create: (d: any) => ({
-      id: 'pay-1',
+      id: PAY,
       metadata: null,
       providerRef: null,
       ...d,
@@ -47,7 +48,7 @@ function setup(env: Record<string, string> = {}) {
       id: 13338,
       status: 'complete',
       amount_total: '56000.00',
-      client_reference_id: 'pay-1',
+      client_reference_id: PAY,
     })),
   };
   const redisKeys = new Set<string>();
@@ -115,17 +116,17 @@ describe('PaymentsService', () => {
       planId: 'plan-plus',
     });
     expect(out).toEqual({
-      paymentId: 'pay-1',
+      paymentId: PAY,
       checkoutUrl: 'https://byl.mn/h/checkout/13338/x',
     });
     const body = byl.createCheckout.mock.calls[0][0];
     expect(body).toMatchObject({
-      client_reference_id: 'pay-1',
+      client_reference_id: PAY,
       email_collection: false,
-      success_url: 'https://web.test/checkout/success?payment=pay-1',
+      success_url: `https://web.test/checkout/success?payment=${PAY}`,
     });
     expect(body.items[0].price_data.unit_amount).toBe(56_000);
-    expect(payments.get('pay-1')).toMatchObject({
+    expect(payments.get(PAY)).toMatchObject({
       status: PaymentStatus.PENDING,
       provider: 'byl',
       providerRef: '13338',
@@ -146,7 +147,7 @@ describe('PaymentsService', () => {
 
   it('webhook: bad signature → 401, nothing granted', async () => {
     const { svc, manager } = setup();
-    const { raw } = event('pay-1');
+    const { raw } = event(PAY);
     const err = await svc.handleBylWebhook(raw, 'nope').catch((e) => e);
     expect(err.getStatus()).toBe(401);
     expect(manager.update).not.toHaveBeenCalled();
@@ -162,11 +163,11 @@ describe('PaymentsService', () => {
       id: 13338,
       status: 'complete',
       amount_total: '50400.00',
-      client_reference_id: 'pay-1',
+      client_reference_id: PAY,
     });
-    const { raw, sig } = event('pay-1');
+    const { raw, sig } = event(PAY);
     await svc.handleBylWebhook(raw, sig);
-    expect(payments.get('pay-1').status).toBe(PaymentStatus.PAID);
+    expect(payments.get(PAY).status).toBe(PaymentStatus.PAID);
     expect(manager.update).toHaveBeenCalledWith(
       expect.anything(),
       { id: 'u-1' },
@@ -176,7 +177,7 @@ describe('PaymentsService', () => {
       manager,
       'promo-1',
       'u-1',
-      'pay-1',
+      PAY,
     );
     expect(referrals.creditFirstPurchaseBonus).toHaveBeenCalledWith(
       manager,
@@ -187,7 +188,7 @@ describe('PaymentsService', () => {
   it('webhook: the same event twice grants once', async () => {
     const { svc, manager } = setup();
     await svc.createCheckout({ id: 'u-1' } as any, { planId: 'plan-plus' });
-    const { raw, sig } = event('pay-1', 9);
+    const { raw, sig } = event(PAY, 9);
     await svc.handleBylWebhook(raw, sig);
     await svc.handleBylWebhook(raw, sig);
     expect(manager.update).toHaveBeenCalledTimes(1);
@@ -196,8 +197,8 @@ describe('PaymentsService', () => {
   it('webhook: a different event id for an already-paid payment does nothing', async () => {
     const { svc, manager } = setup();
     await svc.createCheckout({ id: 'u-1' } as any, { planId: 'plan-plus' });
-    await svc.handleBylWebhook(event('pay-1', 1).raw, event('pay-1', 1).sig);
-    await svc.handleBylWebhook(event('pay-1', 2).raw, event('pay-1', 2).sig);
+    await svc.handleBylWebhook(event(PAY, 1).raw, event(PAY, 1).sig);
+    await svc.handleBylWebhook(event(PAY, 2).raw, event(PAY, 2).sig);
     expect(manager.update).toHaveBeenCalledTimes(1);
   });
 
@@ -208,11 +209,11 @@ describe('PaymentsService', () => {
       id: 13338,
       status: 'complete',
       amount_total: '100.00',
-      client_reference_id: 'pay-1',
+      client_reference_id: PAY,
     });
-    await svc.handleBylWebhook(event('pay-1').raw, event('pay-1').sig);
+    await svc.handleBylWebhook(event(PAY).raw, event(PAY).sig);
     expect(manager.update).not.toHaveBeenCalled();
-    expect(payments.get('pay-1').metadata.mismatch).toBe(true);
+    expect(payments.get(PAY).metadata.mismatch).toBe(true);
   });
 
   it('webhook (BYL_TEST_MODE): Byl test checkouts are always 100₮ — still grants', async () => {
@@ -222,9 +223,9 @@ describe('PaymentsService', () => {
       id: 13338,
       status: 'complete',
       amount_total: '100.00',
-      client_reference_id: 'pay-1',
+      client_reference_id: PAY,
     });
-    await svc.handleBylWebhook(event('pay-1').raw, event('pay-1').sig);
+    await svc.handleBylWebhook(event(PAY).raw, event(PAY).sig);
     expect(manager.update).toHaveBeenCalledTimes(1);
   });
 
@@ -235,9 +236,16 @@ describe('PaymentsService', () => {
       id: 13338,
       status: 'open',
       amount_total: '56000',
-      client_reference_id: 'pay-1',
+      client_reference_id: PAY,
     });
-    await svc.handleBylWebhook(event('pay-1').raw, event('pay-1').sig);
+    await svc.handleBylWebhook(event(PAY).raw, event(PAY).sig);
+    expect(manager.update).not.toHaveBeenCalled();
+  });
+
+  it('webhook: a non-UUID reference is ignored with 2xx, not a crash', async () => {
+    const { svc, manager } = setup();
+    const { raw, sig } = event('not-a-uuid');
+    await expect(svc.handleBylWebhook(raw, sig)).resolves.toBeUndefined();
     expect(manager.update).not.toHaveBeenCalled();
   });
 

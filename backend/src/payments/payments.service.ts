@@ -25,6 +25,8 @@ import { paymentError } from './payments-errors';
 
 /** Processed Byl event ids — Byl retries for ~4 days; keep a week. */
 const EVENT_TTL_SECONDS = 7 * 24 * 3600;
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 interface PlanMeta {
   type: 'plan';
@@ -191,7 +193,10 @@ export class PaymentsService {
       return;
 
     const paymentId = event.data?.object?.client_reference_id ?? '';
-    const payment = paymentId
+    // Our ids are UUIDs; anything else (another integration on the same Byl
+    // project, a test event) must be ignored, not crash the query with a 500 —
+    // a non-2xx makes Byl retry for days.
+    const payment = UUID_RE.test(paymentId)
       ? await this.paymentRepo.findOne({ where: { id: paymentId } })
       : null;
     if (!payment || payment.provider !== 'byl') {
