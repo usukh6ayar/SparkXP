@@ -9,6 +9,10 @@ import { haptics } from '../../src/lib/haptics';
 import { isValidUsername } from '../../src/lib/username';
 import { shake, useReduceMotion } from '../../src/lib/motion';
 import * as authApi from '../../src/api/auth';
+import * as phoneApi from '../../src/api/phone';
+import { ApiError } from '../../src/api/client';
+import { usePhoneVerification } from '../../src/lib/usePhoneVerification';
+import { PhoneVerifyCard } from '../../src/components/PhoneVerifyCard';
 import { peekPendingReferral, clearPendingReferral } from '../../src/lib/referralLink';
 import { peekTasteCompleted, clearTasteCompleted } from '../../src/lib/tasteTask';
 import {
@@ -95,11 +99,15 @@ export default function RegisterScreen() {
   const { verifyEmail } = useLocalSearchParams<{ verifyEmail?: string }>();
   const resumingVerification = typeof verifyEmail === 'string' && verifyEmail.length > 0;
 
-  type Step = 'info' | 'location' | 'placement' | 'otp' | 'success';
+  // `phone` = the verify.mn SMS step (new sign-ups). `otp` survives only for the
+  // legacy `?verifyEmail=` resume path (old email accounts that never verified).
+  type Step = 'info' | 'location' | 'placement' | 'phone' | 'otp' | 'success';
   const [step, setStep] = useState<Step>(resumingVerification ? 'otp' : 'info');
   const [username, setUsername] = useState('');
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState(resumingVerification ? verifyEmail : '');
+  const [phone, setPhone] = useState('');
+  const verification = usePhoneVerification();
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [province, setProvince] = useState<string | undefined>();
@@ -142,7 +150,10 @@ export default function RegisterScreen() {
   const isUB = province === 'Улаанбаатар';
   const passOk = rules.minLen(password) && rules.letterCase(password) && rules.number(password);
   const usernameOk = isValidUsername(username);
-  const infoValid = usernameOk && fullName.trim() && email.trim() && passOk && confirm === password;
+  const phoneDigits = phone.replace(/\D/g, '');
+  const phoneOk = /^[5-9]\d{7}$/.test(phoneDigits);
+  // Email is optional and unverified now — the phone is the account key.
+  const infoValid = usernameOk && fullName.trim() && phoneOk && passOk && confirm === password;
 
   function onProvinceChange(value: string) {
     setProvince(value);
@@ -156,25 +167,62 @@ export default function RegisterScreen() {
     setStep('location');
   }
 
-  // Placement → create the (unverified) account; backend emails an OTP.
+  /**
+   * Placement → make sure the username and phone are free BEFORE the user pays
+   * 150₮ for an SMS, then open the verify.mn step.
+   */
   async function submit() {
     setError(null);
-    await authApi.register({
-      username: username.trim(),
-      email: email.trim(),
-      password,
-      fullName: fullName.trim(),
-      level,
-      province,
-      district: isUB ? district : undefined,
-      referralCode: referral ?? undefined,
-      tasteCompleted: tasteDone || undefined,
-    });
-    // Account created — the referral code has been handed to the backend, so
-    // clear the stash to avoid re-applying it to a later sign-up on this device.
-    if (referral) clearPendingReferral();
-    if (tasteDone) clearTasteCompleted();
+    const free = await phoneApi.checkAvailability({ username: username.trim(), phone: phoneDigits });
+    if (free.username === false) throw new Error(t('usernameTaken'));
+    if (free.phone === false) throw new Error(t('phoneTaken'));
+    await startPhoneStep();
   }
+
+  const startPhoneStep = () =>
+    verification.start(() => phoneApi.startPhoneVerification(phoneDigits, 'register'));
+
+  // SMS arrived → create the account (comes back logged in) → success screen.
+  useEffect(() => {
+    if (step !== 'phone' || verification.state !== 'verified' || !verification.verificationId) return;
+    (async () => {
+      try {
+        const res = await phoneApi.registerWithPhone({
+          verificationId: verification.verificationId!,
+          username: username.trim(),
+          password,
+          fullName: fullName.trim(),
+          email: email.trim() || undefined,
+          level,
+          province,
+          district: isUB ? district : undefined,
+          referralCode: referral ?? undefined,
+          tasteCompleted: tasteDone || undefined,
+        });
+        // The backend has consumed the referral / taste markers — clear the stash.
+        if (referral) clearPendingReferral();
+        if (tasteDone) clearTasteCompleted();
+        await applyOnboardingGoal(res.accessToken);
+        setResult(res);
+        setStep('success');
+      } catch (e) {
+        const code = e instanceof ApiError ? e.code : undefined;
+        verification.reset();
+        setStep('info');
+        fail(
+          code === 'EMAIL_TAKEN'
+            ? t('emailTaken')
+            : code === 'PHONE_TAKEN'
+              ? t('phoneTaken')
+              : e instanceof Error
+                ? e.message
+                : t('errorGeneric'),
+        );
+      }
+    })();
+    // Fires once per verification: the form values are frozen while on this step.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, verification.state]);
 
   /**
    * Carry the onboarding daily-goal choice onto the brand-new account.
@@ -214,7 +262,10 @@ export default function RegisterScreen() {
 
   function back() {
     setError(null);
-    if (step === 'otp') setStep('placement');
+    if (step === 'phone') {
+      verification.reset();
+      setStep('placement');
+    } else if (step === 'otp') setStep('placement');
     else if (step === 'placement') setStep('location');
     else if (step === 'location') setStep('info');
     else router.replace('/(auth)/login');
@@ -290,6 +341,15 @@ export default function RegisterScreen() {
             onChangeText={setUsername}
           />
           <TextField
+            leftIcon="call-outline"
+            label={t('phone')}
+            keyboardType="number-pad"
+            maxLength={8}
+            value={phone}
+            onChangeText={setPhone}
+            hint={t('phoneHint')}
+          />
+          <TextField
             leftIcon="person-outline"
             label={t('fullName')}
             value={fullName}
@@ -297,7 +357,7 @@ export default function RegisterScreen() {
           />
           <TextField
             leftIcon="mail-outline"
-            label={t('email')}
+            label={t('emailOptional')}
             autoCapitalize="none"
             keyboardType="email-address"
             value={email}
@@ -412,10 +472,31 @@ export default function RegisterScreen() {
             label={t('register')}
             iconRight="arrow-forward"
             action={submit}
-            onSuccess={() => setStep('otp')}
+            onSuccess={() => setStep('phone')}
             onError={fail}
             haptic={false}
             disabled={!level}
+            style={styles.button}
+          />
+        </>
+      ) : step === 'phone' ? (
+        <>
+          <AppText variant="h1" center style={styles.title}>{t('phoneVerifyTitle')}</AppText>
+          <AppText variant="body" center color={colors.textSecondary} style={styles.subtitle}>
+            {verification.state === 'verified' ? t('phoneCreatingAccount') : t('phoneVerifyBody')}
+          </AppText>
+          <PhoneVerifyCard
+            verification={verification}
+            onRestart={() => startPhoneStep().catch((e) => fail(e instanceof Error ? e.message : t('errorGeneric')))}
+          />
+          <FormError message={error} />
+          <Button
+            label={t('phoneChange')}
+            variant="ghost"
+            onPress={() => {
+              verification.reset();
+              setStep('info');
+            }}
             style={styles.button}
           />
         </>
