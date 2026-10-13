@@ -79,6 +79,32 @@ announced here first.
 
 ## Current Status (last verified against code: 2026-07-28)
 
+**2026-10-14 — Утасны дугаар баталгаажуулалт (verify.mn).** Төлбөрийн ажлын 1-р
+дэд төсөл (2-р нь вэб дээрх byl.mn төлбөр — тусдаа spec). Spec:
+`docs/superpowers/specs/2026-10-13-phone-verification-design.md` · план:
+`docs/superpowers/plans/2026-10-14-phone-verification.md`.
+- **Шинэ бүртгэл = username + утас (заавал) + нууц үг; имэйл заавал биш, баталгаажуулахгүй.**
+  Утсаар нэвтрэх (`identifier` = утас), «SMS-ээр нэвтрэх», утсаар нууц үг сэргээх.
+  **Нэг дугаар = нэг данс.** Шинэ хэрэглэгч **имэйлээр сэргээх боломжгүй** (утсаар л).
+- **verify.mn = MO SMS:** хэрэглэгч өөрийн дугаараас **144773** руу код илгээнэ (150₮,
+  хэрэглэгч төлнө). Callback ашиглахгүй — апп 3 сек тутам `GET /auth/phone/status/:id`.
+  Код `backend/src/auth/phone/` (AuthModule дотор). Endpoint-ууд → `API.md` §1.
+- **Gate:** имэйл/нууц үгээр бүртгүүлсэн хуучин данс утасгүй бол `/phone-link?gate=1`
+  (сервер `user.needsPhone`). Google/Apple данс албадахгүй (Apple 5.1.1) — Аккаунт →
+  «Утасны дугаар · Холбох».
+- **Аюулгүй байдал хамт зассан:** Google/Apple нэвтрэлт зөвхөн **баталгаажсан** имэйлтэй
+  дансанд холбогдоно; имэйлээр сэргээх код зөвхөн баталгаажсан хаяг руу.
+- ⚠️ **Prod migration `AddPhoneVerification1788200000000`** (`email` nullable,
+  `phone_verified_at`, баталгаажсан утсан дээр partial unique). `DB_MIGRATIONS_RUN=true` шалга.
+- ⚠️ **Env:** `VERIFY_MN_API_KEY` (Railway дээр гараар; хоосон → 503). Локал/Expo Go:
+  `VERIFY_MN_FAKE=true` → session 3 сек-т өөрөө баталгаажна (**production дээр boot унана**).
+- ⚠️ **Choi/Boju:** дундын файл хөндөгдсөн — `app/(auth)/register.tsx`, `forgot.tsx`,
+  шинэ `phone-login.tsx`, `src/components/SignInSheet.tsx`, шинэ `PhoneVerifyCard.tsx`,
+  `app/_layout.tsx` (gate), `app/account.tsx`, шинэ `app/phone-link.tsx`, `src/i18n`.
+  `AuthUser.email` одоо `string | null`. **`npm install` шаардлагагүй.**
+- App Review: reviewer Монгол дугаараас SMS илгээж чадахгүй → **утас нь урьдчилж
+  баталгаажсан demo данс** Review Notes-д өгнө.
+
 **2026-09-28 — Trophy цэгцлэл · арлын нэр · Промо/Influencer (PR #275, #276, #277, #278).**
 - **Trophy 100 → 68** (`docs/TROPHIES.md`). Трофей бүр `nameMn`-тэй; апп `trophyTitle()`-оор
   монгол нэрийг эхэлж харуулна. Шинэ нөхцөл `level_complete` (A1–B2 Finisher). Хасагдсан
