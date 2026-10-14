@@ -31,6 +31,7 @@ import { ReadingModule } from './reading/reading.module';
 import { IdiomsModule } from './idioms/idioms.module';
 import { ReferralsModule } from './referrals/referrals.module';
 import { PromosModule } from './promos/promos.module';
+import { ModerationModule } from './moderation/moderation.module';
 import { AchievementsModule } from './achievements/achievements.module';
 import { TeacherModule } from './teacher/teacher.module';
 import { EventsModule } from './events/events.module';
@@ -76,6 +77,7 @@ import { SpeakingModule } from './speaking/speaking.module';
     IdiomsModule,
     ReferralsModule,
     PromosModule,
+    ModerationModule,
     AchievementsModule,
     TeacherModule,
     EventsModule,

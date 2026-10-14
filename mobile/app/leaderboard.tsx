@@ -11,6 +11,7 @@ import { TopBar } from '../src/components/TopBar';
 import { AppText } from '../src/components/Text';
 import { PeriodTabs } from '../src/components/PeriodTabs';
 import { LeaderboardRow } from '../src/components/LeaderboardRow';
+import { openUserActions } from '../src/lib/userActions';
 import { SkeletonRows } from '../src/components/SkeletonRows';
 import { EmptyState } from '../src/components/EmptyState';
 import { PERIODS } from '../src/constants/leaderboard';
@@ -131,6 +132,12 @@ export default function LeaderboardScreen() {
                   avatarUrl={e.avatarUrl}
                   xp={e.xp}
                   isSelf={e.userId === user?.id}
+                  // Other people's rows → report / block (App Store 1.2).
+                  onPress={
+                    e.userId === user?.id || !token
+                      ? undefined
+                      : () => openUserActions({ userId: e.userId, name: e.fullName }, token, load)
+                  }
                 />
               </Animated.View>
             ))

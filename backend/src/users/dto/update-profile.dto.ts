@@ -1,11 +1,13 @@
 import { IsOptional, IsString, MaxLength, IsIn } from 'class-validator';
 import { MN_PROVINCES } from '../../common/enums';
 import { IsUsername } from '../../common/validation/username';
+import { NoBlockedWords } from '../../common/validation/blocked-words';
 
 export class UpdateProfileDto {
   @IsOptional()
   @IsString()
   @MaxLength(100)
+  @NoBlockedWords()
   fullName?: string;
 
   /**

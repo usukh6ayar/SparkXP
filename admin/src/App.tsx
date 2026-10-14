@@ -26,6 +26,7 @@ const UsagePage = lazy(() => import('./pages/usage/UsagePage'));
 const NotificationsPage = lazy(() => import('./pages/notifications/NotificationsPage'));
 const GuidePage = lazy(() => import('./pages/guide/GuidePage'));
 const PromosPage = lazy(() => import('./pages/promos/PromosPage'));
+const ReportsPage = lazy(() => import('./pages/reports/ReportsPage'));
 const SafetyEventsPage = lazy(() => import('./pages/safety/SafetyEventsPage'));
 const BuddyFeedbackPage = lazy(() => import('./pages/feedback/BuddyFeedbackPage'));
 
@@ -63,6 +64,7 @@ export default function App() {
             <Route path="/safety"        element={<SafetyEventsPage />} />
             <Route path="/buddy-feedback" element={<BuddyFeedbackPage />} />
             <Route path="/promos"        element={<PromosPage />} />
+            <Route path="/reports"       element={<ReportsPage />} />
             <Route path="/guide"         element={<GuidePage />} />
           </Route>
 

@@ -9,6 +9,7 @@ import {
 } from 'class-validator';
 import { MN_PROVINCES, UserRole } from '../../common/enums';
 import { IsUsername } from '../../common/validation/username';
+import { NoBlockedWords } from '../../common/validation/blocked-words';
 
 /** Body for POST /api/auth/register. Validated by the global ValidationPipe. */
 export class RegisterDto {
@@ -27,6 +28,7 @@ export class RegisterDto {
   @IsString()
   @MinLength(2)
   @MaxLength(100)
+  @NoBlockedWords()
   fullName: string;
 
   /**

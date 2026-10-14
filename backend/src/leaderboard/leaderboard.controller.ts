@@ -31,11 +31,9 @@ export class LeaderboardController {
    * through to the full board. GET /api/leaderboard/preview?limit=3
    */
   @Get('preview')
-  getPreview(@Query('limit') limit = '3') {
-    return this.leaderboardService.getTopList(
-      LeaderboardScope.GLOBAL,
-      'weekly',
-      null,
+  getPreview(@CurrentUser() user: User, @Query('limit') limit = '3') {
+    return this.leaderboardService.getPreview(
+      user.id,
       Math.min(Math.max(Number(limit) || 3, 1), 10),
     );
   }

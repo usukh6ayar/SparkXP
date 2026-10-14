@@ -1,5 +1,6 @@
 import { applyDecorators } from '@nestjs/common';
 import { IsString, MinLength, MaxLength, Matches } from 'class-validator';
+import { NoBlockedWords } from './blocked-words';
 
 /**
  * Username rules, in ONE place.
@@ -12,12 +13,13 @@ export const USERNAME_RE = /^[a-zA-Z0-9_]+$/;
 export const USERNAME_MIN = 3;
 export const USERNAME_MAX = 30;
 
-/** `@IsUsername()` — 3–30 characters of letters, numbers and `_`. */
+/** `@IsUsername()` — 3–30 characters of letters, numbers and `_`, no blocked words. */
 export function IsUsername(): PropertyDecorator {
   return applyDecorators(
     IsString(),
     MinLength(USERNAME_MIN),
     MaxLength(USERNAME_MAX),
     Matches(USERNAME_RE, { message: 'Username зөвхөн үсэг, тоо, _ агуулна' }),
+    NoBlockedWords(),
   );
 }

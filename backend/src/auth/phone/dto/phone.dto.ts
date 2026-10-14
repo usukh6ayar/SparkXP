@@ -10,6 +10,7 @@ import {
 } from 'class-validator';
 import { MN_PROVINCES } from '../../../common/enums';
 import { IsUsername } from '../../../common/validation/username';
+import { NoBlockedWords } from '../../../common/validation/blocked-words';
 
 /** POST /auth/phone/start */
 export class StartPhoneDto {
@@ -55,6 +56,7 @@ export class RegisterPhoneDto extends VerificationIdDto {
   @IsString()
   @MinLength(2)
   @MaxLength(100)
+  @NoBlockedWords()
   fullName: string;
 
   /** Optional and NOT verified (spec decision 1). */
@@ -97,4 +99,10 @@ export class CheckAvailabilityDto {
   @IsString()
   @MaxLength(20)
   phone?: string;
+
+  /** Display name — checked against the blocked-word list before the SMS. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  fullName?: string;
 }
