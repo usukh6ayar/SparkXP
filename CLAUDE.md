@@ -79,6 +79,10 @@ announced here first.
 
 ## Current Status (last verified against code: 2026-07-28)
 
+**TestFlight build 21 (2026-10-14) — App Store review-д илгээх build.** `1.0.0 (21)`, commit `3f8f048`
+(= PR #289), EAS build `ef0711f4`, submission `71496961` ✅. Build 20 + доорх мэдээлэх/блоклох.
+Review Notes, App Store Connect-ийн үлдсэн алхмууд → доорх build 20-ийн «Submit for Review-ийн өмнө».
+
 **2026-10-14 — Хэрэглэгчийг мэдээлэх / блоклох (App Store 1.2).** Профайл зураг, нэр нь чансаанд
 бусдад харагддаг = user-generated content → Apple мэдээлэх, блоклох, шүүх боломж шаарддаг.
 - **Апп:** чансааны (`app/leaderboard.tsx`) бусдын мөр дээр **дарахад** Мэдээлэх (зураг/нэр/бусад) ·
@@ -97,8 +101,7 @@ announced here first.
 
 **TestFlight build 20 (2026-10-14).** `1.0.0 (20)`, commit `a7752db` (= PR #288), EAS build `7ac258b4`,
 submission `5014c05a` ✅. Fingerprint build 19-тэй таарсан (JS-only). Агуулга: PR #287 (Миний багц
-тасалбар) + PR #288 (App Store 3.1.1). **Review-д илгээх build биш** — мэдээлэх/блоклох (дээр) ороогүй;
-review-д **build 21** илгээнэ.
+тасалбар) + PR #288 (App Store 3.1.1). Review-д илгээх build биш — **build 21** (дээр).
 - ⚠️ **Дүрэм — апп дотор багцын үнэ, «багц ав» уриалга, вэб рүү линк БАЙХГҮЙ.** Багцыг зөвхөн
   вэбээр (Byl) зарна; апп дотор IAP-гүй мөртлөө үнэ/upsell харуулбал 3.1.1-ээр reject. PR #288
   нь Миний багцын үнэтэй картууд, профайлын «Plus» баннер, хичээлийн «Багц үзэх», buddy арын
