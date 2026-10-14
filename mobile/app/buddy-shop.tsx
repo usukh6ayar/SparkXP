@@ -44,7 +44,9 @@ export default function BuddyShopScreen() {
   const load = useCallback(async () => {
     if (!token) return;
     try {
-      setItems(await getBackgrounds(token));
+      // Paid-plan scenes stay hidden from free users: a locked "buy a plan"
+      // tile with no way to buy in the app is an App Store 3.1.1 rejection.
+      setItems((await getBackgrounds(token)).filter((bg) => !bg.premiumLocked));
     } catch (e) {
       console.warn('Backgrounds load failed:', (e as Error)?.message ?? e);
     } finally {
@@ -128,11 +130,6 @@ export default function BuddyShopScreen() {
                       <Ionicons name="checkmark" size={14} color={c.white} />
                     </Animated.View>
                   ) : null}
-                  {bg.isPremium ? (
-                    <View style={[styles.premiumTag, { backgroundColor: c.xp }]}>
-                      <AppText variant="overline" color="#1A1330">{t('bgPremiumLabel')}</AppText>
-                    </View>
-                  ) : null}
                 </View>
 
                 <AppText variant="bodyStrong" numberOfLines={1} style={styles.name}>{bg.name}</AppText>
@@ -161,14 +158,6 @@ export default function BuddyShopScreen() {
         <PressableScale style={[styles.action, styles.actionPrimary]} disabled={disabled} onPress={() => onEquip(bg)}>
           <AppText variant="label" color={c.white}>{t('bgEquip')}</AppText>
         </PressableScale>
-      );
-    }
-    if (bg.premiumLocked) {
-      return (
-        <View style={[styles.action, styles.actionLocked]}>
-          <Ionicons name="lock-closed" size={14} color={c.textMuted} />
-          <AppText variant="label" color={c.textMuted}>{t('bgPremiumLabel')}</AppText>
-        </View>
       );
     }
     // Purchasable.
@@ -243,10 +232,6 @@ const makeStyles = (c: AppColors) =>
       position: 'absolute', top: spacing.sm, right: spacing.sm,
       width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center',
     },
-    premiumTag: {
-      position: 'absolute', top: spacing.sm, left: spacing.sm,
-      paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radius.full,
-    },
     name: { paddingHorizontal: 2 },
     action: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
@@ -255,5 +240,4 @@ const makeStyles = (c: AppColors) =>
     actionBuy: { backgroundColor: c.primary },
     actionPrimary: { backgroundColor: c.primary },
     actionOwned: { backgroundColor: c.successSoft },
-    actionLocked: { backgroundColor: c.surfaceAlt, borderWidth: 1, borderColor: c.border },
   });

@@ -8,21 +8,16 @@ import { useAuth } from '../src/auth/AuthContext';
 import { useSettings } from '../src/settings/SettingsContext';
 import { AppText } from '../src/components/Text';
 import { getBuddyUsage, getBuddyAvailability, type BuddyUsageBlock } from '../src/api/ai';
-import { getMyPlan, planTier, type PlanInfo, type PlanTier } from '../src/api/users';
+import { getMyPlan, type PlanInfo } from '../src/api/users';
 import { PlanPass } from '../src/components/PlanPass';
 import { colors, spacing, radius, type PremiumPalette } from '../src/theme/theme';
 import { bounded } from '../src/theme/responsive';
-import type { TranslationKey } from '../src/i18n';
-
-/** The two tiers the comparison cards offer. */
-type PlanKey = PlanTier;
 
 /**
- * "Миний багц" — plan, this-month usage and limits, per the Premium 56,000₮
- * cost-breakdown doc (§2 limits, §7 positioning). Usage bars read the live
- * voice/STT counters (getBuddyUsage); the plan comparison is static content.
- * Informational only: plans are bought on the website, and App Store rules
- * forbid steering users there from inside the app — so no buy button or link.
+ * "Миний багц" — the plan the user is on and this month's usage.
+ * Informational only: plans are bought outside the app, and App Store rule
+ * 3.1.1 rejects an app that shows prices or upsells for things it can't sell
+ * in-app — so no tier list, no prices, no buy button or link. Keep it that way.
  */
 export default function PlanScreen() {
   const router = useRouter();
@@ -32,9 +27,7 @@ export default function PlanScreen() {
   const [usage, setUsage] = useState<{ voice: BuddyUsageBlock; stt: BuddyUsageBlock } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  // The plan the user is actually on (from GET /users/me/plan). The free tier
-  // maps to "standard" (shown as Essential) — the paid tier is Premium Plus.
-  const [currentPlan, setCurrentPlan] = useState<PlanKey>('standard');
+  // The plan the user is actually on (from GET /users/me/plan).
   const [planInfo, setPlanInfo] = useState<PlanInfo | null>(null);
   // The AI Buddy usage meters only make sense while the feature is open.
   // Fails closed → hidden (see `getBuddyAvailability`).
@@ -45,10 +38,7 @@ export default function PlanScreen() {
     // The plan is a separate call from usage — a usage failure shouldn't hide
     // which plan you're on, so it keeps its own try/catch.
     getMyPlan(token)
-      .then((info) => {
-        setCurrentPlan(planTier(info));
-        setPlanInfo(info);
-      })
+      .then(setPlanInfo)
       .catch(() => {});
 
     // Skip the usage fetch entirely when the buddy is closed — the meters it
@@ -125,28 +115,6 @@ export default function PlanScreen() {
             </>
           ) : null}
 
-          {/* Plan comparison (§7) */}
-          <AppText variant="bodyStrong" color={p.text} style={styles.groupTitle}>{t('planPlansTitle')}</AppText>
-
-          {/* Voice time is sold as a comparison ("2x"), never as raw minutes —
-              "25 мин" invites "is that a lot?", "2 дахин" answers it. */}
-          <PlanCard
-            p={p} name={t('planStandardName')} price={t('planStandardPrice')} perDay={t('planStdPerDay')}
-            features={['planStdVoice', 'planStdDict', 'planStdMemory', 'planStdLessons']} t={t}
-            active={currentPlan === 'standard' ? t('planActive') : undefined}
-          />
-
-
-          <PlanCard
-            p={p} name={t('planPremiumName')} price={t('planPremiumPrice')} perDay={t('planPremPerDay')}
-            recommended={t('planRecommended')} intro="planPremAll"
-            features={['planPremVoice', 'planPremDict', 'planPremMemory', 'planPremBuddies', 'planPremSparks']} t={t}
-            active={currentPlan === 'premium' ? t('planActive') : undefined}
-          />
-
-          {/* No purchase button or link: plans are bought on the website, and App
-              Store rules forbid steering users there from inside the app. */}
-
           <AppText variant="caption" color={p.textMuted} style={styles.note}>{t('planFairUseNote')}</AppText>
         </ScrollView>
       </SafeAreaView>
@@ -186,60 +154,6 @@ function UsageRow({
   );
 }
 
-/** A selectable plan card: name, price (+ per-day anchor), optional intro line
- *  ("Everything in Essential, plus:"), feature bullets, optional "recommended"
- *  tag. Informational — not tappable (nothing to buy in the app). */
-function PlanCard({
-  p, name, price, perDay, intro, features, recommended, active, t,
-}: {
-  p: PremiumPalette; name: string; price: string; perDay: string; intro?: TranslationKey;
-  features: TranslationKey[];
-  recommended?: string;
-  /** Label shown when this is the plan the user is actually on ("Идэвхтэй"). */
-  active?: string;
-  t: (k: TranslationKey) => string;
-}) {
-  return (
-    <View
-      style={[
-        styles.planCard,
-        { backgroundColor: p.card, borderColor: active ? colors.success : p.cardBorder, borderWidth: active ? 2 : 1 },
-      ]}
-    >
-      <View style={styles.planHead}>
-        <AppText variant="h3" color={p.text}>{name}</AppText>
-        {/* "Идэвхтэй" wins over "Санал болгож буй" — which plan you are on is
-            the more useful fact, and two tags would crowd the row. */}
-        {active ? (
-          <View style={[styles.tag, { backgroundColor: colors.success }]}>
-            <AppText variant="label" color={colors.white}>{active}</AppText>
-          </View>
-        ) : recommended ? (
-          <View style={[styles.tag, { backgroundColor: p.primary }]}>
-            <AppText variant="label" color={colors.white}>{recommended}</AppText>
-          </View>
-        ) : null}
-      </View>
-      <View style={styles.priceRow}>
-        <AppText variant="bodyStrong" color={p.primary}>{price}</AppText>
-        <AppText variant="caption" color={p.textMuted}>· {perDay}</AppText>
-      </View>
-      {intro ? (
-        <View style={styles.feature}>
-          <Ionicons name="sparkles" size={18} color={colors.xp} />
-          <AppText variant="bodyStrong" color={p.text} style={{ flex: 1 }}>{t(intro)}</AppText>
-        </View>
-      ) : null}
-      {features.map((f) => (
-        <View key={f} style={styles.feature}>
-          <Ionicons name="checkmark-circle" size={18} color={colors.success} />
-          <AppText variant="body" color={p.textSecondary} style={{ flex: 1 }}>{t(f)}</AppText>
-        </View>
-      ))}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   root: { flex: 1 },
   safe: { flex: 1 },
@@ -263,12 +177,6 @@ const styles = StyleSheet.create({
   usageLabel: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   track: { height: 8, borderRadius: radius.full, overflow: 'hidden' },
   fill: { height: '100%', borderRadius: radius.full },
-
-  planCard: { borderRadius: radius.lg, borderWidth: 1, padding: spacing.lg, marginBottom: spacing.md, gap: spacing.xs },
-  planHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  tag: { paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radius.full },
-  priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs, marginBottom: spacing.sm },
-  feature: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: 4 },
 
   note: { textAlign: 'center', marginTop: spacing.lg, paddingHorizontal: spacing.md },
 

@@ -296,9 +296,7 @@ export default function ProfileScreen() {
               <View style={styles.planTop}>
                 <View style={{ flex: 1 }}>
                   <AppText variant="overline" color={p.textMuted}>{t('myPlan').toUpperCase()}</AppText>
-                  {/* Same label as "Миний багц" (planTier), not the backend's
-                      raw planName — that says "Үнэгүй" for the Essential tier. */}
-                  <AppText variant="h3" color={p.text}>{t(usersApi.PLAN_NAME_KEY[usersApi.planTier(plan)])}</AppText>
+                  <AppText variant="h3" color={p.text}>{plan.planName}</AppText>
                 </View>
                 <View style={[styles.planBadge, { backgroundColor: plan.isFree ? alpha(p.primary, 0.22) : colors.xp }]}>
                   <Ionicons name={plan.isFree ? 'leaf' : 'star'} size={12} color={plan.isFree ? p.primaryLight : colors.white} />
@@ -320,11 +318,7 @@ export default function ProfileScreen() {
                     <UsageBar p={p} st={styles} label={t('usageMemory')} used={plan.usage.memoryMb} limit={plan.limits.memoryMb} unit="MB" />
                   ) : null}
                 </View>
-              ) : (
-                <AppText variant="caption" color={p.textSecondary} style={{ marginTop: 6 }}>
-                  {t('premiumHint')}
-                </AppText>
-              )}
+              ) : null}
             </Pressable>
           ) : null}
 
@@ -409,26 +403,6 @@ export default function ProfileScreen() {
               </View>
             ))
           )}
-
-          {/* Premium banner — gradient feature card → plan & usage screen */}
-          <Pressable onPress={() => router.push('/plan')} style={({ pressed }) => pressed && styles.pressed}>
-            <LinearGradient colors={[colors.primaryGradient[0], colors.primaryGradient[2]]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.premium}>
-              <View style={styles.premGlow} pointerEvents="none" />
-              <View style={{ flex: 1 }}>
-                <View style={styles.premiumTitleRow}>
-                  <AppIcon name="gem" size={20} />
-                  <AppText variant="h3" color={colors.white}>SparkXP {t('planPremiumName')}</AppText>
-                </View>
-                <AppText variant="caption" color="rgba(255,255,255,0.85)" style={styles.premiumSub}>
-                  {t('premiumSubtitle')}
-                </AppText>
-                <View style={styles.premiumBtn}>
-                  <AppText variant="bodyStrong" color={colors.primary}>{t('learnMore')} →</AppText>
-                </View>
-              </View>
-              <AppIcon name="sparks" size={44} style={styles.treasure} />
-            </LinearGradient>
-          </Pressable>
 
           {/* Logout — the only destructive action on the screen, so it gets the
               same press feedback as every other card here (it had none) and an
@@ -577,17 +551,6 @@ const makeStyles = (p: PremiumPalette, isDark: boolean) => {
   },
   quickIcon: { width: 50, height: 50, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
 
-  // Premium
-  premium: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    borderRadius: radius.xl, padding: spacing.lg, marginTop: spacing.xxl, overflow: 'hidden',
-    shadowColor: colors.primary, shadowOpacity: 0.4, shadowRadius: 20, shadowOffset: { width: 0, height: 10 }, elevation: 8,
-  },
-  premGlow: { position: 'absolute', top: -40, right: -20, width: 160, height: 160, borderRadius: 80, backgroundColor: 'rgba(255,255,255,0.12)' },
-  premiumTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  premiumSub: { marginTop: 4, marginBottom: spacing.md },
-  premiumBtn: { alignSelf: 'flex-start', backgroundColor: colors.white, borderRadius: radius.md, paddingVertical: 10, paddingHorizontal: spacing.lg },
-  treasure: { alignSelf: 'center' },
 
   logout: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
