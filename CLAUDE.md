@@ -79,6 +79,21 @@ announced here first.
 
 ## Current Status (last verified against code: 2026-07-28)
 
+**TestFlight build 20 (2026-10-14) — App Store review-д илгээх build.** `1.0.0 (20)`, commit
+`a7752db` (= PR #288), EAS build `7ac258b4`, submission `5014c05a` ✅. Fingerprint build 19-тэй таарсан
+(JS-only). Агуулга: PR #287 (Миний багц тасалбар) + PR #288 (App Store 3.1.1).
+- ASC «My Apps» дээр icon саарал загвар байвал алдаа биш: App Store хувилбарт build сонгогдоогүй
+  үед ингэж харагддаг. iOS 1.0 → Build → build 20-ыг сонгоход icon гарна (`assets/icon.png` хэвийн).
+- ⚠️ **Дүрэм — апп дотор багцын үнэ, «багц ав» уриалга, вэб рүү линк БАЙХГҮЙ.** Багцыг зөвхөн
+  вэбээр (Byl) зарна; апп дотор IAP-гүй мөртлөө үнэ/upsell харуулбал 3.1.1-ээр reject. PR #288
+  нь Миний багцын үнэтэй картууд, профайлын «Plus» баннер, хичээлийн «Багц үзэх», buddy арын
+  зургийн «🔒 Plus»-ийг хассан. **Буцааж бүү нэм.** Үлдсэн эрсдэл: 3.1.3(b) (вэбээр зарсан эрхийг
+  IAP-аар ч санал болгох ёстой) — эзний бизнес шийдвэр.
+- ⚠️ **«Submit for Review»-ийн өмнө:** App Store Connect → App Privacy-д **Phone Number** нэм
+  (эзэн гараар, хойшлуулсан). Нууцлалын бодлого аль хэдийн шинэчлэгдсэн (утас, verify.mn, Byl).
+  Review Notes: утас нь баталгаажсан, **Free** багцтай demo данс (бэлэн); вэбээс худалдаж авах
+  тухай **бүү** дурд.
+
 **TestFlight build 19 гарлаа (2026-10-14).** `1.0.0 (19)`, commit `f11a605` (= PR #284 утас
 баталгаажуулалт), EAS build `fef76737`, submission `24ab2186` ✅. Fingerprint build 18-тай **таарсан**
 (JS-only) — эзэн build сонгов. ⚠️ **Build 18** (09-29, commit `2af1aef` = PR #283, EAS `7deaabde`) энд
