@@ -435,14 +435,6 @@ export default function LessonDetailScreen() {
                   <AppText variant="body" color={c.textSecondary} center>
                     {t('lessonQuotaExhaustedBody')}
                   </AppText>
-                  {/* Until QPay lands this only opens the plan list — no
-                      checkout is wired, and pretending otherwise would dead-end. */}
-                  <Button
-                    label={t('seePlans')}
-                    icon="sparkles"
-                    onPress={() => router.push('/plan')}
-                    style={{ marginTop: spacing.lg }}
-                  />
                 </>
               )
             ) : (

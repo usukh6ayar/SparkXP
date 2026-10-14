@@ -32,7 +32,7 @@
 <main>
 
 <h1>SparkXP — Нууцлалын бодлого</h1>
-<p class="meta">Сүүлд шинэчилсэн: 2026-08-05 · Эзэмшигч: <strong>Aether Tech Core LLC</strong> (Монгол Улс)</p>
+<p class="meta">Сүүлд шинэчилсэн: 2026-10-14 · Эзэмшигч: <strong>Aether Tech Core LLC</strong> (Монгол Улс)</p>
 <p class="meta">Холбоо барих: <a href="mailto:aerielsporthub@gmail.com">aerielsporthub@gmail.com</a></p>
 
 <p>SparkXP бол монгол хэрэглэгчдэд зориулсан англи хэл сурах гар утасны апп юм.
@@ -44,13 +44,18 @@
 <h3>1.1 Та өөрөө өгдөг мэдээлэл</h3>
 <table>
   <tr><th>Юу</th><th>Хэзээ</th><th>Яагаад</th></tr>
-  <tr><td>Имэйл хаяг</td><td>Бүртгүүлэхэд</td><td>Данс үүсгэх, баталгаажуулах код илгээх, нууц үг сэргээх</td></tr>
+  <tr><td>Утасны дугаар</td><td>Бүртгүүлэхэд (заавал)</td><td>Дансаа баталгаажуулах, утсаар нэвтрэх, нууц үг сэргээх. Нэг дугаарт нэг данс. Бусад хэрэглэгчид харагдахгүй, сурталчилгаанд ашиглахгүй</td></tr>
+  <tr><td>Имэйл хаяг (заавал биш)</td><td>Бүртгүүлэхэд эсвэл Google/Apple-ээр нэвтрэхэд</td><td>Данс танихад, нууц үг сэргээх код илгээхэд</td></tr>
   <tr><td>Хэрэглэгчийн нэр (username), бүтэн нэр</td><td>Бүртгүүлэхэд</td><td>Таныг апп дотор танихад, чансаанд харуулахад</td></tr>
   <tr><td>Нууц үг</td><td>Бүртгүүлэхэд</td><td>Зөвхөн <strong>bcrypt hash</strong> хэлбэрээр хадгална — анхны нууц үг хадгалагддаггүй</td></tr>
   <tr><td>Аймаг / дүүрэг (сонголтоор)</td><td>Бүртгүүлэхэд</td><td>Орон нутгийн чансаа. Байршил тогтоох (GPS) ашигладаггүй</td></tr>
   <tr><td>Англи хэлний түвшин (CEFR)</td><td>Бүртгүүлэхэд, дараа нь засаж болно</td><td>Тохирох хичээл санал болгох</td></tr>
   <tr><td>Профайл зураг (сонголтоор)</td><td>Та байршуулбал</td><td>Профайл, чансаанд харуулах</td></tr>
 </table>
+
+<p>Утасны дугаараа баталгаажуулахдаа та өөрийн дугаараасаа нэг удаагийн кодыг SMS-ээр
+илгээнэ (операторын тарифаар). Дугаар таных мөн эсэхийг verify.mn үйлчилгээ бидэнд
+баталгаажуулж өгнө.</p>
 
 <h3>1.2 Аппыг ашиглахад үүсдэг мэдээлэл</h3>
 <ul>
@@ -73,6 +78,11 @@
   <li><strong>Хэрэглээний тоо баримт (PostHog):</strong> ямар дэлгэц нээснийг, ямар үйлдэл хийснийг тоолно. Таны дансны дугаар, үүрэг (сурагч/багш), түвшин л дагалдана. <strong>Байршил тогтоох унтраалттай</strong>, дэлгэцийн бичлэг (session replay) хийдэггүй, бичсэн текстийг автоматаар цуглуулдаггүй.</li>
 </ul>
 
+<h3>1.5 Төлбөр</h3>
+<p>Багц худалдан авахад төлбөрийг <strong>Byl</strong> (byl.mn) боловсруулна. Таны карт,
+дансны мэдээлэл бидэнд ирдэггүй. Бид зөвхөн аль багцыг, хэдэн төгрөгөөр, хэзээ авсан,
+хэзээ хүртэл хүчинтэйг хадгална.</p>
+
 <h2>2. Хэнтэй хуваалцдаг вэ</h2>
 
 <p>Бид таны мэдээллийг <strong>хэзээ ч зардаггүй</strong>. Аппыг ажиллуулахад
@@ -81,7 +91,11 @@
 <table>
   <tr><th>Үйлчилгээ</th><th>Юу дамждаг</th><th>Юуны тулд</th></tr>
   <tr><td>Anthropic (Claude)</td><td>AI Buddy-тай хийсэн яриа</td><td>Хариу үүсгэх, алдаа засах</td></tr>
-  <tr><td>Google (Gemini)</td><td>Хайсан үг, өгүүлбэр</td><td>Толь бичиг, орчуулга</td></tr>
+  <tr><td>Google (Gemini)</td><td>Хайсан үг, өгүүлбэр; AI Buddy-тай хийсэн яриа, дуу бичлэг</td><td>Толь бичиг, орчуулга, AI Buddy-ийн хариу, яриаг текст болгох</td></tr>
+  <tr><td>Microsoft Azure</td><td>AI Buddy-ийн хариултын текст</td><td>Хариултыг дуу болгох</td></tr>
+  <tr><td>verify.mn</td><td>Утасны дугаар</td><td>Дугаар баталгаажуулах (SMS)</td></tr>
+  <tr><td>Byl (byl.mn)</td><td>Захиалгын дугаар, төлөх дүн</td><td>Төлбөр хүлээн авах</td></tr>
+  <tr><td>Brevo</td><td>Имэйл хаяг</td><td>Нууц үг сэргээх код илгээх</td></tr>
   <tr><td>OpenAI</td><td>Хичээлийн агуулгын хүсэлт</td><td>Зураг үүсгэх (хэрэглэгчийн хувийн мэдээлэл дамждаггүй)</td></tr>
   <tr><td>ElevenLabs</td><td>Таны дуу бичлэг, уншуулах текст</td><td>Яриаг текст болгох, дуу гаргах</td></tr>
   <tr><td>Cloudflare R2 · Cloudinary</td><td>Зураг, дуу файл</td><td>Медиа хадгалах, түгээх</td></tr>
@@ -159,7 +173,7 @@
 <!-- ─────────────────────────────  ENGLISH  ───────────────────────────── -->
 <div class="lang">
 <h1>SparkXP — Privacy Policy</h1>
-<p class="meta">Last updated: 2026-08-05 · Operator: <strong>Aether Tech Core LLC</strong> (Mongolia)</p>
+<p class="meta">Last updated: 2026-10-14 · Operator: <strong>Aether Tech Core LLC</strong> (Mongolia)</p>
 <p class="meta">Contact: <a href="mailto:aerielsporthub@gmail.com">aerielsporthub@gmail.com</a></p>
 
 <p>SparkXP is a mobile app for learning English, built for Mongolian learners.
@@ -170,7 +184,8 @@ delete it.</p>
 
 <h3>1.1 Information you give us</h3>
 <ul>
-  <li><strong>Email address</strong> — to create your account, send a verification code, and reset your password.</li>
+  <li><strong>Phone number (required)</strong> — to verify your account, sign in by phone and reset your password. One number per account. Never shown to other users or used for marketing. To verify it you send a one-time code by SMS from your own number (standard operator rates); the verify.mn service confirms to us that the number is yours.</li>
+  <li><strong>Email address (optional)</strong> — given at sign-up or via Google/Apple sign-in; used to identify your account and send password-reset codes.</li>
   <li><strong>Username and full name</strong> — to identify you in the app and on leaderboards.</li>
   <li><strong>Password</strong> — stored only as a <strong>bcrypt hash</strong>; we never keep the original.</li>
   <li><strong>Province / district (optional)</strong> — for local leaderboards. We do <strong>not</strong> use GPS or precise location.</li>
@@ -199,11 +214,20 @@ delete it.</p>
   <li><strong>Product analytics (PostHog):</strong> which screens you open and which actions you take, tagged with your account UUID, role (student/teacher), and level. <strong>GeoIP lookup is disabled</strong>, there is no session recording, and typed text is not autocaptured.</li>
 </ul>
 
+<h3>1.5 Payments</h3>
+<p>When you buy a plan, the payment is processed by <strong>Byl</strong> (byl.mn). Your card or
+bank details never reach us. We keep only which plan you bought, the amount, when, and
+until when it is valid.</p>
+
 <h2>2. Who we share it with</h2>
 <p>We <strong>never sell</strong> your data. We share it only with the providers needed to run the app:</p>
 <ul>
   <li><strong>Anthropic (Claude)</strong> — AI Buddy conversations, to generate replies and corrections.</li>
-  <li><strong>Google (Gemini)</strong> — words and sentences you look up, for the dictionary and translations.</li>
+  <li><strong>Google (Gemini)</strong> — words and sentences you look up, plus AI Buddy conversations and voice recordings, for the dictionary, translations, AI Buddy replies and speech-to-text.</li>
+  <li><strong>Microsoft Azure</strong> — the AI Buddy's reply text, to turn it into speech.</li>
+  <li><strong>verify.mn</strong> — your phone number, to verify it by SMS.</li>
+  <li><strong>Byl</strong> (byl.mn) — order reference and amount, to take payment.</li>
+  <li><strong>Brevo</strong> — your email address, to send password-reset codes.</li>
   <li><strong>OpenAI</strong> — lesson-content generation (no personal data).</li>
   <li><strong>ElevenLabs</strong> — your recorded audio and text to be spoken, for speech-to-text and text-to-speech.</li>
   <li><strong>Cloudflare R2 · Cloudinary</strong> — image and audio storage and delivery.</li>
