@@ -7,6 +7,7 @@ import { ClassEntity } from '../entities/class.entity';
 import { LeaderboardScope, UserRole } from '../common/enums';
 import { QueryLeaderboardDto } from './dto/query-leaderboard.dto';
 import { periodStart } from './period';
+import { ModerationService } from '../moderation/moderation.service';
 
 /** One row in the ranked list. */
 export interface LeaderboardEntry {
@@ -53,6 +54,7 @@ export class LeaderboardService {
     private readonly xpLogs: Repository<XpLog>,
     @InjectRepository(ClassEntity)
     private readonly classes: Repository<ClassEntity>,
+    private readonly moderation: ModerationService,
   ) {}
 
   async getLeaderboard(
@@ -77,6 +79,10 @@ export class LeaderboardService {
       };
     }
 
+    // Users the viewer blocked are dropped from the list (App Store 1.2). Fetch
+    // that many extra so the board still shows `limit` rows.
+    const hidden = await this.moderation.blockedIds(user.id);
+
     // --- Top N list ---
     const qb = this.baseQuery(query.scope, scopeValue, since)
       .select('u.id', 'userId')
@@ -88,7 +94,7 @@ export class LeaderboardService {
       .addSelect('SUM(x.amount)', 'xp')
       .groupBy('u.id')
       .orderBy('xp', 'DESC')
-      .limit(query.limit);
+      .limit(query.limit + hidden.size);
 
     // Teacher scope only: attach one class (of this teacher, `:v`) the student is
     // in so the app can open their progress. Correlated scalar subquery on u.id —
@@ -116,11 +122,14 @@ export class LeaderboardService {
       xp: Number(r.xp),
       classId: r.classId ?? null,
     }));
+    // Filter AFTER ranking: everyone keeps their real rank, so the list agrees
+    // with `me.rank` (which counts every user above you, blocked or not).
+    const visible = withoutHidden(entries, hidden, query.limit);
 
     // --- Current user's standing ---
     const me = await this.myStanding(user, query.scope, scopeValue, since);
 
-    return { period: query.period, scope: query.scope, entries, me };
+    return { period: query.period, scope: query.scope, entries: visible, me };
   }
 
   /**
@@ -217,6 +226,21 @@ export class LeaderboardService {
     return klass?.teacherId ?? null;
   }
 
+  /** Home preview: the weekly/global top N, minus users the viewer blocked. */
+  async getPreview(
+    viewerId: string,
+    limit: number,
+  ): Promise<LeaderboardEntry[]> {
+    const hidden = await this.moderation.blockedIds(viewerId);
+    const list = await this.getTopList(
+      LeaderboardScope.GLOBAL,
+      'weekly',
+      null,
+      limit + hidden.size,
+    );
+    return withoutHidden(list, hidden, limit);
+  }
+
   /**
    * Admin view: top N users for any scope without relying on the caller's
    * own province/district. `scopeValue` is the explicit filter value
@@ -282,4 +306,13 @@ export class LeaderboardService {
 
     return { rank: higher.length + 1, xp: myXp };
   }
+}
+
+/** Drop blocked users, keep the original ranks, cap at `limit`. */
+export function withoutHidden(
+  entries: LeaderboardEntry[],
+  hidden: Set<string>,
+  limit: number,
+): LeaderboardEntry[] {
+  return entries.filter((e) => !hidden.has(e.userId)).slice(0, limit);
 }

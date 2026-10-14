@@ -43,7 +43,7 @@ Backend (NestJS) endpoint-үүдийн бүрэн лавлах. **Зам/мет�
 | POST `/auth/forgot-password` | Public | Нууц үг сэргээх код имэйлдэх | `{ email }` |
 | POST `/auth/reset-password` | Public | Кодоор шинэ нууц үг тавих | `{ email, code, password }` |
 | GET `/auth/me` | JWT | Одоогийн хэрэглэгч + **`phone`, `phoneVerified`, `needsPhone`** (gate-ийн цорын ганц эх сурвалж) | — |
-| GET `/auth/check-availability` | Public (5/мин) | SMS-ээс **өмнө** username / утас чөлөөтэй эсэх → `{ username?: bool, phone?: bool }` | `?username=&phone=` |
+| GET `/auth/check-availability` | Public (5/мин) | SMS-ээс **өмнө** username / утас чөлөөтэй эсэх → `{ username?: bool, phone?: bool, fullName?: bool }`. Хориотой үгтэй username нь `false` (давхардсантай ижил), `fullName` нь зөвхөн хориотой үгийг шалгана | `?username=&phone=&fullName=` |
 | POST `/auth/phone/start` | Public (5/мин) | verify.mn session эхлүүлэх. `register`: утас бүртгэлтэй бол 409 `PHONE_TAKEN`; `login`/`reset`: бүртгэлгүй бол 404 `PHONE_NOT_FOUND`. Утсанд 10 мин/3 session → 429 `TOO_MANY_REQUESTS` → `{ verificationId, smsUri, displayInstruction, expiresAt }` | `{ phone, purpose: 'register'\|'login'\|'reset' }` |
 | GET `/auth/phone/status/:verificationId` | Public (40/мин) | Backend verify.mn-ээс шалгана → `{ status: 'pending'\|'verified'\|'expired' }`. Апп 3 сек тутам асууна | — |
 | POST `/auth/register-phone` | Public | `register` proof-оор данс үүсгэж → token. Имэйл заавал биш, баталгаажуулахгүй (давхардвал 409 `EMAIL_TAKEN`). Referral + onboarding XP энд олгогдоно | `RegisterPhoneDto` (`verificationId, username, password, fullName, email?, level?, province?, district?, referralCode?, tasteCompleted?`) |
@@ -143,6 +143,26 @@ DTO-д байхгүй талбарыг чимээгүй арчина).
   тулгардаг тул хоёулаа орших нь нэг хүн мэт харагдах эрсдэлтэй. Мөн энэ дүрэм
   `POST /auth/register`-т ижилхэн үйлчилнэ.
 - Өөрийнхөө одоогийн нэрийг дахин илгээх нь зөрчил **биш** (200).
+- **Хориотой үг** (`src/common/validation/blocked-words.ts` → `@NoBlockedWords()`) — username болон
+  `fullName` (бүртгэл, утсаар бүртгэл, Google/Apple, профайл засах) → **400** `Энэ нэрийг ашиглах
+  боломжгүй`. App Store 1.2: чансаанд харагддаг нэрийг хадгалахаас өмнө шүүнэ.
+
+### Мэдээлэх / блоклох (App Store 1.2, 2026-10-14)
+Профайл зураг, нэр нь чансаанд бусдад харагддаг (user-generated content). `src/moderation/`.
+
+| Method + Path | Auth | Зорилго | Params / Body |
+| --- | --- | --- | --- |
+| POST `/users/:id/report` | JWT (10/мин) | Хэрэглэгчийн зураг/нэрийг мэдээлэх → **204**. Ижил хүн дээр нээлттэй гомдол байвал шинээр үүсгэхгүй. Өөрийгөө → 400 | `{ reason: photo\|name\|other }` |
+| POST `/users/:id/block` | JWT | Блоклох → **204** (давтан дуудвал no-op). Өөрийгөө → 400 | — |
+| DELETE `/users/:id/block` | JWT | Блок цуцлах → **204** | — |
+| GET `/users/me/blocks` | JWT | Блоклосон хүмүүс → `[{ userId, fullName, username, avatarUrl }]` | — |
+| GET `/admin/reports` | admin, super_admin | Гомдлууд (≤200, нээлттэй нь эхэнд) — `reporter`, `reported` (avatarUrl-тай) | — |
+| GET `/admin/reports/open-count` | admin, super_admin | `{ count }` — админы цэсийн тоолуур | — |
+| POST `/admin/reports/:id/resolve` | admin, super_admin | `dismiss` (зөвхөн энэ гомдол) · `remove_avatar` (`avatarUrl = null`) · `reset_name` (`fullName = «SparkXP хэрэглэгч»`, `username = user_xxxxxx`; утсаар нэвтрэх хэвээр). Сүүлийн хоёр нь тухайн хүн дээрх **бүх** нээлттэй гомдлыг хаана | `{ action }` |
+
+Блоклосон хүн `GET /leaderboard` ба `/leaderboard/preview`-ээс хасагдана — **эрэмбэ тавьсны дараа** шүүдэг тул
+бусдын `rank` өөрчлөгдөхгүй (`me.rank`-тай зөрөхгүй). Migration: `AddUserReportsAndBlocks1788400000000`
+(`user_reports`, `user_blocks`; FK нь ON DELETE CASCADE).
 
 ## 3. Words — `/api/words`
 Толь бичгийн үгс + AI үүсгэлт + bulk pipeline. GET уншилт public/JWT; бичилт admin-баг.
@@ -451,6 +471,7 @@ Controller-level: JWT.
 | GET `/leaderboard/top` | admin-баг | Admin top-N (admin-ий байршлыг үл тооцно) | `scope`, `period`, `value?`, `limit` |
 
 > Entry бүр: `rank, userId, fullName, username, avatarUrl, province, district, xp, classId`.
+> Үзэгчийн **блоклосон** хэрэглэгчид хасагдана (rank-ууд жинхэнэ хэвээр, тиймээс цоорхой гарч болно) — §2.
 > `classId` зөвхөн `scope=teacher` үед бөглөгдөнө (сурагчийн харьяалагдах анги, олон бол хамгийн сүүлд үүсгэсэн) —
 > багшийн панель мөрөөс тухайн сурагчийн ahits руу deep-link хийхэд ашиглагдана. Бусад scope-д `null`.
 
@@ -1081,6 +1102,7 @@ Admin dashboard энэ endpoint-уудыг дараа ашиглаж болно 
 | `organizations.ts` | `getOrganizations`→GET `/organizations?limit=100` |
 | `referrals.ts` | `getMyReferral`→GET `/referrals/me` |
 | `promos.ts` | `redeemPromo`→POST `/promos/redeem` (`app/promo.tsx`, Тохиргоо → «Промо код») |
+| `moderation.ts` | `reportUser`→POST `/users/:id/report` · `blockUser`/`unblockUser`→POST/DELETE `/users/:id/block` · `getBlockedUsers`→GET `/users/me/blocks` (`app/leaderboard.tsx` мөр дарахад `src/lib/userActions.ts`; `app/blocked-users.tsx`, Тохиргоо → «Блоклосон хэрэглэгчид») |
 | `phone.ts` | `checkAvailability`→GET `/auth/check-availability` · `startPhoneVerification`→POST `/auth/phone/start` · `getPhoneStatus`→GET `/auth/phone/status/:id` · `registerWithPhone`→POST `/auth/register-phone` · `loginWithPhone`→POST `/auth/phone/login` · `resetWithPhone`→POST `/auth/phone/reset` · `startLinkPhone`→POST `/users/me/phone/start` · `linkPhone`→POST `/users/me/phone` (`register.tsx`, `phone-login.tsx`, `forgot.tsx`, `phone-link.tsx`, `account.tsx`) |
 
 ### Admin (`admin/src/pages/**`)
@@ -1091,6 +1113,7 @@ Token автоматаар залгагдана. Зураг байршуулал
 | Login / AuthContext | POST `/auth/login` · GET `/auth/me` |
 | Users | GET `/users` · PATCH `/users/:id` · DELETE `/users/:id` · DELETE `/users/:id/phone` (утас салгах) |
 | Promos (`pages/promos`) | GET/POST `/admin/promos` · PATCH `/admin/promos/:id` · GET `/admin/promos/:id/redemptions` · POST `/admin/promos/influencer` · GET `/payments/plans` |
+| Гомдол (`pages/reports`) | GET `/admin/reports` · POST `/admin/reports/:id/resolve` · GET `/admin/reports/open-count` (Sidebar-ын тоолуур) |
 | Usage | GET `/users` |
 | Lessons | GET/POST/PATCH/DELETE `/lessons` |
 | Lesson Tests | GET `/quizzes?lessonId=&category=` · POST/PATCH/DELETE `/quizzes` |

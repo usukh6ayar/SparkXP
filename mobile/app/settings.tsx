@@ -330,6 +330,7 @@ export default function SettingsScreen() {
                 bare OS share sheet (which gives the friend nothing to redeem). */}
             <Row p={p} icon="share-social" tint={tints.teal} label={t('shareApp')} onPress={() => router.push('/invite')} />
             <Row p={p} icon="pricetag" tint={tints.purple} label={t('promoCode')} onPress={() => router.push('/promo')} />
+            <Row p={p} icon="ban" tint={tints.pink} label={t('blockedUsers')} onPress={() => router.push('/blocked-users')} />
           </Card>
 
           {/* Legal */}

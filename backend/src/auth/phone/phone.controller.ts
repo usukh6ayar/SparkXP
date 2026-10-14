@@ -52,7 +52,7 @@ export class PhoneController {
   @Throttle(SESSION_START)
   @Get('auth/check-availability')
   checkAvailability(@Query() q: CheckAvailabilityDto) {
-    return this.auth.checkAvailability(q.username, q.phone);
+    return this.auth.checkAvailability(q.username, q.phone, q.fullName);
   }
 
   @Throttle(SESSION_START)

@@ -173,8 +173,13 @@ export default function RegisterScreen() {
    */
   async function submit() {
     setError(null);
-    const free = await phoneApi.checkAvailability({ username: username.trim(), phone: phoneDigits });
+    const free = await phoneApi.checkAvailability({
+      username: username.trim(),
+      phone: phoneDigits,
+      fullName: fullName.trim(),
+    });
     if (free.username === false) throw new Error(t('usernameTaken'));
+    if (free.fullName === false) throw new Error(t('nameNotAllowed'));
     if (free.phone === false) throw new Error(t('phoneTaken'));
     await startPhoneStep();
   }

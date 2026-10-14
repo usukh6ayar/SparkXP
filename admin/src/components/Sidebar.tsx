@@ -1,9 +1,11 @@
+import { useEffect, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   BookOpen, BookMarked, FileText, HelpCircle, Users, BarChart2,
   Settings, LogOut, Trophy, Bot, GraduationCap,
-  Building2, Activity, Bell, LifeBuoy, Quote, Dumbbell, ShieldAlert, MessageSquareHeart, Award, Ticket,
+  Building2, Activity, Bell, LifeBuoy, Quote, Dumbbell, ShieldAlert, MessageSquareHeart, Award, Ticket, Flag,
 } from 'lucide-react';
+import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { canAccess } from '../auth/access';
 import { cn } from '../lib/utils';
@@ -26,6 +28,7 @@ const nav = [
   { to: '/promos',        label: 'Промо код',    icon: Ticket },
   { to: '/notifications', label: 'Мэдэгдэл',     icon: Bell },
   { to: '/monitor',       label: 'Монитор',      icon: BarChart2 },
+  { to: '/reports',       label: 'Гомдол',       icon: Flag },
   { to: '/safety',        label: 'Аюулгүй лог',  icon: ShieldAlert },
   { to: '/buddy-feedback', label: 'Buddy санал',  icon: MessageSquareHeart },
   { to: '/settings',      label: 'Тохиргоо',    icon: Settings },
@@ -44,6 +47,14 @@ export function Sidebar({ open, onClose }: Props) {
 
   // Moderators only see content links; admins see everything.
   const visibleNav = nav.filter(({ to }) => canAccess(user?.role, to));
+
+  // Open user reports — Apple expects them handled within 24h, so the count
+  // sits on the nav item instead of waiting for someone to open the page.
+  const [openReports, setOpenReports] = useState(0);
+  useEffect(() => {
+    if (!canAccess(user?.role, '/reports')) return;
+    api.get<{ count: number }>('/admin/reports/open-count').then((r) => setOpenReports(r.count)).catch(() => {});
+  }, [user?.role]);
 
   function handleLogout() {
     logout();
@@ -95,6 +106,9 @@ export function Sidebar({ open, onClose }: Props) {
           >
             <Icon className="h-4 w-4 shrink-0" />
             {label}
+            {to === '/reports' && openReports > 0 ? (
+              <span className="ml-auto rounded-full bg-red-500 px-1.5 text-[11px] font-bold text-white">{openReports}</span>
+            ) : null}
           </NavLink>
         ))}
       </nav>

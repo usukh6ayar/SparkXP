@@ -1,6 +1,13 @@
-import { IsString, IsIn, IsOptional, MinLength, MaxLength } from 'class-validator';
+import {
+  IsString,
+  IsIn,
+  IsOptional,
+  MinLength,
+  MaxLength,
+} from 'class-validator';
 import { AuthProvider } from '../../common/enums';
 import { IsUsername } from '../../common/validation/username';
+import { NoBlockedWords } from '../../common/validation/blocked-words';
 
 /** Body for POST /api/auth/social — the token the provider gave the app. */
 export class SocialSignInDto {
@@ -38,5 +45,6 @@ export class SocialCompleteDto {
   @IsString()
   @MinLength(2)
   @MaxLength(100)
+  @NoBlockedWords()
   fullName?: string;
 }

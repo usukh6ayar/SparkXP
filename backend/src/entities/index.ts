@@ -38,6 +38,8 @@ import { BuddyBackground } from './buddy-background.entity';
 import { UserBuddyBackground } from './user-buddy-background.entity';
 import { PromoCode } from './promo-code.entity';
 import { PromoRedemption } from './promo-redemption.entity';
+import { UserReport } from './user-report.entity';
+import { UserBlock } from './user-block.entity';
 
 export {
   Organization,
@@ -79,6 +81,8 @@ export {
   UserBuddyBackground,
   PromoCode,
   PromoRedemption,
+  UserReport,
+  UserBlock,
 };
 
 /** Single list to feed TypeORM's `entities` option. */
@@ -122,4 +126,6 @@ export const entities = [
   UserBuddyBackground,
   PromoCode,
   PromoRedemption,
+  UserReport,
+  UserBlock,
 ];

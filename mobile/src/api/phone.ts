@@ -13,11 +13,14 @@ export type PhoneStatus = 'pending' | 'verified' | 'expired';
 export type PublicPurpose = 'register' | 'login' | 'reset';
 
 /** SMS-before check so nobody pays 150₮ to learn their username is taken. */
-export function checkAvailability(q: { username?: string; phone?: string }) {
+export function checkAvailability(q: { username?: string; phone?: string; fullName?: string }) {
   const params = new URLSearchParams();
   if (q.username) params.set('username', q.username);
   if (q.phone) params.set('phone', q.phone);
-  return apiRequest<{ username?: boolean; phone?: boolean }>(`/auth/check-availability?${params}`);
+  if (q.fullName) params.set('fullName', q.fullName);
+  return apiRequest<{ username?: boolean; phone?: boolean; fullName?: boolean }>(
+    `/auth/check-availability?${params}`,
+  );
 }
 
 export function startPhoneVerification(phone: string, purpose: PublicPurpose) {

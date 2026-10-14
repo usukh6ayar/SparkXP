@@ -27,6 +27,7 @@ import { UserIdentity } from '../entities/user-identity.entity';
 import { PhoneVerificationService } from './phone/phone-verification.service';
 import { normalizePhone, phoneError, tryNormalizePhone } from './phone/phone';
 import type { RegisterPhoneDto } from './phone/dto/phone.dto';
+import { containsBlockedWord } from '../common/validation/blocked-words';
 
 /** Cost factor for bcrypt. 10 is a good default for an MVP. */
 const BCRYPT_ROUNDS = 10;
@@ -88,7 +89,9 @@ export class AuthService {
    * Create a new account (unverified) and email an OTP. No token is returned
    * yet — the user must verify the code via `verifyOtp` to log in.
    */
-  async register(dto: RegisterDto): Promise<{ pendingVerification: true; email: string }> {
+  async register(
+    dto: RegisterDto,
+  ): Promise<{ pendingVerification: true; email: string }> {
     if (await this.usersService.findByEmail(dto.email)) {
       throw new ConflictException('Энэ имэйл аль хэдийн бүртгэлтэй байна');
     }
@@ -121,7 +124,12 @@ export class AuthService {
 
     // Hold a taste-task completion → onboarding XP is granted on first verify.
     if (dto.tasteCompleted) {
-      await this.redis.set(this.tasteKey(dto.email), '1', 'EX', TASTE_PENDING_TTL);
+      await this.redis.set(
+        this.tasteKey(dto.email),
+        '1',
+        'EX',
+        TASTE_PENDING_TTL,
+      );
     }
 
     // If the code cannot be emailed, the account must not survive. Registration
@@ -219,9 +227,14 @@ export class AuthService {
   }
 
   /** Finish password recovery: validate the code and set a new password. */
-  async resetPassword(email: string, code: string, password: string): Promise<{ ok: true }> {
+  async resetPassword(
+    email: string,
+    code: string,
+    password: string,
+  ): Promise<{ ok: true }> {
     const user = await this.usersService.findByEmail(email);
-    if (!user || !user.emailVerified) throw new BadRequestException('Хэрэглэгч олдсонгүй');
+    if (!user || !user.emailVerified)
+      throw new BadRequestException('Хэрэглэгч олдсонгүй');
 
     await this.consumeOtp('reset', email, code);
     const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
@@ -235,10 +248,20 @@ export class AuthService {
   async checkAvailability(
     username?: string,
     phone?: string,
-  ): Promise<{ username?: boolean; phone?: boolean }> {
-    const out: { username?: boolean; phone?: boolean } = {};
-    if (username) out.username = await this.usersService.isUsernameFree(username.trim());
-    if (phone) out.phone = !(await this.usersService.isPhoneTaken(normalizePhone(phone)));
+    fullName?: string,
+  ): Promise<{ username?: boolean; phone?: boolean; fullName?: boolean }> {
+    const out: { username?: boolean; phone?: boolean; fullName?: boolean } = {};
+    // A blocked word reads as "not available", same as taken — the register
+    // DTO would reject it anyway, but only after the user paid for the SMS.
+    if (username)
+      out.username =
+        !containsBlockedWord(username) &&
+        (await this.usersService.isUsernameFree(username.trim()));
+    if (fullName) out.fullName = !containsBlockedWord(fullName);
+    if (phone)
+      out.phone = !(await this.usersService.isPhoneTaken(
+        normalizePhone(phone),
+      ));
     return out;
   }
 
@@ -254,7 +277,8 @@ export class AuthService {
   /** Start linking a phone to the logged-in account. */
   async startLinkPhone(user: User, rawPhone: string) {
     const phone = normalizePhone(rawPhone);
-    if (await this.usersService.isPhoneTaken(phone, user.id)) throw phoneTaken();
+    if (await this.usersService.isPhoneTaken(phone, user.id))
+      throw phoneTaken();
     return this.phone.start(phone, 'link', user.id);
   }
 
@@ -306,10 +330,16 @@ export class AuthService {
   }
 
   /** Reset by phone, then log straight in. */
-  async resetWithPhone(verificationId: string, password: string): Promise<AuthResult> {
+  async resetWithPhone(
+    verificationId: string,
+    password: string,
+  ): Promise<AuthResult> {
     const proof = await this.phone.consume(verificationId, 'reset');
     const user = await this.accountForPhone(proof.phone);
-    await this.usersService.setPasswordHash(user.id, await bcrypt.hash(password, BCRYPT_ROUNDS));
+    await this.usersService.setPasswordHash(
+      user.id,
+      await bcrypt.hash(password, BCRYPT_ROUNDS),
+    );
     return this.buildAuthResult(user);
   }
 
@@ -319,7 +349,11 @@ export class AuthService {
     // The proof must have been started BY this account — otherwise anyone who
     // learned a verificationId could attach that number to themselves.
     if (proof.userId !== caller.id) {
-      throw phoneError(HttpStatus.BAD_REQUEST, 'VERIFICATION_INVALID', 'Утас баталгаажаагүй байна.');
+      throw phoneError(
+        HttpStatus.BAD_REQUEST,
+        'VERIFICATION_INVALID',
+        'Утас баталгаажаагүй байна.',
+      );
     }
     try {
       await this.usersService.setVerifiedPhone(caller.id, proof.phone);
@@ -356,7 +390,9 @@ export class AuthService {
       try {
         await this.referrals.applyReferralOnVerify(user, opts.referralCode);
       } catch (err) {
-        this.logger.warn(`Referral apply failed for ${user.id}: ${String(err)}`);
+        this.logger.warn(
+          `Referral apply failed for ${user.id}: ${String(err)}`,
+        );
       }
     }
     if (opts.tasteCompleted) {
@@ -368,7 +404,9 @@ export class AuthService {
           referenceId: user.id,
         });
       } catch (err) {
-        this.logger.warn(`Onboarding bonus failed for ${user.id}: ${String(err)}`);
+        this.logger.warn(
+          `Onboarding bonus failed for ${user.id}: ${String(err)}`,
+        );
       }
     }
   }
@@ -389,9 +427,17 @@ export class AuthService {
   }
 
   /** Generate, store (Redis TTL) and email a 6-digit code. */
-  private async sendOtp(purpose: 'verify' | 'reset', email: string): Promise<void> {
+  private async sendOtp(
+    purpose: 'verify' | 'reset',
+    email: string,
+  ): Promise<void> {
     const code = String(Math.floor(100000 + Math.random() * 900000));
-    await this.redis.set(this.otpKey(purpose, email), code, 'EX', OTP_TTL_SECONDS);
+    await this.redis.set(
+      this.otpKey(purpose, email),
+      code,
+      'EX',
+      OTP_TTL_SECONDS,
+    );
     if (purpose === 'verify') await this.mail.sendOtp(email, code);
     else await this.mail.sendPasswordReset(email, code);
   }
@@ -414,8 +460,15 @@ export class AuthService {
 
   /** Public so social sign-in returns the exact same session shape. */
   async buildAuthResult(user: User): Promise<AuthResult> {
-    const payload: JwtPayload = { sub: user.id, email: user.email, role: user.role };
-    return { accessToken: this.jwtService.sign(payload), user: await this.publicUser(user) };
+    const payload: JwtPayload = {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+    };
+    return {
+      accessToken: this.jwtService.sign(payload),
+      user: await this.publicUser(user),
+    };
   }
 
   /** `toPublicUser` + the gate flag (needs one identities lookup). */
@@ -449,16 +502,25 @@ export class AuthService {
 }
 
 function phoneTaken() {
-  return phoneError(HttpStatus.CONFLICT, 'PHONE_TAKEN', 'Энэ дугаар өөр дансанд бүртгэлтэй байна.');
+  return phoneError(
+    HttpStatus.CONFLICT,
+    'PHONE_TAKEN',
+    'Энэ дугаар өөр дансанд бүртгэлтэй байна.',
+  );
 }
 
 function phoneNotFound() {
-  return phoneError(HttpStatus.NOT_FOUND, 'PHONE_NOT_FOUND', 'Энэ дугаараар бүртгэл олдсонгүй.');
+  return phoneError(
+    HttpStatus.NOT_FOUND,
+    'PHONE_NOT_FOUND',
+    'Энэ дугаараар бүртгэл олдсонгүй.',
+  );
 }
 
 /** Postgres 23505 on the verified-phone index → PHONE_TAKEN; anything else unchanged. */
 function mapUniqueViolation(err: unknown): unknown {
   const e = err as { code?: string; detail?: string };
-  if (e.code === '23505' && (e.detail ?? '').includes('phone')) return phoneTaken();
+  if (e.code === '23505' && (e.detail ?? '').includes('phone'))
+    return phoneTaken();
   return err;
 }
