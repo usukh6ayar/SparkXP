@@ -72,6 +72,16 @@ announced here first.
 
 ## Current Status (last verified against code: 2026-07-28)
 
+**TestFlight build 24 (2026-10-20) — Expo SDK 57 + icon v2 дизайн, ТӨХӨӨРӨМЖ ДЭЭР ШАЛГАГДААГҮЙ.**
+`1.0.0 (24)`, commit `5eba461` (`usukhbayar` салбар, **main-д merge хийгээгүй**), EAS build `2d47434e`.
+Build 22/23 нь EAS дээр `npm ci` дээр унасан: SDK 57-ийн image-д глобал libvips байгаа тул `sharp`
+(wrangler → miniflare) эх кодоос build хийх гэж оролдсон → `eas.json` production env
+`SHARP_IGNORE_GLOBAL_LIBVIPS=1`. Expo Go илрүүлэлт `src/lib/expoGo.ts` (`appOwnership` SDK 57-д null).
+- ⛔ **1.0.0 руу `ota:deploy` ХИЙЖ БОЛОХГҮЙ** — build 21 (SDK 54) ба 24 (SDK 57) хоёул 1.0.0, нэгнийх нь
+  JS нөгөөг нь унагана. Hot Updater дээр iOS bundle бүгд идэвхгүй; **Android 1.0.0 bundle-ууд идэвхтэй
+  хэвээр** (SDK 54) — Android SDK 57 build хийхээс өмнө идэвхгүй болго.
+- App Store review-д build 24-ийг зөвхөн iPhone дээрх шалгалт давсны дараа сонгоно.
+
 **2026-10-20 — Pay-as-you-go: нэмэлт AI Buddy минут.** Сарын хязгаар (багц эсвэл Free) дуусмагц
 хэрэглэгч вэбээс (Byl) **нэг удаагийн минутын багц** авч үргэлжлүүлэн ярина. Минут **хугацаа дуусахгүй**.
 - `voice_packs` (админ → Монитор → «Нэмэлт минут»: нэр, үнэ ≥100₮, Spark ярих / яриа таних минут) ·
