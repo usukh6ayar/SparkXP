@@ -32,9 +32,8 @@ SparkXP/
 ├── mobile/          # Expo student + teacher app
 ├── backend/         # NestJS API (Railway)
 ├── admin/           # Content / ops dashboard (Vercel)
-├── docs/            # Plans, Hot Updater, AI Buddy, etc.
+├── docs/            # Client briefs (.docx/.pdf)
 ├── API.md           # Endpoint reference
-├── ROADMAP.md       # Who does what + launch checklist
 ├── CODING_RULES.md  # Enforced coding standard
 └── CLAUDE.md        # Shared AI-dev project brain
 ```
@@ -97,7 +96,7 @@ cd mobile
 npm run ota:deploy    # after native build is installed on device
 ```
 
-**Full guide (MN):** [`docs/HOT_UPDATER.md`](docs/HOT_UPDATER.md)
+**Full guide (MN):** git history — `git show 2a1af17:docs/HOT_UPDATER.md`
 
 | Works with OTA? | Needs new App Store build? |
 |---|---|
@@ -122,13 +121,8 @@ npm run ota:deploy    # after native build is installed on device
 
 | Doc | Topic |
 |---|---|
-| [`ROADMAP.md`](ROADMAP.md) | Tasks, launch, ownership |
 | [`API.md`](API.md) | All API endpoints |
-| [`docs/FUTURE_PLAN.md`](docs/FUTURE_PLAN.md) | Product + pricing + AI cost |
-| [`docs/LAUNCH_FROM_SCRATCH.md`](docs/LAUNCH_FROM_SCRATCH.md) | **Эхнээс launch** (Railway → EAS → OTA → 3D) |
-| [`docs/HOT_UPDATER.md`](docs/HOT_UPDATER.md) | OTA deploy guide |
-| [`docs/AI_BUDDY_PLAN.md`](docs/AI_BUDDY_PLAN.md) | AI Buddy pipeline |
-| [`docs/AI_BUDDY_AVATAR_MESHY.md`](docs/AI_BUDDY_AVATAR_MESHY.md) | 3D avatar (Meshy → GLB) |
+| [`CLAUDE.md`](CLAUDE.md) | Project brain — status, rules, history |
 | [`CODING_RULES.md`](CODING_RULES.md) | Code standards |
 
 ---

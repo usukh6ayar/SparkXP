@@ -9,8 +9,12 @@ organizations (e.g. law firms). Owner: Aether Tech Core LLC.
 > **This file is the shared brain for every developer's Claude session.**
 > We are 3 devs, each on a separate Claude Pro account. Keep this file clear and
 > up to date — whatever is written here is what each person's Claude will follow.
-> For the task list / who-does-what / launch plan, see **ROADMAP.md**.
-> For the full product + cost + future plan, see **docs/FUTURE_PLAN.md**.
+> **Repo-д MD баримт ЦӨӨН (2026-10-20).** `ROADMAP.md`, `docs/*.md` (spec/plan,
+> setup заавар, FUTURE_PLAN, CODE_AUDIT …), `mobile/DESIGN.md`, `SCREEN_SPECS.md`,
+> `UX_CRITICAL_SPEC.md`, `backend/DEPLOY.md` зэрэг 54 файл repo-оос хасагдаж
+> Өсөхбаярын локал архив руу шилжсэн. Доорх бичлэгүүд тэдгээрийг дурдсан хэвээр —
+> агуулга нь git түүхэд бий: `git show 2a1af17:<зам>` (жишээ нь
+> `git show 2a1af17:docs/HOT_UPDATER.md`). Шинэ MD баримт **бүү нэм** — мэдээллээ энд эсвэл `API.md`-д бич.
 
 > ⚠️ **MANDATORY — read `CODING_RULES.md` BEFORE writing or editing any code.**
 > It is the enforced coding standard (less code · DRY · component/service-based ·
@@ -61,19 +65,10 @@ announced here first.
 - `CLAUDE.md` — this file (shared rules + project context)
 - `CODING_RULES.md` — **enforced coding standard (read before any code).** Less
   code · DRY · component/service-based · junior-readable; + a refactor prompt.
-- `ROADMAP.md` — **who does what + App Store launch checklist + future update
-  waves (when each update ships).** Read this to know what to build next.
-- `docs/FUTURE_PLAN.md` — full product/cost/future plan nэгтгэл (from the client
-  + IT-team docx briefs). Read before plan/AI/limit/pricing/teacher-panel work.
 - `docs/*.docx` — original briefs: IT Team Brief, Strategy Recommendations,
   34,000₮ / 56,000₮ plan cost breakdowns, SparkXP Plan, Teacher Panel UI/UX.
 - `API.md` — full backend endpoint reference (path · auth/role · purpose · params)
   **+ mobile/admin frontend usage mapping**. Keep updated as endpoints land.
-- `docs/CODE_AUDIT.md` — **standing code audit (2026-07-28)**: verified findings
-  across backend/mobile/admin with severity + suggested PR order. Read before
-  starting hardening/refactor work so you don't re-derive it.
-- `mobile/UX_CRITICAL_SPEC.md` — mobile critical-UX build spec (C1–C4) + the
-  carried-over design-system debt list (D1–D11).
 
 ---
 
