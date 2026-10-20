@@ -1,7 +1,7 @@
 # SparkXP — Mobile (Expo)
 
 React Native + Expo student app. Talks to the backend in `/backend`.
-Roadmap: `../MOBILE_ROADMAP.md`.
+Project status: `../CLAUDE.md`.
 
 ## Stack
 
@@ -26,7 +26,7 @@ Seed sample data + an admin: `cd ../backend && npm run seed`
 ## Hot Updater (OTA)
 
 JS/UI-г App Store review-гүйгээр түгээх. **Бүрэн заавар (Монгол):**  
-→ [`docs/HOT_UPDATER.md`](../docs/HOT_UPDATER.md)
+→ git history: `git show 2a1af17:docs/HOT_UPDATER.md`
 
 ```bash
 # Native build (Expo Go биш) + .env / .env.hotupdater бөглөсний дараа:
@@ -54,4 +54,4 @@ src/
 
 Done: project scaffold, API client, AuthContext (token persistence + restore),
 auth gate navigation, minimal login + Home. Next: M1 auth screens, then M2
-learning screens (see `../MOBILE_ROADMAP.md`).
+learning screens (see `../CLAUDE.md`).
