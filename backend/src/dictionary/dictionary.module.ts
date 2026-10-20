@@ -4,6 +4,7 @@ import { User } from '../entities/user.entity';
 import { Word } from '../entities/word.entity';
 import { AiUsage } from '../entities/ai-usage.entity';
 import { Translation } from '../entities/translation.entity';
+import { Plan } from '../entities/plan.entity';
 import { DictionaryEntry } from '../entities/dictionary-entry.entity';
 import { UserDictionarySave } from '../entities/user-dictionary-save.entity';
 import { AiGatewayModule } from '../ai-gateway/ai-gateway.module';
@@ -20,6 +21,7 @@ import { DictionaryController } from './dictionary.controller';
       Translation,
       DictionaryEntry,
       UserDictionarySave,
+      Plan,
     ]),
     AiGatewayModule,
   ],

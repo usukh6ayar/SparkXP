@@ -1,7 +1,6 @@
 import {
   Injectable,
   BadRequestException,
-  ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -111,13 +110,7 @@ export class DictionarySensesService {
       where: { id: userId },
       relations: ['plan'],
     });
-    if (user?.plan && user.plan.dictionaryAiLimit !== null) {
-      if (user.dictionaryAiCount >= user.plan.dictionaryAiLimit) {
-        throw new ForbiddenException(
-          `Сарын толь бичгийн хязгаар хэтэрлээ (${user.plan.dictionaryAiLimit} тайлбар/сар)`,
-        );
-      }
-    }
+    await this.dictionary.assertAiQuota(user);
 
     // 3. Ask Gemini in JSON mode, then distrust the answer anyway.
     const { text, model, promptTokens, completionTokens } = await runGeminiText(

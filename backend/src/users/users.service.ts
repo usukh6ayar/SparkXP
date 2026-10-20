@@ -6,6 +6,7 @@ import { Plan } from '../entities/plan.entity';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { sanitizeUser, SafeUser } from '../common/utils/sanitize-user';
 import { UserRole } from '../common/enums';
+import { FREE_PLAN_SLUG } from '../common/plan-in-force';
 
 // Re-export so existing imports of SafeUser from this module keep working.
 export { SafeUser };
@@ -44,17 +45,20 @@ export class UsersService {
     const plan = user.planId
       ? await this.plans.findOne({ where: { id: user.planId } })
       : null;
+    // Free users get the Free row's caps — never shown as "unlimited" (doc 09).
+    const caps =
+      plan ?? (await this.plans.findOne({ where: { slug: FREE_PLAN_SLUG } }));
     return {
       isFree: !plan,
       planName: plan?.name ?? 'Үнэгүй',
       expiresAt: user.planExpiresAt,
-      limits: plan
+      limits: caps
         ? {
-            voiceMinutes: plan.voiceMinutesLimit,
-            sttMinutes: plan.sttMinutesLimit,
-            dictionaryAi: plan.dictionaryAiLimit,
-            aiTextTokensK: plan.aiTextTokensLimit,
-            memoryMb: plan.memoryMbLimit,
+            voiceMinutes: caps.voiceMinutesLimit,
+            sttMinutes: caps.sttMinutesLimit,
+            dictionaryAi: caps.dictionaryAiLimit,
+            aiTextTokensK: caps.aiTextTokensLimit,
+            memoryMb: caps.memoryMbLimit,
           }
         : null,
       usage: {

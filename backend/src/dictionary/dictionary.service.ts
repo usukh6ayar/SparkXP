@@ -10,6 +10,8 @@ import { User } from '../entities/user.entity';
 import { Word } from '../entities/word.entity';
 import { AiUsage } from '../entities/ai-usage.entity';
 import { Translation } from '../entities/translation.entity';
+import { Plan } from '../entities/plan.entity';
+import { resolvePlan } from '../common/plan-in-force';
 import { AiUsageType } from '../common/enums';
 import type { WordSense } from '../common/types/word-sense';
 import { AiGatewayService } from '../ai-gateway/ai-gateway.service';
@@ -40,7 +42,22 @@ export class DictionaryService {
     @InjectRepository(AiUsage) private readonly aiUsages: Repository<AiUsage>,
     @InjectRepository(Translation)
     private readonly translations: Repository<Translation>,
+    @InjectRepository(Plan) private readonly plans: Repository<Plan>,
   ) {}
+
+  /**
+   * Monthly AI-dictionary cap of the plan in force (own plan, else Free).
+   * Call only right before a real AI call — cached lookups are free.
+   */
+  async assertAiQuota(user: User | null): Promise<void> {
+    if (!user) return;
+    const limit = (await resolvePlan(user, this.plans))?.dictionaryAiLimit;
+    if (limit != null && user.dictionaryAiCount >= limit) {
+      throw new ForbiddenException(
+        `Сарын толь бичгийн хязгаар хэтэрлээ (${limit} тайлбар/сар)`,
+      );
+    }
+  }
 
   /**
    * Look up the short Mongolian meaning of an English word. Lookup order:
@@ -81,13 +98,7 @@ export class DictionaryService {
       where: { id: userId },
       relations: ['plan'],
     });
-    if (user?.plan && user.plan.dictionaryAiLimit !== null) {
-      if (user.dictionaryAiCount >= user.plan.dictionaryAiLimit) {
-        throw new ForbiddenException(
-          `Сарын толь бичгийн хязгаар хэтэрлээ (${user.plan.dictionaryAiLimit} тайлбар/сар)`,
-        );
-      }
-    }
+    await this.assertAiQuota(user);
 
     const { translation, model, promptTokens, completionTokens } =
       await this.askGemini(normalised);
@@ -205,13 +216,7 @@ export class DictionaryService {
       where: { id: userId },
       relations: ['plan'],
     });
-    if (user?.plan && user.plan.dictionaryAiLimit !== null) {
-      if (user.dictionaryAiCount >= user.plan.dictionaryAiLimit) {
-        throw new ForbiddenException(
-          `Сарын толь бичгийн хязгаар хэтэрлээ (${user.plan.dictionaryAiLimit} тайлбар/сар)`,
-        );
-      }
-    }
+    await this.assertAiQuota(user);
 
     const prompt =
       'Дараах англи өгүүлбэрийг монгол хэл рүү бүтнээр, ойлгомжтой орчуул.\n' +
