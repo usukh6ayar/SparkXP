@@ -71,6 +71,7 @@ describe('BuddyService.audioTurn — usage durability', () => {
           limitSeconds: null,
           warnLevel: 'none',
         }),
+        spendCredits: jest.fn().mockResolvedValue(undefined),
       },
       redis: {
         get: jest.fn().mockResolvedValue('0'),

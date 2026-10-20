@@ -20,6 +20,7 @@ import { Modal } from '../../components/Modal';
 import { FormActions } from '../../components/FormActions';
 import { Pagination } from '../../components/Pagination';
 import { formatDate } from '../../lib/utils';
+import { VoicePacksPanel } from './VoicePacksPanel';
 
 const LIMIT = 20;
 
@@ -161,7 +162,9 @@ export default function MonitorPage() {
       key: 'type', header: 'Төрөл',
       render: (p: Payment) => p.metadata?.type === 'plan'
         ? <Badge color={planColors[p.metadata?.planName?.toLowerCase() ?? ''] ?? 'blue'}>{p.metadata.planName} план</Badge>
-        : <Badge color="gray">Sparks ✨{p.metadata?.sparksToCredit}</Badge>,
+        : p.metadata?.type === 'voice_pack'
+          ? <Badge color="green">🎙 {p.metadata.planName}</Badge>
+          : <Badge color="gray">Sparks ✨{p.metadata?.sparksToCredit}</Badge>,
     },
     {
       key: 'amount', header: 'Дүн',
@@ -249,6 +252,8 @@ export default function MonitorPage() {
           </div>
         ))}
       </div>
+
+      <VoicePacksPanel />
 
       {/* Payments */}
       <div className="flex items-center justify-between mb-3">

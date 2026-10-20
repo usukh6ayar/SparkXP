@@ -23,6 +23,7 @@ import { planAccessAfterPurchase } from './plan-access';
 import { BylClient } from './byl/byl.client';
 import { verifyBylSignature } from './byl/byl-signature';
 import { paymentError } from './payments-errors';
+import { VoicePacksService, type PackMeta } from './voice-packs.service';
 
 /** Processed Byl event ids — Byl retries for ~4 days; keep a week. */
 const EVENT_TTL_SECONDS = 7 * 24 * 3600;
@@ -58,6 +59,7 @@ export class PaymentsService {
     private readonly byl: BylClient,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly config: ConfigService,
+    private readonly packs: VoicePacksService,
   ) {}
 
   /** Price + promo + the expiry this purchase would give. Shown before paying. */
@@ -106,42 +108,79 @@ export class PaymentsService {
       discount: q.discount,
       ...(q.promoId ? { promoId: q.promoId, promoCode: q.promoCode } : {}),
     };
-    const payment = await this.paymentRepo.save(
+    const payment = await this.createPending(user.id, q.finalPrice, meta);
+    return this.openBylCheckout(payment, {
+      name: `SparkXP ${q.plan.name} — ${q.plan.durationDays} хоног`,
+      ref: q.plan.slug,
+      price: q.price,
+      discount:
+        q.discount > 0
+          ? { amount: q.discount, description: `Промо код ${q.promoCode}` }
+          : undefined,
+      cancelPath: `/checkout?plan=${q.plan.slug}&canceled=1`,
+    });
+  }
+
+  /** Pay-as-you-go: pending payment + Byl checkout for a pack of Buddy minutes. */
+  async createPackCheckout(user: Pick<User, 'id'>, packId: string) {
+    const pack = await this.packs.activePack(packId);
+    const payment = await this.createPending(
+      user.id,
+      pack.priceAmount,
+      this.packs.meta(pack),
+    );
+    return this.openBylCheckout(payment, {
+      name: `SparkXP ${pack.name}`,
+      ref: pack.slug,
+      price: pack.priceAmount,
+      cancelPath: `/checkout?pack=${pack.slug}&canceled=1`,
+    });
+  }
+
+  private createPending(
+    userId: string,
+    amount: number,
+    meta: PlanMeta | PackMeta,
+  ): Promise<Payment> {
+    return this.paymentRepo.save(
       this.paymentRepo.create({
-        userId: user.id,
-        amount: q.finalPrice,
+        userId,
+        amount,
         currency: 'MNT',
         provider: 'byl',
         status: PaymentStatus.PENDING,
         metadata: meta as unknown as Record<string, unknown>,
       }),
     );
+  }
 
+  /** Byl's hosted page for a pending payment; FAILED if Byl refuses. */
+  private async openBylCheckout(
+    payment: Payment,
+    item: {
+      name: string;
+      ref: string;
+      price: number;
+      discount?: { amount: number; description: string };
+      cancelPath: string;
+    },
+  ) {
     const web = this.config.get<string>('WEB_URL') ?? '';
     try {
       const checkout = await this.byl.createCheckout({
         items: [
           {
             price_data: {
-              unit_amount: q.price,
-              product_data: {
-                name: `SparkXP ${q.plan.name} — ${q.plan.durationDays} хоног`,
-                client_reference_id: q.plan.slug,
-              },
+              unit_amount: item.price,
+              product_data: { name: item.name, client_reference_id: item.ref },
             },
             quantity: 1,
           },
         ],
-        ...(q.discount > 0
-          ? {
-              discounts: [
-                { amount: q.discount, description: `Промо код ${q.promoCode}` },
-              ],
-            }
-          : {}),
+        ...(item.discount ? { discounts: [item.discount] } : {}),
         client_reference_id: payment.id,
         success_url: `${web}/checkout/success?payment=${payment.id}`,
-        cancel_url: `${web}/checkout?plan=${q.plan.slug}&canceled=1`,
+        cancel_url: `${web}${item.cancelPath}`,
         email_collection: false, // phone-first users may have no email
       });
       payment.providerRef = String(checkout.id);
@@ -215,7 +254,7 @@ export class PaymentsService {
       return;
     }
     const paid = Math.round(Number(checkout.amount_total));
-    const meta = payment.metadata as unknown as PlanMeta;
+    const meta = payment.metadata as unknown as PlanMeta | PackMeta;
     if (paid !== payment.amount) {
       if (this.config.get<string>('BYL_TEST_MODE') === 'true') {
         this.logger.log(
@@ -234,7 +273,8 @@ export class PaymentsService {
       }
     }
 
-    await this.grant(payment, meta);
+    if (meta.type === 'voice_pack') await this.packs.grant(payment, meta);
+    else await this.grant(payment, meta);
   }
 
   /** The buyer's own payment, for the website's success page. */
@@ -242,12 +282,16 @@ export class PaymentsService {
     const p = await this.paymentRepo.findOne({ where: { id } });
     if (!p || p.userId !== user.id)
       throw new NotFoundException('Төлбөр олдсонгүй');
-    const meta = (p.metadata ?? {}) as Partial<PlanMeta>;
+    const meta = (p.metadata ?? {}) as Partial<PlanMeta> & Partial<PackMeta>;
     return {
       id: p.id,
       status: p.status,
+      kind: meta.type === 'voice_pack' ? 'voice_pack' : 'plan',
       planName: meta.planName ?? null,
       accessUntil: meta.accessUntil ?? null,
+      /** Pack purchases only: minutes added to the balance. */
+      voiceMinutes: meta.voiceMinutes ?? null,
+      sttMinutes: meta.sttMinutes ?? null,
     };
   }
 

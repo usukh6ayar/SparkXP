@@ -5,6 +5,7 @@ import { AiUsage } from '../entities/ai-usage.entity';
 import { AiBuddy } from '../entities/ai-buddy.entity';
 import { User } from '../entities/user.entity';
 import { Plan } from '../entities/plan.entity';
+import { VoiceCredit } from '../entities/voice-credit.entity';
 import { BuddySession } from '../entities/buddy-session.entity';
 import { BuddyMemory } from '../entities/buddy-memory.entity';
 import { BuddyVoiceCache } from '../entities/buddy-voice-cache.entity';
@@ -32,6 +33,7 @@ import { XpModule } from '../xp/xp.module';
       AiBuddy,
       User,
       Plan,
+      VoiceCredit,
       BuddySession,
       BuddyMemory,
       BuddyVoiceCache,

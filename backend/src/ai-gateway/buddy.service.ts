@@ -1571,6 +1571,9 @@ export class BuddyService {
         metadata: fields.metadata,
       }),
     );
+    // Pay-as-you-go: seconds past the monthly plan cap come off the balance.
+    if (type === AiUsageType.TTS || type === AiUsageType.STT)
+      await this.usage.spendCredits(userId, type, fields.voiceSeconds ?? 0);
   }
 
   private usageBlock(allowance: {

@@ -40,6 +40,8 @@ import { PromoCode } from './promo-code.entity';
 import { PromoRedemption } from './promo-redemption.entity';
 import { UserReport } from './user-report.entity';
 import { UserBlock } from './user-block.entity';
+import { VoicePack } from './voice-pack.entity';
+import { VoiceCredit } from './voice-credit.entity';
 
 export {
   Organization,
@@ -83,6 +85,8 @@ export {
   PromoRedemption,
   UserReport,
   UserBlock,
+  VoicePack,
+  VoiceCredit,
 };
 
 /** Single list to feed TypeORM's `entities` option. */
@@ -128,4 +132,6 @@ export const entities = [
   PromoRedemption,
   UserReport,
   UserBlock,
+  VoicePack,
+  VoiceCredit,
 ];
