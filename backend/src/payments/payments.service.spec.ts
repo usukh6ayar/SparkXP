@@ -26,7 +26,11 @@ function setup(env: Record<string, string> = {}) {
     save: jest.fn(async (p: any) => (payments.set(p.id, p), p)),
     findOne: jest.fn(async ({ where }: any) => payments.get(where.id) ?? null),
   };
-  const planRepo = { findOne: jest.fn(async () => plusPlan) };
+  const planRepo = {
+    findOne: jest.fn(async (): Promise<any> => plusPlan),
+    merge: (p: any, c: any) => ({ ...p, ...c }),
+    save: jest.fn(async (p: any) => p),
+  };
   const user = { id: 'u-1', planId: null, planExpiresAt: null, plan: null };
   const userRepo = { findOne: jest.fn(async () => user) };
   const promos = {
@@ -78,7 +82,7 @@ function setup(env: Record<string, string> = {}) {
     redis as any,
     config as any,
   );
-  return { svc, payments, byl, promos, referrals, manager, redis };
+  return { svc, payments, byl, promos, referrals, manager, redis, planRepo };
 }
 
 const event = (paymentId: string, id = 1) => {
@@ -93,6 +97,29 @@ const event = (paymentId: string, id = 1) => {
 };
 
 describe('PaymentsService', () => {
+  it('updatePlan: changes only the fields sent; null limit = unlimited', async () => {
+    const { svc, planRepo } = setup();
+    planRepo.findOne.mockResolvedValueOnce({ ...plusPlan, voiceMinutesLimit: 70 });
+    const out = await svc.updatePlan('plan-plus', {
+      isActive: false,
+      voiceMinutesLimit: null,
+      priceAmount: undefined,
+    });
+    expect(out).toMatchObject({
+      priceAmount: 56_000,
+      isActive: false,
+      voiceMinutesLimit: null,
+    });
+  });
+
+  it('updatePlan: unknown id → 404', async () => {
+    const { svc, planRepo } = setup();
+    planRepo.findOne.mockResolvedValueOnce(null);
+    await expect(svc.updatePlan('nope', { isActive: false })).rejects.toThrow(
+      'План олдсонгүй',
+    );
+  });
+
   it('quote: list price, promo discount and the resulting expiry', async () => {
     const { svc } = setup();
     const q = await svc.quote({ id: 'u-1' } as any, {

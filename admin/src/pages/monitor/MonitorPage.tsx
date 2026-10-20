@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, TrendingDown } from 'lucide-react';
+import { Pencil, Plus, TrendingDown } from 'lucide-react';
 
 const USD_TO_MNT = 3400; // approximate exchange rate
 
@@ -58,6 +58,18 @@ const emptyPlanForm: PlanForm = {
   voiceMinutesLimit: '', sttMinutesLimit: '', dictionaryAiLimit: '', aiTextTokensLimit: '', memoryMbLimit: '',
 };
 
+/** Plan row → edit form (limits: null = unlimited = empty field). */
+const toForm = (p: Plan): PlanForm => {
+  const lim = (v: number | null) => (v == null ? '' : String(v));
+  return {
+    name: p.name, slug: p.slug, priceAmount: String(p.priceAmount),
+    durationDays: String(p.durationDays), features: (p.features ?? []).join('\n'), isActive: p.isActive,
+    voiceMinutesLimit: lim(p.voiceMinutesLimit), sttMinutesLimit: lim(p.sttMinutesLimit),
+    dictionaryAiLimit: lim(p.dictionaryAiLimit), aiTextTokensLimit: lim(p.aiTextTokensLimit),
+    memoryMbLimit: lim(p.memoryMbLimit),
+  };
+};
+
 const statusColors: Record<string, 'green' | 'yellow' | 'red' | 'gray'> = {
   paid: 'green', pending: 'yellow', failed: 'red', refunded: 'gray',
 };
@@ -71,6 +83,8 @@ export default function MonitorPage() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [planModal, setPlanModal] = useState(false);
   const [planForm, setPlanForm] = useState<PlanForm>(emptyPlanForm);
+  /** Plan being edited; null = the modal creates a new one. */
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
 
@@ -110,19 +124,21 @@ export default function MonitorPage() {
         .map(f => f.trim())
         .filter(Boolean);
       const toLimit = (v: string) => v.trim() === '' ? null : Number(v);
-      await api.post('/payments/plans', {
+      const body = {
         name: planForm.name,
-        slug: planForm.slug,
         priceAmount: Number(planForm.priceAmount),
         durationDays: Number(planForm.durationDays) || 30,
-        features: features.length ? features : undefined,
+        features: features.length ? features : null,
         isActive: planForm.isActive,
         voiceMinutesLimit: toLimit(planForm.voiceMinutesLimit),
         sttMinutesLimit: toLimit(planForm.sttMinutesLimit),
         dictionaryAiLimit: toLimit(planForm.dictionaryAiLimit),
         aiTextTokensLimit: toLimit(planForm.aiTextTokensLimit),
         memoryMbLimit: toLimit(planForm.memoryMbLimit),
-      });
+      };
+      // The slug never changes after creation (`free` and the website key on it).
+      if (editingId) await api.patch(`/payments/plans/${editingId}`, body);
+      else await api.post('/payments/plans', { ...body, slug: planForm.slug });
       setPlanModal(false);
       setPlanForm(emptyPlanForm);
       loadPlans();
@@ -193,7 +209,7 @@ export default function MonitorPage() {
       {/* Plans header */}
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-lg font-semibold text-gray-800">Идэвхтэй планууд</h2>
-        <Button size="sm" onClick={() => { setPlanForm(emptyPlanForm); setSaveError(''); setPlanModal(true); }}>
+        <Button size="sm" onClick={() => { setEditingId(null); setPlanForm(emptyPlanForm); setSaveError(''); setPlanModal(true); }}>
           <Plus className="h-4 w-4" /> Plan нэмэх
         </Button>
       </div>
@@ -206,7 +222,16 @@ export default function MonitorPage() {
               <Badge color={planColors[plan.slug] ?? 'blue'}>{plan.isActive ? 'Идэвхтэй' : 'Идэвхгүй'}</Badge>
             </div>
             <p className="text-2xl font-bold text-primary">{plan.priceAmount.toLocaleString()} ₮</p>
-            <p className="text-xs text-gray-400 mb-3">{plan.durationDays} хоног</p>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs text-gray-400">{plan.durationDays} хоног · {plan.slug}</p>
+              <button
+                type="button"
+                onClick={() => { setEditingId(plan.id); setPlanForm(toForm(plan)); setSaveError(''); setPlanModal(true); }}
+                className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+              >
+                <Pencil className="h-3.5 w-3.5" /> Засах
+              </button>
+            </div>
             <ul className="space-y-1 mb-3">
               {(plan.features ?? []).map((f, i) => (
                 <li key={i} className="text-xs text-gray-600 flex items-start gap-1">
@@ -299,18 +324,21 @@ export default function MonitorPage() {
 
       {/* Plan create modal */}
       {planModal && (
-        <Modal title="Шинэ план нэмэх" onClose={() => setPlanModal(false)}>
+        <Modal title={editingId ? 'План засах' : 'Шинэ план нэмэх'} onClose={() => setPlanModal(false)}>
           <div className="space-y-4">
             <Input
               label="Нэр (жишээ: Premium)"
               value={planForm.name}
-              onChange={(e) => handleNameChange(e.target.value)}
+              onChange={(e) => (editingId
+                ? setPlanForm(f => ({ ...f, name: e.target.value }))
+                : handleNameChange(e.target.value))}
             />
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium text-gray-700">Slug (URL-д ашиглагдана)</label>
               <input
-                className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:border-primary focus:outline-none"
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:border-primary focus:outline-none disabled:bg-gray-100 disabled:text-gray-400"
                 value={planForm.slug}
+                disabled={editingId !== null}
                 onChange={(e) => setPlanForm(f => ({ ...f, slug: e.target.value }))}
                 placeholder="premium"
               />
@@ -385,10 +413,10 @@ export default function MonitorPage() {
                 onChange={(e) => setPlanForm(f => ({ ...f, isActive: e.target.checked }))}
                 className="rounded"
               />
-              Шууд идэвхтэй болгох
+              Идэвхтэй — вэбийн «Багц авах» хуудсанд харагдана (үнэ 0 бол харагдахгүй)
             </label>
             {saveError && <p className="text-sm text-red-500">{saveError}</p>}
-            <FormActions onCancel={() => setPlanModal(false)} onSave={savePlan} saving={saving} saveLabel="Нэмэх" />
+            <FormActions onCancel={() => setPlanModal(false)} onSave={savePlan} saving={saving} saveLabel={editingId ? 'Хадгалах' : 'Нэмэх'} />
           </div>
         </Modal>
       )}
