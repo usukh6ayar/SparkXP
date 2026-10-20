@@ -65,8 +65,6 @@ announced here first.
 - `CLAUDE.md` — this file (shared rules + project context)
 - `CODING_RULES.md` — **enforced coding standard (read before any code).** Less
   code · DRY · component/service-based · junior-readable; + a refactor prompt.
-- `docs/*.docx` — original briefs: IT Team Brief, Strategy Recommendations,
-  34,000₮ / 56,000₮ plan cost breakdowns, SparkXP Plan, Teacher Panel UI/UX.
 - `API.md` — full backend endpoint reference (path · auth/role · purpose · params)
   **+ mobile/admin frontend usage mapping**. Keep updated as endpoints land.
 

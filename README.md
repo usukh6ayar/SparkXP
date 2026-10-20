@@ -32,7 +32,7 @@ SparkXP/
 ├── mobile/          # Expo student + teacher app
 ├── backend/         # NestJS API (Railway)
 ├── admin/           # Content / ops dashboard (Vercel)
-├── docs/            # Client briefs (.docx/.pdf)
+├── docs/            # Redesign.pdf + import templates
 ├── API.md           # Endpoint reference
 ├── CODING_RULES.md  # Enforced coding standard
 └── CLAUDE.md        # Shared AI-dev project brain
