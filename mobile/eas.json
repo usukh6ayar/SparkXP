@@ -34,7 +34,6 @@
     },
     "production": {
       "autoIncrement": true,
-      "node": "20.19.4",
       "ios": {
         "resourceClass": "m-medium"
       },
@@ -44,7 +43,8 @@
       "env": {
         "EXPO_PUBLIC_HOT_UPDATER_URL": "https://sparkxp-hot-updater.sparkxp.workers.dev",
         "SENTRY_DISABLE_AUTO_UPLOAD": "true",
-        "EXPO_PUBLIC_API_URL": "https://sparkxp-production.up.railway.app/api"
+        "EXPO_PUBLIC_API_URL": "https://sparkxp-production.up.railway.app/api",
+        "SHARP_IGNORE_GLOBAL_LIBVIPS": "1"
       }
     }
   },
