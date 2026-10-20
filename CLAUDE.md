@@ -72,6 +72,30 @@ announced here first.
 
 ## Current Status (last verified against code: 2026-07-28)
 
+**TestFlight build 24 (2026-10-20) — Expo SDK 57 + icon v2 дизайн, ТӨХӨӨРӨМЖ ДЭЭР ШАЛГАГДААГҮЙ.**
+`1.0.0 (24)`, commit `5eba461` (`usukhbayar` салбар, **main-д merge хийгээгүй**), EAS build `2d47434e`.
+Build 22/23 нь EAS дээр `npm ci` дээр унасан: SDK 57-ийн image-д глобал libvips байгаа тул `sharp`
+(wrangler → miniflare) эх кодоос build хийх гэж оролдсон → `eas.json` production env
+`SHARP_IGNORE_GLOBAL_LIBVIPS=1`. Expo Go илрүүлэлт `src/lib/expoGo.ts` (`appOwnership` SDK 57-д null).
+- ⛔ **1.0.0 руу `ota:deploy` ХИЙЖ БОЛОХГҮЙ** — build 21 (SDK 54) ба 24 (SDK 57) хоёул 1.0.0, нэгнийх нь
+  JS нөгөөг нь унагана. Hot Updater дээр iOS bundle бүгд идэвхгүй; **Android 1.0.0 bundle-ууд идэвхтэй
+  хэвээр** (SDK 54) — Android SDK 57 build хийхээс өмнө идэвхгүй болго.
+- App Store review-д build 24-ийг зөвхөн iPhone дээрх шалгалт давсны дараа сонгоно.
+
+**2026-10-20 — Pay-as-you-go: нэмэлт AI Buddy минут.** Сарын хязгаар (багц эсвэл Free) дуусмагц
+хэрэглэгч вэбээс (Byl) **нэг удаагийн минутын багц** авч үргэлжлүүлэн ярина. Минут **хугацаа дуусахгүй**.
+- `voice_packs` (админ → Монитор → «Нэмэлт минут»: нэр, үнэ ≥100₮, Spark ярих / яриа таних минут) ·
+  `voice_credits` = append-only бүртгэл (+худалдан авалт, −хэрэглээ; баланс = SUM). Migration
+  `CreateVoicePacks1788600000000`. **Багц seed хийгээгүй** — эзэн админаас үнээ тавина.
+- Хэрэглээ: `BuddyUsageService.check` нь хязгаарыг `max(planCap, used) + баланс` болгоно; `logUsage` (TTS/STT)
+  бүрийн дараа `spendCredits` хязгаараас хэтэрсэн секундыг балансаас хасна (баланс 0 бол ганц SUM, гарна).
+  Хязгааргүй багцад баланс огт хөндөгдөхгүй. Апп сервер буцаасан `limitSeconds`-ийг харуулдаг тул **аппын
+  код өөрчлөгдөөгүй**.
+- Олголт зөвхөн webhook-оор (`metadata.type = 'voice_pack'` → `VoicePacksService.grant`); referral бонус
+  **өгөхгүй** (хямд багцаар урамшуулал цуглуулахаас сэргийлж). Вэб: үнийн хэсгийн доор «Нэмэлт минут»
+  карт, `/checkout?pack=<slug>`.
+- ⚠️ 3.1.1: апп дотор «минут авах», үнэ **бүү** харуул — хязгаарт хүрсэн мессеж уриалгагүй хэвээр.
+
 **2026-10-20 — Free Basic хязгаар (захиалагчийн doc 09).** Багцгүй (эсвэл багц нь дууссан) хэрэглэгч
 өмнө нь **Essential-ийн** дуут хязгаар (35 TTS / 100 STT мин) + **хязгааргүй** AI толь авдаг байсан =
 төлбөртэй багцыг 0₮-өөр. Одоо бүгд `plans` дахь **`free`** мөрийн хязгаарыг авна

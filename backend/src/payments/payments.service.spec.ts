@@ -1,6 +1,8 @@
 import { createHmac } from 'crypto';
 import { PaymentsService } from './payments.service';
-import { PaymentStatus } from '../common/enums';
+import { AiUsageType, PaymentStatus } from '../common/enums';
+import { VoicePacksService } from './voice-packs.service';
+import { VoiceCredit } from '../entities/voice-credit.entity';
 
 const SECRET = 'whsec';
 const PAY = '11111111-1111-4111-8111-111111111111';
@@ -71,6 +73,17 @@ function setup(env: Record<string, string> = {}) {
     get: (k: string) =>
       ({ BYL_WEBHOOK_SECRET: SECRET, WEB_URL: 'https://web.test', ...env })[k],
   };
+  const pack = {
+    id: 'pack-10',
+    name: '10 минут',
+    slug: 'min10',
+    priceAmount: 5_000,
+    voiceMinutes: 10,
+    sttMinutes: 20,
+    isActive: true,
+  };
+  const packRepo = { findOne: jest.fn(async () => pack) };
+  const packs = new VoicePacksService(packRepo as any, dataSource as any);
   const svc = new PaymentsService(
     paymentRepo as any,
     planRepo as any,
@@ -81,6 +94,7 @@ function setup(env: Record<string, string> = {}) {
     byl as any,
     redis as any,
     config as any,
+    packs,
   );
   return { svc, payments, byl, promos, referrals, manager, redis, planRepo };
 }
@@ -97,6 +111,35 @@ const event = (paymentId: string, id = 1) => {
 };
 
 describe('PaymentsService', () => {
+  it('pack: checkout at the pack price, webhook credits the minutes once', async () => {
+    const { svc, manager, payments, byl, referrals } = setup();
+    const out = await svc.createPackCheckout({ id: 'u-1' } as any, 'pack-10');
+    expect(out.paymentId).toBe(PAY);
+    const body = byl.createCheckout.mock.calls[0][0];
+    expect(body.items[0].price_data.unit_amount).toBe(5_000);
+    expect(body.cancel_url).toBe('https://web.test/checkout?pack=min10&canceled=1');
+
+    byl.getCheckout.mockResolvedValue({
+      id: 13338,
+      status: 'complete',
+      amount_total: '5000.00',
+      client_reference_id: PAY,
+    });
+    const { raw, sig } = event(PAY);
+    await svc.handleBylWebhook(raw, sig);
+    await svc.handleBylWebhook(raw, sig); // Byl retry: no second credit
+
+    expect(payments.get(PAY).status).toBe(PaymentStatus.PAID);
+    const credits = manager.save.mock.calls.filter(([e]: any[]) => e === VoiceCredit);
+    expect(credits.map(([, row]: any[]) => [row.type, row.seconds])).toEqual([
+      [AiUsageType.TTS, 600],
+      [AiUsageType.STT, 1200],
+    ]);
+    // Plans only: a pack never changes the user's plan or pays referral bonuses.
+    expect(manager.update).not.toHaveBeenCalled();
+    expect(referrals.creditFirstPurchaseBonus).not.toHaveBeenCalled();
+  });
+
   it('updatePlan: changes only the fields sent; null limit = unlimited', async () => {
     const { svc, planRepo } = setup();
     planRepo.findOne.mockResolvedValueOnce({ ...plusPlan, voiceMinutesLimit: 70 });

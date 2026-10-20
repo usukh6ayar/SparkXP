@@ -1571,6 +1571,11 @@ export class BuddyService {
         metadata: fields.metadata,
       }),
     );
+    // Pay-as-you-go: seconds past the monthly plan cap come off the balance.
+    // Not awaited — the TTS path returns audio right after this, and the extra
+    // SUM must not add latency. Safe to float: spendCredits never rejects.
+    if (type === AiUsageType.TTS || type === AiUsageType.STT)
+      void this.usage.spendCredits(userId, type, fields.voiceSeconds ?? 0);
   }
 
   private usageBlock(allowance: {

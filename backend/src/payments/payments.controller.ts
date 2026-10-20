@@ -27,10 +27,19 @@ import { PaymentsService } from './payments.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { CreatePlanDto } from './dto/create-plan.dto';
 import { UpdatePlanDto } from './dto/update-plan.dto';
+import {
+  BuyVoicePackDto,
+  CreateVoicePackDto,
+  UpdateVoicePackDto,
+} from './dto/voice-pack.dto';
+import { VoicePacksService } from './voice-packs.service';
 
 @Controller('payments')
 export class PaymentsController {
-  constructor(private readonly service: PaymentsService) {}
+  constructor(
+    private readonly service: PaymentsService,
+    private readonly packs: VoicePacksService,
+  ) {}
 
   /** Price + promo + resulting expiry, before paying (website checkout page). */
   @Get('quote')
@@ -73,6 +82,45 @@ export class PaymentsController {
   @Get('plans')
   findPlans() {
     return this.service.findAllPlans();
+  }
+
+  // ── Pay-as-you-go Buddy minutes ─────────────────────────────────────────
+
+  /** Public: every pack; the website shows the active ones. */
+  @Get('packs')
+  findPacks() {
+    return this.packs.findAll();
+  }
+
+  /** Buy a pack: pending payment + Byl checkout. Only the webhook grants. */
+  @Post('packs/checkout')
+  @UseGuards(JwtAuthGuard, PaymentsEnabledGuard)
+  buyPack(@CurrentUser() user: User, @Body() dto: BuyVoicePackDto) {
+    return this.service.createPackCheckout(user, dto.packId);
+  }
+
+  @Post('packs')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  async createPack(@Body() dto: CreateVoicePackDto) {
+    try {
+      return await this.packs.create(dto);
+    } catch (e: unknown) {
+      const msg = (e as { message?: string })?.message ?? '';
+      if (msg.includes('duplicate') || msg.includes('unique'))
+        throw new ConflictException(`"${dto.slug}" slug аль хэдийн байна`);
+      throw e;
+    }
+  }
+
+  @Patch('packs/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  updatePack(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateVoicePackDto,
+  ) {
+    return this.packs.update(id, dto);
   }
 
   /** Admin: CSV for the accountant (manual e-barimt). */
