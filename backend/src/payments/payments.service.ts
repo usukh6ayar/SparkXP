@@ -18,6 +18,7 @@ import { ReferralsService } from '../referrals/referrals.service';
 import { PromosService } from '../promos/promos.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { CreatePlanDto } from './dto/create-plan.dto';
+import { UpdatePlanDto } from './dto/update-plan.dto';
 import { planAccessAfterPurchase } from './plan-access';
 import { BylClient } from './byl/byl.client';
 import { verifyBylSignature } from './byl/byl-signature';
@@ -414,5 +415,20 @@ export class PaymentsService {
         .join(',');
     });
     return [head.join(','), ...lines].join('\n');
+  }
+
+  /**
+   * Admin: edit a plan. Limits apply at once to everyone on it (they are read
+   * live); a new price only affects checkouts started after the edit.
+   * `isActive = false` takes it off /checkout without touching paid access.
+   */
+  async updatePlan(id: string, dto: UpdatePlanDto): Promise<Plan> {
+    const plan = await this.planRepo.findOne({ where: { id } });
+    if (!plan) throw new NotFoundException('План олдсонгүй');
+    // Only the fields sent; `null` stays (= unlimited), `undefined` = untouched.
+    const changes = Object.fromEntries(
+      Object.entries(dto).filter(([, v]) => v !== undefined),
+    );
+    return this.planRepo.save(this.planRepo.merge(plan, changes));
   }
 }

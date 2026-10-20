@@ -8,6 +8,7 @@ import {
   HttpCode,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Query,
   Req,
@@ -25,6 +26,7 @@ import { User } from '../entities/user.entity';
 import { PaymentsService } from './payments.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { CreatePlanDto } from './dto/create-plan.dto';
+import { UpdatePlanDto } from './dto/update-plan.dto';
 
 @Controller('payments')
 export class PaymentsController {
@@ -105,6 +107,16 @@ export class PaymentsController {
       }
       throw e;
     }
+  }
+
+  @Patch('plans/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  updatePlan(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdatePlanDto,
+  ) {
+    return this.service.updatePlan(id, dto);
   }
 
   /**

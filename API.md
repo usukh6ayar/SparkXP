@@ -925,6 +925,7 @@ Controller-level: JWT.
 | --- | --- | --- | --- |
 | GET `/payments/plans` | **Public** | Идэвхтэй багцын жагсаалт (апп + вэб) | — |
 | POST `/payments/plans` | admin, super_admin | Багц үүсгэх (давхардвал 409) | `CreatePlanDto` |
+| PATCH `/payments/plans/:id` | admin, super_admin | Багц засах: үнэ, хоног, хязгаар, `isActive` (`false` = вэбийн checkout-оос нуух). Зөвхөн илгээсэн талбар өөрчлөгдөнө, хязгаарт `null` = хязгааргүй. `slug` солигдохгүй | `UpdatePlanDto` |
 | GET `/payments/quote` | JWT | Төлөхөөс өмнөх тооцоо → `{ planId, planName, price, discount, finalPrice, accessUntil }` | `?planId=&promoCode=` |
 | POST `/payments` | JWT + `PAYMENTS_ENABLED` | `pending` төлбөр + Byl checkout → `{ paymentId, checkoutUrl }`. **Эрх олгохгүй** | `{ planId, promoCode? }` |
 | POST `/payments/webhook/byl` | **Public**, `Byl-Signature` | Byl → бид. **Эрх олгодог цорын ганц зам** (доор) | Byl event |
@@ -1127,7 +1128,7 @@ Token автоматаар залгагдана. Зураг байршуулал
 | Leaderboard | GET `/leaderboard/top` |
 | AI Buddy | GET `/ai/buddies` · GET `/ai/buddy-stats` · POST/PATCH/DELETE `/ai/buddies` |
 | Settings | GET/PATCH `/ai/limits` |
-| Monitor | GET `/payments/plans` · GET `/payments` · POST `/payments/plans` · GET `/payments/export.csv` |
+| Monitor | GET `/payments/plans` · GET `/payments` · POST `/payments/plans` · PATCH `/payments/plans/:id` · GET `/payments/export.csv` |
 | Notifications | GET `/notifications` · **GET `/notifications/me`** (сурагчийн мэдэгдлийн төв — 2026-08-19) |
 
 ---
