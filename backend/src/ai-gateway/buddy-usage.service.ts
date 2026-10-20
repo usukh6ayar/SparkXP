@@ -5,6 +5,7 @@ import { AiUsage } from '../entities/ai-usage.entity';
 import { Plan } from '../entities/plan.entity';
 import { User } from '../entities/user.entity';
 import { AiUsageType } from '../common/enums';
+import { resolvePlan } from '../common/plan-in-force';
 
 /** Warning band for approaching the monthly voice cap. */
 export type WarnLevel = 'none' | 'warn80' | 'warn95';
@@ -19,34 +20,10 @@ export interface Allowance {
 
 /**
  * Enforces the monthly voice caps that already exist as columns on `plans`
- * (voiceMinutesLimit / sttMinutesLimit) but were never enforced. Truth is the
- * ai_usages ledger (like XpLog for XP) — no extra counter columns on users.
+ * (voiceMinutesLimit / sttMinutesLimit). Truth is the ai_usages ledger (like
+ * XpLog for XP) — no extra counter columns on users. Which plan's caps apply
+ * (own plan, else the Free row) is decided by `resolvePlan`.
  */
-/** The plan whose caps apply to users with no active plan (shown as "Essential"). */
-export const ESSENTIAL_PLAN_SLUG = 'standard';
-
-type Caps = Pick<Plan, 'voiceMinutesLimit' | 'sttMinutesLimit'>;
-
-/**
- * The caps in force: the user's plan while it is active, otherwise Essential's.
- *
- * Until 2026-09-28 a user with no plan — or an expired one — read `null` and
- * got UNLIMITED voice, the costliest thing the app does. The app already shows
- * those users as "Essential", so they get Essential's caps (voice cost brief:
- * STT 100 min, TTS 35 min — set on the `standard` plan row, admin-editable).
- */
-export function capsInForce(
-  user: Pick<User, 'plan' | 'planExpiresAt'>,
-  essential: Caps | null,
-  now = Date.now(),
-): Caps {
-  const active =
-    user.plan && (!user.planExpiresAt || user.planExpiresAt.getTime() > now);
-  if (active) return user.plan!;
-  // No Essential row at all → keep the old behaviour rather than lock everyone out.
-  return essential ?? { voiceMinutesLimit: null, sttMinutesLimit: null };
-}
-
 @Injectable()
 export class BuddyUsageService {
   constructor(
@@ -56,16 +33,13 @@ export class BuddyUsageService {
     private readonly plans: Repository<Plan>,
   ) {}
 
-  private async caps(user: User): Promise<Caps> {
-    const active =
-      user.plan &&
-      (!user.planExpiresAt || user.planExpiresAt.getTime() > Date.now());
-    if (active) return user.plan!;
-    const essential = await this.plans.findOne({
-      where: { slug: ESSENTIAL_PLAN_SLUG },
-      select: { id: true, voiceMinutesLimit: true, sttMinutesLimit: true },
-    });
-    return capsInForce(user, essential);
+  /** null caps = unlimited (no plan in force, i.e. the Free row is missing). */
+  private async caps(user: User) {
+    const plan = await resolvePlan(user, this.plans);
+    return {
+      voiceMinutesLimit: plan?.voiceMinutesLimit ?? null,
+      sttMinutesLimit: plan?.sttMinutesLimit ?? null,
+    };
   }
 
   /** Sum of voice_seconds for one AiUsageType in the current calendar month. */

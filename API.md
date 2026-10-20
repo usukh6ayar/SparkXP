@@ -115,7 +115,7 @@ Controller-level: бүгд JWT. Заримд нэмэлт роль.
 | --- | --- | --- | --- |
 | PATCH `/users/me` | JWT | Өөрийн профайл засах (`username` солиход давхардвал **409**) | `UpdateProfileDto` |
 | GET `/users/me/stats` | JWT | Өөрийн XP + Sparks | — |
-| GET `/users/me/plan` | JWT | Өөрийн багц + хэрэглээ | — |
+| GET `/users/me/plan` | JWT | Өөрийн багц + хэрэглээ. Багцгүй бол `isFree: true` ба `limits` = **`free`** мөрийн хязгаар (хэзээ ч «хязгааргүй» биш) | — |
 | POST `/users/me/avatar` | JWT | Аватар зураг байршуулах (jpg/png/webp ≤5MB) | multipart `file` |
 | GET `/users` | admin, super_admin | Бүх хэрэглэгч (хуудаслалттай) | `page`, `limit`, `search` |
 | PATCH `/users/:id` | super_admin | Хэрэглэгчийн роль солих (өөрийгөө болихгүй) | `{ role }` |
