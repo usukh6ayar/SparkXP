@@ -1,3 +1,4 @@
+import { type ComponentProps } from 'react';
 import { useWindowDimensions, StyleSheet, View } from 'react-native';
 import Animated, {
   SlideInDown,
@@ -7,7 +8,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import { Tabs } from 'expo-router';
 import { useSettings } from '../settings/SettingsContext';
 import { haptics } from '../lib/haptics';
 import { DURATION, SPRING, useReduceMotion } from '../lib/motion';
@@ -22,6 +23,10 @@ const buddy = require('../../assets/buddy-tab.webp');
 
 /** The buddy's own route — rendered as the floating hero, not as a flat tab. */
 const BUDDY_ROUTE = 'chat';
+
+type BottomTabBarProps = Parameters<
+  NonNullable<ComponentProps<typeof Tabs>['tabBar']>
+>[0];
 
 /**
  * Route → brand 3D icon (`src/constants/appIcons.ts`). Tab ORDER comes from

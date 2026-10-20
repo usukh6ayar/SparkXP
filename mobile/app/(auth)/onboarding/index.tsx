@@ -9,7 +9,7 @@ import { useAuth } from '../../../src/auth/AuthContext';
 import { track } from '../../../src/lib/analytics';
 import { useColors } from '../../../src/settings/SettingsContext';
 import { t } from '../../../src/i18n';
-import { spacing, type AppColors } from '../../../src/theme/theme';
+import { absoluteFill, spacing, type AppColors } from '../../../src/theme/theme';
 import { ms, vs } from '../../../src/theme/responsive';
 
 // The brand fox (transparent PNG, also the login hero) — the only real mascot
@@ -79,7 +79,7 @@ export default function OnboardingWelcome() {
 const makeStyles = (c: AppColors) =>
   StyleSheet.create({
     hero: { alignItems: 'center', justifyContent: 'center', height: vs(300) },
-    glowWrap: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
+    glowWrap: { ...absoluteFill, alignItems: 'center', justifyContent: 'center' },
     glow3: {
       width: ms(300), height: ms(300), borderRadius: ms(150),
       backgroundColor: `${c.glow}0F`, // ~6% alpha

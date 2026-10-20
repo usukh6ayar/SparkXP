@@ -29,7 +29,7 @@ import { AnimatedFlame } from '../../src/components/AnimatedFlame';
 import { DictionaryButton } from '../../src/components/DictionaryButton';
 import { WORLD_MAP } from '../../src/components/LevelMapBackdrop';
 import { type AppIconName } from '../../src/constants/appIcons';
-import { islandMap, colors } from '../../src/theme/theme';
+import { absoluteFill, islandMap, colors } from '../../src/theme/theme';
 import { bounded } from '../../src/theme/responsive';
 
 /**
@@ -646,7 +646,7 @@ const styles = StyleSheet.create({
   islandShadow: { shadowOpacity: 1, shadowRadius: 14, shadowOffset: { width: 0, height: 0 } },
   islandLocked: { opacity: 0.4 },
   islandLock: {
-    ...StyleSheet.absoluteFillObject,
+    ...absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
   },

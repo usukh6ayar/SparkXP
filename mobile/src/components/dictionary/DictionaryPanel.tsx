@@ -43,7 +43,7 @@ import { haptics } from '../../lib/haptics';
 import { DURATION, enter, useReduceMotion } from '../../lib/motion';
 import { MAX_SENSES, type DictionarySense } from '../../api/dictionary';
 import { t } from '../../i18n';
-import { spacing, radius, elevation, type AppColors } from '../../theme/theme';
+import { absoluteFill, spacing, radius, elevation, type AppColors } from '../../theme/theme';
 import { useColors } from '../../settings/SettingsContext';
 import { speakEnglish, type WordLookupState } from './useWordLookup';
 
@@ -358,7 +358,7 @@ const makeStyles = (colors: AppColors) => StyleSheet.create({
 
   // `overflow: hidden` is what lets the gradient hero inherit the panel's
   // rounded left corners.
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(10, 6, 30, 0.5)' },
+  backdrop: { ...absoluteFill, backgroundColor: 'rgba(10, 6, 30, 0.5)' },
   panel: {
     position: 'absolute',
     top: 0,

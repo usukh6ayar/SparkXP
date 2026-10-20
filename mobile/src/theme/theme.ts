@@ -20,6 +20,15 @@
  */
 import { Platform, TextStyle } from 'react-native';
 
+/** React Native 0.86 no longer exposes `StyleSheet.absoluteFillObject`. */
+export const absoluteFill = {
+  position: 'absolute',
+  top: 0,
+  right: 0,
+  bottom: 0,
+  left: 0,
+} as const;
+
 export const colors = {
   // Brand — premium purple (REDESIGN_SPEC §1.1)
   primary: '#6C3BFF', // Primary 500. FILL ONLY on dark (3.20:1 on surface) — use `glow` for purple text.

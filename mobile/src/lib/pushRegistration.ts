@@ -6,6 +6,7 @@ import * as Notifications from 'expo-notifications';
 import { useRouter, type Href } from 'expo-router';
 import { registerPushToken, deletePushToken, EXPO_PUSH_TOKEN_RE } from '../api/notifications';
 import { captureError } from './monitoring';
+import { IN_EXPO_GO } from './expoGo';
 
 /**
  * Device-side push registration.
@@ -25,10 +26,9 @@ const CHANNEL_ID = 'default';
 
 /**
  * Remote push does not work in Expo Go — Expo removed it in SDK 53, and the
- * project is pinned to SDK 54 so Choi/Boju live there. Registering would throw
- * a red screen on their machines, so every entry point below no-ops instead.
+ * team tests in Expo Go. Registering would throw a red screen there, so every
+ * entry point below no-ops instead (`IN_EXPO_GO`).
  */
-const inExpoGo = Constants.appOwnership === 'expo';
 
 /**
  * How a notification behaves when it arrives while the app is OPEN. Without
@@ -62,7 +62,7 @@ function projectId(): string | undefined {
  * or when the user declined.
  */
 export async function registerForPush(authToken: string): Promise<string | null> {
-  if (inExpoGo) return null;
+  if (IN_EXPO_GO) return null;
   // A simulator has no push service to register with; asking throws.
   if (!Device.isDevice) return null;
 
@@ -122,7 +122,7 @@ export function usePushTapRouting(enabled: boolean): void {
   useEffect(() => {
     // `enabled` is the logged-in check: routing a signed-out user to
     // /assignments only makes the auth gate bounce them straight to login.
-    if (inExpoGo || !enabled) return;
+    if (IN_EXPO_GO || !enabled) return;
 
     // Only the FIRST navigation of a session comes from the cold-start check:
     // Expo keeps returning the same "last response" on later launches, which
@@ -159,7 +159,7 @@ export function usePushTapRouting(enabled: boolean): void {
  * not receive the previous user's reminders.
  */
 export async function unregisterPush(authToken: string): Promise<void> {
-  if (inExpoGo) return;
+  if (IN_EXPO_GO) return;
   try {
     await deletePushToken(authToken);
   } catch (err) {

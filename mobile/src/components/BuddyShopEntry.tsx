@@ -5,7 +5,6 @@ import { AppText } from './Text';
 import { PressableScale } from './PressableScale';
 import { useColors } from '../settings/SettingsContext';
 import { spacing, radius, tints, type AppColors } from '../theme/theme';
-import { haptics } from '../lib/haptics';
 import { t } from '../i18n';
 
 /** Row on the buddy picker that opens the background shop. */
@@ -16,7 +15,7 @@ export function BuddyShopEntry() {
   return (
     <PressableScale
       style={styles.row}
-      onPress={() => { haptics.tap(); router.push('/buddy-shop'); }}
+      onPress={() => router.push('/buddy-shop')}
       accessibilityRole="button"
       accessibilityLabel={t('buddyShopTitle')}
     >

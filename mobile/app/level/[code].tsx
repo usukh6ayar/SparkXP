@@ -28,7 +28,7 @@ import { AppText } from '../../src/components/Text';
 import { LevelMapBackdrop, LEVEL_MAPS } from '../../src/components/LevelMapBackdrop';
 import { haptics } from '../../src/lib/haptics';
 import { DURATION, useReduceMotion } from '../../src/lib/motion';
-import { colors, islandMap } from '../../src/theme/theme';
+import { absoluteFill, colors, islandMap } from '../../src/theme/theme';
 import { bounded, CONTENT_MAX_WIDTH } from '../../src/theme/responsive';
 
 /**
@@ -682,7 +682,7 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   // The gradient fill inside the current node (matches the circle via radius).
-  nodeFill: { ...StyleSheet.absoluteFillObject, borderRadius: NODE / 2 },
+  nodeFill: { ...absoluteFill, borderRadius: NODE / 2 },
   // Per-state fills (§3.2b).
   nodeMastered: { backgroundColor: islandMap.green, borderColor: 'rgba(255,255,255,0.5)' },
   nodeCurrent: { borderColor: colors.glow },

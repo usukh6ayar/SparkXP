@@ -29,6 +29,14 @@ module.exports = [
       ],
       // Catches the `useEffect` dependency bugs that cause real runtime issues.
       'react-hooks/exhaustive-deps': 'warn',
+      // SDK 55+ ships React Compiler readiness checks in eslint-config-expo.
+      // The compiler is not enabled in app.json yet, so surface the migration
+      // debt without turning the existing 100+ call sites into a release block.
+      'react-hooks/immutability': 'warn',
+      'react-hooks/preserve-manual-memoization': 'warn',
+      'react-hooks/purity': 'warn',
+      'react-hooks/refs': 'warn',
+      'react-hooks/set-state-in-effect': 'warn',
     },
   },
   {

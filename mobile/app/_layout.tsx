@@ -4,11 +4,11 @@ import { Stack, useRouter, useSegments, useNavigationContainerRef } from "expo-r
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
-import { ThemeProvider, DarkTheme, DefaultTheme } from "@react-navigation/native";
+import { ThemeProvider, DarkTheme, DefaultTheme } from "expo-router/react-navigation";
 import { StatusBar } from "expo-status-bar";
 import { setAudioModeAsync } from "expo-audio";
 import * as SplashScreen from "expo-splash-screen";
-import Constants from "expo-constants";
+import { IN_EXPO_GO } from "../src/lib/expoGo";
 import {
   useFonts,
   Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold,
@@ -241,8 +241,7 @@ const HOT_UPDATER_URL = "https://sparkxp-hot-updater.sparkxp.workers.dev";
 function withHotUpdater(App: ComponentType): ComponentType {
   // Env var stays as an override (staging worker, local testing).
   const raw = process.env.EXPO_PUBLIC_HOT_UPDATER_URL?.trim() || HOT_UPDATER_URL;
-  const inExpoGo = Constants.appOwnership === "expo";
-  if (!raw || inExpoGo) return App;
+  if (!raw || IN_EXPO_GO) return App;
 
   // Lazy require so Expo Go never loads the native module.
   // eslint-disable-next-line @typescript-eslint/no-require-imports

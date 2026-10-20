@@ -56,6 +56,10 @@ export function TabItem({
   const labelStyle = useAnimatedStyle(() => ({
     opacity: withTiming(focused ? 1 : 0.7, { duration: DURATION.fast }),
   }));
+  const glowStyle = useAnimatedStyle(() => ({
+    opacity: 0.12 * active.value,
+    transform: [{ scale: 0.72 + 0.28 * active.value }],
+  }));
 
   return (
     <Pressable
@@ -66,8 +70,11 @@ export function TabItem({
       accessibilityLabel={label}
       accessibilityState={{ selected: focused }}
     >
-      <Animated.View style={iconStyle}>
-        <AppIcon name={icon} size={TAB_ICON} />
+      <Animated.View style={styles.iconFrame}>
+        <Animated.View style={[styles.activeGlow, { backgroundColor: c.primary }, glowStyle]} />
+        <Animated.View style={iconStyle}>
+          <AppIcon name={icon} size={TAB_ICON} />
+        </Animated.View>
       </Animated.View>
       <Animated.View style={labelStyle}>
         <AppText variant="tabLabel" color={focused ? c.primary : c.textMuted} center>
@@ -87,5 +94,17 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     paddingBottom: LABEL_BOTTOM,
     gap: TAB_GAP,
+  },
+  iconFrame: {
+    width: TAB_ICON + 14,
+    height: TAB_ICON + 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activeGlow: {
+    position: 'absolute',
+    width: TAB_ICON + 12,
+    height: TAB_ICON + 8,
+    borderRadius: 999,
   },
 });

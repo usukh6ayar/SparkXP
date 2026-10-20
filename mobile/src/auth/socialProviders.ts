@@ -1,13 +1,6 @@
 import { Platform } from 'react-native';
-import Constants from 'expo-constants';
+import { IN_EXPO_GO } from '../lib/expoGo';
 import * as AppleAuthentication from 'expo-apple-authentication';
-
-/**
- * Expo Go has no `RNGoogleSignin` native module, so the Google SDK cannot run
- * there at all — `require`-ing it throws. The same rule as `pushRegistration.ts`
- * and `_layout.tsx`, which is why it is spelled the same way.
- */
-const IN_EXPO_GO = Constants.appOwnership === 'expo';
 
 /**
  * Can the native Google SDK actually run on THIS build?

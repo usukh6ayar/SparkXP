@@ -23,7 +23,7 @@ import { CelebrationBackground } from './CelebrationBackground';
 import { SCENES, type SceneKey } from './palette';
 import { haptics } from '../../lib/haptics';
 import { SPRING, enter, useReduceMotion } from '../../lib/motion';
-import { colors, radius, spacing } from '../../theme/theme';
+import { absoluteFill, colors, radius, spacing } from '../../theme/theme';
 import { bounded, ms } from '../../theme/responsive';
 
 type IconName = keyof typeof Ionicons.glyphMap;
@@ -250,7 +250,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.20)',
   },
-  glassFill: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255,255,255,0.10)' },
+  glassFill: { ...absoluteFill, backgroundColor: 'rgba(255,255,255,0.10)' },
 
   xpRow: { alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.lg },
   xpHalo: { position: 'absolute', width: ms(200), height: ms(64), borderRadius: radius.full },

@@ -29,7 +29,7 @@ import { showXpToast } from '../../src/lib/xpToast';
 import { enter, useReduceMotion } from '../../src/lib/motion';
 import { t, tf } from '../../src/i18n';
 import { useColors } from '../../src/settings/SettingsContext';
-import { spacing, radius, levelColor, type AppColors } from '../../src/theme/theme';
+import { absoluteFill, spacing, radius, levelColor, type AppColors } from '../../src/theme/theme';
 import { bounded } from '../../src/theme/responsive';
 import { checkCelebrations } from '../../src/lib/useCelebrations';
 
@@ -642,8 +642,8 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   // 16:9 video keeps its natural shape on every phone width (was fixed 200).
   video: { aspectRatio: 16 / 9, borderRadius: radius.xl, overflow: 'hidden', marginTop: spacing.lg, backgroundColor: c.navy },
   videoImg: { width: '100%', height: '100%' },
-  videoScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(20,16,48,0.35)' },
-  noVideo: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', gap: 6 },
+  videoScrim: { ...absoluteFill, backgroundColor: 'rgba(20,16,48,0.35)' },
+  noVideo: { ...absoluteFill, alignItems: 'center', justifyContent: 'center', gap: 6 },
 
   // Tests
   quizHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.xl, marginBottom: spacing.md },

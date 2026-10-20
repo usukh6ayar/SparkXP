@@ -17,7 +17,7 @@ import { useAuth } from '../auth/AuthContext';
 import { useColors, useSettings } from '../settings/SettingsContext';
 import { tf } from '../i18n';
 import type { TranslationKey } from '../i18n';
-import { spacing, radius, elevation, tints, colors as staticColors, type AppColors } from '../theme/theme';
+import { absoluteFill, spacing, radius, elevation, tints, colors as staticColors, type AppColors } from '../theme/theme';
 import { CONTENT_MAX_WIDTH } from '../theme/responsive';
 import type { Buddy } from '../api/ai';
 
@@ -485,7 +485,7 @@ const styles = StyleSheet.create({
     width: CARD_WIDTH, height: CARD_HEIGHT,
     alignItems: 'center', justifyContent: 'center',
   },
-  cardAvatarFill: { ...StyleSheet.absoluteFillObject },
+  cardAvatarFill: { ...absoluteFill },
   cardMonogram: {
     width: CARD_WIDTH * 0.46, height: CARD_WIDTH * 0.46, borderRadius: radius.full,
     alignItems: 'center', justifyContent: 'center', opacity: 0.9,

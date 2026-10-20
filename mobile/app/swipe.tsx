@@ -32,7 +32,7 @@ import { CelebrationScreen } from '../src/components/celebration/CelebrationScre
 import { celebrationCopy } from '../src/components/celebration/copy';
 import { t } from '../src/i18n';
 import { useColors } from '../src/settings/SettingsContext';
-import { spacing, radius, progressGradients, type AppColors } from '../src/theme/theme';
+import { absoluteFill, spacing, radius, progressGradients, type AppColors } from '../src/theme/theme';
 import { bounded } from '../src/theme/responsive';
 
 const SCREEN_W = Dimensions.get('window').width;
@@ -417,7 +417,7 @@ const makeStyles = (c: AppColors) => StyleSheet.create({
   deck: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: spacing.lg },
   stack: { width: SCREEN_W - spacing.lg * 2, height: CARD_H },
   press: { flex: 1 },
-  tint: { ...StyleSheet.absoluteFillObject, borderRadius: 30 },
+  tint: { ...absoluteFill, borderRadius: 30 },
   stamp: {
     position: 'absolute',
     // Row, because the mark is now a real icon beside the word rather than a

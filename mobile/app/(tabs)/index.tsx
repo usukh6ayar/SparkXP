@@ -39,6 +39,7 @@ import { AppText } from "../../src/components/Text";
 import { AppImage } from "../../src/components/AppImage";
 import { AppIcon } from "../../src/components/AppIcon";
 import { AnimatedFlame } from "../../src/components/AnimatedFlame";
+import { AmbientFloat } from "../../src/components/AmbientFloat";
 import { type AppIconName } from "../../src/constants/appIcons";
 import { IconButton } from "../../src/components/IconButton";
 import { Button } from "../../src/components/Button";
@@ -793,7 +794,6 @@ export default function HomeScreen() {
                         // Reading = passages (own screen); Speaking = pronunciation
                         // drill (own screen); the other skills are quiz-based lists.
                         onPress={() => {
-                          haptics.tap();
                           router.push(
                             task.key === "reading" ? "/reading" : task.key === "speaking" ? "/speaking" : `/skill/${task.key}`,
                           );
@@ -807,7 +807,9 @@ export default function HomeScreen() {
                             washed out against their own stop) and gives all four
                             tiles the same optical weight whatever the icon shape. */}
                         <View style={styles.skillArt}>
-                          <AppIcon name={task.appIcon} size={SKILL_ICON} />
+                          <AmbientFloat delay={i * 220}>
+                            <AppIcon name={task.appIcon} size={SKILL_ICON} />
+                          </AmbientFloat>
                         </View>
                         <View style={styles.skillSpacer} />
                         {/* A quarter-width tile leaves ~50pt of text on a small
@@ -855,14 +857,14 @@ export default function HomeScreen() {
             style={styles.railScroll}
             contentContainerStyle={styles.rail}
           >
-            <PressableScale style={styles.railCard} onPress={() => { haptics.tap(); router.push("/ielts"); }}>
+            <PressableScale style={styles.railCard} onPress={() => router.push("/ielts")}>
               <View style={[styles.railIcon, { backgroundColor: tints.amber.bg, borderColor: tints.amber.fg }]}>
                 <Ionicons name="school" size={24} color={tints.amber.fg} />
               </View>
               <AppText variant="h3" numberOfLines={1}>{t("ieltsHomeCard")}</AppText>
               <AppText variant="caption" color={c.textSecondary} numberOfLines={2}>{t("ieltsHomeHint")}</AppText>
             </PressableScale>
-            <PressableScale style={styles.railCard} onPress={() => { haptics.tap(); router.push("/idioms"); }}>
+            <PressableScale style={styles.railCard} onPress={() => router.push("/idioms")}>
               <View style={[styles.railIcon, { backgroundColor: tints.purple.bg, borderColor: tints.purple.fg }]}>
                 <Ionicons name="chatbubbles" size={24} color={tints.purple.fg} />
               </View>
