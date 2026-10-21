@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, useMemo, type ComponentProps } from 'react';
-import { View, StyleSheet, Dimensions, Pressable } from 'react-native';
+import { View, StyleSheet, Dimensions, Pressable, BackHandler } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { Stack, useFocusEffect, useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -70,6 +70,9 @@ export default function ReviewFlashcardsScreen() {
   const ty = useSharedValue(0);
   const spin = useSharedValue(0); // top card flip
   const zero = useSharedValue(0); // behind card is always front
+  // True while a card is flying off-screen. A second swipe in that ~230ms
+  // window would grab the departing card mid-animation, so it is ignored.
+  const flinging = useSharedValue(false);
   const flipped = useRef(false);
 
   const total = queue.length;
@@ -99,6 +102,20 @@ export default function ReviewFlashcardsScreen() {
   /** The full-screen celebration, raised once as the deck flips to done. */
   const [celebrating, setCelebrating] = useState(false);
   useEffect(() => { if (done) setCelebrating(true); }, [done]);
+
+  // Android twin of `gestureEnabled: false` below: the system back gesture
+  // (edge swipe) is easy to trigger mid-swipe and would drop the student out
+  // of the deck. Blocked only while cards are on screen; the header arrow
+  // still leaves. `useFocusEffect` (not useEffect) so it never swallows back
+  // on a screen pushed on top, e.g. /saved.
+  const deckActive = total > 0 && !done;
+  useFocusEffect(
+    useCallback(() => {
+      if (!deckActive) return;
+      const sub = BackHandler.addEventListener('hardwareBackPress', () => true);
+      return () => sub.remove();
+    }, [deckActive]),
+  );
 
   /** Dismissing releases any trophy/streak queued behind it (never two modals). */
   const closeCelebration = useCallback(() => {
@@ -165,11 +182,13 @@ export default function ReviewFlashcardsScreen() {
     spin.value = 0;
     tx.value = 0;
     ty.value = 0;
+    flinging.value = false;
     setIndex((i) => i + 1);
   }
 
   function fling(kind: Verdict) {
     const cfg = { duration: 230 } as const;
+    flinging.value = true;
     const cb = (fin?: boolean) => {
       'worklet';
       if (fin) runOnJS(afterFling)(kind);
@@ -205,10 +224,12 @@ export default function ReviewFlashcardsScreen() {
     .activeOffsetX([-12, 12])
     .activeOffsetY([-12, 12])
     .onUpdate((e) => {
+      if (flinging.value) return;
       tx.value = e.translationX;
       ty.value = e.translationY;
     })
     .onEnd((e) => {
+      if (flinging.value) return;
       runOnJS(handleEnd)(e.translationX, e.translationY, e.velocityX, e.velocityY);
     });
 
@@ -273,6 +294,10 @@ export default function ReviewFlashcardsScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      {/* No swipe-back here: the whole screen is a sideways swipe deck, so a
+          fast second swipe (while the last card is still flying off) used to
+          land on iOS's back gesture and exit the screen. Back = header arrow. */}
+      <Stack.Screen options={{ gestureEnabled: false }} />
       {/* Header */}
       <View style={styles.header}>
         <IconButton icon="arrow-back" onPress={() => router.back()} iconColor={c.primary} accessibilityLabel={t('back')} />
