@@ -44,3 +44,7 @@ mobile/.hot-updater/
 # Wrangler / Cloudflare local
 .wrangler/
 .dev.vars
+
+# Postman local workspace (per-dev, may hold tokens later)
+.postman/
+postman/

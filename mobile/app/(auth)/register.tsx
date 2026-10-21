@@ -39,7 +39,6 @@ import { ActionButton } from '../../src/components/ActionButton';
 import { FormError } from '../../src/components/FormError';
 import { AuthFooter } from '../../src/components/AuthFooter';
 
-const mapFox = require('../../assets/onboarding/map-fox.webp');
 const successFox = require('../../assets/onboarding/success-fox.webp');
 
 // A few confetti dots scattered behind the success mascot (decorative,
@@ -178,9 +177,12 @@ export default function RegisterScreen() {
       phone: phoneDigits,
       fullName: fullName.trim(),
     });
-    if (free.username === false) throw new Error(t('usernameTaken'));
-    if (free.fullName === false) throw new Error(t('nameNotAllowed'));
-    if (free.phone === false) throw new Error(t('phoneTaken'));
+    // ApiError, not Error: `useAsyncAction` shows only an ApiError's own text
+    // and turns anything else into the generic "Алдаа гарлаа", which hid WHY
+    // the sign-up was refused (taken username / phone, disallowed name).
+    if (free.username === false) throw new ApiError(409, t('usernameTaken'));
+    if (free.fullName === false) throw new ApiError(422, t('nameNotAllowed'));
+    if (free.phone === false) throw new ApiError(409, t('phoneTaken'));
     await startPhoneStep();
   }
 
@@ -432,8 +434,6 @@ export default function RegisterScreen() {
             />
           ) : null}
 
-          <Image source={mapFox} style={styles.mapFox} resizeMode="contain" />
-
           <FormError message={error} />
           <Button
             label={t('continue')}
@@ -578,7 +578,6 @@ const makeStyles = (colors: AppColors) => StyleSheet.create({
   levelRowOn: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
 
   // Location
-  mapFox: { width: ms(150), height: ms(150), alignSelf: 'center', marginVertical: spacing.md },
   stepper: {
     flexDirection: 'row',
     justifyContent: 'space-between',
